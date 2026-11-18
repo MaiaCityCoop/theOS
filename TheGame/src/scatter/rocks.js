@@ -15,30 +15,32 @@ import { offWays } from '../world/ways.js';
 import { finish, skyLight, weathered, snowLift, cloudAt } from '../world/light.js';
 import { byRole } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
-import { distanceAt, TRUTH } from '../detail/measure.js';
+import { farMost, DIAL_LEAST } from '../detail/measure.js';
 import { source } from '../core/settle.js';
 import { most } from '../../assets/kinds.js';
 import { createDrawer } from './drawer.js';
 import { placedBy, lookOf as zooLook, fingerprint } from '../../assets/zoo/index.js';
 import { rockFull, rockBody, FULL_ROCK } from '../../assets/kit/rock.js';
-import { SURFACE_LEVELS, surfaceBand, surfacePx } from '../detail/error.js';
+import { SURFACE_LEVELS, surfaceBand, surfacePx, GONE, BAND } from '../detail/error.js';
+import { REACH } from './ground.js';
 import { rocksAround, rocksDrawn } from '../world/rocksolid.js';
 
 // the levels: a rock's cluster hierarchy (assets/kit/clusters.js, from its full mesh alone) as the surfaces' levels hold
 // it (src/detail/error.js): level 0, every cluster a thing at the eye may need, there only for the shapes that lie near
-// (six at once; ?truth: every shape's), drawn by the cut; every coarser level always there. ROOM: the most a level holds,
+// (six at once at the dial's rest; a dial turned down to DIAL_LEAST reaches 1 / DIAL_LEAST² times the ground, so as many
+// times more, up to every shape the rocks have: src/scatter/heap.js), drawn by the cut; every coarser level always there. ROOM: the most a level holds,
 // triangles and elements, as shares of a full mesh's triangles: measured over twelve of the rocks' shapes, boulders and
 // stones (2026-11-18), with a quarter to spare. A shape that would need more is cut down to fit, never left with a hole
 // (assets/kit/surface.js: trimmed)
 const ROOM = [[2.05, 1.45], [0.25, 0.19], [0.085, 0.065], [0.036, 0.027], [0.009, 0.0056], [0.0045, 0.0028], [0.0012, 0.0009], [0.0006, 0.0005], [0.00015, 0.00015]];
-const FULL = 12 * FULL_ROCK * FULL_ROCK, LEVELS = Array.from({ length: SURFACE_LEVELS }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), delta: 0, room: { tris: Math.ceil(ROOM[i][0] * FULL), verts: Math.ceil(ROOM[i][1] * FULL) }, ...(i ? {} : { cut: true, slots: TRUTH ? Math.max(6, placedBy('rocks').count) : 6 }) })), L = LEVELS.length;
+const FULL = 12 * FULL_ROCK * FULL_ROCK, LEVELS = Array.from({ length: SURFACE_LEVELS }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), delta: 0, room: { tris: Math.ceil(ROOM[i][0] * FULL), verts: Math.ceil(ROOM[i][1] * FULL) }, ...(i ? {} : { cut: true, slots: Math.ceil(6 / DIAL_LEAST ** 2) }) })), L = LEVELS.length;
 // RELIEF: the size on screen from which a rock's relief is read (under that its texture's mipmaps have none left);
 // REACH: how far the ground's map says where stones lie (src/scatter/ground.js), metres to the 68° lens: they shrink
-// away before it ends
-const SHADE = { shrink: 0.85, far: 30, wide: 1.5 }, RELIEF = 10, REACH = 104;
-// THIN: where a rock thins away, pixels on screen: over its last pixel and a half, pixel by pixel, with nothing to hand
-// over to (its land's colour is under it)
-const THIN = [1.15, 1.84];
+// away over the BAND before it ends
+const SHADE = { shrink: 0.85, far: 30, wide: 1.5 }, RELIEF = 10;
+// THIN: where a rock thins away, dial pixels (src/detail/error.js): pixel by pixel over the BAND above where it is gone
+// (leaving a rock out differs by all of it: GONE), with nothing to hand over to (its land's colour is under it)
+const THIN = [GONE, GONE * BAND];
 
 /** The assets of engine `rocks`, all at once: they share one drawer (a level of every shape of every rock asset is in
     one heap), each asset a tier a level over its own cells. */
@@ -69,7 +71,7 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
         const r1 = rnd(cx, cy, uint(204)), s = mix(row.size[0], row.size[1], r1.mul(r1).mul(r1).add(oc.mul(big ? 0.25 : 0).mul(r1)).min(1));
         const kind = uint(floor(rnd(cx, cy, uint(201)).mul(shapes)).min(shapes - 1)).add(uint(F.first));
         // (a stone shrinks away where the ground's map ends)
-        const size = big ? s : s.mul(float(1).sub(smoothstep(REACH * 0.86, REACH, dist)));
+        const size = big ? s : s.mul(float(1).sub(smoothstep(REACH / BAND, REACH, dist)));
         // (none on a way: none whose base, half its side round its middle, reaches onto it: src/world/ways.js;
         // src/world/rocksolid.js keeps the same)
         If(offWays(float(1), pos, s.mul(0.5)).greaterThan(0.5), () => found(kind, size, dist, (A, B, G) => {
@@ -95,7 +97,7 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
     // one tier an asset: every rock dropped into the draw of its level (drawer.js: tierAll), level 0 drawn by its cut
     const last = L - 1;
     // (its patches: about five to its reach, so the tier looks at a few dozen, whatever the lens; cap: the most of it in one draw)
-    const farAt = Math.min(reach, distanceAt(THIN[0], sizes[1], Math.max(innerHeight, 1400))), P = Math.min(64, Math.max(2, 2 ** Math.ceil(Math.log2(farAt / (row.cell * 5)))));
+    const farAt = Math.min(reach, farMost(THIN[0], sizes[1])), P = Math.min(64, Math.max(2, 2 ** Math.ceil(Math.log2(farAt / (row.cell * 5)))));
     const T = D.tierAll({ cell: row.cell, P, cap: big ? 16384 : 4096, sizes, place, casts: row.detail.casts, far: reach, last, thing: `rocks:${row.uid}` });   // (thing: a rock's own state, its asset and its cell: src/world/things.js)
     T.asset = row.name; tiers.push(T);
   }

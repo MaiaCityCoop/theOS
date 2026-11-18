@@ -6,7 +6,7 @@ export default {
   type: 'material',
   name: 'Pebble',
   kind: 'stone',
-  about: "Stone worn smooth by water and weather: a fine speckled grain, soft clouds of colour, a pale vein now and then; no cracks.",
+  about: 'Stone worn smooth by water: a speckled grain, a pale vein now and then.',
   usedBy: 'stones',
   swatch: [0.36, 0.34, 0.31],
   bump: 0.09,   // how deep its relief reads in the normals: larger is flatter

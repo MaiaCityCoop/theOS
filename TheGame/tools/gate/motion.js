@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PATHS } from './views.js';
 import { stepper } from './clock.js';
-import { locked } from './lock.js';
+import { locked } from '../gpu/lock.js';
 import { lay, jpeg, b64 } from './sheet.js';
 import { ERROR_PX } from '../../src/detail/error.js';
 
@@ -80,7 +80,7 @@ async function pass(ctx, p, o) {
     settled at its start. */
 async function arrive(P, p, { truth, floor, T, fps, to, from = null, start = null }) {
   const fly = !!p.flyby, who = !from ? 'LOD' : floor ? 'LOD again' : 'truth';
-  await P.page.evaluate(K.prepare, { inside: truth ? null : K.INSIDE, time: null });   // (the truth: at every pixel the canvas has)
+  await P.page.evaluate(K.prepare, { inside: K.INSIDE, time: null });
   const begun = await P.page.evaluate(begin);
   if (begun.clock >= T) throw new Error(`the page's clock (${begun.clock.toFixed(0)} s) is past where the path starts on it (${T} s)`);
   const c = fly ? { secs: await P.page.evaluate(async () => (await import(new URL('tools/flyby.js', location.href).href)).cycleOf('zoom')) } : await P.page.evaluate(K.course, p);
@@ -160,7 +160,7 @@ async function filmstrip(ctx, file, { title, sub, r, other = 'truth' }) {
     measured, against the line (lineOf) in every frame's worst tile. Each path in two passes of one page each (pass): the game's, then
     the truth's, drawn on the gate's clock (tools/gate/clock.js) at the same moments of the world's clock, each of the
     truth's frames a still settled at its step (it neither shimmers nor lacks). Between the passes nothing is
-    drawn, and the GPU lock (GATE_LOCK) is let go. */
+    drawn, and the GPU lock (tools/gpu/lock.js) is let go. */
 export async function motion(opt, kit) {
   K = kit;
   const { OUT, BASE, SCREEN, INSIDE, pick, commit, launch } = K;

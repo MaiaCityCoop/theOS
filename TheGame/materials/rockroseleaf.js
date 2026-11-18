@@ -14,8 +14,8 @@ export default {
   type: 'material',
   name: 'Rockrose sprig',
   kind: 'foliage',
-  about: "A rockrose's sprig: a fan of twigs with soft, wrinkled, grey-green leaves and a few white flowers with yellow middles: one foliage card.",
-  usedBy: 'the rockroses of the wood (a cut-out card)',
+  about: 'Soft grey-green leaves and a few white flowers. A foliage card.',
+  usedBy: 'the rockroses',
   swatch: [0.11, 0.14, 0.09],
   bump: 0.05,
   paint: (uv) => {

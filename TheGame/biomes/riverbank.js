@@ -7,7 +7,7 @@ export default {
   type: 'biome',
   name: 'Riverbank',
   kind: 'shore',
-  about: 'A strip of damp sand and pebbles between the water and the grass, stones washed up along it.',
+  about: 'Damp sand and pebbles between the water and the grass.',
   laid: 'Along the river',   // where it lies, in words (the library's card)
   layer: 30,
   river: true,                                             // it lies by the river: in a sandbox with its own river, it keeps to it
