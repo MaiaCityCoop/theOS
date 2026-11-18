@@ -19,9 +19,10 @@ import { cullOf } from '../core/occlusion.js';
 import { did } from '../core/work.js';
 import { FNV, fnv } from '../core/hash.js';
 import { passOf, vWas } from '../core/pass.js';
-import { U } from '../core/uniforms.js';
 import { onMeasure } from '../detail/measure.js';
-import { regionsOf, coneOf, leavesFor, WG } from './regions.js';
+import { regionsOf, leavesFor, WG } from './regions.js';
+import { viewBox } from './view.js';
+import { HMIN, HMAX } from '../world/land.js';
 
 /** The patches a placer that chooses its own may hand a tier at most (the stress stand's plots, the herds, a list's
     runs; and the WebGL 2 fallback's square patches): each tier looks at the nearest of them first. */
@@ -194,8 +195,8 @@ export class Tier {
     const s = this.fixed ? Math.min(this.fixed, this.far + Math.abs(c.dy) * 1.2) / this.far : c.s, q = this.step || Math.max(0.25, this.S / 16);
     // (the view's test, as its cells take it on the GPU: a region's things reach its own reach (`cull`) and as far as
     // the camera may move before it packs again; none where it keeps every region round the camera)
-    const view = this.cull === false ? null : coneOf(U.uView.value.elements, U.uViewK.value.toArray(), c.h0);
-    const R = regionsOf(this.entries.array, this.room, { cell: this.cell, cx: c.cx, cz: c.cz, dy: c.dy, near: this.near * s, far: this.far * s, bounds: this.bounds, view, r: (this.cull || 0) + this.high + q + 2, high: this.high });
+    const view = this.cull === false ? null : viewBox();
+    const R = regionsOf(this.entries.array, this.room, { cell: this.cell, cx: c.cx, cz: c.cz, dy: c.dy, near: this.near * s, far: this.far * s, bounds: this.bounds, view, r: (this.cull || 0) + this.high + q + 2, high: this.high, land: [HMIN, HMAX] });
     this.n = R.n; for (const m of this.meshes) m.visible = R.n > 0;
     return R.count;
   }

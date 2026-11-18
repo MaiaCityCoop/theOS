@@ -10,10 +10,11 @@
 //              stand's bounds): none of its cells is visited;
 //   accepted   whole, where all of it lies inside: every cell of it is visited, each tested on its own as before;
 //   split      into its four, where it lies across an edge, down to a block, which is taken as it is.
-// What the eye sees is the view's cone widened by its margin (src/scatter/view.js inView: the same test the cells take
-// on the GPU, here for a disc round the region), so a tier is packed again only when the camera has turned by about a
-// third of that margin, or moved by its step (tier.js run). Nothing is ever left out: a tree that would hold more
-// regions than its room takes the rest whole and coarser, and visits more cells for it.
+// What the eye sees is the view's frustum widened by the margin its cells' own test has (src/scatter/view.js viewBox,
+// MARGIN), each region a box: its square grown by its things' reach and the camera's step, from as low to as high as
+// the land under it can lie (gentle: as the patches had it) and its things stand. So a tier is packed again only when
+// the camera has turned by about a third of that margin, or moved by its step (tier.js run). Nothing is ever left out: a
+// tree that would hold more regions than its room takes the rest whole and coarser, and visits more cells for it.
 //
 // The leaves go to the GPU as entries (i0, j0, w, first): w × w cells from cell (i0, j0), the dispatch's invocations
 // from `first` (a multiple of the workgroup) on. Nearest first: what is drawn first stands in front.
@@ -34,11 +35,13 @@ export function coneOf(M, K, y0) {
 }
 
 /** The leaves of a tier's region tree, nearest first, into `out` (4 numbers a leaf: i0, j0, w, first); at most `cap` of
-    them. cell: metres a cell; cx, cz: the camera; dy: its height over the ground (distances are the eye's: their
-    square less dy's, along the ground); near, far: the band (metres, as the lens sees them); bounds: [x0, z0, x1, z1]
-    or null; view: coneOf's test, or null (every region in view); r, high: the view test's reach and height; yb: how far
-    the land may lie off the camera's ground at a distance (as the patches had it). -> { n: leaves, count: invocations } */
-export function regionsOf(out, cap, { cell, cx, cz, dy, near, far, bounds = null, view = null, r = 0, high = 0 }) {
+    them. cell: metres a cell; cx, cz: the camera; h0: the ground under it; dy: its height over the ground (distances
+    are the eye's: their square less dy's, along the ground); near, far: the band (metres, as the lens sees them);
+    bounds: [x0, z0, x1, z1] or null; view: view.js viewBox's test, or null (every region in view); r: how far a
+    region's things and the camera's step reach past its square; high: how tall its things stand; land: [lowest,
+    highest] the land can lie (src/world/land.js HMIN, HMAX: what the terrain culls by too).
+    -> { n: leaves, count: invocations } */
+export function regionsOf(out, cap, { cell, cx, cz, dy, near, far, bounds = null, view = null, r = 0, high = 0, land = [-Infinity, Infinity] }) {
   const far2 = far * far - dy * dy, near2 = near * near - dy * dy, side = BLOCK * cell;
   if (!(far2 > 0)) return { n: 0, count: 0 };
   const R = Math.sqrt(far2);
@@ -58,7 +61,7 @@ export function regionsOf(out, cap, { cell, cx, cz, dy, near, far, bounds = null
     if (near2 > 0 && fd < near2) continue;   // (all of it nearer)
     let whole = fd <= far2 && nd >= near2;
     if (bounds) { if (x1 <= bounds[0] || x0 >= bounds[2] || z1 <= bounds[1] || z0 >= bounds[3]) continue; whole &&= x0 >= bounds[0] && x1 <= bounds[2] && z0 >= bounds[1] && z1 <= bounds[3]; }
-    if (view) { const v = view((x0 + x1) / 2, (z0 + z1) / 2, S * Math.SQRT1_2, r, high, cx, cz); if (!v) continue; whole &&= v === 2; }
+    if (view) { const v = view(x0 - r, x1 + r, land[0] - r, land[1] + high + r, z0 - r, z1 + r); if (!v) continue; whole &&= v === 2; }
     // whole, a block, or no room left to split it (every node still waiting is at least a leaf): taken as it is
     if (whole || !k || n + stack.length / 4 + 4 > cap) { leaf(bi, bj, k); continue; }
     const h = 2 ** (k - 1), kids = [[bi, bj], [bi + h, bj], [bi, bj + h], [bi + h, bj + h]].map(([i, j]) => [i, j, nearOf(i * side, j * side, (i + h) * side, (j + h) * side)]);
@@ -68,9 +71,11 @@ export function regionsOf(out, cap, { cell, cx, cz, dy, near, far, bounds = null
 }
 
 /** The most leaves a tier's tree can take a frame, from what it may need: the edges of its band and of the view, a block
-    wide, at the most pixels the screen can draw (far: the band's reach then), each edge block one leaf and the four of
-    the region it was split from (so four a block of edge), and the interior's leaves, two a level of the tree. */
+    wide, at the most pixels the screen can draw (far: the band's reach then); along an edge a block and its three
+    siblings at the finest level, and as many again on each side a level up, sixteen a block of edge (measured at the
+    bench's six views, with nothing to stop it: at most three times the four of its own), and the interior's leaves,
+    two a level of the tree. A tree past it takes what is left whole: more cells, nothing lost. */
 export const leavesFor = (cell, far, near = 0) => {
   const side = BLOCK * cell, edge = (2 * Math.PI * (far + near) + 2 * far) / side, levels = Math.max(1, Math.ceil(Math.log2(Math.max(1, (2 * far) / side))));
-  return Math.ceil(4 * edge + 8 * levels) + 9;
+  return Math.ceil(16 * edge + 8 * levels) + 9;
 };
