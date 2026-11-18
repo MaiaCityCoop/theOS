@@ -10,7 +10,7 @@ import { lit, weathered, windAt, windStrength, snowDepth, SNOW } from '../world/
 import { passOf, motion, vWas } from '../core/pass.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 import { scatterRow } from '../../assets/index.js';
-import { TRUTH, dialK } from '../detail/measure.js';
+import { dialK } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
 import { CROWD } from '../../assets/kit/crowd.js';
 import { rankOf } from './rule.js';
@@ -158,7 +158,7 @@ function bladeMaterial(T) {
     the way out to the meadow's end (the ground's map, which says where it grows, reaches no further:
     src/scatter/ground.js). */
 export function createGrass(scene, tex, ground, asset, gpu = false) {
-  const rings = TRUTH ? asset.tiers.slice(0, 1) : asset.tiers, now = () => bandsOf(rings, asset.height, dialK());
+  const rings = asset.tiers, now = () => bandsOf(rings, asset.height, dialK());
   return rings.map((R, k) => {
     const T = { cell: uniform(R.cell), w: uniform(R.w), near: uniform(0), nearFade: uniform(0), far: uniform(0), farFade: uniform(0), end: uniform(REACH) };
     // (its store and its gather: tier.js; without WebGPU both at once, per vertex)
