@@ -14,7 +14,7 @@ import { kindRule, spanOf } from '../../assets/kinds.js';
 import { CROWD } from '../../assets/kit/crowd.js';
 import { handOverAt } from './handover.js';
 import { pxOn } from './measure.js';
-import { FADE, BAND, gonePx, switchPx } from './error.js';
+import { FADE, BAND, GONE, switchPx, dialPx } from './error.js';
 
 // (the measure's, here too for whoever asked here before it had a file of its own: the library, tools/sweep.js)
 export { pxK, pxKAt, distanceAt } from './measure.js';
@@ -40,8 +40,8 @@ export function detailOf(a, { card = true } = {}) {
   const d = a.detail || {};
   const own = d.levels || (a.faces ? [{ faces: a.faces }] : []);
   const imp = card && a.faces && (d.impostor ?? kindRule(a, 'impostor'));   // (after its faces: one card, src/detail/impostor.js)
-  const levels = own.map((l, i) => ({ ...l, i, lo: l.lo ?? (imp ? impostorPx(a) : gonePx()) }));
-  if (imp && levels.length) levels.push({ impostor: true, i: levels.length, lo: gonePx() });
+  const levels = own.map((l, i) => ({ ...l, i, lo: l.lo ?? (imp ? impostorPx(a) : GONE) }));
+  if (imp && levels.length) levels.push({ impostor: true, i: levels.length, lo: GONE });
   levels.forEach((l, i) => (l.hi = i ? levels[i - 1].lo : Infinity));
   return { levels, fade: FADE, cut: levels.length ? levels[levels.length - 1].lo : 0, casts: a.casts ?? d.casts ?? kindRule(a, 'casts') ?? true, sink: BAND };
 }
@@ -63,7 +63,7 @@ export class Detailed extends THREE.LOD {
     const { levels, fade } = this.d; let shown = -1;
     for (let i = 0; i < levels.length; i++) {
       // the one hand-over (handover.js): a made thing is of one piece: it changes over whole, half way; its last level sinks
-      const H = handOverAt(px, levels[i].lo, levels[i].hi, fade, i === levels.length - 1, this.d.sink), m = this.meshes[i];
+      const H = handOverAt(dialPx(px), levels[i].lo, levels[i].hi, fade, i === levels.length - 1, this.d.sink), m = this.meshes[i];   // (in dial pixels, as its levels: src/detail/error.js)
       m.visible = H.whole; m.material.sunk.value = H.sunk;
       if (H.whole && shown < 0) shown = i;
     }

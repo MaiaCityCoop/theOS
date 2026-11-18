@@ -11,8 +11,8 @@ const THREE = await import('three/webgpu');
 const { rowsOf } = await import(`${G}/src/scatter/rule.js`);
 const { groupsOf } = await import(`${G}/src/scatter/trees.js`);
 const { bandOf, padOf } = await import(`${G}/src/detail/handover.js`);
-const { pxK, farFor } = await import(`${G}/src/detail/measure.js`);
-const { gonePx, BAND } = await import(`${G}/src/detail/error.js`);
+const { dialK } = await import(`${G}/src/detail/measure.js`);
+const { GONE } = await import(`${G}/src/detail/error.js`);
 const { regionsOf, coneOf, leavesFor, WG } = await import(`${G}/src/scatter/regions.js`);
 const { setPlanes, boxIn } = await import(`${G}/src/core/frustum.js`);
 const { setView, viewBox } = await import(`${G}/src/scatter/view.js`);
@@ -28,8 +28,8 @@ const VIEWS = [
   { name: 'pine forest, eye level', x: -1383.6, z: 634.1, yaw: -4.14, h: 1.7 },
   { name: 'pine forest, 90 m', x: -1290, z: 618, yaw: -4.54, h: 90 },
 ];
-const K = pxK(), MAXP = 384, patch82 = (cell, reach) => Math.min(256, Math.max(4, 2 ** Math.ceil(Math.log2(Math.max(1, (0.105 * reach) / cell)))));
-console.log(`the measure: ${K.toFixed(1)} pixels drawn a metre at a metre (1440 drawn), gone at ${gonePx().toFixed(2)} px`);
+const K = dialK(), MAXP = 384, patch82 = (cell, reach) => Math.min(256, Math.max(4, 2 ** Math.ceil(Math.log2(Math.max(1, (0.105 * reach) / cell)))));
+console.log(`the measure: ${K.toFixed(1)} dial pixels a metre at a metre (1440 drawn, the dial at rest), gone at ${GONE.toFixed(2)} of them`);
 
 // ---- the tiers: { name, cell, P (#82's), Pnow, near, far, cull, fixed, high, eye } ----
 const tiers = [];
@@ -48,7 +48,7 @@ for (const Gp of groupsOf(rowsOf())) {
   }
 }
 const grass = recipes('asset').find((a) => a.placement?.engine === 'grass');
-if (grass) { const { ringsOf } = await import(`${G}/src/scatter/grass.js`); ringsOf(grass).forEach((T, k) => tiers.push({ name: `grass ring ${k}`, cell: T.cell, P: T.P, Pnow: T.P, near: T.near - T.nearFade, far: T.far, cull: 0, high: grass.height * 2.2, eye: true })); }
+if (grass) { const { ringsOf, bandsOf } = await import(`${G}/src/scatter/grass.js`), R = ringsOf(grass), { bands } = bandsOf(R, grass.height, K); R.forEach((T, k) => bands[k].far > 0 && tiers.push({ name: `grass ring ${k}`, cell: T.cell, P: T.P, Pnow: T.P, near: Math.max(0, bands[k].near - bands[k].nearFade), far: bands[k].far, cull: 0, high: grass.height * 2.2, eye: true })); }
 
 // ---- a view ----
 const cam = new THREE.PerspectiveCamera(60, 16 / 9, 0.15, 40000), pm = new THREE.Matrix4();

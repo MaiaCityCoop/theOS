@@ -13,16 +13,19 @@
 //                        governor turns it: setErrorPx)
 //   errorPx(e, dist), fits(e, dist)   the one rule, e in metres (error.js); on the GPU errPx(e, dist) against U.uErrorPx
 //   pxOn(size, dist)     how many pixels drawn a thing `size` metres large covers `dist` metres off, the distance as the
-//                        68° lens sees it (times U.uLodInv)
-//   farFor(px, size)     and back: how far off it covers px pixels, as far as a level drawn down to px reaches
+//                        68° lens sees it (times U.uLodInv); in the dial's pixels, what it meets a switch or a level at,
+//                        dialPx(pxOn(…)) (error.js: every size on screen it says is one, so none changes with the dial)
+//   dialK()              the live pixel in the dial's pixels: pxK() / ERROR_PX(), what every distance of a level moves by
+//   farFor(px, size)     how far off a thing covers px dial pixels, as far as a level drawn down to px reaches (how far
+//                        anything is drawn: farFor(GONE, the largest thing's size), error.js GONE)
 //   pxKAt(h), distanceAt(px, size, h)   the same through the lens alone on a picture h pixels tall (a library's picture)
-//   pxKMost(), farMost(px, size)   the live pixel at the most pixels the screen can draw (its own ratio, the dial at rest):
-//                        what a capacity is sized for, so no turn of a dial overfills it
+//   pxKMost(), farMost(px, size)   the live pixel at the most pixels the screen can draw (its own ratio, the dial at rest,
+//                        1: the governor only raises it): what a capacity is sized for, so no turn of a dial overfills it
 //   pxThrough(camera, h) pixels a metre covers one metre off through a camera's own lens (what moves on the screen:
 //                        src/core/temporal.js; the scale bar: src/camera/rig.js); lensOf(camera): how many times larger
 //                        than the 68° lens a camera shows a thing
 //   U.uPxK, U.uErrorPx   the live pixel and the dial as uniforms (the shared set's, kept current here); in node code
-//                        pxAt(size, dist), spanAt(size, dist), farAt(px, size) and errPx(e, dist), the twins of the above
+//                        pxAt(size, dist), spanAt(size, dist), dialPxAt(px) and errPx(e, dist), the twins of the above
 //   onMeasure(f), measureVersion()   what reckons a band of distances once (a tier's, the meadow's rings) reckons it again
 //                        when either number changes: the window, the governor's ratio, the dial
 //   bandAt(near, far, finest, pad)   a level's band of distances, as ?truth has it
@@ -72,10 +75,12 @@ export function keepMeasure(drawn = null, out = 1) {
   most = Math.max(1, out);
   keep(); addEventListener('resize', () => keep());
 }
-/** The live pixel at the most pixels the screen can draw (its own ratio) and the dial at rest (the governor only raises
-    it): what a capacity is sized for. */
+/** The live pixel in the dial's pixels: dial pixels a metre covers one metre from the eye (error.js). */
+export const dialK = () => pxK() / ERROR_PX();
+/** The live pixel at the most pixels the screen can draw (its own ratio) and the dial at rest (1: the governor only
+    raises it), in the dial's pixels so: what a capacity is sized for. */
 export const pxKMost = () => pxKAt((globalThis.innerHeight || 1080) * most);
-/** How far off a thing `size` metres large is still px pixels drawn large, at the most (pxKMost). */
+/** How far off a thing `size` metres large is still px dial pixels large, at the most (pxKMost). */
 export const farMost = (px, size) => (size * pxKMost()) / px;
 /** Each frame, before anything chooses (src/boot.js choose, tools/bench.js): the governor may have changed the inside's
     ratio. True where the measure changed. */
@@ -100,9 +105,9 @@ const BIG = 1e6;   // how many times larger the truth measures a thing within it
 
 /** How many pixels drawn a thing `size` metres large covers `dist` metres off, as the 68° lens sees that distance. */
 export const pxOn = (size, dist) => { const px = (size * U.uPxK.value) / dist; return TRUTH && dist < REACH ? px * BIG : px; };
-/** How far off (metres, as the 68° lens sees them) a thing `size` metres large covers px pixels drawn: as far as a level
+/** How far off (metres, as the 68° lens sees them) a thing `size` metres large covers px dial pixels: as far as a level
     of it drawn down to px reaches (under ?truth, at least REACH: everything within it is large). */
-export const farFor = (px, size) => (TRUTH ? Math.max(REACH, (size * pxK()) / px) : (size * pxK()) / px);
+export const farFor = (px, size) => (TRUTH ? Math.max(REACH, (size * dialK()) / px) : (size * dialK()) / px);
 /** A level's band of distances [near, far] (metres, as the 68° lens sees them) as ?truth has it: the finest level holds
     everything within REACH, every other level nothing there. pad: how far past its band a level's packing reaches.
     [0, 0]: none at all. */
@@ -124,6 +129,6 @@ export const errPx = (e, dist) => float(e).mul(U.uPxK).div(max(dist, 1e-3));
 export const spanAt = (size, dist) => (TRUTH ? size.mul(U.uPxK).mul(dist.lessThan(REACH).select(float(BIG), float(1))) : size.mul(U.uPxK));
 /** Its pixels drawn, a node. */
 export const pxAt = (size, dist) => spanAt(size, dist).div(max(dist, 1e-3));
-/** How far off (metres, as the 68° lens sees them) a thing `size` metres large covers px pixels drawn, a node (px, size:
-    numbers): farFor's twin. */
-export const farAt = (px, size) => (TRUTH ? max(U.uPxK.mul(size / px), REACH) : U.uPxK.mul(size / px));
+/** A size on screen (pixels drawn, a node) in the dial's pixels: what it meets every switch and level at (error.js
+    dialPx's twin). */
+export const dialPxAt = (px) => px.div(U.uErrorPx);
