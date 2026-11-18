@@ -88,7 +88,7 @@ export function createPages(renderer, tex) {
         const m = int(lv.sub(0.5)), uv = vec2(q).add(0.5).div(uSize), c = uInv.mul(vec4(uv.x.mul(2).sub(1), float(1).sub(uv.y.mul(2)), tDepth.load(q).x, 1));
         const pg = ivec2(floor(c.xz.div(c.w).div(exp2(float(m)).mul(PAGE * S0))));
         textureStore(FB, uvec2(globalId.xy), uvec4(uint(m).bitOr(uint(pg.x.bitAnd(2047)).shiftLeft(uint(5))).bitOr(uint(pg.y.bitAnd(2047)).shiftLeft(uint(16))).bitOr(uStamp.shiftLeft(uint(27))), 0, 0, 0));
-      });
+      }).Else(() => { textureStore(FB, uvec2(globalId.xy), uvec4(0)); });   // (no land drawn there: it asks for nothing, not for what its block asked for before; a stamp comes round every 31 frames)
     });
   })().computeKernel([8, 8, 1]);
 
@@ -161,7 +161,7 @@ export function createPages(renderer, tex) {
   const at = (m, i, j) => m * K * K + (j & (K - 1)) * K + (i & (K - 1));
   const win = Array.from({ length: LEVELS }, () => null), inWin = (m, i, j) => { const w = win[m]; return !!w && i >= w[0] && i < w[0] + K && j >= w[1] && j < w[1] + K; };
   const fading = [];
-  let frame = 0, queue = [], key = '', reading = false, busyAt = 0, bias = 0, biasAt = 0, roomy = 0, made = 0, need = 0;
+  let frame = 0, queue = [], key = '', reading = false, busyAt = 0, bias = 0, biasAt = 0, cutAt = 0, roomy = 0, made = 0, need = 0;
   const evict = (P) => { IN.delete(P.key); free.push(P.slot); if ((table[P.idx] & 0xfff) === P.slot && table[P.idx] & VALID) put(P.idx, 0); };
   const flush = () => { for (const P of [...IN.values()]) evict(P); queue = []; fading.length = 0; };
   // a slot for a page: a free one, or the one asked for longest ago (not lately, not the last level's round the camera)
@@ -240,8 +240,8 @@ export function createPages(renderer, tex) {
     // coarser; room again for a while, a little finer
     // (what was asked for in the last sweep, the frames a pixel takes to ask again; judged again only once what the last
     // step asked for has been asked for a sweep)
-    need = queue.length; for (const P of IN.values()) if (P.used >= frame - SWEEP * SWEEP - 8) need++;
-    if (need > SLOTS * 0.96 && frame - biasAt > 2 * SWEEP * SWEEP && bias < 2) { bias += 0.25; biasAt = frame; roomy = 0; }
+    need = queue.length; for (const P of IN.values()) if (P.used >= Math.max(frame - SWEEP * SWEEP - 8, cutAt)) need++;
+    if (need > SLOTS * 0.96 && frame - biasAt > 2 * SWEEP * SWEEP && bias < 2.5) { bias += 0.25; biasAt = frame; roomy = 0; }
     else if (need < SLOTS * 0.6 && bias > 0) { if (++roomy > 6 && frame - biasAt > 240) { bias -= 0.25; biasAt = frame; roomy = 0; } }
     else roomy = 0;
   };
@@ -271,9 +271,10 @@ export function createPages(renderer, tex) {
       // laid again whole when what it is laid as changed: the library's stage and sandbox, the screen's pixels (a level's distance)
       const k2 = `${U.uSand.value.toArray()}|${U.uStage.value.toArray()}|${U.uStageGround.value.toArray()}|${size.y}|${U.uPxK.value}`;
       if (k2 !== key) { key = k2; flush(); uPxS.value = size.y / (2 * Math.tan((34 * Math.PI) / 180)); }
-      // the camera's speed: metres and radians a frame (a jump, farther than twice its height in a frame, is a cut)
+      // the camera's speed: metres and radians a frame (a jump, farther than twice its height in a frame, is a cut: what
+      // was asked for before it no longer counts, and the bias starts again from none)
       moved = cam.distanceTo(prev); swung = 2 * Math.acos(Math.min(1, Math.abs(turn.dot(camera.quaternion))));
-      if (moved > Math.max(50, 2 * (U.uDy.value + 2)) || swung > 0.5) moved = swung = 0;
+      if (moved > Math.max(50, 2 * (U.uDy.value + 2)) || swung > 0.5) { moved = swung = 0; cutAt = biasAt = frame; bias = 0; }
       prev.copy(cam); turn.copy(camera.quaternion); pxRad = (camera.projectionMatrix.elements[5] * size.y) / 2;
       // ---- each level's window round the camera: the pages it leaves let go ----
       for (let m = 0; m < LEVELS; m++) {
@@ -292,7 +293,7 @@ export function createPages(renderer, tex) {
       // ---- the pixels' asks ----
       if (!reading && renderer.backend.get(FB).texture) {
         reading = true; const f = frame - 1;
-        renderer.backend.copyTextureToBuffer(FB, 0, 0, FB.image.width, FB.image.height, 0).then((d) => take(asked(new Uint32Array(d.buffer, d.byteOffset, d.byteLength >> 2), f), camera.position)).catch(() => {}).finally(() => { reading = false; });
+        renderer.backend.copyTextureToBuffer(FB, 0, 0, FB.image.width, FB.image.height, 0).then((d) => { if (f >= cutAt) take(asked(new Uint32Array(d.buffer, d.byteOffset, d.byteLength >> 2), f), camera.position); }).catch(() => {}).finally(() => { reading = false; });
       }
       const fw = Math.ceil(size.x / SWEEP), fh = Math.ceil(size.y / SWEEP);
       if (FB.image.width !== fw || FB.image.height !== fh) FB.setSize(fw, fh);
@@ -311,8 +312,10 @@ export function createPages(renderer, tex) {
     },
     /** How much coarser a pixel d metres from the eye asks: within NEAR half a level finer than its pixel (a page is
         filtered as it is read, after the filtering its texels were laid with: finer, the ground near the eye is as sharp
-        as a read of its materials), from 3 NEAR the bias (none, unless what is asked for does not fit). */
-    biasAt: (d) => mix(float(-0.5), uBias, smoothstep(NEAR, 3 * NEAR, d)),
+        as a read of its materials), from 3 NEAR as its pixel. Where what is asked for does not fit, the bias first
+        takes the near ground's half level back, then makes all of it coarser (spared it, a view from 10 m asked for
+        more pages than the atlas holds, and never settled). */
+    biasAt: (d) => { const b = uBias.sub(0.5); return mix(b, max(b, 0), smoothstep(NEAR, 3 * NEAR, d)); },
     /** The level of the land's pages a pixel reads (node code, in the ground's fragment: dx, dy how far apart its
         neighbouring pixels' points are, as finely as the screen's pixels read; d how far it is from the eye),
         fractional: a step coarser for every doubling of its size, and of how far a slope draws it out past ANISO (the
