@@ -46,6 +46,11 @@
 //                                                                stress world (src/scatter/stress.js)
 //   bun tools/gate.js all [--tag t] [--views a,b]                stills of this code and of ?truth, their diff, the
 //                                                                bench, the compile and the paths, in one table
+//   bun tools/gate.js hourly [--views a,b] [--paths a,b]         the hour's measure of main, under the GPU lock once:
+//                                                                the stills, ?truth and FLIP at HOURLY's views, the
+//                                                                bench (the ceilings shown), the compile, the paths
+//                                                                walk and zoom; .gate/hourly/<commit>/summary.json and
+//                                                                board.md, against the hour before (tools/gate/ten.js)
 //
 // The GPU is shared with other runs: each part of a run that draws (a page come, a view or a tile, a path in motion, the
 // real gate on a GPU) takes the machine's GPU lock in its turn (tools/gpu/lock.js: one queue, oldest first; GPU_OWNER
@@ -61,12 +66,12 @@
 // and the clock run, as in the game. Chrome runs on the gate's own profile, .gate/chrome/, kept from run to run (the
 // world is made in half a minute, not two); the paths make a fresh one for their cold run.
 import { chromium } from 'playwright-core';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync, readdirSync, statSync } from 'node:fs';
 import { execSync, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { VIEWS, PATHS } from './gate/views.js';
+import { VIEWS, PATHS, HOURLY } from './gate/views.js';
 import { FIRST_FRAME } from '../src/core/marks.js';
 import { BUDGET, CLASSES, classOf } from './bench.js';
 import { flip, tiles, heat, readPNG, writePNG, PPD } from './gate/flip.js';
@@ -536,6 +541,39 @@ async function paths(opt) {
 
 /** Everything, for this code: its stills and the truth's, their FLIP, the bench, the compile, then the paths (their own
     Chrome, the gate's closed first: nothing else running while frames are timed); one table. */
+/** The hour's measure of main (ship-first: a PR merges when its CI is green, main is measured once an hour, and what
+    got worse goes back as work): one run under the GPU lock taken once (tools/gpu/lock.js), at the output (OUTPUT): the
+    stills and ?truth at HOURLY's views and FLIP between them, the bench by class (each part against its ceiling: a row
+    shown, never blocking), the WGSL compiled, and the paths walk and zoom (each frame's time, the GPU's, the memory, the
+    first frame). Kept as .gate/hourly/<commit>/summary.json (the run as tools/gate/ten.js reads it), and its scoreboard,
+    board.md: every measure against the hour before. */
+async function hourly(opt) {
+  const tag = commit(), views = opt.views ?? HOURLY.join(','), at = `${OUT}hourly/`;
+  const run = await locked('the hour', async () => {
+    const chrome = await launch({ ...opt, fresh: true });
+    let a, t, b, c;
+    try {
+      a = await stills(chrome, { tag, views }); t = await stills(chrome, { tag: `${tag}-truth`, truth: true, views });
+      b = await (await import('./gate/ceilings.js')).rule(() => bench(chrome, opt), {}, tag); c = await compile(chrome, opt);
+    } finally { await closeHard(chrome, chrome.gateDir); }
+    return { tag, when: new Date().toISOString(), out: OUTPUT, flip: await diff(a, t, { ...opt, views }), bench: b, compile: c, paths: await paths({ ...opt, paths: opt.paths ?? 'walk,zoom' }) };
+  });
+  save(`${at}${tag}/summary.json`, run);
+  return board(tag, at);
+}
+/** The scoreboard of the hour `tag` (in `at`): every measure against the last hour kept before it (tools/gate/ten.js),
+    and each part of each bench view against its ceiling; board.md beside its summary. */
+async function board(tag, at) {
+  const { runOf, held } = await import('./gate/ten.js'), here = runOf(`${at}${tag}/summary.json`);
+  const before = readdirSync(at).filter((d) => d !== tag && existsSync(`${at}${d}/summary.json`)).sort((x, y) => statSync(`${at}${y}/summary.json`).mtimeMs - statSync(`${at}${x}/summary.json`).mtimeMs)[0];
+  const H = before ? held(here, runOf(`${at}${before}/summary.json`)) : null, rows = here.bench?.ceilings?.rows ?? [];
+  const md = [`# The hour on main, ${tag} (${OUTPUT.width} × ${OUTPUT.height}), ${new Date().toISOString().slice(0, 16)}`, '', H ? H.text : `The first hour kept: nothing before it to hold it against.`, '',
+    `Each part of each bench view against its ceiling (tools/gate/ceilings.json), shown, never blocking:`, '', '| View | Part | ms | Ceiling | Over |', '| --- | --- | --- | --- | --- |',
+    ...rows.map((r) => `| ${r.view} | ${r.part} | ${r.ms.toFixed(2)} | ${r.ceiling.toFixed(2)} | ${r.over ? 'over' : ''} |`)].join('\n');
+  writeFileSync(`${at}${tag}/board.md`, md + '\n');
+  console.log(`\n${md}\n\n→ .gate/hourly/${tag}/summary.json and board.md`);
+  return { tag, before: before ?? null, worse: H?.worse ?? [] };
+}
 async function all(opt) {
   const tag = opt.tag || commit(), chrome = await launch(opt);
   let a, t, b, c;
@@ -572,8 +610,9 @@ try {
   else if (cmd === 'motion') r = await (await import('./gate/motion.js')).motion(opt, { OUT, BASE, SCREEN, INSIDE, WAIT, open, prepare, course, launch, pick, commit, save, rank, said, f });
   else if (cmd === 'real') { const real = async () => (await import('./gate/real.js')).real(pos[0], opt); r = await ((opt.device ?? 'cpu') === 'cpu' ? real() : locked('real', real)); }   // (on a GPU, mps: in its turn)
   else if (cmd === 'all') await all(opt);
+  else if (cmd === 'hourly') r = await hourly(opt);
   else if (WITH[cmd]) { const chrome = await launch(opt); try { r = await WITH[cmd](chrome); } finally { await closeHard(chrome, chrome.gateDir); } }
-  else { console.log('bun tools/gate.js stills | diff | noise | bench | compile | paths | motion | real | all: see the top of tools/gate.js'); process.exitCode = cmd ? 1 : 0; }
+  else { console.log('bun tools/gate.js stills | diff | noise | bench | compile | paths | motion | real | all | hourly: see the top of tools/gate.js'); process.exitCode = cmd ? 1 : 0; }
   if (['bench', 'compile', 'paths'].includes(cmd)) { mkdirSync(OUT, { recursive: true }); save(`${OUT}${cmd}.json`, r); }   // (the numbers kept: .gate/bench.json and so on)
 } catch (e) { console.error(`gate: ${e.message}`); process.exitCode = 1; }
 finally { for (const d of FRESH) rmSync(d, { recursive: true, force: true }); }
