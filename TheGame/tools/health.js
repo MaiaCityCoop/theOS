@@ -50,8 +50,9 @@ import madge from 'madge';
 const GAME = resolve(import.meta.dirname, '..'), REPO = resolve(GAME, '..'), OUT = join(GAME, '.gate/health.json');
 const JSCPD = join(GAME, 'node_modules/jscpd/run-jscpd.js'), KNIP = join(GAME, 'node_modules/knip/bin/knip-bun.js');
 const READS = new Set(['flag', 'flagNum', 'flagText']);   // how the address is read (src/core/flags.js)
-// the hand-set numbers the SSOT audit names, by the file each is set in (not ERROR_PX, the one dial; DRAWN is a mode)
-const AUDIT = { 'error.js': ['BUDGET_DRAWN'], 'measure.js': ['REACHES', 'BIG'], 'tier.js': ['MAXP'], 'terrain.js': ['CAP'], 'relief.js': ['CAP'],
+// the hand-set numbers the SSOT audit names, by the file each is set in (not ERROR_PX, the one dial; DRAWN is a mode).
+// The code must hold each, or every run fails (staleAudit): a change that takes one away drops it here too
+const AUDIT = { 'error.js': ['BUDGET_DRAWN'], 'tier.js': ['MAXP'], 'terrain.js': ['CAP'],
   'crowd.js': ['SWELL', 'WIN', 'CLUMPS', 'VIEWS', 'CELL', 'TILE', 'TILES', 'SWITCH', 'FADE', 'RATIO'].map((k) => `CROWD.${k}`) };
 const COMPLEXITY = builtinRules.get('complexity');
 
@@ -240,6 +241,22 @@ const isNumber = (n) => !!NUMBER[n.type]?.(n);
 /** Whether a value is an identity, no setting: a vector all of whose components are 0, or all 1 (vec4(0), vec3(1)). */
 const identity = (n) => /Call|New/.test(n.type) && n.arguments.length > 0 && [0, 1].some((k) => n.arguments.every((a) => a.type === 'Literal' && a.value === k));
 const frozen = (n) => (n.type === 'CallExpression' && n.callee.object?.name === 'Object' && n.callee.property?.name === 'freeze' && n.arguments[0]) || n;
+/** Whether a module has a constant by a name (a table's key: NAME.KEY). */
+function holds(m, name) {
+  const [head, ...keys] = name.split('.');
+  let n = m.consts.get(head)?.init;
+  for (const k of keys) n = n && frozen(n).type === 'ObjectExpression' ? frozen(n).properties.find((p) => p.type === 'Property' && nameOf(p.key) === k)?.value : undefined;
+  return !!n;
+}
+/** The audit's names this code no longer has, AUDIT gone stale ("file name" each): looked for in this tree's files of
+    that name, whatever is measured. */
+function staleAudit() {
+  const t = treeOf(GAME, []), all = git('ls-files', '-co', '--exclude-standard').filter((f) => existsSync(join(GAME, f)));
+  return Object.entries(AUDIT).flatMap(([file, names]) => {
+    const ms = all.filter((f) => basename(f) === file).map((f) => mod(t, f)).filter((m) => m.sc);
+    return names.filter((name) => !ms.some((m) => holds(m, name))).map((name) => `${file} ${name}`);
+  });
+}
 /** A module constant's hand-set numbers, into out: itself, or the numbers of its table (frozen or not), by key. */
 function numbers(m, name, init, out) {
   const n = frozen(init), text = m.sc.getText(n), audit = !!AUDIT[basename(m.f)]?.includes(name);
@@ -452,6 +469,8 @@ function table(G) {
 }
 
 // ---- the run ----
+const stale = staleAudit();
+if (stale.length) fail(`AUDIT names what the code no longer has (${stale.join(', ')}): drop it from AUDIT (tools/health.js)`);
 const all = git('ls-files', '-co', '--exclude-standard', '--full-name', '--', ':/').filter((p) => existsSync(join(REPO, p)));
 const HERE = await measure(GAME, HERE_FILES, REPO, all);
 const H = { commit: git('rev-parse', '--short', 'HEAD')[0] + (git('status', '--porcelain').length ? '+' : ''), at: new Date().toISOString(),
