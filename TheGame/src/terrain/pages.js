@@ -234,6 +234,18 @@ export function createPages(renderer, tex) {
   const win = Array.from({ length: LEVELS }, () => null), inWin = (m, i, j) => { const w = win[m]; return !!w && i >= w[0] && i < w[0] + K && j >= w[1] && j < w[1] + K; };
   const fading = [];
   let frame = 0, queue = [], key = '', bias = 0, made = 0, changed = true;
+  /** The last level round the camera, always in (what a pixel reads where nothing finer is in yet): every page of it
+      within `pin` metres, past `disk` only where the view looks; a pinned page not pinned this frame is free to go. */
+  const pinLast = (cam, pin, disk) => {
+    const P = sideOf(TOP), pins = [];
+    for (let j = Math.floor((cam.z - pin) / P); j <= Math.floor((cam.z + pin) / P); j++) for (let i = Math.floor((cam.x - pin) / P); i <= Math.floor((cam.x + pin) / P); i++) {
+      const x0 = i * P, z0 = j * P, nx = Math.max(x0 - cam.x, 0, cam.x - x0 - P), nz = Math.max(z0 - cam.z, 0, cam.z - z0 - P);
+      if (nx * nx + nz * nz > disk * disk && !boxIn(x0, x0 + P, HMIN, HMAX, z0, z0 + P)) continue;   // (past the disk: only where the view looks)
+      const Q = IN.get(keyOf(TOP, i, j)); if (Q) { Q.pin = true; Q.used = frame; } else pins.push({ m: TOP, i, j, pin: true });
+    }
+    for (const Q of IN.values()) if (Q.pin && Q.m === TOP && Q.used < frame) Q.pin = false;
+    if (pins.length) make(pins, Infinity);
+  };
   const recent = [];
   const evict = (P) => { IN.delete(P.key); free.push(P.slot); if ((table[P.idx] & 0xfff) === P.slot && table[P.idx] & VALID) put(P.idx, 0); };
   const flush = () => { for (const P of [...IN.values()]) evict(P); queue = []; fading.length = 0; dirty = true; };
@@ -433,15 +445,7 @@ export function createPages(renderer, tex) {
         win[m] = [i0, j0]; WIN.array[m].set(i0, j0, 0, 0); C.WIN.array[m].set(i0, j0, 0, 0);
         for (const Q of [...IN.values()]) if (Q.m === m && !inWin(m, Q.i, Q.j)) evict(Q);
       }
-      // ---- the last level round the camera, always in (what a pixel reads where nothing finer is in yet) ----
-      const P = sideOf(TOP), pins = [];
-      for (let j = Math.floor((cam.z - pin) / P); j <= Math.floor((cam.z + pin) / P); j++) for (let i = Math.floor((cam.x - pin) / P); i <= Math.floor((cam.x + pin) / P); i++) {
-        const x0 = i * P, z0 = j * P, nx = Math.max(x0 - cam.x, 0, cam.x - x0 - P), nz = Math.max(z0 - cam.z, 0, cam.z - z0 - P);
-        if (nx * nx + nz * nz > disk * disk && !boxIn(x0, x0 + P, HMIN, HMAX, z0, z0 + P)) continue;   // (past the disk: only where the view looks)
-        const Q = IN.get(keyOf(TOP, i, j)); if (Q) { Q.pin = true; Q.used = frame; } else pins.push({ m: TOP, i, j, pin: true });
-      }
-      for (const Q of IN.values()) if (Q.pin && Q.m === TOP && Q.used < frame) Q.pin = false;   // (a pinned page not pinned this frame: free to go)
-      if (pins.length) make(pins, Infinity);
+      pinLast(cam, pin, disk);
       // ---- the pixels' asks: the last frame's read back, what is no longer asked for forgotten, the bias chosen again
       // when what is asked for does not fit (or, once a sweep has been read with the camera still, when it may be finer) ----
       if (askedAt === frame - 1) readBack(nAsk, frame - 1);

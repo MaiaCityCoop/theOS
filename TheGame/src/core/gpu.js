@@ -17,15 +17,16 @@
 import * as THREE from 'three/webgpu';
 import { storage } from 'three/tsl';
 import { BUDGET_MB, CLASS_NAMES } from './classes.js';
+import { MiB } from './physics.js';
 
-const HELD = new Map(), MB = 1 << 20;
+const HELD = new Map(), MB = MiB;
 /** A pool's memory, bytes: on the GPU, and beside it on the page; its class (src/core/classes.js). Said again under the
     same name: replaced (nought: let go). */
 export const note = (name, gpu = 0, page = 0, cls = 'other') => { HELD.set(name, { gpu, page, cls }); };
 /** The same, added to what the name holds already (many small buffers under one name). */
 export const more = (name, gpu = 0, page = 0, cls = 'other') => { const h = HELD.get(name) ?? { gpu: 0, page: 0, cls }; h.gpu += gpu; h.page += page; HELD.set(name, h); };
 /** What a class's pools hold on the GPU now, bytes. */
-export const heldBy = (cls) => { let n = 0; for (const h of HELD.values()) if (h.cls === cls) n += h.gpu; return n; };
+const heldBy = (cls) => { let n = 0; for (const h of HELD.values()) if (h.cls === cls) n += h.gpu; return n; };
 /** The room a class has left on the GPU, bytes: its budget less what its pools hold. */
 export const roomOf = (cls) => BUDGET_MB[cls] * MB - heldBy(cls);
 /** Everything noted: { gpu, page (MB), classes: { class: { gpu, page, budget (MB) } }, device: what the device has made
@@ -37,23 +38,30 @@ export const ledger = () => {
   for (const [, g, p, c] of rows) { classes[c].gpu += g; classes[c].page += p; }
   for (const c of CLASS_NAMES) { classes[c].gpu = mb(classes[c].gpu); classes[c].page = mb(classes[c].page); }
   const gpu = rows.reduce((s, r) => s + r[1], 0);
-  return { gpu: mb(gpu), page: mb(rows.reduce((s, r) => s + r[2], 0)), classes, device: R ? mb(MADE.bytes) : null, unnoted: R ? mb(Math.max(0, MADE.bytes - gpu)) : null, rows: rows.map(([n, g, p, c]) => [n, mb(g), mb(p), c]) };
+  return { gpu: mb(gpu), page: mb(rows.reduce((s, r) => s + r[2], 0)), classes, device: R ? mb(made) : null, unnoted: R ? mb(Math.max(0, made - gpu)) : null, rows: rows.map(([n, g, p, c]) => [n, mb(g), mb(p), c]) };
 };
 if (typeof window !== 'undefined') window.__memory = ledger;
 
 // ---- what the device itself makes: every buffer and texture, as it is made and destroyed ----
 // (a texture's bytes: its texels' at every mip and layer, by its format; a compressed one's by its blocks)
-const TEXEL = { r8unorm: 1, r8snorm: 1, r8uint: 1, r8sint: 1, r16float: 2, r16uint: 2, r16sint: 2, rg8unorm: 2, rg8snorm: 2, rg8uint: 2, r32float: 4, r32uint: 4, r32sint: 4, rg16float: 4, rg16uint: 4, rg16sint: 4, rgba8unorm: 4, 'rgba8unorm-srgb': 4, rgba8snorm: 4, rgba8uint: 4, rgba8sint: 4, bgra8unorm: 4, 'bgra8unorm-srgb': 4, rgb10a2unorm: 4, rg11b10ufloat: 4, rgb9e5ufloat: 4, rg32float: 8, rg32uint: 8, rg32sint: 8, rgba16float: 8, rgba16uint: 8, rgba16sint: 8, rgba32float: 16, rgba32uint: 16, rgba32sint: 16, depth16unorm: 2, depth24plus: 4, 'depth24plus-stencil8': 4, depth32float: 4, 'depth32float-stencil8': 5, stencil8: 1 };
+/** A texel's bytes, by its format's own name: each channel's bits (r, g, b, a, e one each; depth, stencil one), a
+    depth that is "plus" filled out to 32 bits with what is beside it, in whole bytes (WebGPU's formats). */
+const texelBytes = (f) => {
+  let bits = 0;
+  for (const [, ch, n] of f.matchAll(/(depth|stencil|[rgbae]+)(\d+)/g)) bits += (ch === 'depth' || ch === 'stencil' ? 1 : ch.length) * +n;
+  return Math.ceil((f.includes('plus') ? Math.ceil(bits / 32) * 32 : bits) / 8) || 4;
+};
 const BLOCK = (f) => (/^bc[14]-/.test(f) || /^etc2-rgb8|^eac-r11/.test(f) ? 8 : /^(bc|etc2|eac|astc-4x4)/.test(f) ? 16 : 0);   // (bytes a 4 × 4 block)
 const texBytes = (d) => {
   const sz = Array.isArray(d.size) ? d.size : [d.size.width, d.size.height ?? 1, d.size.depthOrArrayLayers ?? 1], [w0, h0, n] = [sz[0], sz[1] ?? 1, sz[2] ?? 1];
-  const b = BLOCK(d.format), t = TEXEL[d.format] ?? 4, three = d.dimension === '3d';
+  const b = BLOCK(d.format), t = texelBytes(d.format), three = d.dimension === '3d';
   let sum = 0;
   for (let m = 0, w = w0, h = h0, z = n; m < (d.mipLevelCount ?? 1); m++, w = Math.max(1, w >> 1), h = Math.max(1, h >> 1), z = three ? Math.max(1, z >> 1) : z) sum += (b ? Math.ceil(w / 4) * Math.ceil(h / 4) * b : w * h * t) * z;
   return sum * (d.sampleCount ?? 1);
 };
-const MADE = { bytes: 0 }, SIZE = new WeakMap();
-const counted = (o, bytes) => { SIZE.set(o, bytes); MADE.bytes += bytes; const d = o.destroy; o.destroy = function () { if (SIZE.has(o)) { MADE.bytes -= SIZE.get(o); SIZE.delete(o); } return d.call(this); }; return o; };
+let made = 0;   // (what the device has made, bytes)
+const SIZE = new WeakMap();
+const counted = (o, bytes) => { SIZE.set(o, bytes); made += bytes; const d = o.destroy; o.destroy = function () { if (SIZE.has(o)) { made -= SIZE.get(o); SIZE.delete(o); } return d.call(this); }; return o; };
 const countMade = (dev) => {
   if (dev.__counted) return; dev.__counted = true;
   const B = dev.createBuffer, T = dev.createTexture;
@@ -84,6 +92,8 @@ export const limitOf = (name) => R?.backend?.device?.limits?.[name] ?? 0;
 const within = (bytes, name) => { const most = Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity); if (bytes > most) throw new Error(`${name ?? 'a buffer'}: ${bytes} bytes, more than the GPU binds in one buffer (${most})`); };
 
 const TYPES = { uint: [Uint32Array, 1], float: [Float32Array, 1], vec4: [Float32Array, 4], uvec4: [Uint32Array, 4] };
+/** The bytes one element of a storage type is (gpuStorage's types). */
+export const bytesOf = (type) => TYPES[type][1] * TYPES[type][0].BYTES_PER_ELEMENT;
 /** A storage buffer of `count` items of `type` (uint, float, vec4, uvec4), nothing in it yet:
       { node (what storage(…) gives: .element(i)), attr, bytes, write(at, data) }
     write: `data` (a typed array of its numbers) sent to the GPU from its `at`-th number on, at once (before what the

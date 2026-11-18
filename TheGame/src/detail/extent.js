@@ -19,7 +19,7 @@ import { GONE } from './error.js';
 
 let SIZE = 0;
 /** The largest thing any engine places, metres (read from the registry once, when it is first asked for). */
-export const sizeMost = () => (SIZE ||= Math.max(1, ...recipes('asset').filter((a) => a.placement && a.size).map((a) => sizeOf(a) * most(a.placement.scale ?? 1))));
+const sizeMost = () => (SIZE ||= Math.max(1, ...recipes('asset').filter((a) => a.placement && a.size).map((a) => sizeOf(a) * most(a.placement.scale ?? 1))));
 /** How far the largest thing is drawn now (the live pixel and the dial: src/detail/measure.js farFor), metres as the
     68° lens sees them. */
 export const farthest = () => farFor(GONE, sizeMost());
