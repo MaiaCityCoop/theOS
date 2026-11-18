@@ -1806,9 +1806,18 @@ measure.js`, `error.js`) or by what is drawn, in the dial's pixels where v2 has 
   - The carpet reads the blades' own end share (`grass.js endOf`, the end in `U.uMeadowEnd`). It shapes the carpet's
     shade under them (was 3–70 m), its bare patches while they stand (were let go 100–160 m), its cover's share (was
     4–60 m) and the snow's lift (was 20–90 m).
-  - Under `?truth` the first ring still ends at the first map's reach.
-  - **Open, asked of the master:** the blades' caps, sized at the most measure, grow from 2.1 M cells (95 MB) to 23.2 M
-    (1.06 GB), and at the end about 500 ring-4 cells share a pixel's depth at eye height.
+  - Under `?truth` the first ring still ends at the first map's reach (until the truth is the dial, #106).
+  - **(b), the master's call** (`2e886be`, `0af5190`): the blades end where the ring drawn there stands under a dial
+    pixel apart (its cell × `dialK`), past which a field of them cannot be told from a surface with the same statistics,
+    and the carpet carries the meadow on; nearer still where the blade is gone. 192 m at a window drawn 1080 tall, 257 m
+    at 1440, 385 m at 2160 (ring 3's cells, 0.24 m; ring 4 never comes in). The ground's map: 3 levels.
+  - **The blades' caps** from the view's real share (`src/scatter/view.js viewArea`: the most of a band the view takes
+    in, level to straight down, from any height: 0.47–0.56 of a ring's band), within `roomOf('ground')` (#97); the grass
+    tiers' packing noted under 'ground'. 3.5 M blades (159 MB) at 1440, 7.8 M (357 MB) at 2160; at the gone reach they
+    were 23.2 M (1.06 GB).
+  - **Left for (b):** the carpet's sheen and the meadow's height past the blades (its colour, cover and shade already
+    read the blades' own share); the checks: FLIP against the truth at `tent-30m` and `tent-120m`, motion over `zoom`
+    (no pop at the hand-over).
 - **Why still views from 40 m up laid pages** (traced on the GPU at `41deea0` and `b510a8e`: `town, 40 m` and `pine
   forest, 90 m`, 240 still frames, then the bench's 60):
   - Standing still, nothing is laid: 0 pages in 240 frames, before and after.
@@ -2245,3 +2254,6 @@ gate says each class's share.
 | 2026-11-18 | `20861d9` | Ground (6): the bias chosen only from asks all of the view as it is (the bench's re-laying) |
 | 2026-11-18 | `b9ae230` | Ground (1): the blades end where they are gone, the ground's map a clipmap to there, the carpet tied to their share |
 | 2026-11-18 | `85e1e1d` | GPU memory by class: one table of classes, one accounting with the device counted, the gate beside the ms |
+| 2026-11-18 | `2e886be` | Ground (1b): the blades end where the ring drawn there stands under a dial pixel apart |
+| 2026-11-18 | `caeff69` | Ground: #97 (memory by class) merged in |
+| 2026-11-18 | `0af5190` | Ground (1b): the blades' caps from the view's real share, within the ground's room |
