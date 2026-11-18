@@ -1,5 +1,5 @@
 // Spatiotemporal blue noise (intent 0038, stage 9): the one noise every stochastic term of the light draws from (the
-// shadows' taps, the contact shadows' start, GTAO's slices, the froxels' depth). Its pixels are blue in space: each
+// shadows' taps, the contact shadows' start). Its pixels are blue in space: each
 // value far from its like, so an average over a few pixels is smooth; and from frame to frame each pixel steps on by
 // the golden ratio, so its values over a few frames are spread evenly too. The picture built over time (the upscale,
 // src/core/temporal.js, along the prepass's motion) averages both away: what is left is no grain and no crawl.
@@ -47,9 +47,9 @@ function tile() {
 }
 
 let node = null;   // (one texture node for every read: one binding a shader, however many terms read it)
-/** The noise at a pixel (screen coordinates; or any 2D integer lattice: a froxel's column), this frame: four numbers
-    0 … 1, blue in space, stepping on by the golden ratio from frame to frame (U.uFrame). */
-export const blueAt = (p, steps = true) => {
+/** The noise at a pixel (screen coordinates), this frame: four numbers 0 … 1, blue in space, stepping on by the golden
+    ratio from frame to frame (U.uFrame). */
+export const blueAt = (p) => {
   const t = (node ||= texture(tile())).load(ivec2(uint(p.x).mod(uint(N)), uint(p.y).mod(uint(N))));
-  return steps ? fract(t.add(float(U.uFrame).mul(0.61803398875)).add(float(0.5 / 256))) : t.add(float(0.5 / 256));
+  return fract(t.add(float(U.uFrame).mul(0.61803398875)).add(float(0.5 / 256)));
 };

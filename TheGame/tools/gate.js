@@ -270,7 +270,7 @@ async function noise(chrome, tag, opt) {
 /** tools/bench.js's bench(), one view at a time, each once the world has settled there. bench() draws the world as the
     game does: inside at `ratio`, brought up to the 4K canvas by the upscale pass (the whole frame's GPU time), and says
     where it went: every pass of the frame on the GPU's own clock, under the name of the part that drew it (the packing,
-    the clouds, the light's cascades, canopy, probes, sky, froxels, GTAO and contact shadows, the culling, the prepass,
+    the clouds, the light's cascades, canopy, probes and contact shadows, the culling, the prepass,
     the land's pages, the colour, the upscale, …), the frame's parts each added up (bench.js CLASSES: geometry, light,
     ground, upscale and post; what none of them names, other), what each adds to the span, and the colour pass's share
     of the shadows (the same frames with its shadow reads off). */

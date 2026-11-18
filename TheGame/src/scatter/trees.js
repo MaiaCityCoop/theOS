@@ -41,7 +41,7 @@ import { U } from '../core/uniforms.js';
 import { rnd, camDist, heightAt } from '../world/land.nodes.js';
 import { layersOf, posIn, placeIn, grownIn, grovesOf, writersOf } from './rule.js';
 import { createGrowth } from './growth.js';
-import { toScreen, airOf, lightOn, sunAt, screenShade, weatherOn, snowLiftAtVertex, unlit, windAt, windDir, windStrength, ign } from '../world/light.js';
+import { toScreen, airOf, lightOn, sunAt, contactShade, weatherOn, snowLiftAtVertex, unlit, windAt, windDir, windStrength, ign } from '../world/light.js';
 const THROUGH = vec3(1.15, 1.2, 0.5);   // the colour a leaf gives the sun it lets through: its own green twice over, yellower than it looks lit
 import { passOf, cut, motion, vWas } from '../core/pass.js';
 import { CLEARINGS } from '../../world/places.js';
@@ -369,8 +369,8 @@ function plantMaterial(tex, D) {
       const out = vec4(0).toVar();
       // (its fourth number: in the world's frame what was kept may be trusted, its motion said; drawn where the target is
       // multisampled, a library's picture, it is the coverage)
-      // (the sky's part less what GTAO says stands round the pixel, the sun's less what the contact shadows say: leaf on leaf)
-      If(shadow.not(), () => { const Sc = screenShade(); out.assign(vec4(toScreen(T.rgb.mul(T.rgb).mul(vMul.mul(Sc.open).add(vSun.mul(Sc.contact))).add(vAdd)).rgb, pass ? float(1) : alpha)); });
+      // (the sun's part less what the contact shadows say: leaf on leaf)
+      If(shadow.not(), () => { out.assign(vec4(toScreen(T.rgb.mul(T.rgb).mul(vMul.add(vSun.mul(contactShade()))).add(vAdd)).rgb, pass ? float(1) : alpha)); });
       return out;
     });
     const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.alphaToCoverage = true; m.userData.pre = true; m.userData.shadow = true;   // (it takes part in the prepass: src/core/pass.js)

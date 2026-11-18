@@ -15,9 +15,6 @@
 //   ?truth     every asset at full detail at any distance, the gate's reference picture (tools/gate.js): everything within
 //              `?truth=<metres>` of the eye (600 unless it says) measured as large on screen, so every engine draws its
 //              finest; drawn at every pixel the canvas has; slow, offline (src/detail/measure.js)
-//   ?light=full  a preview of light not yet cheap enough to be the game's (intent 0038, stage 9b): Hillaire's air in
-//              froxels with its sky and shafts, GTAO, the sky probes marched ray by ray and their green bounce
-//              (src/world/light/). Not a dial of the look: it goes once 9b is the default
 // (The film player, cine/, reads its own address: its scene, its menu.)
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
 /** Whether the address names it (`?ghost`). */
@@ -26,5 +23,3 @@ export const flag = (name) => Q.has(name);
 export const flagNum = (name, d = 0) => { const v = Q.get(name); return v == null || v === '' || !Number.isFinite(+v) ? d : +v; };
 /** Its value as it is written (`?flyby=orbit`), or null. */
 export const flagText = (name) => Q.get(name);
-/** ?light=full: the light's unfinished parts drawn too (above). */
-export const LIGHT_FULL = Q.get('light') === 'full';
