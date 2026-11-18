@@ -43,6 +43,7 @@ const S0 = 1 / 512, LEVELS = 17, TOP = LEVELS - 1, K = 128;   // metres a texel 
 // never settle)
 const ANISO = 4, FADE = 10, SWEEP = TRUTH ? 4 : 8, TAKES = TRUTH ? 16 : 4, BATCH = 16, MAPN = 8;   // the filter's steps along a slope; frames a page fades in over; a block of SWEEP × SWEEP pixels asks once a frame, the finest of TAKES of them; pages laid at once; texels between the layer map's points
 const SPAN = (SWEEP * SWEEP) / TAKES;   // frames a sweep takes: every pixel of a block has asked once
+const EDGE = 4;   // texels from its page's edge within which a pixel asks for the page across it too
 const G0 = SLOT / MAPN + 2, G1 = SLOT / 2 / MAPN + 2, POINTS = G0 * G0 + G1 * G1;   // the layer map's points a page has a side, for its first mip and its second; all of them
 const KEEP = 96, FAST = 12, PIN = 26000, NEAR = 15;   // frames a page not asked for is kept at least; screen pixels a frame a page may cross and still be laid; metres round the camera the last level is always in; metres from the eye the bias spares
 /** The ground's own height in relief: metres from a page's lowest ground to its highest (its height 0 … 1, the land's
@@ -104,7 +105,8 @@ export function createPages(renderer, tex) {
   // there its own level, its footprint's, unbiased (src/terrain/material.js); its point comes from its depth through the
   // camera as it drew. A block says the finest of them at the bias now, in two 32-bit words: the page it lies in half a
   // level finer than any bias asks for (the reference: its level, its place modulo 2048) and the frame; its own level
-  // and how near the eye it is (what the bias spares of it). So what any bias would ask for can be told from them ----
+  // and how near the eye it is (what the bias spares of it), and whether it lies at an edge of the page it reads. So
+  // what any bias would ask for can be told from them ----
   const ASK = gpuStorage('uint', BLOCKS_MOST * 2, "the land's pages: what the pixels ask for");
   const tDepth = texture(new THREE.DepthTexture(1, 1)), tMotion = texture(new THREE.Texture());
   const uInv = uniform(new THREE.Matrix4()), uSize = uniform(new THREE.Vector2(1, 1)), uStamp = uniform(1, 'uint'), uEye = uniform(new THREE.Vector3()), uBiasK = uniform(0);   // (uBiasK: the bias, for the asks' pass)
@@ -124,7 +126,12 @@ export function createPages(renderer, tex) {
               best.assign(lv);
               const m = int(clamp(floor(raw.sub(0.5)), 0, TOP)), pg = ivec2(floor(w.xz.div(exp2(float(m)).mul(PAGE * S0))));
               w0.assign(uint(m).bitOr(uint(pg.x.bitAnd(2047)).shiftLeft(uint(5))).bitOr(uint(pg.y.bitAnd(2047)).shiftLeft(uint(16))).bitOr(uStamp.shiftLeft(uint(27))));
-              w1.assign(uint(clamp(raw.add(2), 0, 255).mul(256)).bitOr(uint(t.mul(255)).shiftLeft(uint(16))));
+              // (and whether its point lies within EDGE texels of an edge of its page at that level, which edge: the
+              // picture's jitter moves a pixel's point by up to half its footprint, so the page across the edge is
+              // asked for with it, not only at the jitter's places that land there)
+              const L = clamp(lv, 0, 15), fr = fract(w.xz.div(exp2(L).mul(PAGE * S0))), e = float(EDGE / PAGE);
+              const ex = fr.x.lessThan(e).select(uint(1), fr.x.greaterThan(float(1).sub(e)).select(uint(2), uint(0))), ez = fr.y.lessThan(e).select(uint(1), fr.y.greaterThan(float(1).sub(e)).select(uint(2), uint(0)));
+              w1.assign(uint(clamp(raw.add(2), 0, 255).mul(256)).bitOr(uint(t.mul(255)).shiftLeft(uint(16))).bitOr(ex.bitOr(ez.shiftLeft(uint(2))).shiftLeft(uint(24))).bitOr(uint(L).shiftLeft(uint(28))));
             });
           });
         });
@@ -281,6 +288,12 @@ export function createPages(renderer, tex) {
       if (!R) continue;
       if (f - R.since >= SPAN) { R.raw = raw; R.t = t; R.since = f; } else if (raw < R.raw) { R.raw = raw; R.t = t; }
       if (R.f !== f || levelOf(R.raw, R.t, bias) !== R.L) { R.f = f; asked(R, f); }
+      // (near its page's edge: the page across it too, at the level it read, if that is the level asked at the bias now)
+      const edge = (data[k + 1] >>> 24) & 15, L = data[k + 1] >>> 28;
+      if (edge && L < 15 && levelOf(raw, t, bias) === L) {
+        const d = 2 ** (L - R.m), i = Math.floor(R.i / d), j = Math.floor(R.j / d), di = (edge & 3) === 1 ? -1 : (edge & 3) === 2 ? 1 : 0, dj = (edge >> 2) === 1 ? -1 : (edge >> 2) === 2 ? 1 : 0;
+        if (di) ask(L, i + di, j, f, 0); if (dj) ask(L, i, j + dj, f, 0); if (di && dj) ask(L, i + di, j + dj, f, 0);
+      }
     }
     readTo = Math.max(readTo, f);
   };
