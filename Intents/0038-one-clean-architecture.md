@@ -1264,6 +1264,32 @@ draft PR #73. 6b's layer map lives on each page's grid now; the growth map is a 
     were 4; the culling's dispatches grow with them;
   - the floor's litter is crossed cards, so a fallen sprig stands a little off the ground;
   - Safari not tried.
+- **Meadow fix** (`aven/0038-meadow-fix`, 2026-11-18). Samuel in Safari, at eye level by the river, looking along the
+  meadow to the pine stand: the blades went sparse well before the stand, and a bare round patch with stones lay in the
+  open meadow with nothing standing in it.
+  - **What was wrong: the shade was not the crowns' light.** Every thing of a layer that writes cast a disk of its
+    kind's one reach (0.8 of its oldest's half span: 9.1 m a stone pine, 10.2 m a holm oak, 2.4 m a sapling), whatever
+    its age and scale. Stones, logs and dead wood cast one too, and the meadow squared the light. Reckoned on the CPU
+    (2 m texels, read as the grass reads them): round a stone pine of 30 years, its crown 4.5 m, the grass was under
+    half out to 8.3 m; round a sapling of three years, its crown 0.5 m, out to 2.8 m.
+  - **Now the light that reaches the ground** (`src/scatter/rule.js`). Each crown is as large as it is drawn:
+    `grownIn`, moved into the rule from the trees' engine, so the map and the drawing reckon a plant's height alike,
+    times its kind's span to its height. Its foliage is a dome; the light through it is Beer–Lambert's, 85 % taken where
+    the dome is deepest, as before. A texel keeps the mean of 4 × 4 points, so a crown smaller than a texel takes its
+    share of it. What lies on the floor takes none. The meadow grows in proportion to that light (Monteith's light-use
+    efficiency), not its square.
+    - Reckoned the same way: the grass is back to 90 % within 1.0 to 1.3 m of every crown's edge (the texel). Under one
+      crown it is 15 % of the open, under two 2 %.
+  - **The patch with nothing in it is #82's:** the kinds' hand-set ends drop small saplings (trees' 3 px) and bedded
+    stones (litter's 6 px) inside the meadow while their feet stay. At a window 900 px tall a sapling of 0.31 m sinks
+    from 41 m and a stone of 1.1 m from 72 m (at 700 px: 32 m and 56 m), against the meadow's 88 m. Under #82 nothing
+    that writes a foot sinks before 110 m, and the meadow ends at 112 m.
+  - **Left:** every foot is at least 1.5 m round (¾ of a texel), wider than a sapling, a stone or a branch. The map is
+    too coarse to hold their bodies, which is a fix of its own.
+  - **Cost:** the understory's gather looks at 36 cells a texel instead of 16, since its largest mastic's crown (4.2 m)
+    reaches past the old 2.7 m. The canopy's 25 are unchanged.
+  - **To be measured on the Mac mini:** `bench-tent-eye-level`, `tent-10m`, `tent-30m`, `bench-river-bend-26m`,
+    `pines-30m`, `bench-pine-forest-eye-level`, and the growth map's passes in the bench.
 
 ### Draw path: one culling for every tier, the late prepass one bundle, the grass culled, plants' boxes measured (2026-11-18)
 
