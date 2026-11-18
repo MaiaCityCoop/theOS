@@ -1,0 +1,233 @@
+{
+ "intent": "0039",
+ "title": "One smooth skin",
+ "day": null,
+ "inGame": null,
+ "goals": [
+  [
+   "How the industry makes a body's skin, researched and written down",
+   true
+  ],
+  [
+   "The Body's skin one closed surface: a cage wrapped on our anatomy, made smooth",
+   true
+  ],
+  [
+   "Bound to the rig: five poses without a tear",
+   true
+  ],
+  [
+   "Lit as skin is: light under it, two lobes of gloss, tone place by place",
+   true
+  ],
+  [
+   "Seen in the library on a real GPU, and timed",
+   false
+  ],
+  [
+   "Photoreal: a truer form, a face, hair",
+   false
+  ]
+ ],
+ "preview": {
+  "pos": [
+   -1264.0,
+   -5.44,
+   617.07
+  ],
+  "look": [
+   -1262.6,
+   -6.0,
+   631.0
+  ],
+  "mm": 35
+ },
+ "clips": [
+  {
+   "name": "The meadow, one tent",
+   "kind": "wide",
+   "secs": 14,
+   "ease": "in",
+   "in": "dip",
+   "inSecs": 1.4,
+   "hour": 11,
+   "clouds": 0,
+   "why": "the game as it starts: the one tent on the meadow, where whoever lives here will stand. The Body itself stands in the library, not yet in this world",
+   "keys": [
+    {
+     "pos": [
+      -1264.0,
+      -5.44,
+      617.07
+     ],
+     "look": [
+      -1262.6,
+      -6.0,
+      631.0
+     ],
+     "mm": 35
+    },
+    {
+     "pos": [
+      -1263.8,
+      -5.45,
+      619.06
+     ],
+     "look": [
+      -1262.6,
+      -6.0,
+      631.0
+     ],
+     "mm": 35
+    }
+   ]
+  },
+  {
+   "name": "Towards the tent",
+   "kind": "push in",
+   "secs": 13,
+   "ease": "out",
+   "in": "cut",
+   "why": "nearer, at a person's eyes: what a body has to hold up to, a look from an arm's length",
+   "keys": [
+    {
+     "pos": [
+      -1263.4,
+      -5.46,
+      623.04
+     ],
+     "look": [
+      -1262.85,
+      -5.98,
+      628.51
+     ],
+     "mm": 35
+    },
+    {
+     "pos": [
+      -1263.05,
+      -5.46,
+      626.52
+     ],
+     "look": [
+      -1262.85,
+      -5.98,
+      628.51
+     ],
+     "mm": 35
+    }
+   ]
+  },
+  {
+   "name": "Back and up",
+   "kind": "pull back",
+   "secs": 16,
+   "ease": "inout",
+   "in": "cut",
+   "why": "back from the tent and up: what is done and what is not, said plainly over the whole of it",
+   "keys": [
+    {
+     "pos": [
+      -1264.0,
+      -5.44,
+      617.07
+     ],
+     "look": [
+      -1262.6,
+      -6.0,
+      631.0
+     ],
+     "mm": 35
+    },
+    {
+     "pos": [
+      -1264.4,
+      -3.07,
+      613.09
+     ],
+     "look": [
+      -1262.6,
+      -6.2,
+      631.0
+     ],
+     "mm": 35
+    }
+   ]
+  }
+ ],
+ "captions": [
+  {
+   "at": 0.6,
+   "for": 3.6,
+   "kind": "title",
+   "over": "One smooth skin",
+   "text": "One skin where there were seven pieces"
+  },
+  {
+   "at": 4.6,
+   "for": 3.4,
+   "kind": "samuel",
+   "text": "Currently the naked skin body looks still not photorealistic!"
+  },
+  {
+   "at": 8.2,
+   "for": 3.2,
+   "kind": "samuel",
+   "text": "We need to upgrade the architecture to latest industry best practices"
+  },
+  {
+   "at": 11.6,
+   "for": 2.6,
+   "kind": "samuel",
+   "text": "to make the human body really photorealistic and smooth."
+  },
+  {
+   "at": 14.4,
+   "for": 3.2,
+   "kind": "maia",
+   "text": "A film's body is one cage of four-sided faces, made smooth."
+  },
+  {
+   "at": 17.8,
+   "for": 3.4,
+   "kind": "maia",
+   "text": "Ours was drawn out of voxels: seven pieces, 1 410 open edges."
+  },
+  {
+   "at": 21.4,
+   "for": 3.2,
+   "kind": "maia",
+   "text": "Now it is one closed skin, wrapped on our own anatomy."
+  },
+  {
+   "at": 24.8,
+   "for": 2.6,
+   "kind": "maia",
+   "text": "The neck measured 50 centimetres. Now 41."
+  },
+  {
+   "at": 27.8,
+   "for": 3.4,
+   "kind": "maia",
+   "text": "Lit as skin is: red light spreads a millimetre under it."
+  },
+  {
+   "at": 31.4,
+   "for": 3.0,
+   "kind": "maia",
+   "text": "It bends at elbow, knee and shoulder without a tear."
+  },
+  {
+   "at": 34.6,
+   "for": 3.6,
+   "kind": "maia",
+   "text": "Smooth, yes. Photoreal, not yet: the form, the face, the hair."
+  },
+  {
+   "at": 38.6,
+   "for": 3.6,
+   "kind": "note",
+   "text": "Seen on a software GPU only. Not yet in the library."
+  }
+ ]
+}
