@@ -4,6 +4,8 @@
 //
 //   px     a plant's: for level i, the size on screen (its largest side, in CSS pixels, as the walker's 68° lens sees
 //          it: src/scatter/trees.js) below which the next level takes over; below the last, nothing is drawn
+//   far    a plant's far ends after its meshes, as the crowd kit makes them (assets/kit/tree.js): {} its clumps and its
+//          impostor, { speck: false } its impostor alone, false none (what is gone before it would be worth one)
 //   impostor  { px }: after its meshes, its impostor (src/detail/impostor.js: the views every impostor has), down to px
 //             pixels; false where a kind needs none (a rock is cheap already at its last level)
 //   solid     what a walker and the camera cannot pass when the asset's own file has no `solid` (intent 0003), made
@@ -37,8 +39,13 @@ import { WALKER } from '../world/scale.js';
 export const SHRUB_FROM = WALKER.shoulder;
 const KINDS = {
   default: { fade: 0.15, sink: 1.7, impostor: { px: 1.5 }, solid: { box: true }, casts: true, snow: { clumps: 0.08 }, surface: { wrap: 0, through: 0 } },
-  tree: { px: [260, 120, 34, 18, 7, 3], measure: 'height', fade: 0.1, sink: 1.7, impostor: false, solid: { trunk: true, post: 0.03 }, casts: true, snow: { clumps: 0.3 }, wind: { sway: 0.35 }, foliage: { wrap: 0.45, through: 0.55, flutter: 1 } },   // a 12 m pine: its first level to about 30 m, its third from 120 px (where a grown tree's crowd has thinned to its clumps, so that level holds them and not a third of its crowd: assets/kit/crowd.js), its farthest (its impostor) to over two kilometres; then its biome's canopy colours the land
-  shrub: { px: [140, 16, 5], fade: 0.15, sink: 1.7, impostor: false, solid: { leaves: true, from: SHRUB_FROM }, casts: false, snow: { clumps: 0.2 }, wind: { sway: 0.15 }, foliage: { wrap: 0.4, through: 0.3, flutter: 0.6 } },   // its stand changes level as one (the biome's `shrubs.size`, 3.5 m): its first level to 15 m, its second to 140, its impostor sunk away by 420; walked through where it stands under SHRUB_FROM, led round its middle where it stands taller (Samuel, 2026-11-15: "Shrubs should be walkthrough … depending on the shrub size"); no shadow of its own
+  tree: { px: [260, 120, 34, 18, 7, 3], far: {}, measure: 'height', fade: 0.1, sink: 1.7, impostor: false, solid: { trunk: true, post: 0.03 }, casts: true, snow: { clumps: 0.3 }, wind: { sway: 0.35 }, foliage: { wrap: 0.45, through: 0.55, flutter: 1 } },   // a 12 m pine: its first level to about 30 m, its third from 120 px (where a grown tree's crowd has thinned to its clumps, so that level holds them and not a third of its crowd: assets/kit/crowd.js), its farthest (its impostor) to over two kilometres; then its biome's canopy colours the land
+  shrub: { px: [140, 16, 5], far: { speck: false }, fade: 0.15, sink: 1.7, impostor: false, solid: { leaves: true, from: SHRUB_FROM }, casts: false, snow: { clumps: 0.2 }, wind: { sway: 0.15 }, foliage: { wrap: 0.4, through: 0.3, flutter: 0.6 } },   // its stand changes level as one (the biome's `shrubs.size`, 3.5 m): its first level to 15 m, its second to 140, its impostor sunk away by 420; walked through where it stands under SHRUB_FROM, led round its middle where it stands taller (Samuel, 2026-11-15: "Shrubs should be walkthrough … depending on the shrub size"); no shadow of its own
+  // what lies on the floor (a cone, a twig, fallen leaves, a branch, a log, a stone bedded in it): its first level to
+  // 100 px, its second to 6, sunk by 10; no far end (a few hundred corners: cheaper drawn than baked), nothing a walker
+  // cannot step over or through, no shadow of its own, still in the wind
+  litter: { px: [100, 6], far: false, fade: 0.15, sink: 1.7, impostor: false, solid: false, casts: false, snow: { clumps: 0.05 }, foliage: { wrap: 0.4, through: 0.2, flutter: 0 } },
+  herb: { px: [100, 6], far: false, fade: 0.15, sink: 1.7, impostor: false, solid: false, casts: false, snow: { clumps: 0.1 }, wind: { sway: 0.1 }, foliage: { wrap: 0.5, through: 0.4, flutter: 0.7 } },   // a fern, a herb: drawn as what lies on the floor is, but it sways and its leaves tremble
   grass: { impostor: false, solid: false, casts: false },   // blades: drawn in rings by the grass's engine (its own tiers), nothing a walker cannot pass
   rock: { impostor: false, solid: { round: true, post: 0.4 }, casts: true, snow: { clumps: 0.05 } },   // stone holds it evenly, a little drifted. Its levels are its cluster hierarchy's (assets/kit/clusters.js), from its full mesh alone
   shelter: { fade: 0.15, impostor: { px: 1.5 }, casts: true, wind: { billow: 0.09, flap: 0.025 }, surface: { wrap: 0.35, through: 0.45 }, snow: { clumps: 0.22 } },   // canvas: snow slides off it in sheets, clumps hold; soft, and thin enough to glow

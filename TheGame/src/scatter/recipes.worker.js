@@ -6,8 +6,6 @@
 //   ['skin', k, size]          its own texture, `size` pixels a side
 //   ['bones', k0, n]           the skeletons of kinds k0 … k0 + n, end to end (three rows of four a bone; none: all nought)
 //   ['rooms']                  how much room each herd's movers take as they move (the zoo's herdRooms)
-//   ['stands', sizes]          the size each plant's stand measures it by where it changes level as one (assets/kit/plant.js
-//                              STANDS: its biome's, which a worker does not read), told first by the plants' drawers
 //   ['own', k0, n, [[l, idx, elems, D?], …]]   levels every kind has its own of, of kinds k0 … k0 + n (or k0 a list
 //                              of kinds, where a drawer's are not one after another), each level as one block as the
 //                              heap takes it (src/scatter/heap.js: putBlock): { corners, verts, counts } (counts: a
@@ -15,7 +13,6 @@
 //                              level says its delta D (solids), each kind's box at it: boxes, six numbers a kind
 import { meshOf, skinOf, bonesOf, herdRooms } from '../../assets/zoo/index.js';
 import { BONES } from '../../assets/kit/solid.js';
-import { STANDS } from '../../assets/kit/plant.js';
 import { useBuilder } from '../../assets/kit/surface.js';
 import { build, ready as built } from '../../assets/kit/clusters.js';
 
@@ -42,7 +39,6 @@ self.onmessage = async ({ data: { id, jobs } }) => {
     if (j[0] === 'mesh') { const m = meshOf(j[1], j[2], j[4] ?? null); if (j[3] != null) m.box ??= solidBox(m.verts, j[3]); out.push(m); move.push(m.index.buffer, m.verts.buffer); }
     else if (j[0] === 'skin') { const S = skinOf(j[1], j[2]); out.push(S); for (const l of S.levels) move.push(l.buffer); }
     else if (j[0] === 'rooms') out.push(herdRooms());
-    else if (j[0] === 'stands') { Object.assign(STANDS, j[1]); out.push(null); }
     else if (j[0] === 'bones') { const [, k0, n] = j, rows = new Float32Array(n * BONES * 12); for (let i = 0; i < n; i++) { const B = bonesOf(k0 + i); if (B) rows.set(B, i * BONES * 12); } out.push(rows); move.push(rows.buffer); }
     else {
       const [, k0, n, levels] = j, kindOf = (i) => (Array.isArray(k0) ? k0[i] : k0 + i);
