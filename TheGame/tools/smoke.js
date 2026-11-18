@@ -46,7 +46,8 @@ const game = await tryTo('the screen', async () => {
 });
 const tex = await tryTo('the materials painted', async () => {
   const { bakeTextures } = await import('../src/materials/bake.js'), tex = bakeTextures(renderer, { spare: 1 });
-  (await import('../src/world/tile.js')).useTiles(tex); (await import('../src/world/light.js')).useBackend(renderer);
+  (await import('../src/world/tile.js')).useTiles(tex);
+  (await import('../src/world/light/start.js')).startLight(renderer, game?.screen);   // (the light's start where the start has it: before any material)
   return tex;
 }) ?? M.tiles;
 const ground = await tryTo('the ground', async () => {

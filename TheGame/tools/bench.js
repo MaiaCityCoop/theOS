@@ -1,10 +1,10 @@
 // A timing of the game's frame at fixed views (in the game's console: `await (await import('/game/tools/bench.js')).bench()`):
 // each view drawn n times, shadows as the game draws them. Opened with ?gputime, it reads the GPU's own clock: a begin
 // and an end at every one of the frame's passes (timestamp queries, where the device has them), each pass under the name
-// the code that draws it marked it with (src/core/gpu.js mark: the packing, the clouds, the shadow map, the culling, the
-// prepass, the land's pages, the colour, the upscale, …), and each in one of the frame's four parts (CLASSES); otherwise
-// the wall's, waiting for the GPU to finish (unreliable in a hidden or background tab). The game's own frame is held
-// while it runs, so nothing else is drawn between.
+// the code that draws it marked it with (src/core/gpu.js mark: the packing, the clouds, the light's cascades, canopy and
+// probes, the culling, the prepass, the screen's light, the land's pages, the colour, the upscale, …), and each
+// in one of the frame's four parts (CLASSES); otherwise the wall's, waiting for the GPU to finish (unreliable in a
+// hidden or background tab). The game's own frame is held while it runs, so nothing else is drawn between.
 // `?bench` (src/boot.js): the same once the world is loaded, its numbers on the screen (overlay), nothing typed.
 // `?bench=2`: at that pixel ratio (1.5 else).
 export const VIEWS = [
@@ -23,7 +23,7 @@ export const BUDGET = 12;
     no part names is 'other': the slack. */
 export const CLASSES = {
   geometry: ['packing', 'occlusion', 'prepass', 'prepass, late', 'colour'],   // what is drawn: the tiers' packing and the surfaces' cut (src/scatter), the culling's pass one, the prepass, then the depth pyramid, pass two and what it finds (src/core/occlusion.js), the colour
-  light: ['clouds', 'shadow map'],   // the clouds' shadow map (src/world/weather/clouds.js), the casters' (src/world/shadow.js)
+  light: ['clouds', 'near', 'far', 'canopy', 'probes', 'screen light', 'contact'],   // the clouds' shadow map (src/world/weather/clouds.js); the light's passes before the frame (src/world/light/index.js): the near and far cascades (src/world/shadow.js), the canopy map and its sky probes (src/world/light/canopy.js); after the prepass the screen's light (src/boot.js): the contact shadows (src/world/light/screen.js)
   ground: ['ground map', 'pages, laid', 'pages'],   // the ground under the camera (src/scatter/ground.js); the land's pages laid and the pages asked for after the prepass (src/terrain/pages.js)
   'upscale/post': ['lens', 'upscale'],   // the virtual camera's lens (src/camera/post.js), the upscale to the screen (src/core/temporal.js)
 };
@@ -43,7 +43,10 @@ const mod = (part) => import(performance.getEntriesByType('resource').map((e) =>
       start()  before what is timed
       end()    after it: a promise of { sum (every pass's own time added: the frame's GPU time, as the bench has always
                said it), span (from the first pass's begin to the last one's end: what passes running side by side take
-               together, and any wait between them), by: { name: ms } } */
+               together, and any wait between them), by: { name: ms }, adds: { name: ms } (what each part adds to the
+               span: of each pass, in the order the GPU began them, how far its end lies past every earlier one's end
+               and its own begin; on a tile GPU passes overlap, so their own times add up to more than the frame:
+               2026-11-18, 75-118 ms of passes in a span of 45-73) } */
 async function clockOf(renderer) {
   const B = renderer.backend;
   if (!B.trackTimestamp || !B.device || renderer.hasFeature?.('timestamp-query') === false) return null;
@@ -75,34 +78,38 @@ async function clockOf(renderer) {
           if (t[q] > 0n && t[q + 1] >= t[q]) passes.push({ name: marks[m][0] ?? 'other', b: t[q], e: t[q + 1] });   // (a pass three asked for and never drew writes neither)
         }
       });
-      if (!passes.length) return { sum: 0, span: 0, by: {} };
-      let lo = passes[0].b, hi = passes[0].e; for (const p of passes) { if (p.b < lo) lo = p.b; if (p.e > hi) hi = p.e; }
-      const by = {}; let sum = 0;
-      for (const p of passes) { const ms = Number(p.e - p.b) / 1e6; by[p.name] = (by[p.name] ?? 0) + ms; sum += ms; }
-      return { sum, span: Number(hi - lo) / 1e6, by };
+      if (!passes.length) return { sum: 0, span: 0, by: {}, adds: {} };
+      passes.sort((x, y) => (x.b < y.b ? -1 : x.b > y.b ? 1 : 0));
+      const lo = passes[0].b, by = {}, adds = {}; let sum = 0, hi = lo;
+      for (const p of passes) {
+        const ms = Number(p.e - p.b) / 1e6, past = p.e > (p.b > hi ? p.b : hi) ? Number(p.e - (p.b > hi ? p.b : hi)) / 1e6 : 0;
+        by[p.name] = (by[p.name] ?? 0) + ms; adds[p.name] = (adds[p.name] ?? 0) + past; sum += ms; if (p.e > hi) hi = p.e;
+      }
+      return { sum, span: Number(hi - lo) / 1e6, by, adds };
     },
     stop() { listen(null); for (const b of kept.values()) { b.res.destroy(); b.map.destroy(); } },
   };
 }
 /** f() timed n times on the clock: { sum, span (each its mean, ms), passes: { name: { class (classOf), mean (ms a frame,
     over every frame: what is drawn in turn counts as its share), drawn (ms in the frames it was drawn in), every (it was
-    drawn every this many frames) } }, classes: { part: ms a frame (its passes' means added), …, other } }. */
+    drawn every this many frames), adds (what it adds to the span, ms a frame) } }, classes: { part: ms a frame (its
+    passes' means added), …, other } }. */
 async function timed(clock, f, n) {
   let sum = 0, span = 0; const by = {};
   for (let i = 0; i < n; i++) {
     clock.start(); f(); const r = await clock.end();
     sum += r.sum; span += r.span;
-    for (const [k, ms] of Object.entries(r.by)) { const b = (by[k] ||= { ms: 0, frames: 0 }); b.ms += ms; b.frames++; }
+    for (const [k, ms] of Object.entries(r.by)) { const b = (by[k] ||= { ms: 0, adds: 0, frames: 0 }); b.ms += ms; b.adds += r.adds[k] ?? 0; b.frames++; }
   }
   const passes = {}, classes = Object.fromEntries([...Object.keys(CLASSES), 'other'].map((c) => [c, 0])), r3 = (v) => +v.toFixed(3);
-  for (const [k, b] of Object.entries(by).sort((x, y) => y[1].ms - x[1].ms)) { passes[k] = { class: classOf(k), mean: r3(b.ms / n), drawn: r3(b.ms / b.frames), every: +(n / b.frames).toFixed(1) }; classes[classOf(k)] += b.ms / n; }
+  for (const [k, b] of Object.entries(by).sort((x, y) => y[1].ms - x[1].ms)) { passes[k] = { class: classOf(k), mean: r3(b.ms / n), drawn: r3(b.ms / b.frames), every: +(n / b.frames).toFixed(1), adds: r3(b.adds / n) }; classes[classOf(k)] += b.ms / n; }
   for (const c in classes) classes[c] = r3(classes[c]);
   return { sum: +(sum / n).toFixed(2), span: +(span / n).toFixed(2), passes, classes };
 }
 
 /** Each view drawn `frames` times: its GPU ms a frame (the passes' own times added), and with the GPU's clock (?gputime)
     where each went: out.passes[view] (timed() above), out.classes[view] (each part's ms a frame), out.span[view]; with
-    `shading`, the same frames again with the colour pass's shadow reads off (the shadow map still drawn), so the colour's
+    `shading`, the same frames again with the colour pass's shadow reads off (the cascades still drawn), so the colour's
     own share of the shadows is the difference (out.shading[view]: { colour, colourWithout }). Each view is timed once
     the world is complete there as the bench draws it, at its own pose and inside (src/core/settle.js: what the gate
     waits for, never a timer); without that, its first frames time what the pose or the pixels' change brings in (the
@@ -116,8 +123,9 @@ export async function bench({ ratio = 1.5, frames = 60, shading = false, wait = 
   // upscale pass (src/core/screen.js); a page without the screen, straight onto the canvas at `ratio`)
   const pm = camera.projectionMatrix.clone(), was = s.screen ? s.screen.inside : renderer.getPixelRatio(), covered = s.covered, ratioTo = (r) => (s.screen ? s.screen.set(r) : renderer.setPixelRatio(r));
   ratioTo(ratio); s.governor.hold(true); s.covered = true;   // (covered: the game's own frame neither chooses nor draws)
-  // (a frame as the game's runs it, src/boot.js choose and draw: what comes before the screen marked here as whose its
-  // passes are, each part apart; the screen marks its own, src/core/screen.js)
+  // (a frame as the game's runs it, src/boot.js choose and draw: what comes before the light marked here as whose its
+  // passes are, each part apart; the light marks its own, src/world/light/index.js, and the screen its own,
+  // src/core/screen.js)
   const frame = (v, dark = false) => {
     taken();   // (what this frame does besides drawing, its own: src/core/work.js)
     const P = poseAt(v.x, v.z, v.yaw, v.h, -0.05); camera.position.set(...P.pos); camera.rotation.order = 'YXZ'; camera.rotation.set(P.pitch, P.yaw, 0); camera.fov = P.fov; camera.updateProjectionMatrix(); camera.updateMatrixWorld();
@@ -127,7 +135,7 @@ export async function bench({ ratio = 1.5, frames = 60, shading = false, wait = 
     mark('pages, laid'); s.terrain.update(camera, dy, 1);
     mark('packing'); s.scatter.select(p.x, p.z, g, 1, dy);
     mark('clouds'); s.weather.before(camera, g);
-    mark('shadow map'); s.shadows.render(s.scene, camera, g);
+    mark(null); s.shadows.render(s.scene, camera, g);   // (the light marks its own passes: the cascades, the canopy and its probes, the air; one it does not mark is 'other')
     if (dark) U.uShadowOn.value = 0;   // (the colour pass reads no shadow: the A/B of its share)
     if (s.screen) s.screen.render(s.scene, camera); else { mark('colour'); renderer.render(s.scene, camera); }
     mark(null);
@@ -144,7 +152,7 @@ export async function bench({ ratio = 1.5, frames = 60, shading = false, wait = 
       if (clock) {
         const T = await timed(clock, () => frame(v), frames);
         out[v.name] = T.sum; (out.span ||= {})[v.name] = T.span; (out.passes ||= {})[v.name] = T.passes; (out.classes ||= {})[v.name] = T.classes;
-        if (shading) { const D = await timed(clock, () => frame(v, true), frames); (out.shading ||= {})[v.name] = { colour: T.passes.colour?.mean ?? 0, colourWithout: D.passes.colour?.mean ?? 0 }; frame(v); await fin(); }   // (and one frame as it was, so the shadows are read again)
+        if (shading) { const D = await timed(clock, () => frame(v, true), frames); (out.shading ||= {})[v.name] = { colour: T.passes.colour?.mean ?? 0, colourWithout: D.passes.colour?.mean ?? 0 }; frame(v); await fin(); }   // (and one frame as it was, so the shadows are read again and the far cascade is the light's again)
       } else { const t0 = performance.now(); for (let i = 0; i < frames; i++) frame(v); await fin(); out[v.name] = +((performance.now() - t0) / frames).toFixed(2); }
     }
   } finally { clock?.stop(); ratioTo(was); s.governor.hold(false); s.covered = covered; }
