@@ -6,12 +6,15 @@
 // to the shared lanes (wet, fog, dim), and what each does to a surface (`surface`: the snow lying on it). What is one
 // condition's own (the snow's depth, the wind's push, the clouds' shade) is that condition's code, handed on from here,
 // so a material asks the contract and no file but the condition's holds it.
-import { Fn, float, vec2, vec3, vec4, ivec2, If, mix, exp, pow, smoothstep, fract, floor, dot, max, min, abs, clamp, length, normalize, screenCoordinate } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, ivec2, If, mix, exp, pow, smoothstep, fract, floor, dot, max, min, abs, clamp, length, normalize, cos, sin, screenCoordinate } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { passOf } from '../core/pass.js';
 import { lane } from './weather/lanes.js';
 import { surfaceHooks, airHooks } from './weather/index.js';
 import { cloudShade } from './weather/clouds.js';
+import { BIAS } from './shadow.js';
+import { blueAt } from './light/noise.js';
+import { SCREEN } from './light/screen.js';
 
 export { snowDepth, snowCover, snowDrift, snowLift, snowLiftAtVertex, SNOW } from './weather/snow.js';
 export { cloudShade, cloudField, cloudLayerShade, CLOUD_H } from './weather/clouds.js';
@@ -79,74 +82,97 @@ export const weathered = (col, n, lift = 0) => (weatheredF ||= Fn(([c, nn, l]) =
 // a screen noise (interleaved gradient): for the shadow's taps and the hand-over between levels
 export const ign = (p) => fract(fract(dot(p, vec2(0.06711056, 0.00583715))).mul(52.9829189));
 
-// shadows: what the casters hide of the light, from one map round the camera (src/world/shadow.js); 1 lit, 0 in shadow.
-// uShadowM takes a world point straight to the map's (u, v, depth), whichever way up the backend keeps it. Twelve taps on
-// a spiral, turned by `turn` (a screen noise from pixel to pixel in a fragment; in a vertex, where there is no pixel, by
-// the point itself): a soft edge with no grid in it. A surface is lit where nothing nearer the light than `bias` (of the
-// map's depth: BIAS, a quarter of a metre and more) was drawn there.
-const BIAS = 0.0004;
-const shadowOf = (w, turn, bias = BIAS) => {
+// shadows: what the casters hide of the light, from the two cascades of one atlas round the camera (src/world/shadow.js);
+// 1 lit, 0 in shadow. uShadowM and uShadowM2 take a world point straight to each cascade's (u, v, depth), whichever way
+// up the backend keeps it; the near cascade is the atlas's left square, the far its right. A point is read in the near
+// one where it lies inside it, the hand-over to the far one dithered over the near one's last tenth (the picture built
+// over time averages it), and the far one fades out at its own edge.
+//
+// The near one is soft as the sun makes it (PCSS, Fernando 2005): six reads round the point find how far the casters
+// above it stand (the blockers' mean depth), and its penumbra is that distance times the width of the sun's disc
+// (0.53°): a leaf a hand above the path throws a sharp shadow, a crown 15 m up a soft one, so a canopy's light falls as
+// the round flecks a real one does. Then eight taps over that penumbra, each compared and filtered over 2 x 2 texels by
+// the GPU (a comparison sampler), on a disc turned by the blue noise from pixel to pixel and frame to frame. The far one
+// takes four taps, about a texel and a half out.
+const SUN_DISC = 0.0093;   // the sun's width across the sky (radians): metres of penumbra for every metre from blocker to receiver
+const PEN = 0.45;          // the widest penumbra, metres (the blockers are looked for this far round)
+const SHADOW_S = 2048;     // a cascade's texels a side (src/world/shadow.js)
+const vogel = (i, n, turn) => { const r = Math.sqrt((i + 0.5) / n), a = turn.add(i * 2.399963); return vec2(cos(a), sin(a)).mul(r); };
+/** a point in cascade k: { q (u, v, depth), e (how far inside: 0 at its edge, 1 a tenth in) } */
+const cascade = (w, k) => {
+  const s = (k ? U.uShadowM2 : U.uShadowM).mul(vec4(w, 1)), q = s.xyz.div(s.w), m = min(min(q.x, q.y), min(float(1).sub(q.x), float(1).sub(q.y)));
+  return { q, e: smoothstep(0, 0.1, m).mul(q.z.lessThan(1).select(float(1), float(0))) };
+};
+const atlas = (uv, k) => vec2(uv.x.add(k).mul(0.5), uv.y);
+const depthAt = (uv, k) => float(U.tShadow.load(ivec2(clamp(atlas(uv, k).mul(vec2(2 * SHADOW_S, SHADOW_S)), vec2(0), vec2(2 * SHADOW_S - 1, SHADOW_S - 1)))));
+const compareAt = (uv, k, z) => U.tShadow.sample(atlas(uv, k)).level(0).compare(z);
+// the near cascade, soft as the sun's disc makes it; the far one, four taps
+const nearSoft = (q, z, turn) => {
+  const perM = float(1).div(U.uShadowSize.x), found = float(0).toVar(), sum = float(0).toVar();
+  for (let i = 0; i < 6; i++) { const d = depthAt(q.xy.add(vogel(i, 6, turn).mul(PEN * 0.5).mul(perM)), 0); If(d.lessThan(z), () => { sum.addAssign(d); found.addAssign(1); }); }
   const r = float(1).toVar();
+  If(found.greaterThan(0), () => {
+    const pen = clamp(z.sub(sum.div(found)).mul(U.uShadowRange.x).mul(SUN_DISC), U.uShadowSize.x.mul(1.5 / SHADOW_S), PEN), k = float(0).toVar();
+    for (let i = 0; i < 8; i++) k.addAssign(compareAt(q.xy.add(vogel(i, 8, turn.add(1.3)).mul(pen.mul(0.5).mul(perM))), 0, z));
+    r.assign(k.div(8));
+  });
+  return r;
+};
+const farSoft = (q, z) => { const k = float(0).toVar(); for (const [i, j] of [[-0.62, -0.24], [0.24, -0.62], [0.62, 0.24], [-0.24, 0.62]]) k.addAssign(compareAt(q.xy.add(vec2(i, j).mul(1.7 / SHADOW_S)), 1, z)); return k.div(4); };
+/** The shadow at w, a pixel's (n: its normal, for the offset that keeps a surface from shading itself). how: 'soft',
+    'one' (one tap), 'pulled' (what is drawn into the map pulled towards the light allows for its own pull too). */
+const shadowOf = (w, n, how) => {
+  const r = float(1).toVar(), bias = how === 'pulled' ? 2 : 1;
   If(U.uShadowOn.greaterThan(0.5), () => {
-    const s = U.uShadowM.mul(vec4(w, 1)), q = s.xyz.div(s.w);
-    If(q.x.greaterThan(0).and(q.y.greaterThan(0)).and(q.x.lessThan(1)).and(q.y.lessThan(1)).and(q.z.lessThan(1)), () => {
-      // four samples, each compared and filtered by the GPU over 2 x 2 texels (a comparison sampler): softer than nine
-      // single taps, at under half their cost
-      const k = float(0).toVar(), z = q.z.sub(bias);
-      for (const [i, j] of [[-0.62, -0.24], [0.24, -0.62], [0.62, 0.24], [-0.24, 0.62]]) k.addAssign(U.tShadow.sample(q.xy.add(vec2(i, j).mul(U.uShadowTexel.mul(1.7)))).level(0).compare(z));
-      const e = smoothstep(0, 0.08, q.xy).mul(smoothstep(1, 0.92, q.xy));   // fading out at the map's edge
-      r.assign(mix(1, k.div(4), e.x.mul(e.y)));
+    const N = n ?? vec3(0), noise = blueAt(screenCoordinate.xy), turn = noise.x.mul(Math.PI * 2);
+    const A = cascade(w.add(N.mul(U.uShadowSize.x.mul(1.2 / SHADOW_S))), 0);
+    If(A.e.greaterThan(noise.y), () => {
+      const z = A.q.z.sub(U.uShadowRange.z.mul(bias));
+      r.assign(how === 'one' ? compareAt(A.q.xy, 0, z) : nearSoft(A.q, z, turn));
+    }).Else(() => {
+      const B = cascade(w.add(N.mul(U.uShadowSize.y.mul(1.2 / SHADOW_S))), 1), z = B.q.z.sub(U.uShadowRange.w.mul(bias));
+      If(B.e.greaterThan(0), () => { r.assign(mix(1, how === 'one' ? compareAt(B.q.xy, 1, z) : farSoft(B.q, z), B.e)); });
     });
   });
   return r;
 };
-export const shadowAt = Fn(([w]) => shadowOf(w, ign(screenCoordinate.xy)));
-/** What stands on the ground and casts (a person: characters/kit/human.js) is drawn into the map pulled towards the light
-    by the map's own bias, so its shadow starts where it touches the ground: unpulled, the bias would leave the ground
-    lit for a hand's breadth round its feet (every surface takes BIAS before it calls itself shaded). This is how far,
-    in metres along the light: the bias over the map's depth for a metre towards the light (from its matrix; at most a
-    metre, for the frame before the map's first). */
-export const casterPull = () => min(float(BIAS).div(max(abs(U.uShadowM.mul(vec4(U.uSunDir, 0)).z), 1e-6)), 1);
+export const shadowAt = (w, n = null) => shadowOf(w, n, 'soft');
+/** the same with one sample (the GPU still filters it over 2 x 2 texels): for what is too thin for a soft edge to show (a
+    blade of grass), a fraction of the reads */
+export const shadowAtOne = (w, n = null) => shadowOf(w, n, 'one');
+/** What stands on the ground and casts (a person: characters/kit/human.js) is drawn into the atlas pulled towards the
+    light by the near cascade's bias, so its shadow starts where it touches the ground: unpulled, the bias would leave
+    the ground lit for a hand's breadth round its feet. This is how far, in metres along the light. */
+export const casterPull = () => float(BIAS[0]);
 /** shadowAt for what casts pulled (casterPull): it allows for its own pull as well as the bias, or it would shade itself
     all over */
-export const shadowAtPulled = Fn(([w]) => shadowOf(w, ign(screenCoordinate.xy), 2 * BIAS));
-/** the same with one sample (the GPU still filters it over 2 x 2 texels): for what is too thin for a soft edge to show (a
-    blade of grass), a quarter of the reads */
-export const shadowAtOne = Fn(([w]) => {
-  const r = float(1).toVar();
-  If(U.uShadowOn.greaterThan(0.5), () => {
-    const s = U.uShadowM.mul(vec4(w, 1)), q = s.xyz.div(s.w);
-    If(q.x.greaterThan(0).and(q.y.greaterThan(0)).and(q.x.lessThan(1)).and(q.y.lessThan(1)).and(q.z.lessThan(1)), () => {
-      const e = smoothstep(0, 0.08, q.xy).mul(smoothstep(1, 0.92, q.xy));
-      r.assign(mix(1, U.tShadow.sample(q.xy).level(0).compare(q.z.sub(0.0004)), e.x.mul(e.y)));
-    });
-  });
-  return r;
-});
-/** the same in a vertex stage (a tree's corners: src/scatter/trees.js): no comparison is to be had there, so the map's own
-    texels are read and compared here. Not one texel compared hard (lit, or not): a crown stands in its own shade, most of
-    its corners lie at that edge, and whatever moved by a hair (the sun going on, the map's box as the camera rises, a
-    crown in the wind) threw whole cards from light into shade and back, a flicker all through the crown. So nine texels
-    round the corner (every other one of a 5 x 5: about as wide as a sprig's card), each weighed by how near the corner lies
-    to it (a smooth bell: the weights slide as the corner moves, none jumps), and each compared over a depth (VSOFT), not
-    at one: a corner's light changes as little as what moved. */
-const VSTEP = 2, VBIAS = 0.0004, VSOFT = 0.0008;   // every VSTEP-th texel; lit when nothing lies nearer the light than VBIAS (of the map's depth), in shade from VBIAS + VSOFT
+export const shadowAtPulled = Fn(([w]) => shadowOf(w, null, 'pulled'));
+// the same in a vertex stage (a tree's corners: src/scatter/trees.js): no comparison is to be had there, so the atlas's
+// own texels are read and compared here. Not one texel compared hard (lit, or not): a crown stands in its own shade, most
+// of its corners lie at that edge, and whatever moved by a hair (the sun going on, the map's box as the camera rises, a
+// crown in the wind) threw whole cards from light into shade and back, a flicker all through the crown. So nine texels
+// round the corner (every other one of a 5 x 5), each weighed by how near the corner lies to it (a smooth bell: the
+// weights slide as the corner moves, none jumps), and each compared over a depth (VSOFT), not at one: a corner's light
+// changes as little as what moved. In the near cascade where it lies inside it, the far one beyond, blended between.
+const VSTEP = 2, VSOFT = 0.0008;   // every VSTEP-th texel; in shade from VSOFT (of the map's depth) past the bias
+const vertexIn = (A, k) => {
+  // i: the nearest of the texels read; f: how far the corner lies from it, -0.5 .. 0.5 of their spacing
+  const t = A.q.xy.mul(SHADOW_S).sub(0.5).div(VSTEP), i = floor(t.add(0.5)), f = t.sub(i);
+  const bell = (v) => [v.sub(0.5).mul(v.sub(0.5)).mul(0.5), float(0.75).sub(v.mul(v)), v.add(0.5).mul(v.add(0.5)).mul(0.5)];   // (the three weights along one axis: they add up to 1)
+  const wx = bell(f.x), wy = bell(f.y), z = A.q.z.sub(k ? U.uShadowRange.w : U.uShadowRange.z), s = float(0).toVar();
+  for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) {
+    const p = clamp(i.add(vec2(a - 1, b - 1)).mul(VSTEP), 0, SHADOW_S - 1).add(vec2(k * SHADOW_S, 0));
+    s.addAssign(smoothstep(z.sub(VSOFT), z, float(U.tShadow.load(ivec2(p)))).mul(wx[a]).mul(wy[b]));   // lit where nothing nearer the light was drawn there
+  }
+  return s;
+};
 export const shadowAtVertex = Fn(([w]) => {
   const r = float(1).toVar();
   if (texelReads) If(U.uShadowOn.greaterThan(0.5), () => {
-    const s = U.uShadowM.mul(vec4(w, 1)), q = s.xyz.div(s.w);
-    If(q.x.greaterThan(0).and(q.y.greaterThan(0)).and(q.x.lessThan(1)).and(q.y.lessThan(1)).and(q.z.lessThan(1)), () => {
-      const e = smoothstep(0, 0.08, q.xy).mul(smoothstep(1, 0.92, q.xy));
-      // i: the nearest of the texels read; f: how far the corner lies from it, -0.5 .. 0.5 of their spacing
-      const size = float(1).div(U.uShadowTexel), t = q.xy.mul(size).sub(0.5).div(VSTEP), i = floor(t.add(0.5)), f = t.sub(i);
-      const bell = (v) => [v.sub(0.5).mul(v.sub(0.5)).mul(0.5), float(0.75).sub(v.mul(v)), v.add(0.5).mul(v.add(0.5)).mul(0.5)];   // (the three weights along one axis: they add up to 1)
-      const wx = bell(f.x), wy = bell(f.y), z = q.z.sub(VBIAS), k = float(0).toVar();
-      for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) {
-        const depth = float(U.tShadow.load(ivec2(clamp(i.add(vec2(a - 1, b - 1)).mul(VSTEP), 0, size.sub(1)))));
-        k.addAssign(smoothstep(z.sub(VSOFT), z, depth).mul(wx[a]).mul(wy[b]));   // lit where nothing nearer the light was drawn there
-      }
-      r.assign(mix(1, k, e.x.mul(e.y)));
-    });
+    const A = cascade(w, 0), B = cascade(w, 1), near = float(1).toVar(), far = float(1).toVar();
+    If(A.e.greaterThan(0), () => { near.assign(vertexIn(A, 0)); });
+    If(A.e.lessThan(1).and(B.e.greaterThan(0)), () => { far.assign(mix(1, vertexIn(B, 1), B.e)); });
+    r.assign(mix(far, near, A.e));
   });
   return r;
 });
@@ -156,11 +182,15 @@ export const unlit = () => U.uShadowPass.greaterThan(0.5);
 export const sunDim = () => float(1).sub(lane.dim.mul(0.6));
 
 // ---- the one light (intent 0038, stage 9): every material is lit here, and nowhere else ----
-const SHADOWS = { soft: (w) => shadowAt(w), one: (w) => shadowAtOne(w), vertex: (w) => shadowAtVertex(w), pulled: (w) => shadowAtPulled(w) };
+const SHADOWS = { soft: (w, n) => shadowAt(w, n), one: (w, n) => shadowAtOne(w, n), vertex: (w) => shadowAtVertex(w), pulled: (w) => shadowAtPulled(w) };
 /** The share of the sun's light that reaches w (1: all): past the storm, the clouds and what casts a shadow. how: 'soft'
     (a pixel's: the cascades with their penumbra), 'one' (one tap: what is too thin for a soft edge to show, a blade),
     'vertex' (a vertex stage's: a tree's corners), 'pulled' (what is drawn into the map pulled towards the light). */
-export const sunAt = (w, how = 'soft') => sunDim().mul(cloudShade(w)).mul(SHADOWS[how](w));
+export const sunAt = (w, how = 'soft', n = null) => sunDim().mul(cloudShade(w)).mul(SHADOWS[how](w, n));
+// what the screen's light left for this pixel (src/world/light/screen.js): read in the colour pass of what takes part
+// in the prepass (its depth is the one the screen's light read), in a fragment; 1 anywhere else
+const onScreen = (builder) => passOf(builder) === 'main' && builder.shaderStage === 'fragment' && builder.material?.userData?.pre === true;
+const contactHere = Fn((builder) => (onScreen(builder) ? mix(float(1), SCREEN.contact.load(ivec2(screenCoordinate.xy)).r, SCREEN.on) : float(1)));
 /** The light a surface takes, in its parts (rgb, the light's numbers): `sky`, what its colour takes from the sky; `sun`,
     from the sun; `spec`, the highlight laid over it. lit() below puts them on a colour; a material that lights itself per
     vertex (a tree) carries them to its pixels. s, every field but n and w optional:
@@ -173,7 +203,7 @@ export const sunAt = (w, how = 'soft') => sunDim().mul(cloudShade(w)).mul(SHADOW
       sky           what else dims the sky's light on it (the ground's own shade)
       gloss, sharp  its highlight: how bright, how tight */
 export const lightOn = (s) => {
-  const n = s.n, L = U.uSunDir, V = s.V ?? (s.w ? normalize((s.eye ?? U.uCam).sub(s.w)) : null), share = s.sun ?? sunAt(s.w, s.how);
+  const n = s.n, L = U.uSunDir, V = s.V ?? (s.w ? normalize((s.eye ?? U.uCam).sub(s.w)) : null), share = (s.sun ?? sunAt(s.w, s.how, s.n)).mul(contactHere());
   const wrap = s.wrap ?? 0, ndl = s.ndl ?? (wrap ? n.dot(L).add(wrap).div(float(wrap).add(1)) : n.dot(L)).max(0);
   const back = V ? max(V.negate().dot(L), 0) : null, light = U.uSun.mul(share);   // (how far the eye looks into the sun; the sun's light here)
   let sky = skyLight(n), sun = ndl;

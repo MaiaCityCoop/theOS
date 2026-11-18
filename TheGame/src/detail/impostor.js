@@ -21,6 +21,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, ivec2, uniform, texture, normalize, cross, abs, max, clamp, floor, sqrt, log2, mat3, If, Discard, screenCoordinate, instanceIndex, positionGeometry, varyingProperty, attribute, modelWorldMatrix, cameraProjectionMatrix, cameraViewMatrix } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { lit, weathered, snowLift, unlit } from '../world/light.js';
+import { passOf } from '../core/pass.js';
 import { CROWD, IN } from '../../assets/kit/crowd.js';
 import { note } from '../core/gpu.js';
 import { FNV, fnv } from '../core/hash.js';
@@ -233,10 +234,12 @@ export function impostorOf(geo, snow = { clumps: 0.08 }) {
       vL.assign(clamp(log2(float(CELL).div(drawnAt(pxAt(k.mul(2 * r), U.uCam.sub(C).length().mul(U.uLodInv))).max(1e-3))), 0, LODS.views()));   // (its texels one to a pixel drawn)
       return ready.greaterThan(0.5).select(cameraProjectionMatrix.mul(cameraViewMatrix).mul(vec4(w, 1)), vec4(2, 2, 2, 1));
     })();
-    m.fragmentNode = Fn(() => {
+    m.userData.shadow = true;   // (it says what it cuts in the shadow pass: src/core/pass.js)
+    m.fragmentNode = Fn((builder) => {
       const R = impostorRead(A, float(0), vP, vE, { cells: [vA.xy, vA.zw, vB], w: vW }, vL), out = vec4(0).toVar();
       If(R.cover.lessThan(0.5), () => { Discard(); });
-      If(unlit().not(), () => {   // drawn into the shadow map, only its outline counts: no light
+      if (passOf(builder) === 'shadow') return out;   // (drawn into the shadow map, only its outline counts: no light)
+      If(unlit().not(), () => {
         const n = normalize(M.mul(R.normal));   // (as the asset's own material lights it)
         out.assign(lit({ colour: weathered(R.colour.mul(R.colour), n, snowLift(vX, snow.clumps)), n, w: vX, ndl: max(n.dot(U.uSunDir), 0).mul(0.8).add(0.2) }));
       });

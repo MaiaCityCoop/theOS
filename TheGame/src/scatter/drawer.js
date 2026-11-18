@@ -349,12 +349,12 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     m.fragmentNode = Fn((builder) => {
       const pass = passOf(builder), out = vec4(0).toVar();
       if (THIN) cut(builder, ign(screenCoordinate.xy).greaterThanEqual(vEnd));   // (its last pixels: as many of its pixels as it has left, the same ones from frame to frame)
-      if (pass === 'pre') { if (foliage) leafCut(builder); return motion(vWas, foliage ? 1 : 0); }   // (the prepass: what is cut, and where it was: src/core/pass.js)
+      if (pass === 'pre' || pass === 'shadow') { if (foliage) leafCut(builder); return pass === 'pre' ? motion(vWas, foliage ? 1 : 0) : out; }   // (the prepass: what is cut, and where it was: src/core/pass.js)
       // (a mover's motion is not followed: its pixels say that nothing kept of them may be trusted, src/core/temporal.js)
       If(unlit().not(), () => { out.assign(vec4(shade(foliage, builder).rgb, moving && pass === 'main' ? 0 : 1)); });   // (into the shadow map: only its depth)
       return out;
     })();
-    m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)
+    m.userData.pre = true; m.userData.shadow = true;   // (it takes part in the prepass, and says what it cuts in the shadow pass: src/core/pass.js)
     return m;
   };
   // (a draw as long as the level's longest mesh: its vertices are read from the heap by their number; a flat make's: its

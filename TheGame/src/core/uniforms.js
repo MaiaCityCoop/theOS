@@ -31,7 +31,9 @@ export const U = {
   uDither: uniform(0),                             // a number of this frame's own, 0 … 1: what is cut by a noise of the screen's (a plant handing over to its impostor, src/scatter/trees.js) is cut otherwise every frame, and the picture built over time averages it
 
   uSnowFall: uniform(0),                           // how much snow is falling, 0 … 1 (src/world/weather/snowfall.js)
-  tShadow: texture(placeholder), uShadowM: uniform(new THREE.Matrix4()), uShadowOn: uniform(0), uShadowTexel: uniform(1 / 2048), uShadowPass: uniform(0),   // the shadow map (src/world/shadow.js)
+  tShadow: texture(placeholder), uShadowM: uniform(new THREE.Matrix4()), uShadowM2: uniform(new THREE.Matrix4()), uShadowOn: uniform(0), uShadowTexel: uniform(1 / 2048), uShadowPass: uniform(0),   // the shadow atlas (src/world/shadow.js): its near and far cascades
+  uShadowSize: uniform(new THREE.Vector2(70, 200)), uShadowRange: uniform(new THREE.Vector4(635, 700, 1e-4, 4e-4)),   // each cascade's side (metres); each one's depth range (metres) and bias (of its depth)
+  uFrame: uniform(0),                              // the world's frames drawn: the blue noise steps on with it (src/world/light/noise.js)
   uSky: uniform(v3(0.4, 0.55, 0.7)), uHaze: uniform(1 / 6500), uHazeCol: uniform(v3(0.6, 0.7, 0.8)),
 };
 

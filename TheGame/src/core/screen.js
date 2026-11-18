@@ -25,7 +25,7 @@ import { U } from './uniforms.js';
 import { TRUTH } from '../detail/measure.js';
 import { occlusion } from './occlusion.js';
 
-export function createScreen(renderer, { temporal, lens = null }) {
+export function createScreen(renderer, { temporal, lens = null, light = null }) {
   const OUT = Math.min(window.devicePixelRatio || 1, 2);
   renderer.setPixelRatio(OUT);
   let inside = OUT, turn = 0;
@@ -71,6 +71,7 @@ export function createScreen(renderer, { temporal, lens = null }) {
     /** Draw the world as this camera sees it, onto the canvas. */
     render(scene, camera) {
       const t = targetsNow(), was = T.turns[1 - turn], alpha = renderer.getClearAlpha(), clearDepth = renderer.autoClearDepth;
+      U.uFrame.value = (U.uFrame.value + 1) % 4096;   // (the blue noise steps on: src/world/light/noise.js)
       temporal.begin(camera, size.x, size.y);
       const culls = occlusion.early(renderer, camera, size.x, size.y, scene);   // (pass one, against the last frame's depth)
       // the prepass: nothing moved where nothing was drawn (the sky: the upscale takes the camera's motion there)
@@ -78,6 +79,8 @@ export function createScreen(renderer, { temporal, lens = null }) {
       renderer.setRenderObjectFunction(pre); renderer.setRenderTarget(t.pre); renderer.render(scene, camera);
       // (and pass two, against this frame's depth: what it finds drawn into the prepass after the rest)
       if (culls) occlusion.late(renderer, t.depth, size.x, size.y, (late) => { const ac = renderer.autoClear; renderer.autoClear = false; renderer.render(late, camera); renderer.autoClear = ac; });
+      // (the light worked out on the screen from the prepass's depth, for the colour pass: src/world/light/screen.js)
+      light?.run(t.depth, camera, size.x, size.y);
       // the colour, into the prepass's depth. (Cleared to the renderer's clear colour, which the sky sets to the hour's
       // horizon as the screen shows it: here in the light's own numbers, the screen's curve taken back off it)
       const E = 1.25 * U.uExposure.value, un = (v) => -Math.log(1 - Math.min(0.999, v) ** 2.2) / E;
@@ -85,6 +88,7 @@ export function createScreen(renderer, { temporal, lens = null }) {
       renderer.setRenderObjectFunction(main); renderer.setRenderTarget(t.main); renderer.render(scene, camera);
       renderer.setRenderObjectFunction(null); renderer.autoClearDepth = clearDepth; renderer.setRenderTarget(null); renderer.setClearColor(clear, alpha);
       if (culls) occlusion.rest();   // (every other view draws all that was packed: the shadow map, a still, a bake)
+      light?.off();
       temporal.end(camera);
       const dof = camera.userData.dof, glass = camera.userData.glass;   // the virtual camera brings a lens with it: its picture is drawn through it; the walker's glass, without the film's depth of field (src/camera/rig.js)
       const blurred = lens && dof && dof.on ? lens.blur(t.main, camera, dof) : null;

@@ -41,6 +41,7 @@ import { spawn } from './camera/walk.js';
 import { createControls } from './camera/rig.js';   // the one camera, from the walker's eyes to the city (intent 0003)
 import { createLens } from './camera/post.js';
 import { createScreen } from './core/screen.js';
+import { createScreenLight } from './world/light/screen.js';
 import { createTemporal } from './core/temporal.js';
 import { createSky } from './world/sky.js';
 import { createWeather } from './world/weather/index.js';
@@ -100,7 +101,7 @@ export async function boot({ profile = 'world' } = {}) {
   // dial; the screen keeps all its own), a prepass and the colour (src/core/pass.js), through the lens where the camera
   // brings one (src/camera/post.js), and brought up to the screen and built over time in one pass (src/core/temporal.js).
   const temporal = (game.temporal = createTemporal(renderer));
-  const screen = (game.screen = createScreen(renderer, { temporal, lens: createLens(renderer) }));
+  const screen = (game.screen = createScreen(renderer, { temporal, lens: createLens(renderer), light: (game.screenLight = createScreenLight(renderer)) }));
   const governor = createGovernor(renderer, { apply: (r) => screen.set(r) });
   game.governor = governor;   // the film holds it still while it plays
   keepMeasure(() => screen.inside);   // the one measure of size on screen, for every level of detail (src/detail/measure.js)

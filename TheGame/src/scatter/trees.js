@@ -355,7 +355,7 @@ function plantMaterial(tex, D) {
       // … and foliage right at the eye is let go (walking through a low crown, no card fills the picture)
       vCut.assign(vec2(mix(0.45, 0.16, smoothstep(15, 220, far)), max(smoothstep(0.06, 0.42, abs(normalize(turn(cardN)).dot(Ve))), body).mul(smoothstep(0.35, 1.3, far))));
       vMul.assign(vec3(0)); vAdd.assign(vec3(0));
-      if (pass !== 'pre') If(unlit().not(), () => {   // (drawn into the shadow map, or the prepass: only its depth and its cut-out count)
+      if (pass !== 'pre' && pass !== 'shadow') If(unlit().not(), () => {   // (drawn into the shadow map, or the prepass: only its depth and its cut-out count)
         // its light: the sky's and the sun's on the dome its crown makes (a crown of a thousand cards takes the light as a
         // whole, not card by card), through its needles when the sun is behind them, less of both deep in the crown
         // (ao); one tap of the shadow map at each corner; its snow; the air before it
@@ -393,7 +393,8 @@ function plantMaterial(tex, D) {
         T.assign(tex.a(floor(vLay.x.add(0.5)), vUv));   // (its kind's leaves: the layer a whole number, however a pixel got it)
         // (the shadow map takes no coverage: cut; the eye's picture, its outline soft where a target is multisampled)
         const eye = () => { alpha.assign(smoothstep(vCut.x.sub(0.08), vCut.x.add(0.08), T.a).mul(vCut.y)); cut(builder, alpha.lessThan(0.04)); };
-        if (pass) eye();
+        if (pass === 'shadow') If(T.a.lessThan(vCut.x), () => { Discard(); });
+        else if (pass) eye();
         else If(shadow, () => { If(T.a.lessThan(vCut.x), () => { Discard(); }); }).Else(eye);
       };
       If(leaf, () => {
@@ -404,7 +405,7 @@ function plantMaterial(tex, D) {
           // frame, sitting on the plane as a leaf does), and as much as is still its mesh's (handing); cut in the prepass
           const C = clumpRead(FAR.clumps(), vClump.x, vUv, vClump.y), t = floor(vUv.mul(CROWD.TILE)), keep = hash(uint(t.x).add(uint(t.y).mul(uint(4099))).add(uint(vClump.x).mul(uint(1000003))));
           cut(builder, C.cover.lessThan(0.5).or(keep.greaterThanEqual(vClump.z)).or(handing(vFade).not()));
-          if (pass === 'pre') return;
+          if (pass === 'pre' || pass === 'shadow') return;
           If(shadow.not(), () => {
             // lit as its leaves are, pixel by pixel, their way there turned with the plant and pulled a little towards
             // the eye (three planes show the leaves that face them edge-on more than the leaves do: HPG 2026's bias)
@@ -416,6 +417,7 @@ function plantMaterial(tex, D) {
         }).Else(cards);
       }).Else(fading);   // (its wood: only its impostor's coming cuts it)
       if (pass === 'pre') return motion(vWas, leaf.select(float(1), float(0)));   // (where it was a frame ago; a leaf's card is thin)
+      if (pass === 'shadow') return vec4(0);   // (into a shadow map: its depth and its cut-out, no light)
       If(leaf.not().and(shadow.not()), () => { const W = tex.a(floor(vLay.y.add(0.5)), vUv); T.assign(vec4(W.rgb.mul(mix(0.74, 1, W.a)), 1)); });   // its bark, darker in its fissures (0.74 squared: 0.55)
       const out = vec4(0).toVar();
       // (its fourth number: in the world's frame what was kept may be trusted, its motion said; drawn where the target is
@@ -423,7 +425,7 @@ function plantMaterial(tex, D) {
       If(shadow.not(), () => { out.assign(vec4(toScreen(T.rgb.mul(T.rgb).mul(vMul).add(vAdd)).rgb, pass ? float(1) : alpha)); });
       return out;
     });
-    const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.alphaToCoverage = true; m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)
+    const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.alphaToCoverage = true; m.userData.pre = true; m.userData.shadow = true;   // (it takes part in the prepass: src/core/pass.js)
     return { m, shape, slot };
   };
 }
@@ -439,7 +441,7 @@ function impostorMaterial(G, D, Lv, src) {
   const vP = varyingProperty('vec3', 'iP'), vE = varyingProperty('vec3', 'iE'), vA = varyingProperty('vec4', 'iA'), vB = varyingProperty('vec4', 'iB'), vW = varyingProperty('vec3', 'iW');
   const vK = varyingProperty('vec4', 'iK'), vT = varyingProperty('vec3', 'iT'), vAir = varyingProperty('vec4', 'iAir'), vLit = varyingProperty('vec4', 'iLit');
   const m = new THREE.NodeMaterial();
-  m.vertexNode = Fn(() => {
+  m.vertexNode = Fn((builder) => {
     const A = src.readAt(0, slot), B = src.readAt(1, slot), clip = offScreen().toVar(), kind = uint(B.y.add(0.5));
     const r0 = D().numOf(kind, 0), r2 = D().numOf(kind, 2), r3 = D().numOf(kind, 3), r4 = D().numOf(kind, 4);
     const own = pxOf(A.w, A.xy), at = pxOf(G.ST?.size ? float(G.ST.size) : A.w, A.xy), H = handOver(at, LU, G.sink);
@@ -464,7 +466,7 @@ function impostorMaterial(G, D, Lv, src) {
       // before it; its own green (as its cards': plantMaterial)
       const air = airOf(c);
       vT.assign(mix(vec3(1.07, 1.0, 0.78), vec3(0.86, 0.98, 1.1), B.z.mul(1.1631).fract()).mul(seedOf(B).mul(0.3).add(0.84)).mul(r0.yzw));
-      vAir.assign(vec4(air.col, air.k)); vLit.assign(vec4(sunAt(c, 'vertex'), pow(max(d.negate().dot(U.uSunDir), 0), 3).mul(r2.y), r2.x, 0));
+      if (passOf(builder) !== 'shadow') vAir.assign(vec4(air.col, air.k)), vLit.assign(vec4(sunAt(c, 'vertex'), pow(max(d.negate().dot(U.uSunDir), 0), 3).mul(r2.y), r2.x, 0));
       // it sways in the one wind as its mesh does (swayOf), each corner as far as its height up the plant: what it
       // shows is read where it stood still (vP), so its picture leans with the wind as the crown does; and for the
       // prepass, where it was a frame ago
@@ -479,6 +481,7 @@ function impostorMaterial(G, D, Lv, src) {
     // hands over (handing); then where its point was a frame ago)
     cut(builder, R.cover.lessThan(0.5).or(handing(float(1).sub(vB.z))));
     if (passOf(builder) === 'pre') return motion(vWas, R.leaf);   // (a leaf's texel is thin)
+    if (passOf(builder) === 'shadow') return out;   // (into a shadow map: its outline)
     If(unlit().not(), () => {
       const col = R.colour, n = turnOf(vK.z).turn(R.normal), ao = R.light, leaf = R.leaf, sd = n.dot(U.uSunDir);
       const ndl = mix(sd, sd.add(vLit.z).div(vLit.z.add(1)), leaf).max(0);
@@ -488,7 +491,7 @@ function impostorMaterial(G, D, Lv, src) {
     });
     return out;
   })();
-  m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)
+  m.userData.pre = true; m.userData.shadow = true;   // (it takes part in the prepass, and says what it cuts in the shadow pass: src/core/pass.js)
   return m;
 }
 
