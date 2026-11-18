@@ -21,7 +21,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, uv, uniform, instanceIndex, varyingProperty, positionGeometry, cameraViewMatrix, cameraProjectionMatrix, sin, fract, max, mix, abs, pow, length, smoothstep, clamp, uint, If, Discard } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { vnoise, rnd } from './noise.nodes.js';
-import { finish, lit, windAt } from './light.js';
+import { finish, skyLight, windAt } from './light.js';
 import { heightAt } from './land.js';
 
 /** Where the fire whose light the world takes is ((x, y, z) of its middle, a little over the coals) and how strongly
@@ -179,7 +179,8 @@ function smoke(F) {
     const dens = clamp(plume.mul(roll.mul(0.9).add(fine.mul(0.5)).sub(0.45)).mul(1.6), 0, 1).mul(F.smoke);
     If(dens.lessThan(0.004), () => { Discard(); });
     // pale grey smoke, lit from above by the sky and the sun, a little warmer low down where the fire lights it
-    const col = lit({ colour: vec3(0.55, 0.55, 0.56), n: vec3(0, 1, 0), w: vW, ndl: float(0.55), sun: float(1), extra: FIRE_RGB.mul(F.at.w).mul(smoothstep(0.3, 0.0, y)).mul(0.15 / 0.55) });
+    const lit = vec3(0.55, 0.55, 0.56).mul(skyLight(vec3(0, 1, 0)).add(U.uSun.mul(0.55))).add(FIRE_RGB.mul(F.at.w).mul(smoothstep(0.3, 0.0, y)).mul(0.15));
+    const col = finish(lit, vW);
     out.assign(vec4(col.rgb.mul(dens), dens));
     return out;
   })();
