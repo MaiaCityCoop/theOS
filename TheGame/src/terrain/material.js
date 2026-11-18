@@ -87,7 +87,7 @@ export function terrainMaterial(tex) {
     const rdist = length(vWorld.sub(U.uCam)), dist2 = rdist.mul(U.uLodInv);   // the true distance (for the air), and the lens's (for detail)
     const d = abs(vI.x), w = vI.y;
     const X = layersAt(p, dx, dy, vN.y);
-    const tiled = (TRUTH ? dist2.greaterThanEqual(0) : dist2.lessThan(ign(screenCoordinate.xy).mul(80).add(240))).toVar();   // (the grounds hex-tiled; the hand-over dithered, so it shows no line. ?truth: all of it)
+    const tiled = dist2.lessThan(ign(screenCoordinate.xy).mul(80).add(240)).toVar();   // (the grounds hex-tiled; the hand-over dithered, so it shows no line. ?truth as well: how a ground is kept from repeating is no level of detail, and hex-tiled out to every horizon its frames lost the device)
 
     // the grass as a carpet, at three sizes: blades near, tufts further, drifts of them from high up (each read only where
     // it shows: the blades' within 110 m, the drifts' past 300; in a branch a texture is read with its gradients given,

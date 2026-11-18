@@ -322,6 +322,29 @@ Branched from 2a (`aven/0038-stage2-gate`), in parallel with 2b, 4 and 10.
   fragment runs only where it shows. What a deferred pass would save is the overshading of thin far triangles at eye
   level, against a split of the scene's one render (the bench, the library and the films draw it with one call) and a
   G-buffer or depth reconstruction. It comes with 6b, where the virtual texture's feedback wants a screen pass anyway.
+- **Measured** (the GPU was shared with other agents' gate runs all along: single bench runs of the same code swung 2–3×,
+  so the times are side by side, A/B, the least of three rounds):
+
+| Shader bytes (gate `compile`) | 2a | 6a |
+| --- | --- | --- |
+| All, at the start | 3.58 MB, 135 modules | 1.98 MB, 136 modules |
+| The largest | 390 KB (the ground pass) | 78 KB (the layer map's pass) |
+| The ground pass (`scatter/ground.js`) | 390 KB | 76 KB |
+| The land: vertex, fragment | 240 KB, 151 KB | 25 KB, 67 KB |
+
+| GPU ms, 2560×1440 | Frame 2a | Frame 6a | Land alone 2a | Land alone 6a |
+| --- | --- | --- | --- | --- |
+| Tent, eye level | 15.2 | 13.5 | 9.3 | 9.0 |
+| River bend, 26 m | 16.6 | 18.7 | 13.1 | 15.2 |
+| Town, 40 m | 15.3 | 18.4 | 12.5 | 16.2 |
+| Skyline, 2.5 km | 15.5 | 17.5 | 13.9 | 16.3 |
+| Pine forest, eye level | 31.8 | 26.1 | 14.2 | 12.0 |
+| Pine forest, 90 m | 13.1 | 17.4 | 10.6 | 15.1 |
+
+  - Faster at eye level, slower from above. Each material read now waits on the map's ids (two dependent fetches a
+    pixel), and the near ground is hex-tiled out to 320 m. That is not the immediate win this stage was meant to be.
+    The virtual texture (6b) turns those reads into one per pixel.
+  - FLIP: FLIP_LINE
 
 ## Propose
 
@@ -341,6 +364,9 @@ Branched from 2a (`aven/0038-stage2-gate`), in parallel with 2b, 4 and 10.
 - [ ] Stage 4: far end, impostor and clump rung
 - [ ] Stage 5: crowds, parts and one wind
 - [ ] Stage 6: land, virtual texture and relief
+  - [x] 6a: the layer map, one read a material (the deferred pass left to 6b)
+  - [ ] 6b: the adaptive virtual texture with feedback, the deferred pass, the ground pass read from the map
+  - [ ] 6c: relief (displacement, parallax, skirts, path decals)
 - [ ] Stage 7: placement, five layers
 - [ ] Stage 8: surfaces, cluster hierarchy
 - [ ] Stage 9: one light, characters
@@ -367,6 +393,12 @@ Branched from 2a (`aven/0038-stage2-gate`), in parallel with 2b, 4 and 10.
 - **Good:** stage 1 changed nothing on screen. The plant meshes are byte-identical, and the stills match main within
   the TAA's noise.
 - **Not there yet:** stages 2–10; Samuel's photos.
+- **Stage 6a (built in its own worktree):**
+  - Delivered: the land's layer map, one read a material, and the land's noises as shader functions. The shader bytes
+    at the start went from 3.58 to 1.98 MB; the largest module went from 390 to 78 KB.
+  - Good: the land is laid where it was. The stills differ from 2a's only in where each grain of a ground lies.
+  - Not there yet: the land is faster at eye level but slower from above (2–4.5 ms at 2560×1440), and the lines rose
+    by about 230.
 
 ## Trail
 
