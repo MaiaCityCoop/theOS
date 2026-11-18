@@ -27,6 +27,8 @@
 import * as THREE from 'three/webgpu';
 import { Fn, If, Loop, Break, float, int, uint, vec2, vec4, ivec2, uvec2, uvec4, uniform, uniformArray, texture, storageTexture, textureStore, globalId, floor, fract, log2, exp2, max, min, clamp, length, mix, sqrt, smoothstep, renderGroup } from 'three/tsl';
 import { U } from '../core/uniforms.js';
+import { boxIn } from '../core/frustum.js';
+import { HMIN, HMAX } from '../world/land.js';
 import { note, gpuStorage } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { source } from '../core/settle.js';
@@ -46,7 +48,7 @@ const S0 = 1 / 512, LEVELS = 17, TOP = LEVELS - 1, K = 128;   // metres a texel 
 const ANISO = 4, FADE = 10, SWEEP = TRUTH ? 4 : 8, TAKES = TRUTH ? 16 : 4, BATCH = 16, MAPN = 8;   // the filter's steps along a slope; frames a page fades in over; a block of SWEEP × SWEEP pixels asks once a frame, the finest of TAKES of them; pages laid at once; texels between the layer map's points
 const SPAN = (SWEEP * SWEEP) / TAKES;   // frames a sweep takes: every pixel of a block has asked once
 const G0 = SLOT / MAPN + 2, G1 = SLOT / 2 / MAPN + 2, POINTS = G0 * G0 + G1 * G1;   // the layer map's points a page has a side, for its first mip and its second; all of them
-const KEEP = 96, FAST = 12, PIN = 26000, NEAR = 15;   // frames a page not asked for is kept at least; screen pixels a frame a page may cross and still be laid; metres round the camera the last level is always in; metres from the eye the bias spares
+const KEEP = 96, FAST = 12, NEAR = 15;   // frames a page not asked for is kept at least; screen pixels a frame a page may cross and still be laid; metres from the eye the bias spares
 /** The ground's own height: metres from a page's lowest ground to its highest (its height 0 … 1, the land's own at
     0.5). The one size of the ground's relief: how it is shown at a distance follows from it by the one measure
     (reliefShares). */
@@ -405,8 +407,11 @@ export function createPages(renderer, tex) {
     /** What the GPU holds of it, for a look: { slots, in, queue, bias, made }. */
     get stats() { return { slots: SLOTS, in: IN.size, need: want.size, queue: queue.length, fading: fading.length, bias, made, refs: refs.size, read: readTo, quiet: quietFrom, frame }; },
     /** Once a frame, before the world is drawn: the windows kept round the camera, what the pixels asked for taken in,
-        pages laid, the table sent. */
-    update(camera) {
+        pages laid, the table sent. The last level is always in as far as the land is drawn (`pin`, metres:
+        src/terrain/terrain.js, its reach from src/detail/extent.js): all round the camera as far as the walker's lens
+        sees (`disk`), and past that where the view looks (a longer lens sees farther in a narrower cone: a disk as far
+        would ask for more pages than the slots hold). */
+    update(camera, pin, disk = pin) {
       frame++; const v0 = version;
       const cam = camera.position, size = renderer.getDrawingBufferSize(new THREE.Vector2());
       // laid again whole when what it is laid as changed: the library's stage and sandbox, the screen's pixels (a level's distance)
@@ -427,10 +432,12 @@ export function createPages(renderer, tex) {
       }
       // ---- the last level round the camera, always in (what a pixel reads where nothing finer is in yet) ----
       const P = sideOf(TOP), pins = [];
-      for (let j = Math.floor((cam.z - PIN) / P); j <= Math.floor((cam.z + PIN) / P); j++) for (let i = Math.floor((cam.x - PIN) / P); i <= Math.floor((cam.x + PIN) / P); i++) {
+      for (let j = Math.floor((cam.z - pin) / P); j <= Math.floor((cam.z + pin) / P); j++) for (let i = Math.floor((cam.x - pin) / P); i <= Math.floor((cam.x + pin) / P); i++) {
+        const x0 = i * P, z0 = j * P, nx = Math.max(x0 - cam.x, 0, cam.x - x0 - P), nz = Math.max(z0 - cam.z, 0, cam.z - z0 - P);
+        if (nx * nx + nz * nz > disk * disk && !boxIn(x0, x0 + P, HMIN, HMAX, z0, z0 + P)) continue;   // (past the disk: only where the view looks)
         const Q = IN.get(keyOf(TOP, i, j)); if (Q) { Q.pin = true; Q.used = frame; } else pins.push({ m: TOP, i, j, pin: true });
       }
-      for (const Q of IN.values()) if (Q.pin && Q.m === TOP && (Math.abs((Q.i + 0.5) * P - cam.x) > PIN + P || Math.abs((Q.j + 0.5) * P - cam.z) > PIN + P)) Q.pin = false;
+      for (const Q of IN.values()) if (Q.pin && Q.m === TOP && Q.used < frame) Q.pin = false;   // (a pinned page not pinned this frame: free to go)
       if (pins.length) make(pins, Infinity);
       // ---- the pixels' asks: the last frame's read back, what is no longer asked for forgotten, the bias chosen again
       // when what is asked for does not fit (or, once a sweep has been read with the camera still, when it may be finer) ----

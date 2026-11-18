@@ -18,6 +18,9 @@ export const VIEWS = [
 /** The hard gate: a frame's GPU time at most this (ms), at every view, so 60 fps holds with room for the CPU and the
     browser's own work (16.7 ms a frame in all). */
 export const BUDGET = 12;
+/** A scene drawn whole, as only a tool does: into the screen's own target, which has a depth (the game's canvas has
+    none: src/boot.js; three lays a canvas's pass out once, so it cannot be given one for a few draws). */
+const inTarget = (draw) => { const s = window.__game, r = s.renderer, was = r.getRenderTarget(); r.setRenderTarget(s.screen?.target ?? was); try { return draw(); } finally { r.setRenderTarget(was); } };
 /** The frame's four parts, each the passes it is made of (by the names their code marks them with: src/core/gpu.js
     mark), in the frame's order: what BUDGET is shared out by, a ceiling a part (measured and set on the Mac mini). A pass
     no part names is 'other': the slack. */
@@ -124,7 +127,7 @@ export async function bench({ ratio = 1.5, frames = 60, settle = 0, shading = fa
     mark('clouds'); s.weather.before(camera, g);
     mark('shadow map'); s.shadows.render(s.scene, camera, g);
     if (dark) U.uShadowOn.value = 0;   // (the colour pass reads no shadow: the A/B of its share)
-    if (s.screen) s.screen.render(s.scene, camera); else { mark('colour'); renderer.render(s.scene, camera); }
+    if (s.screen) s.screen.render(s.scene, camera); else { mark('colour'); inTarget(() => renderer.render(s.scene, camera)); }
     mark(null);
   };
   const out = {}, clock = await clockOf(renderer);   // the game opened with ?gputime (or ?bench): the GPU's own time, not the wall's
@@ -188,8 +191,8 @@ export async function parts(view = VIEWS[0], { ratio = 1, frames = 30 } = {}) {
     const groups = { sky: (o) => o.renderOrder === 15, land: (o) => o === s.terrain.landMesh || o === s.terrain.relief?.mesh, water: (o) => o === s.terrain.waterMesh };   // (the land: its mesh and the relief's near the eye)
     for (const a of new Set(tierOf.values())) groups[a] = (o) => tierOf.get(o) === a;
     const named = Object.values(groups); groups.placed = (o) => !named.some((f) => f(o)) && !tierOf.has(o);
-    const out = { view: v.name, all: await time(() => renderer.render(scene, camera)), light: await time(() => s.shadows.render(scene, camera, g)), weather: await time(() => s.weather.before(camera, g)) };
-    for (const [k, f] of Object.entries(groups)) { kids.forEach((o) => (o.visible = f(o))); out[k] = await time(() => renderer.render(scene, camera)); kids.forEach((o) => (o.visible = true)); }
+    const out = { view: v.name, all: await time(() => inTarget(() => renderer.render(scene, camera))), light: await time(() => s.shadows.render(scene, camera, g)), weather: await time(() => s.weather.before(camera, g)) };
+    for (const [k, f] of Object.entries(groups)) { kids.forEach((o) => (o.visible = f(o))); out[k] = await time(() => inTarget(() => renderer.render(scene, camera))); kids.forEach((o) => (o.visible = true)); }
     return out;
   } finally { clock.stop(); renderer.setPixelRatio(was); s.governor.hold(false); s.covered = covered; }
 }
