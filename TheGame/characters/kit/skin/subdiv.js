@@ -10,7 +10,7 @@
 //                               faces  the cage's: arrays of point numbers (any polygon); a round's: a Uint32Array, four a face
 //   limit(mesh) -> { pos, nor } where each point of a round's mesh lies on the smooth surface itself, and how that
 //                               surface faces there (its normal: exact, not the mean of the faces round the point)
-const KEY = 2 ** 26;   // (an edge's name: its lower point's number times this, plus its higher's)
+const keyOf = (a, b) => (a < b ? a * 2 ** 26 + b : b * 2 ** 26 + a);   // (an edge's name: its lower point's number, moved up 26 places, plus its higher's)
 
 /** One round. */
 export function refine({ pos, faces }) {
@@ -19,11 +19,11 @@ export function refine({ pos, faces }) {
   // the edges: each once, with the faces either side of it
   const edge = new Map(), ea = [], eb = [], ef = [];
   for (let f = 0; f < nf; f++) for (let n = size(f), i = 0; i < n; i++) {
-    const a = at(f, i), b = at(f, (i + 1) % n), k = a < b ? a * KEY + b : b * KEY + a; let e = edge.get(k);
+    const a = at(f, i), b = at(f, (i + 1) % n), k = keyOf(a, b); let e = edge.get(k);
     if (e === undefined) { e = ea.length; edge.set(k, e); ea.push(a); eb.push(b); ef.push(f, -1); } else ef[e * 2 + 1] = f;
   }
   const ne = ea.length, NV = nv + ne + nf, E0 = nv, F0 = nv + ne;
-  const eOf = (a, b) => edge.get(a < b ? a * KEY + b : b * KEY + a);
+  const eOf = (a, b) => edge.get(keyOf(a, b));
   // where each new point lies: a face's, an edge's, an old point's
   const valence = new Uint16Array(nv), border = new Uint8Array(nv);
   for (let e = 0; e < ne; e++) { valence[ea[e]]++; valence[eb[e]]++; if (ef[e * 2 + 1] < 0) border[ea[e]] = border[eb[e]] = 1; }

@@ -87,7 +87,7 @@ const EAR = {
   plate: 3, lobe: { from: -11, to: -19, thick: 5.5, level: [-7, 0.22] }, even: 0.5,
 };
 
-const D2R = Math.PI / 180;
+const rad = (deg) => deg * (Math.PI / 180), degOf = (r) => r / (Math.PI / 180);
 const smooth01 = (x) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
 const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
 const smax = (a, b, k) => -smin(-a, -b, k);
@@ -96,7 +96,7 @@ const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 /** The ear's frame: where its plane's middle is in the world (m) and its three axes there: backwards along its
     breadth, up its long axis, out of its plane. */
 function earFrame() {
-  const L = EAR.lean * D2R, F = EAR.off * D2R, T = EAR.tip * D2R;
+  const L = rad(EAR.lean), F = rad(EAR.off), T = rad(EAR.tip);
   const V0 = [0, Math.cos(L), -Math.sin(L)], U0 = [0, -Math.sin(L), -Math.cos(L)], N0 = [1, 0, 0];
   const U = U0.map((u, i) => u * Math.cos(F) + N0[i] * Math.sin(F)), N1 = N0.map((n, i) => n * Math.cos(F) - U0[i] * Math.sin(F));
   const V = V0.map((v, i) => v * Math.cos(T) + N1[i] * Math.sin(T)), N = N1.map((n, i) => n * Math.cos(T) - V0[i] * Math.sin(T));
@@ -157,7 +157,7 @@ function mapsOf() {
   const n = NP * NQ, M0 = new Float32Array(n), G = new Float32Array(n), T = new Float32Array(n), DO = new Float32Array(n), HR = new Float32Array(n), DA = new Float32Array(n), WH = new Float32Array(n);
   const between = (a, [f0, f1, t0, t1]) => smooth01((a - f0) / (f1 - f0)) * (1 - smooth01((a - t0) / (t1 - t0)));
   for (let j = 0; j < NQ; j++) for (let i = 0; i < NP; i++) {
-    const p = P0 + i * STEP, q = Q0 + j * STEP, g = i + NP * j, dO = rim(p, q), wh = headUnder(p, q), round = Math.atan2(q - 5, p - 10) / D2R;
+    const p = P0 + i * STEP, q = Q0 + j * STEP, g = i + NP * j, dO = rim(p, q), wh = headUnder(p, q), round = degOf(Math.atan2(q - 5, p - 10));
     // the bowl, its floor flat and its wall rising to its rim; the canal's pit in its floor
     const c = E.concha, rc = (Math.abs((p - c.at[0]) / c.r[0]) ** c.n + Math.abs((q - c.at[1]) / c.r[1]) ** c.n) ** (1 / c.n);
     let m = -c.deep * (1 - smooth01((rc - c.wall[0]) / (c.wall[1] - c.wall[0])));
@@ -284,7 +284,7 @@ export function earOf({ h = 0.00112 } = {}) {
   // (the ear and the head it stands on, as one: what hides the sky from a point, what lies behind it; mm in the ear's plane)
   const both = (p, q, w) => { const x = world(p, q, w); return Math.min(local(p, q, w), head([Math.abs(x[0]), x[1], x[2]]) * 1000); };
   // (rays over the half of the world a point faces, by its own normal: six round at 55 degrees and one along it)
-  const RAYS = [[0, 0, 1], ...[0, 1, 2, 3, 4, 5].map((i) => [Math.sin(55 * D2R) * Math.cos((i * Math.PI) / 3), Math.sin(55 * D2R) * Math.sin((i * Math.PI) / 3), Math.cos(55 * D2R)])], REACH = [1.5, 3.5, 7, 13, 22];
+  const RAYS = [[0, 0, 1], ...[0, 1, 2, 3, 4, 5].map((i) => [Math.sin(rad(55)) * Math.cos((i * Math.PI) / 3), Math.sin(rad(55)) * Math.sin((i * Math.PI) / 3), Math.cos(rad(55))])], REACH = [1.5, 3.5, 7, 13, 22];
   const levels = [1, 2, 4].map((mul, lv) => {
     const hc = h * 1000 * mul, { pos, at, quads } = netsOf(local, box, hc, lv === 0 ? 0 : 0.12 * hc), n = pos.length / 3;   // (a coarser level a little fuller: a plate thinner than its cells would come out in holes)
     const nor = new Float32Array(n * 3), P = new Float32Array(n * 3), open = new Float32Array(n), thick = new Float32Array(n), fat = lv === 0 ? 0 : 0.12 * hc;

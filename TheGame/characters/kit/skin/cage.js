@@ -24,11 +24,12 @@ const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a
 const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
 const smooth01 = (x) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
-const D = Math.PI / 180;
+const rad = (deg) => deg * (Math.PI / 180), degOf = (r) => r / (Math.PI / 180);
 
-/** How many points a ring has: the head's, the neck's and the shoulders' (H), the trunk's (T), an arm's (A), a leg's
-    (L); how many edges cross under an armpit (KA) and under the crotch (KC). They fit: H = T + 2A - 4KA, L = T/2 + KC. */
-const COUNT = { H: 48, T: 32, A: 20, L: 20, KA: 6, KC: 4 };
+/** How many points a ring has: the trunk's (T), an arm's (A); how many edges cross under an armpit (KA) and under the
+    crotch (KC). The others follow, so that the rings meet point for point: the head's, the neck's and the shoulders' are
+    H = T + 2A - 4KA, a leg's L = T/2 + KC. */
+const COUNT = { T: 32, A: 20, KA: 6, KC: 4 };
 
 /** The shape as solids a ray can be sent through (each negative inside, metres): `body` the trunk, the legs and the
     head; `arm` the arms with their hands; `both` the two as one (the shoulders); `leg` the left leg alone; `any` the
@@ -89,9 +90,9 @@ export function cageOf(T) {
   // few points stands for the skin round it, not for the dent or the knob one ray happens to meet.
   const outline = (S, c, e1, e2, { far = 0.4, gap = 0, half = false, soft = 0, thick = 0, along = null, step = 0.003, outer = false } = {}) => {
     const n = half ? 361 : 720, r = new Float64Array(n), levels = thick > 0 ? [[-thick, 0.25], [0, 0.5], [thick, 0.25]] : [[0, 1]];
-    for (const [o, w] of levels) { const cc = o ? add(c, mul(along, o)) : c; for (let i = 0; i < n; i++) { const a = i * 0.5 * D, d = add(mul(e1, Math.cos(a)), mul(e2, Math.sin(a))); r[i] += w * (outer ? enter(S, cc, d, far, step) : exit(S, cc, d, far, gap, step)); } }
+    for (const [o, w] of levels) { const cc = o ? add(c, mul(along, o)) : c; for (let i = 0; i < n; i++) { const a = rad(i * 0.5), d = add(mul(e1, Math.cos(a)), mul(e2, Math.sin(a))); r[i] += w * (outer ? enter(S, cc, d, far, step) : exit(S, cc, d, far, gap, step)); } }
     evenRound(r, soft, half);
-    const pt = (i) => { const a = i * 0.5 * D, x = Math.cos(a) * r[i], y = Math.sin(a) * r[i]; return [c[0] + e1[0] * x + e2[0] * y, c[1] + e1[1] * x + e2[1] * y, c[2] + e1[2] * x + e2[2] * y]; };
+    const pt = (i) => { const a = rad(i * 0.5), x = Math.cos(a) * r[i], y = Math.sin(a) * r[i]; return [c[0] + e1[0] * x + e2[0] * y, c[1] + e1[1] * x + e2[1] * y, c[2] + e1[2] * x + e2[2] * y]; };
     const P = Array.from({ length: n }, (_, i) => pt(i)), L = new Float64Array(n + (half ? 0 : 1));
     for (let i = 1; i < L.length; i++) L[i] = L[i - 1] + len(sub(P[i % n], P[i - 1]));
     const total = L[L.length - 1];
@@ -117,7 +118,7 @@ export function cageOf(T) {
   const band = (a, b, into) => { const n = a.length; if (b.length !== n) throw new Error(`cage: a ring of ${n} points meets one of ${b.length}`); for (let i = 0; i < n; i++) into.push([a[i], b[i], b[(i + 1) % n], a[(i + 1) % n]]); };
 
   // ── the trunk, the neck and the head: rings across the middle, level ───────────────────────────────────────────
-  const { H, T: NT, A: NA, L: NL, KA, KC } = COUNT, front = [0, 0, 1], leftward = [1, 0, 0], down = [0, -1, 0];
+  const { T: NT, A: NA, KA, KC } = COUNT, H = NT + 2 * NA - 4 * KA, NL = NT / 2 + KC, front = [0, 0, 1], leftward = [1, 0, 0], down = [0, -1, 0];
   // (the middle of a level ring across the body: on the middle plane, half way between its front and its back there)
   const centreAt = (S, y, z0 = -0.03) => { const c = [0, y, z0], f = enter(S, c, [0, 0, 1], 0.3), b = enter(S, c, [0, 0, -1], 0.3); return [0, y, z0 + (f - b) / 2]; };
   // The heights (m). The crown's cap, then the head a ring every centimetre and a bit where the face is; the neck; the
@@ -239,7 +240,7 @@ export function cageOf(T) {
   const legAt = along(['thigh.L', 'shin.L', 'foot.L']), armAt = along(['upperArm.L', 'foreArm.L', 'hand.L']);
   const knee = J('shin.L')[1], elbow = J('foreArm.L')[1], wrist = J('hand.L')[1];
   // (where a point lies round an axis, degrees from e1 towards e2; and a row of such angles made to run on upwards)
-  const angleOf = (p, c, f, l) => Math.atan2(dot(sub(p, c), l), dot(sub(p, c), f)) / D;
+  const angleOf = (p, c, f, l) => degOf(Math.atan2(dot(sub(p, c), l), dot(sub(p, c), f)));
   const unwrap = (a) => { const out = [a[0]]; for (let i = 1; i < a.length; i++) { let x = a[i]; while (x < out[i - 1]) x += 360; while (x - out[i - 1] > 360) x -= 360; out.push(x); } return out; };
   const seg = (p, a, b) => { const ab = sub(b, a), t = Math.max(0, Math.min(1, dot(sub(p, a), ab) / dot(ab, ab))); return len(sub(p, add(a, mul(ab, t)))); };
   // A finger or a toe: from the ring it leaves the hand or the foot by (its points as they lie there), rings across
@@ -320,7 +321,7 @@ export function cageOf(T) {
     const legYs = [...levels(crotch - 0.022, hinge[1] + 0.012, (y) => (Math.abs(y - knee) < 0.09 ? 0.02 : 0.03)), hinge[1]];
     for (const y of legYs) legRows.push(planeRing(leg, legAt(y), front, down, evenly(NL, firstL), 'leg').ids);
     const footOpts = { soft: 3, thick: 0.004, step: 0.002, far: 0.16 };
-    for (const deg of [18, 36, 54, 72, 90]) { const a = deg * D, e1 = [0, Math.sin(a), Math.cos(a)], u = [0, -Math.cos(a), Math.sin(a)]; legRows.push(planeRing(leg, sub(hinge, mul(e1, 0.085)), e1, u, evenly(NL, firstL), 'leg', footOpts).ids); }
+    for (const deg of [18, 36, 54, 72, 90]) { const a = rad(deg), e1 = [0, Math.sin(a), Math.cos(a)], u = [0, -Math.cos(a), Math.sin(a)]; legRows.push(planeRing(leg, sub(hinge, mul(e1, 0.085)), e1, u, evenly(NL, firstL), 'leg', footOpts).ids); }
     const toes = T.toeRods ?? [], up = [0, 1, 0], fore = [0, 0, 1];
     if (toes.length === 5) {
       const zc = toes.map((R) => R.a[2] + 0.34 * (R.b[2] - R.a[2])), xc = toes.map((R, i) => R.a[0] + 0.34 * (R.b[0] - R.a[0])), ball = Math.min(...zc) - 0.02;
