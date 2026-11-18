@@ -20,7 +20,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, ivec2, uniform, texture, normalize, cross, abs, max, clamp, floor, sqrt, log2, mat3, If, Discard, screenCoordinate, instanceIndex, positionGeometry, varyingProperty, attribute, modelWorldMatrix, cameraProjectionMatrix, cameraViewMatrix } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { finish, skyLight, weathered, snowLift, cloudAt, unlit } from '../world/light.js';
+import { lit, weathered, snowLift, unlit } from '../world/light.js';
 import { CROWD, IN } from '../../assets/kit/crowd.js';
 import { note } from '../core/gpu.js';
 import { FNV, fnv } from '../core/hash.js';
@@ -237,8 +237,8 @@ export function impostorOf(geo, snow = { clumps: 0.08 }) {
       const R = impostorRead(A, float(0), vP, vE, { cells: [vA.xy, vA.zw, vB], w: vW }, vL), out = vec4(0).toVar();
       If(R.cover.lessThan(0.5), () => { Discard(); });
       If(unlit().not(), () => {   // drawn into the shadow map, only its outline counts: no light
-        const n = normalize(M.mul(R.normal)), col = weathered(R.colour.mul(R.colour), n, snowLift(vX, snow.clumps)).mul(skyLight(n).add(U.uSun.mul(cloudAt(vX)).mul(max(n.dot(U.uSunDir), 0).mul(0.8).add(0.2))));   // as the asset's own material lights it
-        out.assign(finish(col, vX));
+        const n = normalize(M.mul(R.normal));   // (as the asset's own material lights it)
+        out.assign(lit({ colour: weathered(R.colour.mul(R.colour), n, snowLift(vX, snow.clumps)), n, w: vX, ndl: max(n.dot(U.uSunDir), 0).mul(0.8).add(0.2) }));
       });
       return out;
     })();

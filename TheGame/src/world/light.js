@@ -154,10 +154,37 @@ export const shadowAtVertex = Fn(([w]) => {
 export const unlit = () => U.uShadowPass.greaterThan(0.5);
 /** the share of the sun's light the weather's sky lets through (its dim lane: a storm's) */
 export const sunDim = () => float(1).sub(lane.dim.mul(0.6));
-/** The share of sunlight that reaches a point (1: all): past the clouds and the storm, and past what casts a shadow. */
-export const cloudAt = Fn(([w]) => sunDim().mul(cloudShade(w)).mul(shadowAt(w)));
-/** the same, its shadow from one sample (shadowAtOne) */
-export const cloudAtOne = Fn(([w]) => sunDim().mul(cloudShade(w)).mul(shadowAtOne(w)));
-/** the same, its shadow looked up in a vertex stage */
-export const cloudAtVertex = Fn(([w]) => sunDim().mul(cloudShade(w)).mul(shadowAtVertex(w)));
+
+// ---- the one light (intent 0038, stage 9): every material is lit here, and nowhere else ----
+const SHADOWS = { soft: (w) => shadowAt(w), one: (w) => shadowAtOne(w), vertex: (w) => shadowAtVertex(w), pulled: (w) => shadowAtPulled(w) };
+/** The share of the sun's light that reaches w (1: all): past the storm, the clouds and what casts a shadow. how: 'soft'
+    (a pixel's: the cascades with their penumbra), 'one' (one tap: what is too thin for a soft edge to show, a blade),
+    'vertex' (a vertex stage's: a tree's corners), 'pulled' (what is drawn into the map pulled towards the light). */
+export const sunAt = (w, how = 'soft') => sunDim().mul(cloudShade(w)).mul(SHADOWS[how](w));
+/** The light a surface takes, in its parts (rgb, the light's numbers): `sky`, what its colour takes from the sky; `sun`,
+    from the sun; `spec`, the highlight laid over it. lit() below puts them on a colour; a material that lights itself per
+    vertex (a tree) carries them to its pixels. s, every field but n and w optional:
+      n, w, eye, V  its normal (the side the eye sees), its point, the eye (U.uCam), the way to it (else from those)
+      sun, how      the share of the sun that reaches it (else sunAt(w, how))
+      ndl, wrap     how it faces the sun (else n·L, wrapped round its edge as far as `wrap` says: soft things, leaves)
+      through, lobe, tint   how much of the sun behind it comes through it (a leaf, a blade, canvas): seen into the sun,
+                    as tight as `lobe` (3), coloured by `tint` on the way
+      ao            its own occlusion (its mesh's, a crown's depth): the sky's light is lost faster than the sun's
+      sky           what else dims the sky's light on it (the ground's own shade)
+      gloss, sharp  its highlight: how bright, how tight */
+export const lightOn = (s) => {
+  const n = s.n, L = U.uSunDir, V = s.V ?? (s.w ? normalize((s.eye ?? U.uCam).sub(s.w)) : null), share = s.sun ?? sunAt(s.w, s.how);
+  const wrap = s.wrap ?? 0, ndl = s.ndl ?? (wrap ? n.dot(L).add(wrap).div(float(wrap).add(1)) : n.dot(L)).max(0);
+  const back = V ? max(V.negate().dot(L), 0) : null, light = U.uSun.mul(share);   // (how far the eye looks into the sun; the sun's light here)
+  let sky = skyLight(n), sun = ndl;
+  if (s.through) { const t = pow(back, s.lobe ?? 3).mul(s.through); sun = sun.add(s.tint ? s.tint.mul(t) : t); }
+  sun = light.mul(sun);
+  if (s.sky) sky = sky.mul(s.sky);
+  if (s.ao) { const ao = float(s.ao); sky = sky.mul(ao.mul(ao).mul(0.75).add(ao.mul(0.25))); sun = sun.mul(ao.mul(0.6).add(0.4)); }
+  const spec = s.gloss ? light.mul(pow(max(n.dot(normalize(V.add(L))), 0), s.sharp ?? 40)).mul(s.gloss) : vec3(0);
+  return { sky, sun, spec, light, V, back, ndl };
+};
+/** A surface lit and seen through the air, for the screen: { colour (its own, linear), extra (light of another kind on
+    it: a fire's), glow (its own light), ...lightOn's }. */
+export const lit = (s) => { const L = lightOn(s); let d = L.sky.add(L.sun); if (s.extra) d = d.add(s.extra); let c = s.colour.mul(d).add(L.spec); if (s.glow) c = c.add(s.glow); return finish(c, s.w, s.eye); };
 

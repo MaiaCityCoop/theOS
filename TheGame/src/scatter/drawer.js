@@ -54,7 +54,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, If, float, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, storage, texture, vertexIndex, cameraViewMatrix, screenCoordinate, dFdx, dFdy, cos, sin, abs, max, pow, mix, cross, length, normalize, smoothstep, clamp, fract, countLeadingZeros } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { ign, finish, skyLight, cloudAt, cloudAtOne, cloudShade, sunDim, unlit, weatherOn, snowLift, snowDepth, SNOW, windAt, windStrength } from '../world/light.js';
+import { ign, finish, lit, lightOn, skyLight, cloudShade, sunDim, unlit, weatherOn, snowLift, snowDepth, SNOW, windAt, windStrength } from '../world/light.js';
 import { passOf, cut, motion, vWas } from '../core/pass.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 import { createHeap, heapRow, heapElem, heldOf, sinceCame, effective, cornersOf, shapedOf } from './heap.js';
@@ -218,10 +218,10 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     // in the ground, a rock taller than the snow is deep, keeps the snow where it settles, on what of it faces up: its
     // sides stay bare)
     const W = weatherOn(n, snowLift(w, M3.x)), bare = own.mul(vB.w), col = (GROUND ? bare.mul(W.keep).add(W.add) : mix(bare.mul(W.keep).add(W.add), SNOW, smoothstep(0.03, 0.14, vSnow))).toVar();
-    // the light: the sky's, and the sun's through the clouds and the shadow map
-    const sunK = SOFT ? cloudAt(w) : cloudAtOne(w);
-    const V = normalize(U.uCam.sub(w)), S = U.uSunDir, sun = U.uSun.mul(sunK), sky = skyLight(n), ndl = max(n.dot(S), 0), Hf = normalize(V.add(S)), ndh = max(n.dot(Hf), 0), nv = max(n.dot(V), 0);
-    const shine = M2.z.mul(float(1).sub(rough.mul(0.6))).mul(W.keep), gloss = GROUND ? shine.mul(float(1).sub(grown)) : shine, back = max(V.negate().dot(S), 0), plain = col.mul(sky.add(sun.mul(ndl)));   // (what is grown over does not shine)
+    // the light (src/world/light.js lightOn): the sky's, and the sun's through the clouds and the shadow map; its model
+    // (below) puts them on it
+    const Lo = lightOn({ n, w, how: SOFT ? 'soft' : 'one' }), V = Lo.V, S = U.uSunDir, sun = Lo.light, sky = Lo.sky, ndl = Lo.ndl, back = Lo.back, Hf = normalize(V.add(S)), ndh = max(n.dot(Hf), 0), nv = max(n.dot(V), 0);
+    const shine = M2.z.mul(float(1).sub(rough.mul(0.6))).mul(W.keep), gloss = GROUND ? shine.mul(float(1).sub(grown)) : shine, plain = col.mul(sky.add(Lo.sun));   // (what is grown over does not shine)
     const lit = vec3(0).toVar(), model = M0.w;
     // its model: how it takes the light (src/shading/*.js: each a file there, a branch here)
     const C = { colour: col, plain, tint: M0.rgb, second: M1.rgb, normal: n, eye: V, toSun: S, half: Hf, sun, sky, skyLight, ndl, ndh, nv, back, gloss, glow: M3.y, through: M3.z, height: m, bare: W.keep, phase: vC.w, seed, time: U.uTime };
@@ -258,7 +258,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
         let base = M0.rgb;   // (what wears a material of the world: that material's mean, the last of its mipmaps, in its tint)
         if (WORN) { const M5 = lookOf(kind, 5), t = tex.a(M5.x.max(0), vec2(0.5)).level(10); base = M5.x.greaterThan(-0.5).select(t.rgb.mul(t.rgb).mul(M0.rgb), M0.rgb); }
         const W = weatherOn(n, M3.x.mul(0.5)), col = base.mul(0.85).mul(W.keep).add(W.add);
-        out.assign(finish(col.mul(skyLight(n).add(U.uSun.mul(sunDim()).mul(cloudShade(w)).mul(max(n.dot(U.uSunDir), 0)))), w));
+        out.assign(lit({ colour: col, n, w, sun: sunDim().mul(cloudShade(w)) }));   // (no shadow map: a pixel or two, far off)
       });
       return out;
     })();
