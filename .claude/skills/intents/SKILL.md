@@ -102,17 +102,36 @@ real trade-off the definition does not settle (say, more detail against 60 fps),
   sends a real blocker to the master while it goes on with what it can do.
 - A brief is complete in itself: the task, the files, the invariants to keep, the checks, what done
   looks like, whom to report to. The master relays between sessions that cannot reach each other.
+- **One task, one session.** Every task runs in a code session of its own, never as a subagent
+  inside another session, on one named machine below. It has its own worktree, branch and PR, so
+  the human can open it, follow it and steer it. Its name says the intent, the task and the machine:
+  `0038 upscale · avenMAIA MacBook Sam`. Subagents serve only read-only research or audits inside
+  a session.
 
 ### Our machines and sessions
 
-| Where | What it does |
+| Machine | What it does |
 | --- | --- |
-| **Mac mini** (`aven-maia-mac-mini`, base M2, 8 GB) | The master. The **GPU gate**: every gate run, timing, reference render and train runs here, one at a time. At most two worker sessions beside the master (its memory). |
-| **Samuel's MacBook** (`samuel`) | Coding agents in parallel, CPU first. Its GPU for light functional checks only: one job at a time, at most 1920×1080, about half its GPU at most, never `?truth` 4K, paths, bench or motion. Stop at once if the machine gets slow: Samuel works on it. |
-| **Cloud sessions** (claude.ai/code), where available | Self-contained coding or research with no GPU. They cannot message back: the master reads their branch. |
+| **avenMAIA MacMini** (`aven-maia-mac-mini`, base M2, 8 GB) | The master. The **GPU gate**: every gate run, timing, reference render and train runs here, one at a time. At most two task sessions beside the master (its memory). |
+| **avenMAIA MacBook Sam** (Samuel's MacBook, `samuel`) | Task sessions for coding, in parallel, CPU first. Its GPU for light functional checks only: one job at a time, at most 1920×1080, about half its GPU at most, never `?truth` 4K, paths, bench or motion. Stop at once if the machine gets slow: Samuel works on it. |
+| **avenMAIA Claude Cloud** (claude.ai/code cloud sessions), where available | Self-contained coding or research with no GPU. They cannot message back: the master reads their branch. |
 
 Sessions on different machines reach each other over Remote Control; a session that is not in
-another's `ListAgents` goes through the master. A worker's session is archived when its PR closes.
+another's `ListAgents` goes through the master. A task's session is archived when its PR closes.
+
+### The task board: the live state of every task
+
+The master keeps one board for the intent, in its "Where we left off", always current. It updates
+the board on every change of a task's state and answers "where are we" from it. A change to the
+board alone merges at once, so the dashboard on `next` shows it within minutes.
+
+| Task | Session | Machine | Branch · PR | State | Updated | Next |
+| --- | --- | --- | --- | --- | --- | --- |
+| the task, in a few words | its session's name | avenMAIA MacMini · MacBook Sam · Claude Cloud | `aven/NNNN-…` · #N | planned · coding · ready · on train N · merged · blocked (why) | date and time | the next step and who takes it |
+
+A task is on the board from the moment it is planned until it is merged or dropped (and why);
+merged rows move to the changelog at the end of the day. A task with no session yet says so; a
+session with no task on the board is a mistake.
 
 ### The GPU: one lock, one queue
 
@@ -221,6 +240,7 @@ It plays at `http://localhost:5173/timeline.html?story=NNNN-slug`, and from the 
 - Do not put into Propose, the changelog or a caption anything that was not actually seen.
 - Do not keep a second changelog anywhere else.
 - Do not let a worker merge, ask the human, or take the GPU outside its turn.
+- Do not run a task as a subagent, or let a task or its session go missing from the board.
 - Do not run two GPU jobs at once on one machine.
 - Do not judge a branch against `main`, or merge a patch in place of the root fix.
 - Do not define an intent without its architecture pass, or choose a pattern without the research
