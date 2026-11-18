@@ -19,7 +19,7 @@ import { camDist } from '../world/land.nodes.js';
 import { spanAt } from '../detail/measure.js';
 import { ERROR_PX, BUDGET_DRAWN, BAND, PX_CUT, surfaceBand } from '../detail/error.js';
 import { turnOf } from './row.js';
-import { more } from '../core/gpu.js';
+import { gpuStorage, limitOf, roomOf } from '../core/gpu.js';
 
 const GROW = 1.5;   // seconds a level that came late takes to refine from what stood in for it (the drawer's)
 const MAXT = 128;   // a cluster's most triangles (assets/kit/clusters.js)
@@ -47,14 +47,17 @@ export const eased = (R, b, from, time) => mix(float(from), b, smoothstep(0, GRO
 export const ruleOf = (self, parent, bS, bP) => ({ drawn: self.lessThanEqual(bS).and(parent.greaterThan(bP)), t: smoothstep(bP.mul(BAND), bP, parent) });
 
 /** Level 0's cut for a tier's bucket of the things drawn there (T: a tier of src/scatter/tier.js; k: the bucket; H: the
-    heap; level: its level's index; room: what a kind's level holds, { tris }): { passes (for every frame, after the
+    heap; level: its level's index; room: the most a kind's level holds, { tris, clusters }: src/scatter/rooms.js): { passes (for every frame, after the
     packing), entry(i): the i-th listed { thing, cluster, t }, thing(j, row): the j-th packed thing's row, geometry }. */
 export function createCut({ T, k = 0, H, room, name }) {
-  const S = T.slots, cap = T.caps[k], off = T.offs[k], MAXC = Math.ceil(room.tris / 32) + 8, MOST = Math.min(Math.max(4096, cap * 1024), 1 << 22);   // (MOST: the list's room, under a storage buffer's 256 MB)
-  const list = instancedArray(MOST, 'uvec4'), count = instancedArray(1, 'uint').toAtomic(), packed = storage(T.args, 'uint', T.args.array.length).toReadOnly();
+  // (MAXC: the most clusters a kind's level holds, each tested by a thread of its own; MOST: the list's room, an entry 16
+  // bytes: as many as its things can ask for at once, every packed thing every cluster of its level; no more than one
+  // buffer the GPU binds, nor than the geometry's class has room for: src/core/classes.js)
+  const S = T.slots, cap = T.caps[k], off = T.offs[k], MAXC = Math.max(1, room.clusters), MOST = Math.max(1, Math.min(cap * MAXC, Math.floor(Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity, roomOf('geometry')) / 16)));
+  // (the list the GPU's alone: it writes it and reads it)
+  const list = gpuStorage('uvec4', MOST, `${name}: the cut's list`, 'geometry').node, count = instancedArray(1, 'uint').toAtomic(), packed = storage(T.args, 'uint', T.args.array.length).toReadOnly();
   const drawArgs = new THREE.IndirectStorageBufferAttribute(new Uint32Array([MAXT * 3, 0, 0, 0, 0]), 5), DA = storage(drawArgs, 'uint', 5);
   const runArgs = new THREE.IndirectStorageBufferAttribute(new Uint32Array([1, 1, 1]), 1), RA = storage(runArgs, 'uint', 3);   // (its workgroups: the clusters a thing can have across, the things packed down)
-  more(`${name}: the cut's list`, MOST * 16, 0, 'geometry');
   const thing = (j, row) => T.data.element(uint(off).add(j).mul(uint(S)).add(uint(row)));
   const LO1 = surfaceBand(1)[0], PXC = PX_CUT / BUDGET_DRAWN;
   // (how many workgroups: a thread a cluster of every thing packed, its count as large as it can be)

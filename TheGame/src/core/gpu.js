@@ -105,7 +105,8 @@ export function gpuStorage(type, count, name = null, cls = 'other', instanced = 
 }
 /** The same, its size said later, before anything binds it (what is shared by things not all made yet: the culling's
     lists, src/core/occlusion.js): { node, attr, make(count) -> bytes }. A storage buffer's length is not in its code, so
-    the node is the same whatever it is made as. */
+    the node is the same whatever it is made as; and made again (what grows with need: the single things' table,
+    src/world/things.js), its old buffer is let go, so three binds the new one wherever the node is read. */
 export function gpuStorageLater(type, name = null, cls = 'other') {
   const [Arr, size] = TYPES[type], attr = new THREE.StorageBufferAttribute(new Arr(size), size);
   return {
@@ -114,9 +115,12 @@ export function gpuStorageLater(type, name = null, cls = 'other') {
       const bytes = Math.max(1, count) * size * 4;
       if (!R) { attr.array = new Arr(Math.max(1, count) * size); attr.count = Math.max(1, count); if (name) note(name, bytes, bytes, cls); return bytes; }
       within(bytes, name);
+      if (R.backend.get(attr).buffer) { attr.dispose(); R.backend.get(attr).buffer?.destroy(); }   // (made again: three lets the old one go where it bound it, else it is let go here)
       R.backend.get(attr).buffer = R.backend.device.createBuffer({ label: name ?? 'lean', size: Math.max(16, bytes), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
       if (name) note(name, bytes, 0, cls);
       return bytes;
     },
+    /** Write `data` (a typed array of its numbers) from its `at`-th number on, at once (made: the GPU's own buffer). */
+    write(at, data) { if (R) R.backend.device.queue.writeBuffer(R.backend.get(attr).buffer, at * 4, data); else { attr.array.set(data, at); attr.addUpdateRange(at, data.length); attr.needsUpdate = true; } },
   };
 }

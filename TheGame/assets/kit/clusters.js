@@ -16,18 +16,22 @@
 // shares with another group locked (so the groups' borders stay the same lines, and neighbours at different levels
 // still meet), and cut into clusters again. A group that will not halve waits for another grouping; the last cluster
 // is halved on, nothing locked, down to a handful of triangles.
-//   - Its error: the simplifier's (how far the surface moved, the normals' and colours' change weighed in), and never
-//     less than BAND times its children's: errors only grow towards the coarse end, so along any chain from fine to
-//     coarse exactly one cluster passes the cut's rule (src/scatter/clusters.js).
+//   - Its error: the simplifier's (how far the surface moved, the normals' and colours' change weighed in: a normal's
+//     as the move its shading looks like, NW), and what is measured of it (how far each vertex it lost lies from what
+//     it was made into, and how far its shading there looks moved), and never less than BAND times its children's:
+//     errors only grow towards the coarse end, so along any chain from fine to coarse exactly one cluster passes the
+//     cut's rule (src/scatter/cut.js).
 //   - Its sphere holds its children's.
 //   - Each vertex a group loses keeps where it lies on what the group is made into (the nearest point of it, with the
 //     normal and colour there): a cluster turns into its parent before it gives way to it (the cut's morph), so
 //     nothing jumps. A vertex the group keeps stays where it is.
-//   - Thin and small loose parts (a guy rope, a peg, a lantern): an edge's contraction may not shorten them. A part of
-//     few triangles, or one much thinner than it is long, stays as it is, its vertices locked, until the error the
-//     group is allowed reaches the part's own reach (how far its farthest point lies from its middle: what is lost with
-//     it); then it goes whole, shrinking to its middle. Folded as the simplifier would, a rope went in one step at a
-//     tenth of a pixel of error while its far end lay 37 px from anything drawn (reports/Smooth automatic level of detail.md).
+//   - Loose parts the simplifier misjudges (a guy rope, a peg): an edge's contraction may fold them away while it says
+//     their error is small. Folded as the simplifier would, a rope went in one step at a tenth of a pixel of error
+//     while its far end lay 37 px from anything drawn (reports/Smooth automatic level of detail.md). So each part is
+//     made coarser alone first, and where what it lost lies farther than the simplifier said (or it will not be made
+//     coarser), it stays as it is, its vertices locked, until the error the group is allowed reaches the part's own
+//     reach (how far its farthest point lies from its middle: what is lost with it); then it goes whole, shrinking to
+//     its middle (build: coarser).
 //   - What moves on bones (stage 8b): a vertex keeps its own bones (the simplifier never makes a vertex, it only keeps
 //     some), so `attr` may carry the weights of its bones, weighed in the error, and the spheres and errors are those of
 //     the rest pose; grown by how far the bones reach is what the cut must add.
@@ -37,30 +41,59 @@ import { BAND } from '../../src/detail/error.js';
 /** When meshoptimizer's WebAssembly is ready: build() may be called from then on. */
 export const ready = Promise.all([S.ready, C.ready]);
 export { BAND };
-const MAXT = 128, MAXV = 192, MINT = 32, GS = 8, STUCK = 0.85, TAIL = 8;   // a cluster's most triangles and vertices; a group's clusters; a group left with more than STUCK of its triangles is stuck; the tail ends at TAIL triangles
-/** A part is kept whole until its reach is allowed: one of at most FEW triangles, or THIN times longer than it is wide. */
-const FEW = 12, THIN = 8;
+// A cluster's most triangles, MAXT: the cut draws every cluster it lists as an instance of MAXT × 3 corners (those it
+// has not, nothing: src/scatter/cut.js), and tests and lists it as one (a thread, 16 bytes). Measured on the rocks and
+// the made things (2026-11-18): their level 0's clusters hold 95% of MAXT at 64 and at 128 alike, and fewer at 256
+// (the rocks 93%, the fire pit 82%, the tent 43%: more corners drawn for nothing), while from 64 to 128 the clusters
+// to test and list halve; and its count is kept in 8 bits (surface.js). Its most vertices, MAXV: meshoptimizer's own
+// most (its clusterizer numbers them in 8 bits): nothing drawn reads it, and less splits a cluster of hard edges early
+// (the tent's held 62% of MAXT at 192, 79% at 256). MINT: the least the clusterizer may end one at where it lies
+// better so (the fill above is with it). The grouping's own, not measured here: GS, a group's clusters; STUCK, a group
+// left with more than that share of its triangles is stuck; TAIL, the tail ends at that many triangles
+const MAXT = 128, MAXV = 256, MINT = 32, GS = 8, STUCK = 0.85, TAIL = 8;
+/** A normal's weight in the simplifier's error. A normal δ off where the surface is shaded is the shading of the
+    surface tilted by δ there: as though it had moved, from the nearest place where it is right, δ times half the way
+    (the tilt growing from none to δ). meshoptimizer weighs a change of 1/w in an attribute over a distance d as d of
+    position (its README), so with w = 1/2 the simplifier counts a normal's error as the move it looks like, in the
+    units of the positions, and the cut holds both to ERROR_PX alike. What it made is measured so too (morphs). */
+const NW = 1 / 2;
 
 /** The cluster hierarchy of M (above). */
 export function build(M) {
   const { V, pos, nor, index } = M, k = M.k ?? 0, attr = M.attr ?? new Float32Array(0), T = index.length / 3;
   // the simplifier's view of a vertex: its normal and attributes, weighed
-  const AK = 3 + k, A = new Float32Array(V * AK), W = [M.nw ?? 0.02, M.nw ?? 0.02, M.nw ?? 0.02, ...(M.aw ?? [])];
+  const AK = 3 + k, A = new Float32Array(V * AK), W = [NW, NW, NW, ...(M.aw ?? [])];
   for (let v = 0; v < V; v++) { A.set(nor.subarray(v * 3, v * 3 + 3), v * AK); for (let j = 0; j < k; j++) A[v * AK + 3 + j] = attr[v * k + j]; }
   // where corners stand at one place (a seam: a sheet's two sides, a hard edge, a colour's edge): one place, for what
   // touches what and what is locked
   const place = S.generatePositionRemap(pos, 3);
-  // the loose parts (what shares no place with the rest), and which of them are kept whole
+  // the loose parts (what shares no place with the rest), and which of them are kept whole: those the simplifier's word
+  // does not hold for. Each is made alone, by the same simplifier, as coarse as it will go while it says its error is
+  // under the part's reach over BAND (one band short of losing it all: errors grow at least BAND a level); if what it
+  // lost lies farther than that from what it left (a rope whose sides fold onto each other and take its length with
+  // them, a peg folded to nothing), or it will not be made coarser at all, the part has no coarser shape the cut could
+  // trust: it waits whole, its vertices held, and goes whole once its reach is allowed, while what is round it in its
+  // group is made coarser (folded with it, its measured error would hold the whole group back to its reach). Any other
+  // is folded as any surface. (One part, the whole mesh: it is the hierarchy, and its tail ends it.)
+  const coarser = (P, reach) => {
+    const g2l = new Map(), l2g = [], lidx = new Uint32Array(P.at.length * 3);
+    P.at.forEach((t, i) => { for (let j = 0; j < 3; j++) { const v = index[t * 3 + j]; let l = g2l.get(v); if (l === undefined) { l = l2g.length; g2l.set(v, l); l2g.push(v); } lidx[i * 3 + j] = l; } });
+    const lp = localPos(pos, l2g), la = new Float32Array(l2g.length * AK), ll = new Uint8Array(l2g.length), n = lidx.length;
+    l2g.forEach((v, l) => { la.set(A.subarray(v * AK, v * AK + AK), l * AK); ll[l] = M.seam?.[v] ? 2 : 0; });
+    const [out] = S.simplifyWithAttributes(lidx, lp, 3, la, AK, W, ll, 0, reach / BAND, ['ErrorAbsolute', 'Permissive']);
+    if (!out.length || out.length > n * STUCK) return false;
+    return lostFrom(out, lp, l2g.length) < reach / BAND;
+  };
   const up = Int32Array.from({ length: V }, (_, i) => i), root = (x) => { while (up[x] !== x) x = up[x] = up[up[x]]; return x; };
   for (let t = 0; t < T; t++) { const a = root(place[index[t * 3]]), b = root(place[index[t * 3 + 1]]), c = root(place[index[t * 3 + 2]]); up[a] = b; up[root(c)] = root(b); }
   const partOf = new Int32Array(V), parts = new Map();
   for (let v = 0; v < V; v++) { const r = root(place[v]); let P = parts.get(r); if (!P) parts.set(r, (P = { id: parts.size, tris: 0, verts: [] })); P.verts.push(v); partOf[v] = P.id; }
-  for (let t = 0; t < T; t++) parts.get(root(place[index[t * 3]])).tris++;
+  for (let t = 0; t < T; t++) { const P = parts.get(root(place[index[t * 3]])); P.tris++; (P.at ||= []).push(t); }
   const whole = [];   // per part: null (it is folded as any surface), or { reach, c } (kept whole until its reach is allowed)
   for (const P of parts.values()) {
-    const ext = extentsOf(pos, P.verts), c = [0, 0, 0]; for (const v of P.verts) for (let a = 0; a < 3; a++) c[a] += pos[v * 3 + a] / P.verts.length;
+    const c = [0, 0, 0]; for (const v of P.verts) for (let a = 0; a < 3; a++) c[a] += pos[v * 3 + a] / P.verts.length;
     let reach = 0; for (const v of P.verts) reach = Math.max(reach, Math.hypot(pos[v * 3] - c[0], pos[v * 3 + 1] - c[1], pos[v * 3 + 2] - c[2]));
-    whole[P.id] = P.tris <= FEW || ext[1] * THIN < ext[2] ? { reach, c } : null;
+    whole[P.id] = parts.size > 1 && !coarser(P, reach) ? { reach, c } : null;
   }
   const held = new Uint8Array(V), sizeOf = new Int32Array(parts.size); for (let v = 0; v < V; v++) if (whole[partOf[v]]) held[v] = 1;
   for (let t = 0; t < T; t++) sizeOf[partOf[index[t * 3]]]++;   // (a part's triangles: one that lies in a group whole may go with it)
@@ -82,7 +115,7 @@ export function build(M) {
     return out;
   };
   let pending = cut(index, null).map((idx) => make(idx, { err: 0, ...sphere(idx) }));
-  const stats = { levels: 0, stuck: 0, gone: 0 };
+  const stats = { levels: 0, stuck: 0, gone: 0, whole: whole.filter(Boolean).length, parts: parts.size };
   const groupOfV = new Int32Array(V), lock = new Uint8Array(V), seen = new Int32Array(V).fill(-1);
   for (let level = 1; pending.length > 1 && level < 64; level++) {
     // which clusters touch: by the places they share
@@ -168,18 +201,6 @@ export const bandOf = (D, lo, hi) => D.clusters.filter((c) => c.self.err <= hi &
 // ---- what the build works with ----
 const localPos = (pos, l2g) => { const p = new Float32Array(l2g.length * 3); for (let l = 0; l < l2g.length; l++) { const v = l2g[l] * 3; p[l * 3] = pos[v]; p[l * 3 + 1] = pos[v + 1]; p[l * 3 + 2] = pos[v + 2]; } return p; };
 const dropParts = (out, l2g, partOf, gone) => { const keep = []; for (let i = 0; i < out.length; i += 3) if (!gone.has(partOf[l2g[out[i]]])) keep.push(out[i], out[i + 1], out[i + 2]); return Uint32Array.from(keep); };
-/** A part's extents along its own three axes, smallest first (its spread's, by power iteration). */
-function extentsOf(pos, vs) {
-  const m = [0, 0, 0]; for (const v of vs) for (let i = 0; i < 3; i++) m[i] += pos[v * 3 + i] / vs.length;
-  const Cv = [0, 0, 0, 0, 0, 0]; for (const v of vs) { const x = pos[v * 3] - m[0], y = pos[v * 3 + 1] - m[1], z = pos[v * 3 + 2] - m[2]; Cv[0] += x * x; Cv[1] += x * y; Cv[2] += x * z; Cv[3] += y * y; Cv[4] += y * z; Cv[5] += z * z; }
-  const mul = (a) => [Cv[0] * a[0] + Cv[1] * a[1] + Cv[2] * a[2], Cv[1] * a[0] + Cv[3] * a[1] + Cv[4] * a[2], Cv[2] * a[0] + Cv[4] * a[1] + Cv[5] * a[2]], axes = [];
-  for (let j = 0; j < 3; j++) {
-    let a = [[1, 0.3, 0.2], [0.2, 1, 0.3], [0.3, 0.2, 1]][j];
-    for (let it = 0; it < 24; it++) { a = mul(a); for (const b of axes) { const d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; for (let i = 0; i < 3; i++) a[i] -= d * b[i]; } const l = Math.hypot(...a) || 1; a = a.map((x) => x / l); }
-    axes.push(a);
-  }
-  return axes.map((a) => { let lo = Infinity, hi = -Infinity; for (const v of vs) { const d = pos[v * 3] * a[0] + pos[v * 3 + 1] * a[1] + pos[v * 3 + 2] * a[2]; if (d < lo) lo = d; if (d > hi) hi = d; } return hi - lo; }).sort((x, y) => x - y);
-}
 
 /** Each of the clusters' own vertices, and where it lies on what their group was made into (out: corners of the
     group's own vertices; none: nothing replaces them, each stays where it is): its place, normal and attributes there.
@@ -204,10 +225,21 @@ function morphs(cs, out, l2g, g2l, lp, M, k, shrinks) {
       far = Math.max(far, Math.sqrt(R[0]));
       let nx = nor[a * 3] * wa + nor[b * 3] * wb + nor[cc * 3] * wc, ny = nor[a * 3 + 1] * wa + nor[b * 3 + 1] * wb + nor[cc * 3 + 1] * wc, nz = nor[a * 3 + 2] * wa + nor[b * 3 + 2] * wb + nor[cc * 3 + 2] * wc; const nl = Math.hypot(nx, ny, nz) || 1;
       to[o + 3] = nx / nl; to[o + 4] = ny / nl; to[o + 5] = nz / nl;
+      // (and its shading's: its normal there δ off, from the nearest corner, where it is right, r away: as though it
+      // had moved δ r / 2, NW above)
+      const dn = Math.hypot(to[o + 3] - nor[v * 3], to[o + 4] - nor[v * 3 + 1], to[o + 5] - nor[v * 3 + 2]), r = Math.min(...[a, b, cc].map((q) => Math.hypot(to[o] - pos[q * 3], to[o + 1] - pos[q * 3 + 1], to[o + 2] - pos[q * 3 + 2])));
+      far = Math.max(far, dn * r * NW);
       for (let i = 0; i < k; i++) to[o + 6 + i] = attr[a * k + i] * wa + attr[b * k + i] * wb + attr[cc * k + i] * wc;
     });
     c.verts = Int32Array.from(verts); c.tris = tris; c.to = to;
   }
+  return far;
+}
+// the farthest a vertex lies from out (corners of the vertices lp holds, n of them) that out does not keep
+function lostFrom(out, lp, n) {
+  const kept = new Uint8Array(n), G = gridOf(out, lp), R = new Float64Array(4); let far = 0;
+  for (let i = 0; i < out.length; i++) kept[out[i]] = 1;
+  for (let l = 0; l < n; l++) if (!kept[l]) { nearest(G, lp, out, lp[l * 3], lp[l * 3 + 1], lp[l * 3 + 2], R); far = Math.max(far, Math.sqrt(R[0])); }
   return far;
 }
 // a grid over a group's triangles, for the nearest of them to a point

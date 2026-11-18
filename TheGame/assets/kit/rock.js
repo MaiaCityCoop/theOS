@@ -91,6 +91,8 @@ export const rockFull = (asset, v) => { const S = shapeOf(asset, v); return ball
 // (a shape's hierarchy, from its full mesh alone (clusters.js), the last few kept: a worker asked for a shape's levels
 // one after another builds it once)
 const DAGS = new Map();
+/** Shape v's hierarchy (clusters.js build's): what tools/rooms.js measures its levels' rooms from. */
+export const rockHierarchy = (asset, v) => dagOf(asset, v);
 const dagOf = (asset, v) => {
   const key = `${asset.uid}:${asset.placement.seed}:${v}`; let D = DAGS.get(key); if (D) return D;
   if (DAGS.size >= 3) DAGS.delete(DAGS.keys().next().value);
@@ -100,8 +102,10 @@ const dagOf = (asset, v) => {
 // a vertex of a cluster as the heap keeps a rock's (solid.js, `still`): its place, normal and shade, and the same on
 // its parent's surface
 const writeRock = (D) => { const P = D.M.pos, N = D.M.nor, A = D.M.attr; return (out, at, c, j, Dm) => { const v = c.verts[j], t = c.to, o = j * 7; packSolid(out, at, P[v * 3], P[v * 3 + 1], P[v * 3 + 2], N[v * 3], N[v * 3 + 1], N[v * 3 + 2], A[v], t[o], t[o + 1], t[o + 2], t[o + 3], t[o + 4], t[o + 5], Dm, 0, 0, 0, t[o + 6]); }; };
+/** The elements a vertex of a rock is in the heap (solid.js `still`: one). */
+export const ROCK_PER = 1;
 /** Level l of shape v of a rock asset's hierarchy, packed for the heap (surface.js), no larger than room. */
-export function rockMesh(asset, v, l, room = null) { const D = dagOf(asset, v); return packLevel(D, l, 1, writeRock(D), room); }
+export function rockMesh(asset, v, l, room = null) { const D = dagOf(asset, v); return packLevel(D, l, ROCK_PER, writeRock(D), room); }
 /** Shape v drawn coarser by its recipe, quickly, on the page: what the fingerprint reads. */
 export const rockSketch = (asset, v) => { const S = shapeOf(asset, v); return ballMesh((q) => rockAt(S, q), 8, 0, 0); };
 /** What who places shape v must know: { span (its largest side as it was grown), sunk (how much of its largest side
@@ -117,7 +121,7 @@ export const rockFamily = (id, asset) => ({
   id, placed: 'rocks', asset: asset.uid, count: asset.placement.shapes ?? 1,
   meshOf: (i, l, room) => rockMesh(asset, i, l, room),
   // (what its fingerprint reads: the recipe drawn coarser, quick on the page, and which way its levels are made)
-  printOf: (i) => rockSketch(asset, i), print: () => 'clusters 1',
+  printOf: (i) => rockSketch(asset, i), print: () => 'clusters 2',
   lookOf: (i) => {
     // (size: its largest side as a stand that sizes its kinds by their look draws it, src/scatter/stress.js: the size
     // the world draws most of them at, its asset's least to most by the cube of a die, as src/scatter/rocks.js does)

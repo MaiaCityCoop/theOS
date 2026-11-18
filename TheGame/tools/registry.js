@@ -15,7 +15,7 @@ const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12
 // runs among them): the kits (a folder `kit/`), the shared dice, the world's one scale (world/scale.js) and the one
 // number of detail (src/detail/error.js), in the order they are first met
 export const SHARED = ['src/core/hash.js', 'world/scale.js', 'src/detail/error.js'];
-function kitsOf(root, file, seen = new Set()) {
+export function kitsOf(root, file, seen = new Set()) {
   for (const m of readFileSync(file, 'utf8').matchAll(/(?:from|import|import\(|new URL\()\s*'(\.{1,2}\/[^']+\.js)'/g)) {
     const p = resolve(dirname(file), m[1]), rel = relative(root, p).split(sep).join('/');
     if (seen.has(p) || !existsSync(p) || !(rel.split('/').includes('kit') || SHARED.includes(rel))) continue;

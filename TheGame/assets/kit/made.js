@@ -40,13 +40,14 @@ export function madeBox(a) {
 const oct16 = (x, y, z) => { oct(x, y, z); return (sn(OCT[0], 65535) | (sn(OCT[1], 65535) << 16)) >>> 0; };
 const flat = ([p0, p1, p2]) => { const e1 = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], e2 = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]], x = e1[1] * e2[2] - e1[2] * e2[1], y = e1[2] * e2[0] - e1[0] * e2[2], z = e1[0] * e2[1] - e1[1] * e2[0], s = Math.hypot(x, y, z) || 1; return [x / s, y / s, z / s]; };
 
-/** How much a level of a made asset may hold (its room in the heap: triangles, and vertices of two elements each): its
-    whole hierarchy (about twice its faces), its corners able to name every element (65536 at most). */
-export const madeRoom = (a) => { const tris = Math.ceil(a.faces.length * 2.1); return { tris, verts: Math.min(32000, 3 * tris) }; };
+/** The elements a vertex of a made thing is in the heap (above). */
+export const MADE_PER = 2;
 
 // its faces welded into one surface: a vertex where a place, a normal, a colour and a material are alike; and its
 // hierarchy (the last few kept: a worker asked for its levels one after another builds it once)
 const DAGS = new Map();
+/** Its hierarchy (clusters.js build's): what tools/rooms.js measures its levels' rooms from. */
+export const madeHierarchy = (a) => dagOf(a);
 function dagOf(a) {
   let D = DAGS.get(a); if (D) return D;
   if (DAGS.size >= 4) DAGS.delete(DAGS.keys().next().value);
@@ -72,7 +73,7 @@ function dagOf(a) {
 /** Level l of a made asset, packed for the heap (surface.js, two elements a vertex), no larger than room. */
 export function madeMesh(a, l, room = null) {
   const D = dagOf(a), { min, ext } = madeBox(a), S = D.span, P = D.M.pos, N = D.M.nor, A = D.M.attr;
-  return packLevel(D, l, 2, (out, o, c, j, Dm) => {
+  return packLevel(D, l, MADE_PER, (out, o, c, j, Dm) => {
     const v = c.verts[j], t = c.to, k = j * 9, d = (i) => (Dm ? Math.max(0, Math.min(1023, Math.round(((t[k + i] - P[v * 3 + i]) / Dm) * 511.5 + 511.5))) : 511);
     out[o] = (q16(P[v * 3] * S, min[0], ext[0]) | (q16(P[v * 3 + 1] * S, min[1], ext[1]) << 16)) >>> 0;
     out[o + 1] = (q16(P[v * 3 + 2] * S, min[2], ext[2]) | (D.part[v] << 16)) >>> 0;
