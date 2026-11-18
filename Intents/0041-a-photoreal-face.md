@@ -147,9 +147,11 @@ Proposed on 2026-11-18. Story: [`Stories/0041-a-photoreal-face/`](../Stories/004
 
 ### Known gaps
 
-- **Not seen on a real GPU, and not through WebGPU at all.** Every still was drawn through WebGL 2 on a software
-  GPU. On this machine WebGPU loses its device, on the Body's own tool page too. The game draws through WebGPU, so
-  the first look on a real machine may show a fault that could not be seen here.
+- **Not seen on a real GPU.** The 28 stills were drawn through WebGL 2 on a software GPU. Through WebGPU, as the
+  game draws, both figures were drawn on the tool's page on 2026-11-18 (the round after this proposal, below): the
+  Woman waving and laughing, the Man cheering, both faces, read back from the GPU, the Settler beside them for
+  comparison, with no fault said by the browser. That is a software GPU still, and not the library's stage: the
+  whole world loses its device on this machine.
 - **Not seen on the library's stage**: no shadow on the ground, no size beside the Settler, no small picture in the
   list, nothing a click does to the figure.
 - **They look like figures of a game, not like the photograph.** The skin is one flat picture of 2048 for the whole
@@ -282,6 +284,23 @@ Proposed on 2026-11-18. Story: [`Stories/0041-a-photoreal-face/`](../Stories/004
   on the stage are not seen. The first stills run stopped two short because the tool's page was changed while it
   ran; it was run again whole. A file server over the game's build, meant to let Samuel look from outside, was
   refused by the session's safety check and not started. They look like figures of a game, not like the photograph.
+
+### 2026-11-18, the two figures through WebGPU; held there
+
+- **Asked.** Samuel, after asking how clothes could be made changeable (the answer named three levels): "Don't do
+  Level 1 and 2 yet, just deliver the male and female to our character lib browser now. Then when done stop for a
+  moment." (typos tidied).
+- **Delivered.** Nothing of the clothes was begun. The Man and the Woman are in the library as they were proposed,
+  on this branch. What was still open about them was looked at: whether they draw through WebGPU, as the game
+  draws. The tool's page failed there, and for the Settler in the same way: three takes the game's stand-in for the
+  shadow's map for the picture's own depth and gives it no sampler. The page now keeps a small map of its own, and
+  can read its picture back from the GPU (`read`), as this machine's browser shows no WebGPU canvas in a still. Read
+  back so: the Settler, the Woman waving and laughing, the Man cheering, both faces, each drawn rightly, no fault
+  said.
+- **Good.** The figure kit's skin, shapes, pictures and light are now seen through WebGPU, not only through WebGL 2.
+- **Not there.** Still a software GPU, and the tool's page, not the library's stage. The library on the website is
+  built from `main` (CI on a push to `main`, then the deploy to `next`): the two are in that library only once this
+  branch is merged, and no pull request was asked for, so none was opened. Held here, as he asked.
 
 ## Trail
 

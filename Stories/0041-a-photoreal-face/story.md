@@ -89,8 +89,9 @@ for anyone. Which two of the forty-two become the city's first man and woman is 
 
 ## Open
 
-- **A real GPU.** The two figures were seen alone, through WebGL 2 on a software GPU. The library's stage was not
-  drawn here, so their shadow on the ground and their place beside the Settler were not seen.
+- **A real GPU.** The two figures were seen alone, on a software GPU: through WebGL 2, and afterwards through
+  WebGPU as the game draws. The library's stage was not drawn here, so their shadow on the ground and their place
+  beside the Settler were not seen.
 - **The film** shows the meadow and the tent: the figures stand in the library, not yet in the world, so no shot
   shows the people the lines talk about.
 - **The film was not played here.** Its page's timeline reads; the world was not drawn on the software GPU. Its
