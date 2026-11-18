@@ -6,7 +6,7 @@ prevalence: universal
 
 # The Game
 
-The game's reference sheet and its single source of truth: how the economy, the coops, survival and the race work. Anything about how the game plays is decided here first; the code and the stories follow it. Set with Samuel on 18 November 2026 (intent 0038); this is the MVP, the essential fixed tree. Players may propose more later.
+The game's reference sheet and its single source of truth: how the economy, the coops, survival and the race work. Anything about how the game plays is decided here first; the code and the stories follow it. Set with Samuel on 18 November 2026 (intent 0039); this is the MVP, the essential fixed tree. Players may propose more later.
 
 ## Overview
 

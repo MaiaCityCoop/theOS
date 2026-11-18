@@ -1,5 +1,5 @@
 ---
-id: "0038"
+id: "0039"
 title: The Compass
 state: build           # idea | define | build | propose | story | archived
 outcome:               # accepted | rejected, set only when archived
@@ -7,7 +7,7 @@ opened: 2026-11-17
 story:                 # Stories/0038-slug/, set at propose
 ---
 
-# 0038 · The Compass
+# 0039 · The Compass
 
 ## Idea
 
@@ -332,6 +332,14 @@ Asked outright and without surprises, so built straight away.
 - **Broke / not there yet:** global classes (`.hero`, `.card`, `.steps`, `.bar` and others) collided again on the
   first try and were renamed; a section regex stopped at the first line end, emptying the vision and mission, fixed.
   The race shows country names as an illustration, not data.
+
+### 2026-11-18 (10)
+
+- **Asked:** "€1 per day is correct, €30 a month"; merge into next.
+- **Delivered:** the join page says €1 a day (€30 a month). This intent renumbered from 0038 to 0039: main already
+  had 0038 (one clean architecture). Its earlier commits still carry `Intent: 0038` in their messages.
+- **Good:** —
+- **Broke / not there yet:** there is no branch called `next` on the remote; asked which branch was meant.
 
 ## Trail
 

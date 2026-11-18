@@ -6,7 +6,7 @@ prevalence: universal
 
 # The Harvest
 
-The growing sheet: how every plant, mushroom and, later, every fish in the game grows, is harvested, levels up and breeds its own seed. Its single source of truth, beside [the game](the-game.md). Set with Samuel on 18 November 2026 (intent 0038).
+The growing sheet: how every plant, mushroom and, later, every fish in the game grows, is harvested, levels up and breeds its own seed. Its single source of truth, beside [the game](the-game.md). Set with Samuel on 18 November 2026 (intent 0039).
 
 **The goal of every recipe is the same as the game's: export-positive.** A village grows more of a plant than its own people eat, and sells the rest.
 
