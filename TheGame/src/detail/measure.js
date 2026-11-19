@@ -26,7 +26,7 @@
 //   farFor(px, size)     how far off a thing covers px dial pixels, as far as a level drawn down to px reaches (how far
 //                        anything is drawn: farFor(GONE, the largest thing's size), error.js GONE)
 //   distanceAt(px, size, h)   the same through the lens alone on a picture h pixels tall (a library's picture)
-//   pxKMost(), farMost(px, size)   the live pixel at the most pixels the screen can draw (its own ratio) and the dial at
+//   pxKMost(dial), farMost(px, size, dial)   the live pixel at the most pixels the screen can draw (its own ratio) and the dial at
 //                        rest (restDial): what a capacity is sized for, so no turn of a dial overfills it
 //   restDial(), raiseRest(d)   the dial at rest on this page: the address's (?truth: under 1), else 1, raised where the
 //                        device's memory cannot hold what follows the dial at it (src/core/gpu.js byDial): the one knob
@@ -89,10 +89,11 @@ export function keepMeasure(drawn = () => 1, full = drawn) {
 /** The live pixel in the dial's pixels: dial pixels a metre covers one metre from the eye (error.js). */
 export const dialK = () => pxK() / ERROR_PX();
 /** The live pixel at the most pixels the screen can draw (its own ratio) and the dial at rest on this page (restDial),
-    in the dial's pixels so: what a capacity is sized for. */
-export const pxKMost = () => pxKAt((globalThis.innerHeight || 1080) * most()) / REST;
+    or another (dial: for what holds its own, the land, src/terrain/terrain.js), in the dial's pixels so: what a
+    capacity is sized for. */
+export const pxKMost = (dial = REST) => pxKAt((globalThis.innerHeight || 1080) * most()) / dial;
 /** How far off a thing `size` metres large is still px dial pixels large, at the most (pxKMost). */
-export const farMost = (px, size) => (size * pxKMost()) / px;
+export const farMost = (px, size, dial) => (size * pxKMost(dial)) / px;
 /** Each frame, before anything chooses (src/boot.js choose, tools/bench.js): the governor may have changed the inside's
     ratio. True where the measure changed. */
 export const measureNow = () => keep();

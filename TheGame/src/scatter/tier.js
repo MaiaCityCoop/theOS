@@ -878,11 +878,15 @@ function residentOf(T, me, s, ends) {
     asking = true; s.asking.add(me); asked = packs; const read = { ...last }, seen = gathers;
     R.data.then((b) => {
       // (held to its class's room: no more than it was held to: a decision, not a wait)
-      const risen = s.rest < restDial(), z = new Uint32Array(b), f = z[me.zi + ZAT.found], p = z[me.zi + ZAT.packed], room = roomsFor([f, p], [me.N, me.P], read.whole && read.at === S.at(), risen ? 1 : BAND);
+      // (laid out again only from a read of all it is to hold, its fill through (whole): a fill's part says less than it
+      // will hold, and made again larger at that its fill begins again from nothing, finds more, is made again larger:
+      // 2026-11-19, Samuel's MacBook at share 1, the meadow made again over and over as it filled, its blades never
+      // shown. Till then what it finds past its room is the governor's (over), drawn coarser)
+      const risen = s.rest < restDial(), z = new Uint32Array(b), f = z[me.zi + ZAT.found], p = z[me.zi + ZAT.packed], room = read.whole && read.at === S.at() ? roomsFor([f, p], [me.N, me.P], true, risen ? 1 : BAND) : null;
       T.over = f > me.N || p > me.P;
       const N = room && Math.min(room[0], me.cap?.N ?? Infinity), P = room && Math.min(room[1], me.cap?.P ?? Infinity);
       const went = room && (N !== me.N || P !== me.P) ? relayKind(s, me, N, P) : false;
-      if (went || (went === null && T.over)) return;   // (laid out again; or more found than it holds and waiting its class's turn: not known to fit)
+      if (went || T.over) return;   // (laid out again; or more found than it holds: not known to fit)
       S.fit(read.at);
       if (seen === gathers) gathered = 0;
     }).catch(() => {}).finally(() => { asking = false; s.asking.delete(me); s.wait?.delete(me); });

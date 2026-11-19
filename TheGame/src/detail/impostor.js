@@ -35,6 +35,7 @@ import { ownGpuMs, pace, frameShare } from '../core/pace.js';
 import { shown } from '../core/settle.js';
 import { compileFor } from '../core/compile.js';
 import { SHARE_MB } from '../core/classes.js';
+import { PHONE_SHARE } from '../core/budget.js';
 import { FNV, fnv } from '../core/hash.js';
 import { workerPool } from '../core/workers.js';
 import { pxAt } from './measure.js';
@@ -44,11 +45,31 @@ import { farLayers } from '../scatter/entries.js';
 
 /** The numbers the plants' far ends' atlases are sized by: { VIEWS, CELL, TILE, TILES, CLUMPS, key } (src/detail/atlas.js
     atlasesOf), from the far ends the stands bake (src/scatter/entries.js farLayers), the share of memory they are given
-    (src/core/classes.js SHARE_MB) and the limits every device grants (src/core/gpu.js PORTABLE): the same on every
-    device and at every start of the same world. Handed to the crowd kit wherever it builds a far end (in the recipes'
-    workers with each level's band: src/scatter/trees.js); a made thing's card takes the same views. */
+    (src/core/classes.js SHARE_MB, this device's share of it: src/core/gpu.js budgetShare) and the limits every device
+    grants (src/core/gpu.js PORTABLE): the same at every start of the same world on the same device. Worked out once, at
+    the first ask, so asked only once the adapter has said the share (src/boot.js: the outlines wait for it). Handed to
+    the crowd kit wherever it builds a far end (in the recipes' workers with each level's band: src/scatter/trees.js); a
+    made thing's card takes the same views. Sized at its class's share (ATLAS_SHARES), not its own: the build reckons a
+    tree kind's rooms, far ends and crowds for each class's atlases (tools/outlines.js), and a start finds them there. */
 let ATLASES = null;
-export const atlases = () => (ATLASES ||= atlasesOf({ layers: farLayers(), bytes: SHARE_MB.geometry.atlases * 2 ** 20 * budgetShare(), limits: PORTABLE, tiles: UV_TILES }));   // (their share of geometry's budget on this device: src/core/gpu.js budgetShare)
+export const atlases = () => (ATLASES ||= atlasesFor(budgetShare()));
+/** The shares of the Mac's budget the far ends' atlases are sized at, a class of device each: the phone's
+    (src/core/budget.js PHONE_SHARE) and the Mac's. What is reckoned by an atlas's numbers (each tree kind's rooms and far
+    ends, each shape's crowd) the build reckons for each of them (tools/outlines.js: outlines.json, crowds.bin), and a
+    device's atlases are its class's: the largest not over its own share (a device under the phone's, the phone's).
+    Sized at its share as it stood, a device whose share is neither (Safari on a MacBook: under the Mac's, over the
+    phone's) had atlases the build never reckoned, and every tree kind was reckoned at its start in the recipes' workers,
+    three of them at 0.4 GB each: Safari reloaded the page for its memory (2026-11-19, on next 4663909). */
+export const ATLAS_SHARES = [PHONE_SHARE, 1];
+/** The class's share a device of share `share` sizes its far ends' atlases at (ATLAS_SHARES). */
+export const atlasShareOf = (share) => ATLAS_SHARES.reduce((at, s) => (s <= share ? s : at), ATLAS_SHARES[0]);
+const AT_SHARE = new Map();
+/** The far ends' atlases' numbers at a class's share (atlasesOf), worked out once a share: the build's, for each class
+    (tools/outlines.js), and a device's own (atlases). */
+export const atlasesAt = (share) => { let A = AT_SHARE.get(share); if (!A) AT_SHARE.set(share, (A = atlasesOf({ layers: farLayers(), bytes: SHARE_MB.geometry.atlases * 2 ** 20 * share, limits: PORTABLE, tiles: UV_TILES }))); return A; };
+/** The far ends' atlases of a device whose share of the Mac's budget is `share` (src/core/gpu.js budgetShare): its
+    class's (atlasShareOf). What the build holds itself to: every device's are atlases it reckoned (tools/outlines.js). */
+export const atlasesFor = (share) => atlasesAt(atlasShareOf(share));   // (their share of geometry's budget on this device: src/core/gpu.js budgetShare)
 
 // ---- the views: a direction over the half-sphere above, a point of the square [-1, 1]² (and back) ----
 /** A direction (y up, y ≥ 0) of the square's point (u, v), node or numbers. */

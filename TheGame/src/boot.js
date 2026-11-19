@@ -31,7 +31,8 @@ import { setPlanes } from './core/frustum.js';
 import { createGovernor } from './core/governor.js';
 import { frameDone } from './core/pace.js';   // (each frame's own time on the GPU, what the governor judges)
 import { createHud } from './core/hud.js';
-import { useGPU, askedLimits, adapterOf, ledger } from './core/gpu.js';
+import { useGPU, askedLimits, adapterOf, ledger, planDial } from './core/gpu.js';
+import { makePools, flushPools } from './core/pool.js';
 import { taken, busy, changed } from './core/work.js';
 import { part as framePart, begin as frameBegins, enter as frameIn, end as frameEnds, now as frameSoFar, take as framesTaken } from './core/frames.js';   // where each frame's time went on the page's thread: __game.frames()
 import { settle, ready as firstView, drawn, waiting, watch, tick, partOf, leave } from './core/settle.js';
@@ -65,7 +66,7 @@ import { createLakes } from './world/lakes.js';   // the city's plots over the l
 import { sharePipelines, watchCompiles, compiles, countCompiles, making, pipelines, ahead, firstReach } from './core/compile.js';
 import { waitsOn, gpuLost } from './core/waits.js';   // what the start waits for, watched: the veil says what holds it up, or what stopped the page
 import { flag } from './core/flags.js';
-import { FIRST_FRAME, stampDone } from './core/marks.js';   // (the first frame that draws the world, on the page's own timeline)
+import { FIRST_FRAME, READY, stampDone } from './core/marks.js';   // (the first frame that draws the world, on the page's own timeline)
 
 const SKY = 0x9fc2e6, REACH = 6000;   // REACH: how far the stage's land is drawn (m): it ends in the air beyond what its camera looks at
 
@@ -80,15 +81,20 @@ function drawnApart(screen, temporal, renderer, terrain, city) {
 
 export async function boot({ profile = 'world' } = {}) {
   const world = profile === 'world', t0 = performance.now();
-  // (what the stands need to know of each tree kind before they are made, its outline and rooms, reckoned in the recipes'
-  // workers from here on, beside the renderer, the textures, the ground and the land: src/scatter/trees.js outlinesAhead)
-  const outlines = outlinesAhead(world);
-  const canvas = document.getElementById('c');
   // (textures of many layers: more than a device gives unasked. The land's pages are two arrays of up to 2048,
   // src/terrain/pages.js; the stress stand keeps its kinds' own textures in one, src/scatter/stress.js. And buffers as
   // large as the GPU has them, not the 128 and 256 MB a device gives unasked: what is shared by many lies in buffers as
   // large as these say, src/core/occlusion.js)
-  const limits = await askedLimits();   // (every limit the design sizes against, as this adapter has it: src/core/gpu.js SIZED)
+  const asking = askedLimits();   // (every limit the design sizes against, as this adapter has it: src/core/gpu.js SIZED)
+  // (what the stands need to know of each tree kind before they are made, its outline and rooms, reckoned in the recipes'
+  // workers from here on, beside the renderer, the textures, the ground and the land: src/scatter/trees.js outlinesAhead.
+  // Once the adapter has said this device's share of the budget: the rooms are reckoned for the far ends' atlases, which
+  // are sized by it once, at the first ask (src/detail/impostor.js atlases), and the workers' pools by it too
+  // (src/core/workers.js). Asked before it, until 2026-11-19, every device had the Mac's atlases: over 200 MB of an iPhone's
+  // geometry, 384 MB, where their share is 96, and its trees' stores had none left)
+  const outlines = asking.then(() => outlinesAhead(world));
+  const canvas = document.getElementById('c');
+  const limits = await asking;
   const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, depth: false, powerPreference: 'high-performance', forceWebGL: flag('webgl'), trackTimestamp: flag('gputime') || flag('bench'), requiredLimits: limits });   // depth false: the canvas has none: nothing drawn onto it tests depth (the upscale lays one quad, src/core/temporal.js), and a 4K one stored every frame was 33 MB moved for nothing   // alpha false: the canvas is opaque (a frame's fourth number is not how see-through it is: it says how far what is kept may be trusted, src/core/pass.js; it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); neither the canvas nor any target is multisampled: the screen's picture is built over time (src/core/screen.js)
   if (flag('draws')) (await import('../tools/draws.js')).watch();   // ?draws: every pass and draw a frame asks of the GPU, counted (tools/draws.js: window.__draws), from before the first pipeline is made
   const dropped = renderer.onDeviceLost;   // (three's own, on the GPU taken from the page: said in the console, and nothing drawn after)
@@ -131,13 +137,14 @@ export async function boot({ profile = 'world' } = {}) {
   const governor = createGovernor(renderer, { apply: (r) => screen.set(r), most: () => screen.out });   // (the drawn ratio within the canvas's)
   game.governor = governor;   // the film holds it still while it plays
   keepMeasure(() => screen.drawn, () => screen.out);   // the one measure of size on screen, for every level of detail, at the rows drawn; capacities at the canvas's (src/detail/measure.js)
+  makePools(planDial());   // what is made once at the start, its need planned before any of it is made: the dial at rest solved once, the pools made at it (src/core/gpu.js, src/core/pool.js)
   governor.hold(DIAL_ASKED < 1);   // (a page drawn finer than the dial's rest, ?truth's, is a still, drawn offline: no frame's time turns its dials)
   // the game's own start, at the dial's rest (the world built at the game's pace), then, once that first view is
   // complete, the dial turned to the page's least (src/detail/measure.js: the truth's; what it brings in is waited for
   // by settle()), the game's its rest
   dialAfter(game.ready);
   watch({ camera, renderer, screen, temporal, U });   // what the world complete is measured against (src/core/settle.js)
-  const marks = (game.boot = {}), mark = (k) => (marks[k] = Math.round(performance.now() - t0));   // where the start's time goes
+  const marks = (game.boot = { begun: Math.round(t0) }), mark = (k) => (marks[k] = Math.round(performance.now() - t0));   // (begun: where the boot began, ms from the navigation: its modules loaded; each stage then ms from there)   // where the start's time goes
   mark('renderer');
   loadingLast(lastRunLine());   // (the last start's note, where it ended other than as a page ends: once)
   await loadingStep('Painting the ground', 0.12);
@@ -212,6 +219,7 @@ export async function boot({ profile = 'world' } = {}) {
     frameIn(PART.terrain);
     terrain.update(camera, dy, 1 / lod);
     frameIn(PART.scatter);
+    flushPools();   // (the pools' tables to the GPU, what has cooled freed: before anything packs, src/core/pool.js)
     if (live()) grown.scatter.select(p.x, p.z, heightAt(p.x, p.z), lod, dy);
     bounds?.(p.x, p.z);
   }
@@ -368,7 +376,7 @@ export async function boot({ profile = 'world' } = {}) {
     await (world ? drawn : Promise.race([first.then(() => drawn), new Promise((res) => setTimeout(res, 20000))]));
     veiled = false;
     stampDone(renderer, FIRST_FRAME);   // (the first frame the world shows: what every measure of a start reads)
-    game.loadMs = performance.now() - t0; mark('first');
+    game.loadMs = performance.now() - t0; mark('first'); performance.mark(READY);   // (the world ready, on the page's own timeline: src/core/marks.js)
     { const f0 = framesAll; keepRun(performance.now(), () => framesAll - f0); }   // (where the start stands, kept from now on: src/core/lastrun.js)
     aboutTo('the world shown: what grows after it'); firstView.then(() => aboutTo('the world settled'));   // (its phases, in the journal: src/core/journal.js)
     setTimeout(() => (game.outlines.made = keepOutlines()), 2500);   // what was measured anew this time, kept for the next start

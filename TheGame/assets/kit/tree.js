@@ -35,6 +35,7 @@ import { budgetOf } from './crowd.js';
 import { bandsOf, shapeSize, hasFar, onGrid } from './plant.js';
 import { add, sub, mul, dot, len, norm, cross, lerp, bez } from './math.js';
 import { rng } from '../../src/core/hash.js';
+import { jobCache } from './job.js';
 
 /** a way picked at random on the upper side of a ball (more up than down as lift nears 1) */
 export const outward = (R0, lift) => { const a = R0() * 2 * Math.PI, y = lift + (1 - lift) * R0() * 2 - (1 - lift), r = Math.sqrt(Math.max(0, 1 - y * y)); return [Math.cos(a) * r, y, Math.sin(a) * r]; };
@@ -441,8 +442,9 @@ export function tree(recipe) {
   // each a first share of its finest, down to where it is gone: assets/kit/plant.js bandsOf, from what is measured of it)
   const far = hasFar(rest);
   const G = growth ? stagesOf(growth, seed) : null, shapes = G ? G.shapes : own;
-  // (the last few made are kept as the builder left them: the crowd kit builds a shape's levels one after another)
-  const memo = new Map(), once = (key, make) => { let m = memo.get(key); if (!m) { if (memo.size >= 6) memo.delete(memo.keys().next().value); memo.set(key, (m = make())); } return m; };
+  // (what is made for the job under way is kept as the builder left it: the crowd kit builds a shape's levels one after
+  // another; let go when the job is done, assets/kit/job.js)
+  const memo = jobCache(), once = (key, make) => memo.get(key) ?? memo.set(key, make());
   /** Shape `shape` at its finest, as the builder made it (its attributes lists of numbers): grown whole, and where its
       file says `fine` every sprig splayed into its twigs (splayOf). The crowd kit makes every level of it from this. */
   const finest = (shape) => once(shape, () => { const m = grow(shapes[shape], shape); return fine ? splayOf(m, fine.sprig, seed + shape) : m; });
@@ -474,9 +476,11 @@ export function tree(recipe) {
     /** The room each shape's levels need in the heap, [shape][level] [verts, tris] (assets/kit/crowd.js budgetOf),
         reckoned from its finest without building the crowd, and kept with its outline with each shape's far end (farOf),
         for the atlases' numbers A it was reckoned by (src/detail/impostor.js atlases: another A, another reckoning). Its
-        own levels' (bandsOf): a stand that cuts them as one takes the room at each of its levels' tops from here */
+        own levels' (bandsOf): a stand that cuts them as one takes the room at each of its levels' tops from here. The
+        build's, where it reckoned them for these atlases (its outline's `atlases`, by their key: tools/outlines.js) */
     crowdRooms(A) {
-      const o = measured(), key = far ? A.key : '';
+      const o = measured(), key = far ? A.key : '', built = o.atlases?.[key];
+      if ((!o.rooms || o.atlas !== key) && built) Object.assign(o, { rooms: built.rooms, far: built.far, atlas: key });
       if (!o.rooms || o.atlas !== key) {
         const his = bandsOf(out).map(([, hi], l) => (l ? hi : Infinity)), B = shapes.map((s, i) => budgetOf(finest(i), { size: shapeSize(out, i), grid: onGrid, far, ...(far ? A : {}) }, his));   // (grid: its chunks split where the GPU reads its tips, as its crowd does in the workers: plant.js)
         o.rooms = B.map((b) => b.map((r) => [r.verts, r.tris])); o.far = B.map((b) => ({ chunks: b.chunks, data: b.far ? Array.from(b.far) : null })); o.atlas = key;
@@ -489,7 +493,7 @@ export function tree(recipe) {
     farOf: (A) => (out.crowdRooms(A), measured().far),
     /** Whether its rooms are known for the atlases' numbers A (kept from an earlier start, or taken), without measuring
         anything. */
-    roomsKnown: (A) => { const o = outline ?? OUTLINES.kept.get(id); return !!(o?.rooms && o.atlas === (far ? A.key : '')); },
+    roomsKnown: (A) => { const o = outline ?? OUTLINES.kept.get(id), key = far ? A.key : ''; return !!((o?.rooms && o.atlas === key) || o?.atlases?.[key]); },
     /** Its outline measured and its rooms and far ends reckoned for A (crowdRooms, farOf): what the recipes' workers
         reckon of it at a start that has nothing of it kept (src/scatter/trees.js outlinesAhead). */
     outlineFor: (A) => (out.crowdRooms(A), measured()),
