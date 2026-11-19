@@ -143,6 +143,15 @@ export const goneLines = (a, T, s = 1) => {
   for (let i = 0; i < (a.shapeCount ?? 1); i++) { const t = Math.max(0, (a.heights?.[i] ?? most(a.size.height)) - FOOT); top = Math.max(top, t); depth = Math.max(depth, crownDepth(a, i, t)); }
   return [s * top, Math.min(T, s * top), (s * depth) / 3];
 };
+/** Shape i of plant a as its packing and its vertices measure it against the land's relief (src/scatter/trees.js
+    canopyLeft): [its crown's depth over its height, the most dial pixels it can be gone at, over every cover and its
+    placement's scales (where a plant's size on screen is over it, nothing of the land need be read for it)], T its
+    stand's relief top (metres; 0, none: as a lone plant). */
+export const canopyNumbersOf = (a, i, T) => {
+  const h = a.heights?.[i] ?? most(a.size.height), top = Math.max(0, h - FOOT), depth = crownDepth(a, i, top), size = shapeSize(a, i), s0 = a.placement?.scale?.[0] ?? 1;
+  const B = Math.min(T / s0, top), D = depth / 3, c = B + D > 0 ? Math.min(1, top / (B + D)) : 0;   // (its least: where its two lines cross, at its smallest scale, else at a whole cover)
+  return [h > 0 ? depth / h : 0, 1 / Math.max(1e-6, Math.min(1, goneShare(top, depth, size, c, T / s0)))];
+};
 /** Where a plant is gone (src/detail/error.js goneAt) where nothing of its stand covers the ground round it: its whole
     height over the ground (goneShareAt at c = 0); its levels reach down to here, and a plant where its stand is thick
     goes sooner, by its own cover (goneShareAt). */

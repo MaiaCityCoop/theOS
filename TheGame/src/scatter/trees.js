@@ -40,7 +40,7 @@
 //   - where it has sunk, the land wears its stand's colour (the stand's `cover`: src/terrain/material.js), as thick as
 //     the stand grows there: a forest, and its undergrowth, to the horizon.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, attribute, positionGeometry, vertexIndex, instanceIndex, screenCoordinate, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cos, sin, cross, clamp, log, log2, exp2, step, fract, unpackHalf2x16, hash, sqrt } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, attribute, positionGeometry, vertexIndex, instanceIndex, screenCoordinate, If, Discard, abs, max, min, mix, smoothstep, pow, normalize, length, floor, cos, sin, cross, clamp, log, log2, exp2, step, fract, unpackHalf2x16, hash, sqrt } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, camDist, heightAt } from '../world/land.nodes.js';
 import { layersOf, posIn, placeIn, grownIn, grovesOf, writersOf } from './rule.js';
@@ -67,10 +67,13 @@ import { idOf } from '../world/things.js';
 import { wayAt, waysVersion } from '../world/ways.js';
 import { pxOf, turnOf, seedOf } from './row.js';
 import { levelOf as crowdLevelOf } from '../../assets/kit/crowd.js';
-import { crowdOf, bandsOf, baseShare, goneOf, GRID, GOQ, GO0, FOOT } from '../../assets/kit/plant.js';
+import { crowdOf, bandsOf, baseShare, goneOf, canopyNumbersOf, GRID, GOQ, GO0, FOOT } from '../../assets/kit/plant.js';
 import { ringsOf, bandsOf as ringBands } from './grass.js';
 import { lo16, hi16 } from './unpack.js';
-import { farMost, pxKMost, measureVersion, dialPxAt } from '../detail/measure.js';
+import { farMost, pxKMost, measureVersion, dialPxAt, pxAt } from '../detail/measure.js';
+import { landPages } from '../terrain/pages.js';
+import { STANDS } from '../terrain/layers.js';
+import { MARGIN } from './regions.js';
 import { BAND, FADE } from '../detail/error.js';
 import { source, shown } from '../core/settle.js';
 import { gpuStorageLater } from '../core/gpu.js';
@@ -155,6 +158,31 @@ const kindNumbers = (Kd) => (Kd.numbers ||= { e: uniform(Kd.e.i, 'int'), offset:
 /** Each of a group's shapes' base, a share of its height, in the group's order of shapes (offsets); as long as the
     largest group's (groupsOf: most), the rest nought, so every group's packing declares it alike. */
 const basesOf = (G) => uniformArray([...G.kinds.flatMap((Kd) => Kd.bases), ...Array(Math.max(0, (G.most ?? 0) - G.kinds.reduce((n, Kd) => n + Kd.bases.length, 0))).fill(0)], 'float');
+// ---- the canopy (one measure v2: assets/kit/plant.js goneShare): a plant is let go where leaving it out fits against
+// the land's relief there (src/terrain/pages.js relief: each stand's cover times its relief's top), by its stand's
+// cover, and sinks away over the BAND under that, as every level does under its own ----
+/** Each of a group's shapes' canopy numbers, as long as the largest group's (as basesOf): (its stand's relief top
+    (src/terrain/layers.js reliefTop; 0, none: a lone plant's rule), its crown's depth over its height, the most dial
+    pixels it can be gone at (canopyNumbersOf: over that the land need not be read for it), 0). */
+const canopyOf = (G) => {
+  const T = (Kd) => STANDS.find((S) => S.entries.some((e) => e.id === Kd.e.id))?.reliefTop ?? 0;
+  const rows = G.kinds.flatMap((Kd) => Array.from({ length: Kd.shapes }, (_, v) => { const t = T(Kd), [ds, most] = canopyNumbersOf(Kd.asset, v, t); return new THREE.Vector4(t, ds, t > 0 ? most : 0, 0); }));
+  return uniformArray([...rows, ...Array.from({ length: Math.max(0, (G.most ?? 0) - rows.length) }, () => new THREE.Vector4())], 'vec4');
+};
+/** How much of a plant its canopy leaves, 1 … 0 (its levels' own hand-over apart): p its place, w its size (metres)
+    and at its dial pixels, top its crown's top over the ground and depth its crown's depth (metres), N its shape's
+    canopy numbers (canopyOf), dist how far off it is. Leaving it out is off by goneShare at the cover the relief there
+    makes of its stand's (assets/kit/plant.js: the same rule, here in nodes); it is whole down to where that is a dial
+    pixel and sinks away over the BAND under it. Node code: the packing's and the vertex stage's alike. */
+const canopyLeft = (p, w, at, top, depth, N, dist) => {
+  const left = float(1).toVar(), LP = landPages();
+  if (!LP) return left;   // (no land under it: a lone plant's rule)
+  If(at.lessThan(N.z).and(N.x.greaterThan(0)), () => {
+    const R = LP.relief(p, vec2(w, 0), vec2(0, w), dist), c = R.div(N.x).min(1), dev = max(top.sub(c.mul(min(N.x, top))), c.mul(depth).div(3));
+    left.assign(smoothstep(1 / BAND, 1, min(at, at.mul(dev).div(w.max(1e-6)))));
+  });
+  return left;
+};
 function plantIn(c, G, band, all, seen, found) {
   const { L, kinds } = G, cx = c.x, cy = c.y, h0 = (k) => uint(k + L.seed - 300);   // (the layer's seed moves every hash: each layer its own cells)
   const pos = posIn(c, L).toVar(), dist = camDist(pos);
@@ -177,13 +205,16 @@ function plantIn(c, G, band, all, seen, found) {
     // vertices say each frame (plantMaterial). (The shadow's stand-in: every plant in its band)
     If(hit.greaterThan(0.5), () => {
       const way = wayAt(pos, base);
+      // (and none where its canopy has let it go, as it may be while the camera stays within its region's pad: its size
+      // on screen a MARGIN larger. The shadow's stand-in: what is near, every one)
+      const N = all ? null : (G.canopy ||= canopyOf(G)).element(int(which)), kept = all ? float(1) : canopyLeft(pos, across, dialPxAt(pxAt(across, dist)).mul(MARGIN), h.sub(FOOT), h.mul(N.y), N, dist);
       const stands = () => found(uint(which), across, dist, (A, B) => {
         A.assign(vec4(pos, heightAt(pos, dist, d, w, I.z).sub(FOOT), across));   // (where it stands, its foot, its size in metres)
         B.assign(vec4(rnd(cx, cy, h0(305)).mul(6.2831853), which, rnd(cx, cy, h0(306)).mul(6.2831853), rnd(cx, cy, h0(307)).mul(0.999 * 6.2831853)));   // (its turn, its kind, its sway's phase, its seed: its shade, as it always was)
       });
       // (and none stands on a way: none whose base, what of it covers the ground (its own shape's), reaches onto it. Its crown
       // may reach over one. src/world/ways.js; where none are laid the shader is the one it was)
-      if (way) If(way.lessThan(0.5), stands); else stands();
+      If(kept.greaterThan(0), () => { if (way) If(way.lessThan(0.5), stands); else stands(); });
     });
   });
 }
@@ -295,6 +326,11 @@ function plantMaterial(tex, D) {
   // (tools/stick.js), which draws a plant as the game draws it at a size while its own camera frames it. None: reckoned.
   return (Lv = null, feed = null, px = null) => {
     const slot = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.slot ?? 0);
+    // (what its canopy leaves of a plant of the world's stands (canopyLeft), at dial pixels at: by its shape's numbers,
+    // its height its scale times its shape's; every level reads it alike (one pipeline for all of them: where it cannot
+    // be gone it reads nothing of the land), the shadow's stand-in (near: its shadows are) and the library's plant none)
+    const CAN = feed ? (D.canopy ||= canopyOf(D)) : null;
+    const leftOf = (A, B, V, at) => { if (!CAN || !Lv) return float(1); const N = CAN.element(int(B.y.add(0.5))), h = A.w.div(V.Ks).mul(V.Hk); return canopyLeft(A.xy, A.w, at, h.sub(FOOT), h.mul(N.y), N, camDist(A.xy)); };
     const own = feed ? null : { Hk: ofMesh('hk', 1, 'float'), Ks: ofMesh('ks', 1, 'float'), Wd: ofMesh('wind', new THREE.Vector4(0, 0, 1, 0.3)), Lf: ofMesh('leaf', new THREE.Vector4(0.45, 0.55, 0, 0)), Tw: ofMesh('twig', 0, 'float'), Tn: ofMesh('tint', new THREE.Vector3(1, 1, 1)), Tf: float(0) };
     // (the library's plant: what the rule reads packed into seven buffers, a stage has eight: treeSample)
     const vertexOf = (B) => {
@@ -338,8 +374,9 @@ function plantMaterial(tex, D) {
         // (the level beside it draws the same there). Its rule reckons a plant by its own size on screen, each of its
         // rungs by its own error (crowdRule). Where it is its impostor (meshShare), nothing of its mesh shows
         const own = px ?? pxOf(A.w, A.xy), at = dialPxAt(own), H = handOver(at, LU, D.sink);   // (its level's ends in the dial's pixels: src/detail/error.js)
+        const left = leftOf(A, B, V, at), sunk = H.sunk.mul(left);   // (and as its canopy lets it go, whatever its level: canopyLeft)
         const above = LC.first.equal(1).select(H.u.greaterThan(0), at.lessThan(LC.hi)), below = LC.last.equal(1).select(H.sunk.greaterThan(0), at.greaterThanEqual(LC.lo));
-        const R = crowdRule(own, V, V.crowd), mesh = meshShare(V.Tf, own, V.Ks, V.shade), show = above.and(below).and(R.shown).and(mesh.greaterThan(0));
+        const R = crowdRule(own, V, V.crowd), mesh = meshShare(V.Tf, own, V.Ks, V.shade), show = above.and(below).and(R.shown).and(mesh.greaterThan(0)).and(left.greaterThan(0));
         // (its sprigs' own swing fades out over the BAND above where its crowd ends (its rule's HI, metres: its clumps or
         // its impostor come there): they, and its impostor, sway with the crown only, so nothing stops as one hands over
         // to the next; a crowd that never ends swings throughout)
@@ -354,7 +391,7 @@ function plantMaterial(tex, D) {
             const v = turnOf(B.x).unturn(normalize(U.uCam.sub(vec3(A.x, A.z, A.y))));
             vClump.assign(vec4(V.Cl, clamp(log2(float(atlases().TILE).div(wide.mul(perM).max(1e-3))), 0, levelsUnder(atlases().TILE)), float(1).div(abs(v.x).add(abs(v.y)).add(abs(v.z))), 0)); vFade.assign(mesh);   // (and how much of it is still its mesh's: handing)
           }
-          clip.assign(stand(A, B, { ...V, position: R.pos, root: R.pos }, H.sunk, pass, swing));
+          clip.assign(stand(A, B, { ...V, position: R.pos, root: R.pos }, sunk, pass, swing));
         });
       };
       // (in the shadow pass only what can cast into the map being drawn: a plant wholly outside its box along the light,
@@ -498,10 +535,12 @@ function impostorMaterial(G, D, Lv, src) {
     const own = pxOf(A.w, A.xy), at = dialPxAt(own), H = handOver(at, LU, G.sink);
     const above = LC.first.equal(1).select(H.u.greaterThan(0), at.lessThan(LC.hi)), below = LC.last.equal(1).select(H.sunk.greaterThan(0), at.greaterThanEqual(LC.lo));
     const share = float(1).sub(meshShare(r3.z, own, r3.y, seedOf(B)));
-    If(above.and(below).and(share.greaterThan(0)), () => {
+    // (and as its canopy lets it go: canopyLeft, its height its scale times its shape's)
+    const N = (G.canopy ||= canopyOf(G)).element(int(kind)), h = A.w.div(r3.y).mul(r0.x), left = canopyLeft(A.xy, A.w, at, h.sub(FOOT), h.mul(N.y), N, camDist(A.xy));
+    If(above.and(below).and(share.greaterThan(0)).and(left.greaterThan(0)), () => {
       // its sphere in the world (its scale; leaning as its mesh leans: plantMaterial's stand; sunk, it shrinks to its
       // foot), and a quad facing the eye over it
-      const { turn, unturn } = turnOf(B.x), k = H.sunk, s = A.w.div(r3.y), Rw = r4.w.mul(s).mul(k), lean = vec2(cos(B.z), sin(B.z)).mul(seedOf(B).sub(0.5).mul(D().numOf(kind, 1).y.mul(2))).mul(r4.y);
+      const { turn, unturn } = turnOf(B.x), k = H.sunk.mul(left), s = A.w.div(r3.y), Rw = r4.w.mul(s).mul(k), lean = vec2(cos(B.z), sin(B.z)).mul(seedOf(B).sub(0.5).mul(D().numOf(kind, 1).y.mul(2))).mul(r4.y);
       const c = vec3(A.x, A.z, A.y).add(turn(r4.xyz.add(vec3(lean.x, 0, lean.y)).mul(s).mul(k))).toVar();
       const d = normalize(U.uCam.sub(c)).toVar(), right = normalize(cross(vec3(0, 1, 0), d).add(vec3(1e-6, 0, 0))), up = cross(d, right), j = vertexIndex;
       // (half its radius towards the eye: what is behind it is hidden before its pixels are worked out, and crowns
