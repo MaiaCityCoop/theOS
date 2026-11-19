@@ -51,6 +51,8 @@ export default {
       const petal = float(1).sub(smoothstep(0.6, 0.72, fr.div(cos(fa).mul(0.13).add(0.87)))).mul(smoothstep(0.955, 0.965, hash(c, 10))).mul(inFan(mid)).mul(smoothstep(0.3, 0.5, length(out)));
       col.assign(mix(col, mix(vec3(0.74, 0.56, 0.13), vec3(0.84, 0.82, 0.78).mul(cos(fa.mul(2)).mul(0.05).add(0.95)), smoothstep(0.12, 0.2, fr)), petal)); alpha.assign(max(alpha, petal));
     }
-    return { h: clamp(max(alpha, twig), 0, 1), col: col.mul(pn(uv.mul(46), 46, 30).mul(0.2).add(0.9)), rough: float(0.55) };
+    // (rough as its leaves are: wrinkled, and felted on both sides with star-shaped hairs, a sage-leaved cistus's (Flora
+    // iberica, Cistus salviifolius): no highlight to speak of, where a holm oak's and a mastic's waxy leaves have one)
+    return { h: clamp(max(alpha, twig), 0, 1), col: col.mul(pn(uv.mul(46), 46, 30).mul(0.2).add(0.9)), rough: float(0.85) };
   },
 };

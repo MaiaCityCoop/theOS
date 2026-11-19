@@ -2,9 +2,9 @@
 // projections blended by the normal, so a ball and a slab both read true), lit like the world. And the library's small
 // pictures, drawn once by the world's renderer into 2D canvases.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec3, uniform, positionWorld, normalWorld, abs, pow, normalize, max, mix, sign } from 'three/tsl';
+import { Fn, float, vec3, uniform, positionWorld, normalWorld, abs, pow, normalize, max, sign } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { lit } from '../world/light.js';
+import { lit, shineOf } from '../world/light.js';
 import { recipes } from '../core/registry.js';
 import { BIOMES, BASE, WATER } from '../world/biomes.js';
 import { compileFor } from '../core/compile.js';
@@ -26,7 +26,7 @@ export function materialPreview(tex, id, tile = 2, own = {}) {
     const rough = tex.r(id, px).mul(b.x).add(tex.r(id, py).mul(b.y)).add(tex.r(id, pz).mul(b.z));
     const ndl = max(bn.dot(U.uSunDir), 0);
 
-    return lit({ colour: a.mul(a).mul(tint), n: bn, w, eye, ndl: ndl.mul(0.85).add(0.15), sun: float(1), gloss: float(1).sub(rough).mul(0.5).mul(ndl), sharp: mix(60, 6, rough) });
+    return lit({ colour: a.mul(a).mul(tint), n: bn, w, eye, ndl: ndl.mul(0.85).add(0.15), sun: float(1), ...shineOf(rough, ndl) });
   })();
   return m;
 }
