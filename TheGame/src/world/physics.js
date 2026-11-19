@@ -35,3 +35,24 @@ export const SHOULDER_RHYTHM = 1 / 3;
     2.8 % follows; the figure every skin shader holds (Jimenez's SeparableSSS demo, Unity HDRP's diffusion profile, GPU
     Gems 3 ch. 14). */
 export const SKIN_F0 = 0.028;
+
+/** How much slower light runs in water than in the air: its index of refraction, over the visible. What a water surface
+    reflects of the light that meets it, and how what is seen through it bends (src/terrain/water.js: Fresnel's
+    equations for unpolarized light, Snell's law). unit: none (a ratio). source: Hale & Querry 1973, "Optical constants
+    of water in the 200-nm to 200-µm wavelength region", Applied Optics 12(3): 1.333 to 1.338 between 700 and 450 nm;
+    1.333 at the red end. */
+export const WATER_IOR = 1.333;
+
+/** How much of red light pure water takes away along a metre of it: its absorption coefficient at 650 nm. Water's own
+    absorption is the most of what it takes from red light, so a water's absorption in the other colours follows from
+    its own colour by it (src/terrain/water.js: Morel's reflectance, WATER_REFLECTANCE_F). unit: m⁻¹. source: Pope &
+    Fry 1997, "Absorption spectrum (380-700 nm) of pure water. II. Integrating cavity measurements", Applied Optics
+    36(33): 0.340 m⁻¹ at 650 nm. */
+export const WATER_RED_ABSORPTION = 0.34;
+
+/** How the colour a deep water shows follows from what it scatters back and what it takes away: its reflectance just
+    under the surface, R = f · b_b / a (b_b its backscattering, a its absorption, both per metre), this f. So the colour
+    deep water shows gives its absorption in each colour, its backscattering one number for all of them
+    (src/terrain/water.js). unit: none. source: Morel & Prieur 1977, "Analysis of variations in ocean color", Limnology
+    and Oceanography 22(4): f = 0.33 (after Gordon, Brown & Jacobs 1975), for the sun not low. */
+export const WATER_REFLECTANCE_F = 0.33;
