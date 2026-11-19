@@ -16,13 +16,14 @@
 //     within a class each next is the one farthest from all taken before (a blue-noise order). What is left out is stood
 //     for by what stays (Cook, Halstead, Planck and Ryu 2007, "Stochastic Simplification of Aggregate Detail"): the kept
 //     grow about their roots so the crown covers as much of its round as it did, sqrt(A / A_t) of their size. Drawing
-//     the first t turns, the crowd's error is what that truly misplaces: the farthest a sprig left out lies from one drawn
-//     (its share error, turnsOf), and how far the growth moves the kept leaves (headOf). Each sprig goes (its go) where
-//     the crowd without it and every turn after it is within the dial, shrinking to its root over the FADE below, as the
-//     kept grow (growthOf: smooth in the error, so in the pixels too). Past its end its next rung's bake, made of it whole
-//     at its true size (the clumps, the impostor: each rung is measured against the plant at full detail);
-//   - a solid piece is gone where leaving it out (its width) is within the dial, and shrinks to its foot. The solids'
-//     corners are sorted thick first: a first share of the list is the thick wood;
+//     the first t turns, the crowd's error is what that truly misplaces: the farthest a leaf of a sprig left out lies
+//     from a leaf drawn (its share error, turnsOf: where its leaves are, not its middle), and how far the growth moves
+//     the kept leaves (headOf). Each sprig goes (its go) where the crowd without it and every turn after it is within
+//     the dial, shrinking to its root over the FADE below, as the kept grow (growthOf: smooth in the error, so in the
+//     pixels too). Past its end its next rung's bake, made of it whole at its true size (the clumps, the impostor: each
+//     rung is measured against the plant at full detail);
+//   - a solid piece is gone where leaving it out (its width where it is widest) is within the dial, and shrinks to its
+//     foot. The solids' corners are sorted thick first: a first share of the list is the thick wood;
 //   - the clumps (NVIDIA HPG 2026, Simplygon's billboard clouds): the sprigs split into chunks by their boxes, the
 //     largest first, into as many as cost no more than the sprigs still there where the crowd ends (twelve corners a
 //     chunk: three crossed planes through its box's middle, each wearing its own leaves as the GPU bakes them,
@@ -81,6 +82,7 @@ const CROWD = {
   CLASSES: 4,     // the most classes by size a crowd is sorted into (each half the area of the one before)
   STOPS: 1 - sqrt(1 - 0.45),         // how much of the light one triangle of a card stops (a sprig of two crossed cards: 45 %), where cover is reckoned
   PIC: 64,         // … in pictures of this many pixels a side, from thirteen sides
+  SPAN: 5,         // points a side of a card where its leaves are measured from (its share error: turnsOf), its corners and edges among them
 };
 
 // ---- the rule, as the vertex stage is to reckon it: r, a rung's error over the dial (above) ----
@@ -123,26 +125,140 @@ function coverOf(P, n, I, stop, F, R) {
 }
 
 // ---- the order: each next part the one farthest from all taken before, the classes one after another ----
-/** X, Y, Z the parts' middles, cls their classes, mid the crowd's middle -> the parts in turn order. The first is the
-    part of the first class farthest from the middle: the turns begin at the crown's rim, and a first few of them are
-    its outline. And its share error, `err` (metres): err[t], the farthest any part left out lies from one drawn when
-    the first t turns are drawn (err[0] none drawn, Infinity; err[n] 0), never more as more are drawn. */
-function turnsOf(X, Y, Z, cls, mid) {
-  const n = cls.length, rest = Uint32Array.from({ length: n }, (_, i) => i).sort((a, b) => cls[a] - cls[b] || a - b), d = new Float64Array(n).fill(Infinity), out = new Uint32Array(n), err = new Float64Array(n + 1);
-  let lo = 0, hi = 0, at = -1, far = -1;
-  const endOf = (c) => { let e = lo; while (e < n && cls[rest[e]] === c) e++; return e; };
-  if (n) { hi = endOf(cls[rest[0]]); for (let j = 0; j < hi; j++) { const p = rest[j], q = (X[p] - mid[0]) ** 2 + (Y[p] - mid[1]) ** 2 + (Z[p] - mid[2]) ** 2; if (q > far) { far = q; at = j; } } }
-  err[0] = Infinity;
-  for (let s = 0; s < n; s++) {
-    const p = rest[at], px = X[p], py = Y[p], pz = Z[p]; out[s] = p; rest[at] = rest[lo]; rest[lo++] = p;
-    if (lo === hi && lo < n) hi = endOf(cls[rest[lo]]);   // (a class is through: the next, by how far its parts lie from all that are taken)
-    far = -1; let worst = 0;
-    for (let j = lo; j < n; j++) { const r = rest[j], q = (X[r] - px) ** 2 + (Y[r] - py) ** 2 + (Z[r] - pz) ** 2; if (q < d[r]) d[r] = q; if (d[r] > worst) worst = d[r]; if (j < hi && d[r] > far) { far = d[r]; at = j; } }
-    err[s + 1] = sqrt(worst);   // (of every part not yet taken, whatever its class: the farthest from all that are)
+/** The squared distance from (x, y, z) to the triangle a b c (each three numbers of T, from a, b, c): its nearest point
+    (Ericson, "Real-Time Collision Detection", 5.1.5). */
+function triangleD2(x, y, z, T, a, b, c) {
+  const ax = T[a], ay = T[a + 1], az = T[a + 2], abx = T[b] - ax, aby = T[b + 1] - ay, abz = T[b + 2] - az, acx = T[c] - ax, acy = T[c + 1] - ay, acz = T[c + 2] - az;
+  const d2 = (px, py, pz) => (x - px) ** 2 + (y - py) ** 2 + (z - pz) ** 2;
+  const apx = x - ax, apy = y - ay, apz = z - az, d1 = abx * apx + aby * apy + abz * apz, e1 = acx * apx + acy * apy + acz * apz;
+  if (d1 <= 0 && e1 <= 0) return d2(ax, ay, az);
+  const bpx = x - T[b], bpy = y - T[b + 1], bpz = z - T[b + 2], d3 = abx * bpx + aby * bpy + abz * bpz, e3 = acx * bpx + acy * bpy + acz * bpz;
+  if (d3 >= 0 && e3 <= d3) return d2(T[b], T[b + 1], T[b + 2]);
+  const vc = d1 * e3 - d3 * e1; if (vc <= 0 && d1 >= 0 && d3 <= 0) { const v = d1 / (d1 - d3); return d2(ax + v * abx, ay + v * aby, az + v * abz); }
+  const cpx = x - T[c], cpy = y - T[c + 1], cpz = z - T[c + 2], d5 = abx * cpx + aby * cpy + abz * cpz, e5 = acx * cpx + acy * cpy + acz * cpz;
+  if (e5 >= 0 && d5 <= e5) return d2(T[c], T[c + 1], T[c + 2]);
+  const vb = d5 * e1 - d1 * e5; if (vb <= 0 && e1 >= 0 && e5 <= 0) { const w = e1 / (e1 - e5); return d2(ax + w * acx, ay + w * acy, az + w * acz); }
+  const va = d3 * e5 - d5 * e3; if (va <= 0 && e3 - d3 >= 0 && d5 - e5 >= 0) { const w = (e3 - d3) / (e3 - d3 + (d5 - e5)); return d2(T[b] + w * (T[c] - T[b]), T[b + 1] + w * (T[c + 1] - T[b + 1]), T[b + 2] + w * (T[c + 2] - T[b + 2])); }
+  const k = 1 / (va + vb + vc), v = vb * k, w = vc * k; return d2(ax + abx * v + acx * w, ay + aby * v + acy * w, az + abz * v + acz * w);
+}
+/** The parts in turn order. Each part is where its leaves are, L: points on them (`at`, x y z) in groups (a card's:
+    `gfrom`, where each part's groups begin, `pfrom`, where each group's points begin; GC, each group's middle and how far
+    its points reach from it, four numbers a group), what they lie on (`tris`, nine numbers a triangle; `tfrom`, where
+    each part's begin; a part with none is its points), its middle (X, Y, Z) and how far its leaves reach from it (R).
+    The first turn is the part of the first class farthest from the crowd's middle `mid`, so the turns begin at the
+    crown's rim and a first few of them are its outline; each next, of the class being taken (cls), the one whose leaves
+    lie farthest from all taken before. And its share error, `err` (metres): err[t], the farthest any leaf of a part
+    left out lies from a leaf drawn when the first t turns are drawn (err[0] none drawn, Infinity; err[n] 0), never
+    more as more are drawn. A left-out part's leaves are where the picture misses them, not its middle: a sprig of a
+    shrub is a spray half a metre long, and the nearest drawn sprig's middle can lie a hand off while its leaves point
+    another way (a mastic's first seven sprigs to go: their middles 34 mm from one drawn, their leaves up to 167 mm from
+    a drawn leaf). */
+function turnsOf(L, cls, mid) {
+  const { X, Y, Z, R, at: P, gfrom, pfrom, GC, tris: T, tfrom } = L, n = cls.length, out = new Uint32Array(n), err = new Float64Array(n + 1);
+  err[0] = Infinity; out.err = err;
+  if (!n) return out;
+  // (each point's squared distance to the nearest leaf drawn, as far as its part is measured: against the first seen[r]
+  // turns; each part's farthest point's, D; whether it is taken)
+  const near = new Float64Array(P.length / 3).fill(Infinity), root = new Float64Array(P.length / 3).fill(Infinity), G = new Float64Array(GC.length / 4).fill(Infinity), D = new Float64Array(n).fill(Infinity), seen = new Uint32Array(n), taken = new Uint8Array(n);   // (root: near's square root; G: each group's farthest point's near)
+  // (each triangle's round: its middle and how far its corners reach from it, so a point it cannot be nearer is passed
+  // by)
+  const nt = T.length / 9, TC = new Float64Array(nt * 4);
+  for (let t = 0; t < nt; t++) {
+    const o = t * 9, cx = (T[o] + T[o + 3] + T[o + 6]) / 3, cy = (T[o + 1] + T[o + 4] + T[o + 7]) / 3, cz = (T[o + 2] + T[o + 5] + T[o + 8]) / 3;
+    let r2 = 0; for (let c = 0; c < 9; c += 3) r2 = max(r2, (T[o + c] - cx) ** 2 + (T[o + c + 1] - cy) ** 2 + (T[o + c + 2] - cz) ** 2);
+    TC.set([cx, cy, cz, sqrt(r2)], t * 4);
   }
-  out.err = err;
+  /** The squared distance from (x, y, z) to part q's leaves (its triangles, else its points), where it is under `best`
+      (and its square root, `rb`). */
+  const toPart = (x, y, z, q, best, rb) => {
+    if (tfrom[q + 1] > tfrom[q]) {
+      for (let t = tfrom[q], e = tfrom[q + 1]; t < e && best > 0; t++) {
+        const c = t * 4, lim = TC[c + 3] + rb;
+        if ((x - TC[c]) ** 2 + (y - TC[c + 1]) ** 2 + (z - TC[c + 2]) ** 2 >= lim * lim) continue;   // (it cannot be nearer)
+        const d = triangleD2(x, y, z, T, t * 9, t * 9 + 3, t * 9 + 6); if (d < best) { best = d; rb = sqrt(d); }
+      }
+      return best;
+    }
+    for (let i = pfrom[gfrom[q]] * 3, e = pfrom[gfrom[q + 1]] * 3; i < e; i += 3) best = min(best, (x - P[i]) ** 2 + (y - P[i + 1]) ** 2 + (z - P[i + 2]) ** 2);
+    return best;
+  };
+  const gapOf = (r, q) => sqrt((X[r] - X[q]) ** 2 + (Y[r] - Y[q]) ** 2 + (Z[r] - Z[q]) ** 2) - R[r] - R[q];   // (no leaf of r lies nearer one of q's than this)
+  /** Part q's leaves held against r's points: each one's nearest drawn, where q may be nearer it; r's farthest after. */
+  const against = (r, q) => {
+    const gap = gapOf(r, q); if (gap > 0 && gap * gap >= D[r]) return;   // (q is nearer none of them than what is drawn)
+    let most = 0;
+    for (let g = gfrom[r]; g < gfrom[r + 1]; g++) {
+      const c = g * 4, cg = sqrt((GC[c] - X[q]) ** 2 + (GC[c + 1] - Y[q]) ** 2 + (GC[c + 2] - Z[q]) ** 2) - GC[c + 3] - R[q];
+      if (!(cg > 0 && cg * cg >= G[g])) {   // (q may be nearer some point of this group)
+        let gm = 0;
+        for (let i = pfrom[g]; i < pfrom[g + 1]; i++) {
+          const x = P[i * 3], y = P[i * 3 + 1], z = P[i * 3 + 2], lim = R[q] + root[i];
+          if ((x - X[q]) ** 2 + (y - Y[q]) ** 2 + (z - Z[q]) ** 2 < lim * lim) { const d = toPart(x, y, z, q, near[i], root[i]); if (d < near[i]) { near[i] = d; root[i] = sqrt(d); } }   // (where q may be nearer it)
+          if (near[i] > gm) gm = near[i];
+        }
+        G[g] = gm;
+      }
+      if (G[g] > most) most = G[g];
+    }
+    D[r] = most;
+  };
+  /** Part r measured against the first s turns: the nearest of those it has not been by its middle first (what it finds
+      lets the rest be passed by), then the rest. -> its farthest point's squared distance from a leaf drawn */
+  const measure = (r, s) => {
+    let k0 = seen[r], best = -1, bd = Infinity;
+    for (let k = k0; k < s; k++) { const g = gapOf(r, out[k]); if (g < bd) { bd = g; best = k; } }
+    if (best >= 0) against(r, out[best]);
+    for (let k = k0; k < s; k++) if (k !== best) against(r, out[k]);
+    seen[r] = s;
+    return D[r];
+  };
+  /** The farthest part in heap H from the first s turns, its leaves', or -1. A part's key is what it was off by when it
+      was last measured (or a bound over it): never less than it is now, as more drawn only brings a leaf nearer. So the
+      top, measured again and found as far as its key, is the farthest of all, and only parts that might be are measured:
+      a crown of thousands is not measured against every turn (a lazy greedy). It stays in H. */
+  const farthest = (H, s) => {
+    while (H.size()) {
+      const [key, r] = H.pop();
+      if (taken[r]) continue;
+      const d = seen[r] === s ? D[r] : measure(r, s);
+      H.push(d, r);
+      if (d >= key) return r;
+    }
+    return -1;
+  };
+  // the first: the part of the first class farthest from the crowd's middle; then the parts' bounds from it, each class
+  // in its own heap and all of them in one (what the share error is the farthest of)
+  const classes = [...new Set(cls)].sort((x, y) => x - y), ofClass = classes.map((k) => { const o = []; for (let r = 0; r < n; r++) if (cls[r] === k) o.push(r); return o; });
+  let p = -1, far = -1;
+  for (const r of ofClass[0]) { const q = (X[r] - mid[0]) ** 2 + (Y[r] - mid[1]) ** 2 + (Z[r] - mid[2]) ** 2; if (q > far) { far = q; p = r; } }
+  out[0] = p; taken[p] = 1;
+  const bound = Float64Array.from({ length: n }, (_, r) => (sqrt((X[r] - X[p]) ** 2 + (Y[r] - Y[p]) ** 2 + (Z[r] - Z[p]) ** 2) + R[r] + R[p]) ** 2);   // (no leaf of r lies farther from p's)
+  const all = heapOf(); for (let r = 0; r < n; r++) if (!taken[r]) all.push(bound[r], r);
+  let c = 0, mine = heapOf(); for (const r of ofClass[0]) if (!taken[r]) mine.push(bound[r], r);
+  for (let s = 1; s <= n; s++) {
+    const f = farthest(all, s); err[s] = f < 0 ? 0 : sqrt(D[f]);   // (of every part not yet taken, whatever its class: the farthest of its leaves from all that are)
+    if (s === n) break;
+    let q = farthest(mine, s);
+    while (q < 0) { mine = heapOf(); for (const r of ofClass[++c]) if (!taken[r]) mine.push(seen[r] ? D[r] : bound[r], r); q = farthest(mine, s); }   // (a class is through: the next)
+    out[s] = q; taken[q] = 1;
+  }
   return out;
 }
+/** A heap of numbers, the largest on top, each with what it is of (turnsOf). */
+function heapOf() {
+  const K = [], V = [], swap = (i, j) => { const k = K[i], v = V[i]; K[i] = K[j]; V[i] = V[j]; K[j] = k; V[j] = v; };
+  return {
+    size: () => K.length,
+    push(key, id) { let i = K.push(key) - 1; V.push(id); while (i > 0) { const u = (i - 1) >> 1; if (K[u] >= K[i]) break; swap(u, i); i = u; } },
+    pop() {
+      const top = [K[0], V[0]], k = K.pop(), v = V.pop();
+      if (K.length) { K[0] = k; V[0] = v; for (let i = 0; ;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < K.length && K[l] > K[m]) m = l; if (r < K.length && K[r] > K[m]) m = r; if (m === i) break; swap(m, i); i = m; } }
+      return top;
+    },
+  };
+}
+/** Parts that are points (a chunk each: clumpsOf) as turnsOf takes them: each its middle, and nothing round it. */
+const pointsOf = (X, Y, Z) => { const n = X.length, at = new Float64Array(n * 3), GC = new Float64Array(n * 4), one = Uint32Array.from({ length: n + 1 }, (_, i) => i); for (let i = 0; i < n; i++) { at.set([X[i], Y[i], Z[i]], i * 3); GC.set([X[i], Y[i], Z[i], 0], i * 4); } return { X, Y, Z, R: new Float64Array(n), at, gfrom: one, pfrom: one, GC, tris: new Float64Array(0), tfrom: new Uint32Array(n + 1) }; };
 
 /** What every reckoning of a shape begins with: its parts as the recipe laid them (assets/kit/tree.js: m.parts), the
     sprigs (each its cards, four vertices a card) and the solid pieces (a tube; and whatever was laid without a part, as
@@ -153,18 +269,18 @@ function turnsOf(X, Y, Z, cls, mid) {
 function headOf(m, K) {
   const P = m.position, n = m.part.length;
   const { lo, hi, mean, frame, sphere } = boundsOf(P, n), size = K.size ?? max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]);
-  const { sprigs, solids } = partsOf(m), N = sprigs.length, { mid, sd, order } = orderOf(sprigs, P, K);
+  const { sprigs, solids } = partsOf(m), N = sprigs.length, { mid, sd, order } = orderOf(sprigs, P, K, m.index);
   // ---- the crowd's own error, turn by turn (metres): drawing its first t turns, what leaving out the rest truly
   // misplaces. What is left out is stood for by what stays: the kept grow about their roots, each sqrt(A / A_t) of its
   // size (A: every sprig's leaves, A_t: the first t turns'), so the crown covers as much of its round as it did (Cook,
   // Halstead, Planck and Ryu 2007, "Stochastic Simplification of Aggregate Detail", SIGGRAPH: what is pruned stood for by
   // the rest, scaled up by its area). So leaving out turns t … N-1 misplaces what goes by its share error (the farthest
-  // one left out lies from one drawn: turnsOf) and what stays by its growth, (sqrt(A / A_t) - 1) times the farthest a
-  // kept sprig's leaf lies from its root (it was the reach of the largest left out, its leaves gone with it, nothing
-  // drawn standing for them: every sprig of a crown is about one size, so all went at once). And the kept never grow
-  // faster than the error allowed grows (over a BAND of pixels, at most a BAND of growth: a turn goes no sooner than
-  // the growth it brings over the last one's, times the error that went at). Never more as more are drawn; a crowd too
-  // few to thin (LEAST) keeps them all (Infinity: never by itself) ----
+  // a leaf left out lies from a leaf drawn: turnsOf) and what stays by its growth, (sqrt(A / A_t) - 1) times the
+  // farthest a kept sprig's leaf lies from its root (it was the reach of the largest left out, its leaves gone with it,
+  // nothing drawn standing for them: every sprig of a crown is about one size, so all went at once). And the kept
+  // never grow faster than the error allowed grows (over a BAND of pixels, at most a BAND of growth: a turn goes no
+  // sooner than the growth it brings over the last one's, times the error that went at). Never more as more are drawn;
+  // a crowd too few to thin (LEAST) keeps them all (Infinity: never by itself) ----
   const thins = N > K.LEAST, withFar = K.far !== false;
   if (withFar && !K.CELL) throw new Error('crowd: a far end is sized by its atlases (VIEWS, CELL, TILE, CLUMPS: src/detail/impostor.js atlases), and none were given');
   const R = m.root, rootReach = (q) => { let r = 0; for (const v of q.verts) r = max(r, hypot(P[v * 3] - R[v * 3], P[v * 3 + 1] - R[v * 3 + 1], P[v * 3 + 2] - R[v * 3 + 2])); return r; };
@@ -265,7 +381,7 @@ function partsOf(m) {
 /** The spread order of a crowd's sprigs: by size into classes (each half the area of the one before, the largest first;
     one where the shape asks them alike), the farthest from all taken before within a class (turnsOf). -> { mid, sd:
     their spread, order } */
-function orderOf(sprigs, P, K) {
+function orderOf(sprigs, P, K, I) {
   const N = sprigs.length, mid = [0, 0, 0], sd = [0, 0, 0], X = new Float64Array(N), Y = new Float64Array(N), Z = new Float64Array(N); let nC = 0;
   sprigs.forEach((q, p) => { for (const v of q.verts) { X[p] += P[v * 3] / q.verts.length; Y[p] += P[v * 3 + 1] / q.verts.length; Z[p] += P[v * 3 + 2] / q.verts.length; for (let a = 0; a < 3; a++) mid[a] += P[v * 3 + a]; nC++; } });
   for (let a = 0; a < 3; a++) mid[a] /= max(1, nC);
@@ -273,7 +389,29 @@ function orderOf(sprigs, P, K) {
   for (let a = 0; a < 3; a++) sd[a] = sqrt(sd[a] / max(1, nC)) || 1e-9;
   let amax = 0; for (const q of sprigs) amax = max(amax, q.area);
   const cls = Uint8Array.from(sprigs, (q) => (K.order === 'alike' ? 0 : min(K.CLASSES - 1, floor(log2(amax / q.area) + 1e-6))));
-  return { mid, sd, order: turnsOf(X, Y, Z, cls, mid) };
+  return { mid, sd, order: turnsOf(leavesOf(sprigs, P, I, X, Y, Z, K.SPAN), cls, mid) };
+}
+/** Where a crowd's sprigs' leaves are, as turnsOf takes them: each sprig's triangles as the mesh has them (I its
+    corners), points on each of its cards (SPAN x SPAN of them, its corners and its edges among them, four vertices a
+    card as the kit lays it), its middle and how far its corners reach from it. */
+function leavesOf(sprigs, P, I, X, Y, Z, SPAN) {
+  const N = sprigs.length, gfrom = new Uint32Array(N + 1), tfrom = new Uint32Array(N + 1), R = new Float64Array(N);
+  for (let p = 0; p < N; p++) { gfrom[p + 1] = gfrom[p] + sprigs[p].cards; tfrom[p + 1] = tfrom[p] + sprigs[p].tris.length; }   // (tris: where each of its triangles begins in I)
+  const nG = gfrom[N], pfrom = Uint32Array.from({ length: nG + 1 }, (_, g) => g * SPAN * SPAN), at = new Float64Array(pfrom[nG] * 3), GC = new Float64Array(nG * 4), tris = new Float64Array(tfrom[N] * 9);
+  sprigs.forEach((q, p) => {
+    for (const v of q.verts) R[p] = max(R[p], hypot(P[v * 3] - X[p], P[v * 3 + 1] - Y[p], P[v * 3 + 2] - Z[p]));
+    q.tris.forEach((t, k) => { for (let c = 0; c < 3; c++) for (let a = 0; a < 3; a++) tris[(tfrom[p] + k) * 9 + c * 3 + a] = P[I[t + c] * 3 + a]; });
+    for (let c = 0; c < q.cards; c++) {
+      const g = gfrom[p] + c, v = q.verts[c * 4], C = [0, 1, 2, 3].map((k) => (v + k) * 3), m = [0, 1, 2].map((a) => (P[C[0] + a] + P[C[1] + a] + P[C[2] + a] + P[C[3] + a]) / 4);
+      GC.set([...m, max(...C.map((o) => hypot(P[o] - m[0], P[o + 1] - m[1], P[o + 2] - m[2])))], g * 4);
+      let o = pfrom[g] * 3;
+      for (let i = 0; i < SPAN; i++) for (let j = 0; j < SPAN; j++) {
+        const u = i / (SPAN - 1), w = j / (SPAN - 1), k0 = (1 - u) * (1 - w), k1 = u * (1 - w), k2 = u * w, k3 = (1 - u) * w;
+        for (let a = 0; a < 3; a++) at[o++] = k0 * P[C[0] + a] + k1 * P[C[1] + a] + k2 * P[C[2] + a] + k3 * P[C[3] + a];
+      }
+    }
+  });
+  return { X, Y, Z, R, at, gfrom, pfrom, GC, tris, tfrom };
 }
 // the ways the eye can see a chunk's planes from: each plane's error and share depend on |v.x|, |v.y|, |v.z| alone, so
 // one eighth of the sphere is all of them (a triangle's grid of 325), each as its three planes' weights: plane a draws a
@@ -386,7 +524,7 @@ export function crowd(m, opts = {}) {
 
   // ---- its solid pieces: how wide each is, its go (widthsOf). Thick wood, what is still there where the crowd ends, is
   // never gone by itself (go 0): the impostor takes it; so is what was laid without a part ----
-  widthsOf(solids, P);
+  widthsOf(solids, P, m.normal, I);
   const outlasts = (q) => win.hi > 0 && q.go > win.hi;   // (still there where the crowd ends)
   const there = N > 0 || solids.some(outlasts);   // (a thing of sticks only, all gone before: nothing stays)
   if (!there) win.hi = win.lo = 0;
@@ -427,7 +565,7 @@ export function crowd(m, opts = {}) {
     sprigs.forEach((q, p) => { for (const v of q.verts) { aoP[p * 2] += m.ao[v]; aoP[p * 2 + 1]++; } });
     const Mc = all.length, X = new Float64Array(Mc), Y = new Float64Array(Mc), Z = new Float64Array(Mc), rank = new Uint32Array(Mc);
     all.forEach((C, c) => { X[c] = (C.box[0] + C.box[3]) / 2; Y[c] = (C.box[1] + C.box[4]) / 2; Z[c] = (C.box[2] + C.box[5]) / 2; });
-    turnsOf(X, Y, Z, new Uint8Array(Mc), mid).forEach((c, i) => (rank[c] = i));
+    turnsOf(pointsOf(X, Y, Z), new Uint8Array(Mc), mid).forEach((c, i) => (rank[c] = i));
     for (let t = 0; t < N; t++) turnOf[order[t]] = t;
     const cells = new Float32Array(Mc * 6), boxes = new Float32Array(Mc * 6), cgo = new Float32Array(Mc), ao = new Float32Array(Mc);
     all.forEach((C, c) => {
@@ -440,17 +578,44 @@ export function crowd(m, opts = {}) {
   return { count, cards, parts: N, solids: listed.length, ...out, ...S, index, steps, turns, size, mid, spread, win, grow: H.grow, cover, sphere, clumps,
     atlas: H.atlas, errors: H.errors, far: { lo: farLoOf(H), data: farDataOf(H, clumps) } };
 }
-/** Each solid piece's width and its go (metres). How long: between its two corners farthest apart (the farthest from
-    its middle, and the farthest from that). How wide: it is taken as a body a ray passes twice, whose area over pi times
-    its length is its mean width seen from the side (a tube's: its girth). Leaving a piece out differs by its width: it
-    goes where that is within the dial (its go: its width; what was laid without a part stays). */
-function widthsOf(solids, P) {
+/** Each solid piece's width and its go (metres). How wide: where it is widest, as any side shows it there (a branch is
+    thickest at its foot: its mean width would let its foot go a pixel and more wide), widestOf; a piece with no cross-
+    section to measure, its area over pi times its length (its mean width seen from the side). Leaving a piece out
+    differs by its width: it goes where that is within the dial (its go: its width; what was laid without a part stays).
+    N its corners' normals, I the mesh's corners. */
+function widthsOf(solids, P, N, I) {
   for (const q of solids) {
+    if (q.stays) { q.w = 0; q.go = 0; continue; }
     const c = [0, 0, 0]; for (const v of q.verts) for (let a = 0; a < 3; a++) c[a] += P[v * 3 + a] / q.verts.length;
     const farFrom = (x, y, z) => { let at = q.verts[0], d = -1; for (const v of q.verts) { const e = (P[v * 3] - x) ** 2 + (P[v * 3 + 1] - y) ** 2 + (P[v * 3 + 2] - z) ** 2; if (e > d) { d = e; at = v; } } return at; };
     const a = farFrom(c[0], c[1], c[2]), b = farFrom(P[a * 3], P[a * 3 + 1], P[a * 3 + 2]), L = hypot(P[b * 3] - P[a * 3], P[b * 3 + 1] - P[a * 3 + 1], P[b * 3 + 2] - P[a * 3 + 2]) || 1e-9;
-    q.w = q.area / (PI * L); q.go = q.stays ? 0 : q.w;
+    q.w = widestOf(q, P, N, I, L) || q.area / (PI * L); q.go = q.w;
   }
+}
+/** A piece's width where it is widest: the most distance across any of its cross-sections (a tube's ring: as wide as any
+    side shows it there, its corners and its flats alike). A corner's cross-section is the plane through it across the
+    piece, at right angles to `way`: its normal crossed with that of its neighbour round it (of the corners it shares an
+    edge with, the one whose normal is turned the most from its own: a tube's rings lie flat across it, each corner's
+    normal in its ring's plane), and the corners in that plane are its ring. L: the piece's length (what lies in the
+    plane is within a millionth of it, as numbers hold it). 0: none found. */
+function widestOf(q, P, N, I, L) {
+  const v0 = q.verts[0], n = q.verts.length, turn = new Float64Array(n), way = new Float64Array(n * 3), tol = L * 1e-6;
+  const pair = (a, b) => {
+    const i = a - v0, ax = N[a * 3], ay = N[a * 3 + 1], az = N[a * 3 + 2], bx = N[b * 3], by = N[b * 3 + 1], bz = N[b * 3 + 2];
+    const cx = ay * bz - az * by, cy = az * bx - ax * bz, cz = ax * by - ay * bx, m = sqrt(cx * cx + cy * cy + cz * cz);
+    if (m > turn[i]) { turn[i] = m; way[i * 3] = cx / m; way[i * 3 + 1] = cy / m; way[i * 3 + 2] = cz / m; }
+  };
+  for (const t of q.tris) { const i = I[t], j = I[t + 1], k = I[t + 2]; pair(i, j); pair(j, i); pair(j, k); pair(k, j); pair(k, i); pair(i, k); }
+  let most = 0;
+  for (let i = 0; i < n; i++) {
+    if (!(turn[i] > 0)) continue;
+    const v = v0 + i, x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2], tx = way[i * 3], ty = way[i * 3 + 1], tz = way[i * 3 + 2];
+    for (const u of q.verts) {
+      const dx = P[u * 3] - x, dy = P[u * 3 + 1] - y, dz = P[u * 3 + 2] - z;
+      if (abs(dx * tx + dy * ty + dz * tz) <= tol) most = max(most, dx * dx + dy * dy + dz * dz);   // (in its cross-section)
+    }
+  }
+  return sqrt(most);
 }
 /** What the GPU bakes a far end from (src/detail/impostor.js), carried after its finest level's vertices
     (assets/kit/plant.js): [chunks, the sphere (4), its size, its impostor's error (metres: its views' texel, their
