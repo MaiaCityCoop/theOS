@@ -1,10 +1,17 @@
 // The world, loading: which still of it the veil is laid over (brand.css, html.os-loading). Read before the first paint
-// (a plain script in the page's head), so the still is there from the start: one of the tent's, chosen at random. The
-// stills lie beside this script (brand/loading/), named from where it was served, as brand.css names its pictures: a
-// page under a base (the game's dev server at /game) finds them there too.
+// (a plain script in the page's head), so the still is there from the start: the tent's as the world about to show will
+// be, by what this browser kept of it (TheGame/src/core/store.js, 'maia.' and its key): snow where snow lies or falls
+// (TheGame/src/world/weather: snow, snowfall), else by its hour (TheGame/src/world/sky.js: sky.hour): the morning's
+// before ten, the day's (the meadow, or under the pines) till five, the evening's after, and through the night; before
+// any was kept, one of the day's (TheGame/world/clock.js opens on a day). (2026-11-19: one start in five showed the
+// snow's over a green meadow, the world snow-white behind the veil as it was made, and green at Ready.) The stills lie
+// beside this script (brand/loading/), named from where it was served, as brand.css names its pictures: a page under a
+// base (the game's dev server at /game) finds them there too.
 (() => {
-  const STILLS = ['tent-morning', 'tent-midday', 'tent-evening', 'tent-snow', 'tent-pines'];
-  const pick = STILLS[Math.floor(Math.random() * STILLS.length)], still = new URL(`loading/${pick}.jpg`, document.currentScript.src);
+  const kept = (k) => { try { return JSON.parse(localStorage.getItem('maia.' + k)); } catch { return null; } };
+  const hour = kept('sky.hour'), snowy = kept('snow') > 0 || kept('snowfall') > 0;
+  const fits = snowy ? ['tent-snow'] : hour == null ? ['tent-morning', 'tent-midday', 'tent-pines'] : hour >= 5 && hour < 10 ? ['tent-morning'] : hour >= 10 && hour < 17 ? ['tent-midday', 'tent-pines'] : ['tent-evening'];
+  const pick = fits[Math.floor(Math.random() * fits.length)], still = new URL(`loading/${pick}.jpg`, document.currentScript.src);
   document.documentElement.style.setProperty('--os-load-still', `url('${still.href}')`);
 })();
 
