@@ -14,15 +14,21 @@
 //   family    three of them laid out as one (src/scatter/tier.js familyOf: one's growth lays out all, each told so,
 //             relaid): the same, the first doubling halfway
 //   resident  a resident tier's store as residentOf runs it, by the rules it runs on (storeOf, roomsFor): its kind
-//             laid out where a read asks, its store emptied then, its regions visited over `per` frames, a read asked
-//             where it is wrong or a packing is unread (one at a time, of its last packing); the camera jumping every
-//             so often (every region new: its store filled anew at the same layout), what it finds there other. Exit 1
-//             where it is filled and not known to fit past a read or two of each jump, laid out more than once a place,
-//             or laid out again for no more found than it held
+//             laid out where a read asks, its store emptied then, its regions' cells visited at the frame's pace as
+//             tier.js paces them (src/core/pace.js: a workgroup's at first, at most twice as many a frame, as many as
+//             fit geometry's share of a frame at what a cell costs the GPU: a piece at a time, nearest first, since
+//             2026-11-19, where a fill had been one packing), a packing whole only where nothing waits (waits.size 0), a
+//             read asked where it is wrong or a packing is unread (one at a time, of its last packing); the camera
+//             jumping every so often (every region new: its store filled anew at the same layout), what it finds there
+//             other, and the camera still. Exit 1 where it is filled and not known to fit past a read or two of each
+//             place, laid out more than once a place, laid out again for no more found than it held, or its regions
+//             wait past a fill a place and one a layout
 import './glob.js';
 
 const { ownOf, storeOf, roomsFor } = await import('../src/scatter/tier.js');
 const { WG, MARGIN } = await import('../src/scatter/regions.js');
+const { pace } = await import('../src/core/pace.js');
+const { FRAME_MS_BY_CLASS } = await import('../src/core/budget.js');
 const { waiting } = await import('../src/core/settle.js');
 
 let failed = 0;
@@ -68,19 +74,21 @@ async function own(n, { moving, still, jump, mean }, name) {
 }
 
 /** A resident tier's store as residentOf runs it (one tier its kind's: its kind laid out as soon as its read has
-    answered), `per` frames to fill (its regions visited a share a frame), the camera jumping every `visit` frames to a
-    place where it finds `means[j]` (in turn). -> { laid, past (layouts for no more found than held), waiting (frames a
-    region waited), wrong (frames filled and not known to fit), least (the least room it was laid out at) }. */
-async function resident(per, { frames, visit, means, first }) {
-  const L = lagging();
-  let N = first, P = first, sealed = 0, dirty = true, epoch = 0, seen = -1, filled = 0, packs = 0, asked = 0, asking = false, mean = means[0];
+    answered), its regions' `cells` visited at the frame's pace (tier.js CELLS: pace, measured against geometry's share
+    of a frame), a cell costing the GPU what visits all of them over `per` frames at rest; the camera jumping every
+    `visit` frames to a place where it finds `means[j]` (in turn). -> { laid, past (layouts for no more found than
+    held), waiting (frames a region waited), wrong (frames filled and not known to fit), least (the least room it was
+    laid out at) }. */
+async function resident(per, { frames, visit, means, first, cells }) {
+  const L = lagging(), C = pace(WG), budget = FRAME_MS_BY_CLASS.geometry, cost = (budget * per) / cells;   // (cost: ms a cell)
+  let N = first, P = first, sealed = 0, dirty = true, epoch = 0, seen = -1, done = 0, packs = 0, asked = 0, asking = false, mean = means[0];
   const S = storeOf(() => dirty), last = { at: -1, whole: false }, out = { laid: 0, past: 0, waiting: 0, wrong: 0, least: Infinity };
   const R = L.renderer(() => [Math.min(sealed, N), sealed, sealed]);   // (held, found, packed for its draws: as its last packing sealed them, what the GPU holds till the next)
   for (let f = 1; f <= frames; f++) {
-    await L.next();
+    await L.next(); C.tick();
     if (dirty && !asking) { dirty = false; epoch++; out.laid++; }   // (ready: its kind laid out, every tier of it having answered)
-    if (seen !== epoch) { seen = epoch; filled = 0; S.made(); }   // (its run: its kind laid out again, what it held is gone)
-    if (f > 1 && f % visit === 1) { filled = 0; mean = means[Math.floor(f / visit) % means.length]; }   // (a jump: every region new, at the same layout)
+    if (seen !== epoch) { seen = epoch; done = 0; S.made(); }   // (its run: its kind laid out again, what it held is gone)
+    if (f > 1 && f % visit === 1) { done = 0; mean = means[Math.floor(f / visit) % means.length]; }   // (a jump: every region new, at the same layout)
     if (!asking && (S.wrong() || packs !== asked)) {
       asking = true; asked = packs; const read = { ...last };
       R.getArrayBufferAsync().then((b) => {
@@ -89,7 +97,10 @@ async function resident(per, { frames, visit, means, first }) {
         S.fit(read.at);
       }).finally(() => { asking = false; });
     }
-    if (filled < 1) { filled = Math.min(1, filled + 1 / per); sealed = Math.round(mean * filled); packs++; last.at = S.at(); last.whole = filled >= 1; out.waiting++; }
+    if (done < cells) {   // (its visits, the nearest first, within the frame's cells; a packing whole where nothing waits after it)
+      const n = Math.min(Math.max(WG, C.left), cells - done); done += n; C.left -= n; C.measured(n, n * cost, budget);
+      sealed = Math.round((mean * done) / cells); packs++; last.at = S.at(); last.whole = done >= cells; out.waiting++;
+    }
     else if (S.wrong()) out.wrong++;
   }
   return out;
@@ -99,7 +110,7 @@ async function resident(per, { frames, visit, means, first }) {
     frame to sixteen, the camera jumping and still (2026-11-19, live on next: where Samuel stood, the world's plants
     popped in and out over and over). */
 async function check() {
-  const OWN = { moving: 600, still: 100, jump: 300, mean: 5000 }, MOVED = { frames: 600, visit: 120, means: [90000, 120000, 70000, 100000], first: 2 ** 17 };
+  const OWN = { moving: 600, still: 100, jump: 300, mean: 5000 }, MOVED = { frames: 600, visit: 120, means: [90000, 120000, 70000, 100000], first: 2 ** 17, cells: 2 ** 21 };
   console.log("the tiers' stores, read back two and three frames behind their packings (src/scatter/tier.js storeOf, roomsFor):");
   for (const [n, name] of [[1, 'own'], [3, 'family']]) {
     const o = await own(n, OWN, `check: ${name}`);
@@ -112,11 +123,12 @@ async function check() {
     const places = Number.isFinite(R.visit) ? Math.ceil(R.frames / R.visit) : 1;
     for (const per of [1, 3, 8, 16]) {
       const r = await resident(per, R);
-      console.log(`  resident, ${how}, filled over ${String(per).padStart(2)} frame${per > 1 ? 's' : ' '}: laid out ${r.laid} times (${r.past} for no more found than held), its regions waiting ${r.waiting} of ${R.frames} frames, filled and not known to fit ${r.wrong}, laid out at ${r.least === Infinity ? 'its first room only' : `${r.least} at the least`}`);
+      console.log(`  resident, ${how}, filled at rest over ${String(per).padStart(2)} frame${per > 1 ? 's' : ' '}: laid out ${r.laid} times (${r.past} for no more found than held), its regions waiting ${r.waiting} of ${R.frames} frames, filled and not known to fit ${r.wrong}, laid out at ${r.least === Infinity ? 'its first room only' : `${r.least} at the least`}`);
       if (r.past) fail(`resident over ${per}, ${how}: laid out ${r.past} times for no more found than it held`);
       if (r.wrong > 4 * places) fail(`resident over ${per}, ${how}: filled and not known to fit ${r.wrong} frames`);
       if (r.laid > places) fail(`resident over ${per}, ${how}: laid out ${r.laid} times, at ${places} place${places > 1 ? 's' : ''}`);
-      if (r.waiting > (places + r.laid - 1) * per) fail(`resident over ${per}, ${how}: its regions waited ${r.waiting} frames, past a fill a place and one a layout`);   // (a layout empties it: filled anew)
+      const rest = Math.floor(R.cells / per), fill = Math.ceil(R.cells / rest), ramp = Math.ceil(Math.log2(rest / WG)) + 1;   // (a fill at the pace's rest, frames; and its first, from a workgroup's cells a frame, twice as many a frame)
+      if (r.waiting > (places + r.laid - 1) * fill + ramp) fail(`resident over ${per}, ${how}: its regions waited ${r.waiting} frames, past a fill a place and one a layout`);   // (a layout empties it: filled anew)
     }
   }
 }
