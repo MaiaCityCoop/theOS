@@ -31,10 +31,10 @@ import { boxIn } from '../core/frustum.js';
 import { HMIN, HMAX } from '../world/land.js';
 import { makeOwned, gpuStorage, roomOf } from '../core/gpu.js';
 import { did } from '../core/work.js';
-import { source, ready } from '../core/settle.js';
-import { FRAME_MS, FRAME_MS_BY_CLASS, OUTPUT } from '../core/budget.js';
+import { source } from '../core/settle.js';
+import { OUTPUT } from '../core/budget.js';
 import { outputRatio } from '../core/output.js';
-import { ownGpuMs, pace } from '../core/pace.js';
+import { ownGpuMs, pace, frameShare } from '../core/pace.js';
 import { pxAt, dialPxAt, pxKAt } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
 import { standsFor } from '../scatter/grass.js';
@@ -309,14 +309,13 @@ export function createPages(renderer, tex) {
     for (const q of list) { recent.push({ m: q.m, i: q.i, j: q.j, frame }); if (recent.length > 24) recent.shift(); log({ k: 'lay', m: q.m, i: q.i, j: q.j, pin: q.pin }); }   // (for a look: the last pages laid)
   };
   // ---- the pages a frame lays: held to what the GPU does in the ground's share of a frame ----
-  // (FRAME_MS_BY_CLASS.ground, src/core/budget.js; behind the veil, till the first view is shown, the whole frame's:
-  // nothing is seen moving then), by each lay's own time on the GPU (src/core/pace.js: as the tiers' packing). The pins
+  // (src/core/pace.js frameShare: the ground's, the whole frame behind the veil), by each lay's own time on the GPU
+  // (src/core/pace.js: as the tiers' packing). The pins
   // (pinTop) and the queue (layQueue) share them, the pins first; what is left waits for the frames after. From one page
   // a frame.
   const PACE = pace();
   let pinsOut = 0;   // (the last level's pages round the camera not laid yet: what the frame's pace left)
-  let veiled = true; ready.then(() => { veiled = false; });
-  const paced = (list) => ownGpuMs(renderer, () => lay(list))?.then((ms) => PACE.measured(list.length, ms, veiled ? FRAME_MS : FRAME_MS_BY_CLASS.ground)).catch(() => {});
+  const paced = (list) => ownGpuMs(renderer, () => lay(list))?.then((ms) => PACE.measured(list.length, ms, frameShare('ground'))).catch(() => {});
   // make each of these pages, BATCH at a time, as many as the frame's pace leaves: how many were made
   const make = (pages) => {
     let n = 0, batch = [];

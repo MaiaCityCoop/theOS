@@ -22,9 +22,9 @@ import { heightAt as heightCPU } from '../world/land.js';
 import { camDist, riverInfo, heightAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, biomesAt } from '../world/land.nodes.js';
 import { CLEARINGS } from '../../world/places.js';
 import { offWays, waysVersion } from '../world/ways.js';
-import { source, ready } from '../core/settle.js';
-import { FADE_FRAMES, FRAME_MS, FRAME_MS_BY_CLASS, SUBMIT_MS } from '../core/budget.js';
-import { ownGpuMs, pace } from '../core/pace.js';
+import { source } from '../core/settle.js';
+import { FADE_FRAMES, SUBMIT_MS } from '../core/budget.js';
+import { ownGpuMs, pace, frameShare } from '../core/pace.js';
 import { recipes } from '../core/registry.js';
 import { pxKMost, farMost } from '../detail/measure.js';
 import { GONE } from '../detail/error.js';
@@ -157,8 +157,7 @@ export function createGround(renderer, tex) {
   // first view is shown, the whole frame's), by each piece's own time on the GPU (src/core/pace.js); and a piece never
   // more blocks than one submission may take (SUBMIT_MS) at what a block cost last. From one block a frame ----
   const PACE = pace(), per = { ms: 0 };   // (per: what a block cost the GPU, ms, as its last piece was measured)
-  let veiled = true; ready.then(() => { veiled = false; });
-  const timed = (n, draw) => ownGpuMs(renderer, draw)?.then((ms) => { per.ms = ms / n; PACE.measured(n, ms, veiled ? FRAME_MS : FRAME_MS_BY_CLASS.ground); }).catch(() => {});
+  const timed = (n, draw) => ownGpuMs(renderer, draw)?.then((ms) => { per.ms = ms / n; PACE.measured(n, ms, frameShare('ground')); }).catch(() => {});   // (src/core/pace.js frameShare)
   // this frame's pieces: the first job's next blocks, a piece a submission, as many as the frame's pace leaves
   function pieces() {
     PACE.tick();
