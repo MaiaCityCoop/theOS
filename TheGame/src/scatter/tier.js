@@ -24,7 +24,7 @@ import { cullOf, cullable, MANY, wgOf, sizeTo, useLimits, CULL_BYTES } from '../
 import { did } from '../core/work.js';
 import { FNV, fnv } from '../core/hash.js';
 import { passOf, vWas } from '../core/pass.js';
-import { ask, made, computeMaker } from '../core/compile.js';
+import { ask, made, computeMaker, nearFrom } from '../core/compile.js';
 import { source } from '../core/settle.js';
 import { onMeasure, dialK } from '../detail/measure.js';
 import { Resident, WG, BLOCK, MARGIN } from './regions.js';
@@ -120,7 +120,7 @@ export class Tier {
   }
   /** Its packing passes asked to be made, aside, in turn (src/core/compile.js ask). counted: whether the world waits for
       them (made ahead of need, src/boot.js: not). */
-  make(renderer, counted = true) { if (this.passes) ask(this.passes, 'run', computeMaker(renderer), `${this.name}: packing`, counted); }
+  make(renderer, counted = true) { if (this.passes) ask(this.passes, 'run', computeMaker(renderer), `${this.name}: packing`, counted, nearFrom(this.near)); }   // (made when what it packs is: past the first view's reach, after it)
   /** Its patches read into two numbers, not written out one by one (a string of hundreds of them a tier a frame was a
       megabyte of litter every few frames for the browser to sweep up); a list's runs too (the same patch may hold other
       places now). */
