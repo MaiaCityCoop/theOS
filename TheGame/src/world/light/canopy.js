@@ -59,7 +59,7 @@ const black = Object.assign(new THREE.DataTexture(new Uint16Array([0, 0, 0, 0]),
     reference height); its map and where it lies, and its cameras' heights (over, under, their depth's range); whether
     it is there. */
 const CANOPY = {
-  probes: texture(black), at: uniform(new THREE.Vector4(0, 0, 1, 0)), ground: texture(black),   // (ground: none until it is read, no colour of its own)
+  probes: texture(black), at: uniform(new THREE.Vector4(0, 0, 1, 0)), ground: uniform(new THREE.Color(0, 0, 0)),   // (ground: none until it is read, no colour of its own; a uniform, read back from its texel: the light's textures are few, src/world/light/tables.js)
   map: texture(new THREE.DepthTexture(1, 1)), mapAt: uniform(new THREE.Vector4(0, 0, 1, 0)), cams: uniform(new THREE.Vector3()), on: uniform(0), groundOn: uniform(0),   // (on, groundOn: how much of the probes and of the ground's colour is read: none until made, then faded in, createCanopy)
 };
 
@@ -84,7 +84,7 @@ export const canopyAt = (w) => {
 };
 /** The ground's own colour round the eye (linear; black until it has been read: then no light comes off it). In any
     stage. */
-export const groundColour = () => CANOPY.ground.sample(vec2(0.5)).level(0).rgb.mul(CANOPY.groundOn);
+export const groundColour = () => CANOPY.ground.mul(CANOPY.groundOn);
 /** groundAt: the ground's height at a point, as a node (src/world/land.nodes.js); land: the land's pages
     (src/terrain/pages.js), whose colour the ground round the eye is read off; crowns: { at(p), version() }, how much of
     the light a metre of crown takes at p, and how many times that has changed (src/terrain/layers.js crownsAt,
@@ -129,13 +129,15 @@ export function createCanopy(renderer, { groundAt, land, crowns }) {
   const groundMat = new THREE.NodeMaterial();
   groundMat.fragmentNode = Fn(() => vec4(land.read(CANOPY.mapAt.xy, vec2(R, 0), vec2(0, R), float(0), { lod: true }).c, 1))();
   const groundQuad = new THREE.QuadMesh(groundMat);
-  let groundDue = true;
+  let groundDue = true, reading = null;
   // (read: whether it was drawn, once its pass is made, src/core/compile.js drawMade; else read again next frame)
   const drawGround = () => {
     const prev = renderer.getRenderTarget(), ac = renderer.autoClear, route0 = renderer.getRenderObjectFunction();
     mark('probes'); renderer.setRenderObjectFunction(null); renderer.autoClear = false; renderer.setRenderTarget(groundTo);
     const read = drawMade(renderer, groundQuad, groundQuad.camera, 'the ground round the eye', AFTER);
-    if (read) { CANOPY.ground.value = groundTo.texture; groundIn.arrive(); }
+    if (read && !reading) {   // (its texel read back, one read at a time, into the uniform every lit material reads)
+      reading = renderer.readRenderTargetPixelsAsync(groundTo, 0, 0, 1, 1).then((px) => { CANOPY.ground.value.setRGB(...[0, 1, 2].map((c) => THREE.DataUtils.fromHalfFloat(px[c]))); groundIn.arrive(); }).finally(() => { reading = null; });
+    }
     mark(null); renderer.setRenderObjectFunction(route0); renderer.autoClear = ac; renderer.setRenderTarget(prev);
     return read;
   };
