@@ -59,7 +59,7 @@ const kept = () => { try { return JSON.parse(readFileSync(KEPT, 'utf8')); } catc
     the GPU's budget at the least. */
 function floor() {
   const F = Object.entries(kept().footprint ?? {}).sort((a, b) => b[1].mb - a[1].mb)[0];
-  return F && F[1].mb > GPU_MB ? { mb: F[1].mb, why: `the game's own footprint here, ${F[1].mb} MB (its browsers at the most in ${F[0]}'s last run, ${F[1].at.slice(0, 16)})` } : { mb: GPU_MB, why: `the game's GPU budget of ${GPU_MB} MB${F ? ` (its browsers held at most ${F[1].mb} MB in ${F[0]}'s last run here)` : ''}` };
+  return F && F[1].mb > GPU_MB ? { mb: F[1].mb, why: `its own footprint here: its browsers at the most in ${F[0]}'s last run, ${F[1].at.slice(0, 16)}` } : { mb: GPU_MB, why: `its GPU budget${F ? `, more than its browsers held in ${F[0]}'s last run here (${F[1].mb} MB)` : ', before any run here'}` };
 }
 /** While a measure runs, the game's browsers' memory each second: every process this run started (and theirs), and
     WebKit's; their sum at its most, by browser (MB). stop() ends it and keeps it (the floor of every run after). */
@@ -82,7 +82,7 @@ function sampled() {
 }
 /** Why a run on the machine (as it was before; after, once it has run) is not measured, or null: less free at its start
     than the game takes (floor), or its swap grew. */
-const unfit = (before, after = null) => { const F = floor(); return before.free < F.mb ? `the machine is short of memory: ${before.free} MB free (${Math.round(before.share * 100)} %), less than ${F.why}; ${before.swap} MB of swap in use`
+const unfit = (before, after = null) => { const F = floor(); return before.free < F.mb ? `the machine is short of memory: ${before.free} MB free (${Math.round(before.share * 100)} %), the game needs ${F.mb} MB (${F.why}); ${before.swap} MB of swap in use`
   : after && after.swap > before.swap ? `the machine swapped while it ran: ${before.swap} → ${after.swap} MB of swap in use` : null; };
 /** fn run as a measure on this machine: not run where the machine starts short of memory ({ notMeasured, host: { before } },
     given to short for the caller's own shape); else what fn gave, with host { before, after, game: its browsers' most, MB
