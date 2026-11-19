@@ -155,7 +155,8 @@ export function laid(tex, p, s, D, X) {
       const mean = smoothstep(S.grain.mul(CROWNS / 4), S.grain.mul(CROWNS / 2), s), crown = S.colour.mul(mix(T.n, 0.5, mean).mul(0.6).add(0.42));
       // (none of it while it has no colour yet: its kinds' far ends not yet baked and its biome saying none,
       // src/terrain/layers.js standColours)
-      const k = fade.mul(smoothstep(0, 0.15, T.c)).mul(step(0, S.colour.x)), top = k.mul(mix(under2, smoothstep(0.1, 0.95, T.c), mean));
+      // (and far off as much of it as its plants cover where they are drawn, T.c, no more and no less: the pattern's mean)
+      const k = fade.mul(step(0, S.colour.x)), top = k.mul(mix(under2, T.c, mean));
       M.c.assign(mix(M.c, crown, top)); M.n.assign(M.n.mul(float(1).sub(top))); M.h.assign(mix(M.h, under2, k)); M.g.assign(M.g.mul(float(1).sub(top)));
       If(S.reach.greaterThan(0), () => { shade.assign(max(shade, T.c.mul(T.n.mul(0.9).add(0.3)).min(0.85).mul(float(1).sub(top)))); });   // the floor between the crowns in their shade (the crowns themselves in the light)
     });
