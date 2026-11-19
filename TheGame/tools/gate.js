@@ -499,7 +499,7 @@ async function flight() {
     second from 0), and every frame of it: its time from the frame clock (requestAnimationFrame), the renderer's number
     for it, the inside's ratio; and the GPU's own time of every frame the renderer numbered (?gputime: three's timestamp
     queries, render and compute passes, read back as they come and summed by frame). */
-async function ride({ fly }) {
+async function ride({ fly, limit = 0 }) {
   const s = window.__game, r = s.renderer, B = r.backend, ticks = [], gpu = {}, seen = {};
   let on = true;
   const tick = (t) => { if (!on) return; ticks.push([t, r.info.frame, s.screen.inside]); requestAnimationFrame(tick); };
@@ -517,7 +517,8 @@ async function ride({ fly }) {
     await new Promise((res) => { const step = (now) => { t0 ??= now; const q = (now - t0) / 1000; window.__flyby.at(Math.min(q, c)); if (q < c) requestAnimationFrame(step); else res(); }; requestAnimationFrame(step); });
   } else {
     window.__cine.play();
-    await new Promise((res) => { const step = () => (window.__cine.playing ? requestAnimationFrame(step) : res()); requestAnimationFrame(step); });
+    const t0 = performance.now(), more = () => window.__cine.playing && !(limit && performance.now() - t0 > limit);   // (limit: ms of it, at most)
+    await new Promise((res) => { const step = () => (more() ? requestAnimationFrame(step) : res()); requestAnimationFrame(step); });
   }
   on = false; await timing;
   if (B.trackTimestamp) await read();   // (the last frames' times)
@@ -528,7 +529,7 @@ async function ride({ fly }) {
 function told({ ticks, gpu, timestamps }) {
   const steps = ticks.slice(1).map((t, i) => t[0] - ticks[i][0]), g = ticks.map((t) => gpu[t[1]]).filter((v) => v != null), r = ticks.map((t) => t[2]);
   const of = (xs, line) => (xs.length ? { frames: xs.length, median: rank(xs, 0.5), p99: rank(xs, 0.99), worst: Math.max(...xs), over: xs.filter((v) => v > line).length } : null);
-  return { frame: of(steps, FRAME + JITTER), gpu: timestamps ? of(g, BUDGET) : null, inside: r.length ? { least: Math.min(...r), median: rank(r, 0.5) } : null };
+  return { frame: { ...of(steps, FRAME + JITTER), hitches: steps.filter((v) => v > 2 * FRAME).length }, gpu: timestamps ? of(g, BUDGET) : null, inside: r.length ? { least: Math.min(...r), median: rank(r, 0.5) } : null };
 }
 
 const run = promisify(execFile);
@@ -631,6 +632,28 @@ async function moves(page, v) {
   const walked = { ...v, name: `${v.name}, walked`, rig: { ...r, x: r.x - Math.sin(r.yaw) * step, z: r.z - Math.cos(r.yaw) * step } };   // (the rig looks along (−sin, −cos) of its yaw)
   return { posed: (await go(page, v)).ms, turned: (await go(page, turned)).ms, walked: (await go(page, walked)).ms };
 }
+/** The hour's walk: twenty seconds of the walk path (PATHS walk) as a player walks it, at the output, in the world and in
+    the stress world (?stress): each frame's time and the GPU's (p50, p99), the frames that hitched (longer than two
+    frames at 60 fps), and the longest submission's own GPU time (tools/gate/device.js watch). */
+async function walks(chrome) {
+  const { watch } = await import('./gate/device.js'), p = PATHS.find((x) => x.name === 'walk'), out = {};
+  for (const world of ['world', 'stress']) {
+    const P = await open(chrome, { query: world === 'stress' ? 'gputime&stress' : 'gputime', init: `(${watch})(${BUDGET})` });
+    try {
+      await P.page.evaluate(() => { window.__cine.dof = false; }); await P.page.evaluate(course, p);
+      const g = await P.page.evaluate(settled, { wait: WAIT, at: `the walk's start, ${world}`, keep: KEEP.on });
+      if (g.settled === false) { out[world] = { notSettled: g.said }; continue; }
+      const r = told(await P.page.evaluate(ride, { fly: false, limit: 20e3 })), d = await P.page.evaluate(() => window.__device);
+      out[world] = { ...r, longest: Math.round(d?.longest ?? 0), long: d?.long ?? null };
+    } finally { said(P.errors); await P.close(); }
+  }
+  console.log(`  ${walkLines(out).join('\n  ')}`);
+  return out;
+}
+/** The walk's lines on the board: each world's frames and GPU against 60 fps and BUDGET, its hitches, its longest
+    submission. */
+const walkLines = (W) => Object.entries(W ?? {}).map(([w, r]) => (r.notSettled ? `The walk, ${w}: not settled (${String(r.notSettled).slice(0, 160)}).`
+  : `The walk, ${w}: frames p50 ${f(r.frame?.median, 1).trim()} ms, p99 ${f(r.frame?.p99, 1).trim()} ms (60 fps: ${FRAME.toFixed(1)}); GPU p50 ${f(r.gpu?.median, 2).trim()} ms, p99 ${f(r.gpu?.p99, 2).trim()} ms (budget ${BUDGET}); ${r.frame?.hitches ?? 0} hitches over ${(2 * FRAME).toFixed(0)} ms; the longest submission ${r.longest} ms.`));
 /** The hour's measure of main (ship-first: a PR merges when its CI is green, main is measured once an hour, and what
     got worse goes back as work): one run under the GPU lock taken once (tools/gpu/lock.js), at the output (OUTPUT): the
     GPU smoke (smoke), the stills and ?truth at HOURLY's views and FLIP between them, the bench by class (each part against its ceiling: a row
@@ -645,14 +668,14 @@ async function hourly(opt) {
   const run = await locked('the hour', async () => {
     const dev = await (await import('./gate/device.js')).device(BASE);   // (first: the device on the machine the 8 GB gate is for)
     const chrome = await launch({ ...opt, fresh: true });
-    let s, a, t, b, c;
+    let s, a, t, b, c, w;
     try {
       const set = (o) => stills(chrome, o).catch((e) => { console.log(`  stills ${o.tag}: ${e.message.slice(0, 300)}`); return o.tag; });   // (a view the GPU refused is marked in its gate.json; the hour goes on)
       s = await smoke(chrome, { views }); a = await set({ tag, views }); t = await set({ tag: `${tag}-truth`, truth: true, views });
-      b = await (await import('./gate/ceilings.js')).rule(() => bench(chrome, opt), {}, tag); c = await compile(chrome, opt);
+      b = await (await import('./gate/ceilings.js')).rule(() => bench(chrome, opt), {}, tag); c = await compile(chrome, opt); w = await walks(chrome);
     } finally { await closeHard(chrome, chrome.gateDir); }
     const unsettled = (set) => Object.entries(JSON.parse(readFileSync(`${OUT}${set}/gate.json`, 'utf8')).views ?? {}).filter(([, r]) => r.notSettled).map(([k]) => k);
-    return { tag, when: new Date().toISOString(), out: OUTPUT, device: dev, start: s.start, smoke: s, stills: { lod: unsettled(a), truth: unsettled(t) }, flip: await diff(a, t, { ...opt, views }).catch((e) => ({ none: e.message })), bench: b, compile: c, paths: await paths({ ...opt, paths: opt.paths ?? 'walk,zoom' }) };
+    return { tag, when: new Date().toISOString(), out: OUTPUT, device: dev, walks: w, start: s.start, smoke: s, stills: { lod: unsettled(a), truth: unsettled(t) }, flip: await diff(a, t, { ...opt, views }).catch((e) => ({ none: e.message })), bench: b, compile: c, paths: await paths({ ...opt, paths: opt.paths ?? 'walk,zoom' }) };
   });
   run.host = { before, after: M.machine() }; run.notMeasured = M.unfit(before, run.host.after);
   save(`${at}${tag}/summary.json`, run);
@@ -673,7 +696,8 @@ async function board(tag, at) {
     mem.line,
     ...(await import('./gate/device.js')).lines(R.device), '',
     S?.settled === false ? `**The start did not settle** in ${(S.ms / 1000).toFixed(0)} s: ${String(S.said).slice(0, 300)}` : `The start settled in ${((S?.ms ?? 0) / 1000).toFixed(1)} s.`,
-    out.length ? `Not settled, so not measured: ${out.join(', ')}.` : 'Every view and path settled.', '', H ? H.text : `The first hour kept: nothing before it to hold it against.`, '',
+    out.length ? `Not settled, so not measured: ${out.join(', ')}.` : 'Every view and path settled.', '',
+    ...walkLines(R.walks), '', H ? H.text : `The first hour kept: nothing before it to hold it against.`, '',
     `Each part of each bench view against its ceiling (tools/gate/ceilings.json), shown, never blocking:`, '', '| View | Part | ms | Ceiling | Over |', '| --- | --- | --- | --- | --- |',
     ...rows.map((r) => `| ${r.view} | ${r.part} | ${r.ms.toFixed(2)} | ${r.ceiling.toFixed(2)} | ${r.over ? 'over' : ''} |`)].join('\n');
   writeFileSync(`${at}${tag}/board.md`, md + '\n');
@@ -708,7 +732,7 @@ for (let i = 0; i < args.length; i++) {
   else if (FLAGS.has(a.slice(2))) opt[a.slice(2)] = true;
   else opt[a.slice(2)] = args[++i];
 }
-const WITH = { smoke: (c) => locked('smoke', () => smoke(c, { views: opt.views ?? HOURLY.join(',') })), stills: (c) => stills(c, opt), noise: (c) => noise(c, pos[0], opt), bench: (c) => import('./gate/ceilings.js').then((C) => C.rule(() => locked('bench', () => bench(c, opt)), opt, commit())), compile: (c) => locked('compile', () => compile(c, opt)) };
+const WITH = { walks: (c) => locked('walks', () => walks(c)), smoke: (c) => locked('smoke', () => smoke(c, { views: opt.views ?? HOURLY.join(',') })), stills: (c) => stills(c, opt), noise: (c) => noise(c, pos[0], opt), bench: (c) => import('./gate/ceilings.js').then((C) => C.rule(() => locked('bench', () => bench(c, opt)), opt, commit())), compile: (c) => locked('compile', () => compile(c, opt)) };
 try {
   let r;
   if (cmd === 'diff') await diff(pos[0], pos[1], opt);
@@ -719,7 +743,7 @@ try {
   else if (cmd === 'hourly') { r = await hourly(opt); if (r?.fails?.length) process.exitCode = 1; }   // (the hour fails where the GPU's memory went past a budget)
   else if (cmd === 'device') r = await locked('device', async () => (await import('./gate/device.js')).device(BASE, opt.secs ? { secs: +opt.secs } : {}));
   else if (WITH[cmd]) { const chrome = await launch(opt); try { r = await WITH[cmd](chrome); } finally { await closeHard(chrome, chrome.gateDir); } }
-  else { console.log('bun tools/gate.js device | smoke | stills | diff | noise | bench | compile | paths | motion | real | all | hourly: see the top of tools/gate.js'); process.exitCode = cmd ? 1 : 0; }
+  else { console.log('bun tools/gate.js device | walks | smoke | stills | diff | noise | bench | compile | paths | motion | real | all | hourly: see the top of tools/gate.js'); process.exitCode = cmd ? 1 : 0; }
   if (cmd === 'smoke' && r?.memory?.over?.length) process.exitCode = 1;   // (the GPU smoke too)
   if (cmd === 'device' && !r.pass) process.exitCode = 1;
   if (['bench', 'compile', 'paths', 'device'].includes(cmd)) { mkdirSync(OUT, { recursive: true }); save(`${OUT}${cmd}.json`, r); }   // (the numbers kept: .gate/bench.json and so on)
