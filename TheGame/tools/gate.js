@@ -86,7 +86,7 @@ import { join } from 'node:path';
 import { VIEWS, PATHS, HOURLY } from './gate/views.js';
 import RIG from '../camera/rig.js';
 import { FIRST_FRAME } from '../src/core/marks.js';
-import { CLASSES, classOf, CLASS_NAMES } from './bench.js';
+import { CLASSES, classOf, CLASS_NAMES, memoryNow } from './bench.js';
 import { FRAME_MS as BUDGET, MEMORY, GPU_MB, BUDGET_MB, FRAME_MS_BY_CLASS, OUTPUT } from '../src/core/budget.js';
 import { flip, tiles, heat, readPNG, writePNG, PPD } from './gate/flip.js';
 import { stepper } from './gate/clock.js';
@@ -330,10 +330,6 @@ async function noise(chrome, tag, opt) {
   return await diff(a, b, opt);
 }
 
-/** The GPU's memory by class at its most (the game's one ledger, window.__game.memory(): src/core/gpu.js; the budgets:
-    src/core/budget.js), MB, a column a view or path (`by`: { name: memoryNow() }): each class beside its budget (what
-    the device made for its code), all of it beside the whole's (GPU_MB), what the pools note and what none does. A class
-    or the whole over its budget is said, and every make that took one past it (the ledger's over). */
 /** The GPU's memory from the game's one ledger (window.__game.memory(), src/core/gpu.js), in a line: at its most against
     the whole's budget, and every make that took a class or the whole past its budget (the hour fails on any). */
 const pastBudget = (M) => {
@@ -346,6 +342,10 @@ const memoryOn = (smoked) => {
   const M = smoked?.memory, fails = (M?.over ?? []).map((o) => `${o.who} with ${o.by}`);
   return { fails, line: fails.length ? `**The GPU's memory went past its budget, so the hour fails:** ${pastBudget(M)}` : `The GPU's memory: ${pastBudget(M)}` };
 };
+/** The GPU's memory by class at its most (the game's one ledger, window.__game.memory(): src/core/gpu.js; the budgets:
+    src/core/budget.js), MB, a column a view or path (`by`: { name: memoryNow() }): each class beside its budget (what
+    the device made for its code), all of it beside the whole's (GPU_MB), what the pools note and what none does. A class
+    or the whole over its budget is said, and every make that took one past it (the ledger's over). */
 function memoryTable(by) {
   const V = Object.keys(by).filter((k) => by[k]); if (!V.length) return;
   const W = 13, head = (i) => V.map((v) => (v.split(', ')[i] ?? '').padStart(W)).join(''), over = [], most = (x) => x?.peak ?? x?.gpu;
@@ -575,7 +575,7 @@ async function travel(ctx, list, mem) {
       const g = await page.evaluate(settled, { wait: WAIT, at: `the start of ${p.name}`, keep: KEEP.on });
       if (g.settled === false) { out.paths[p.name] = { notSettled: g.said }; continue; }
       mem.phase = p.name;
-      out.paths[p.name] = { secs: c.secs, ...told(await page.evaluate(ride, { fly: !!p.flyby })), memory: await page.evaluate(() => { const L = window.__game?.memory?.(); return L ? { classes: L.classes, gpu: L.gpu, peak: L.peak, budget: L.budget, noted: L.noted, unnoted: L.unnoted, over: L.over } : null; }) };   // (the GPU's memory by class as the path ends: the game's one ledger, as tools/bench.js memoryNow reads it)
+      out.paths[p.name] = { secs: c.secs, ...told(await page.evaluate(ride, { fly: !!p.flyby })), memory: await page.evaluate(memoryNow) };   // (the GPU's memory by class as the path ends: the game's one ledger, as tools/bench.js memoryNow reads it)
     }
     out.first = await page.evaluate(firstFrame, { name: FIRST_FRAME });   // (by now long set: read once the paths are ridden)
   } finally { out.errors = errors; said(errors); await close(); }
@@ -666,7 +666,7 @@ async function hourly(opt) {
   const M = await import('./gate/machine.js'), before = M.machine(), short = M.unfit(before);   // (a machine short of memory measures its disk: the hour is not measured)
   if (short) { save(`${at}${tag}/summary.json`, { tag, when: new Date().toISOString(), notMeasured: short, host: { before } }); return board(tag, at); }
   const run = await locked('the hour', async () => {
-    const dev = await (await import('./gate/device.js')).device(BASE);   // (first: the device on the machine the 8 GB gate is for)
+    const dev = await (await import('./gate/device.js')).device(BASE, { machined: false });   // (the hour reads the machine itself, once)   // (first: the device on the machine the 8 GB gate is for)
     const chrome = await launch({ ...opt, fresh: true });
     let s, a, t, b, c, w;
     try {
