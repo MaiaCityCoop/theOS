@@ -1821,7 +1821,18 @@ The gate does not yet keep the first frame or the bytes loaded before it, so the
 ## Todo
 
 - [ ] Samuel's reference photos (shot list under Build)
-- [ ] Later (not now): mobile Safari loads, but its first start is slow. Samuel, 2026-11-18
+- [ ] Mobile Safari (Samuel's iPhone, 2026-11-19): it runs, without the reload loop since #358, on the phone budget
+      (#347: PHONE_SHARE 0.375, sourced to its death at 1.07 GB with a 1.00 GiB adapter). Still to come: grass, water and
+      most plants, from the rest dial as the memory knob (#361; the tiers' half next), and the river's bed (#359)
+- [ ] Quality (5/6), open: the crowns' wood at sub-pixel sizes. With each pixel held to the full picture's 3×3 band
+      ± 1/32 (cards stop 45 % a sprig, wood all), large crowns at 16–32 px are not within. Wood alone beyond the band,
+      main → #316: holm oak #7 0.594 → 0.369 (32 px), 0.271 → 0.251 (16); holm oak #3 0.493 → 0.276, 0.459 → 0.236;
+      stone pine #7 0.236 → 0.136, 0.089 (16); stone pine #3 0.387 → 0.228, 0.267 (16). Young trees are within.
+      Left out after a CPU trial (2026-11-19): the kept wood thickened by the gone share's area in its region (cells of
+      1, 2 or 4 e, capped at e). It helps holm oak #3 at 16 px (0.236 → 0.093) and hurts most others (up to 0.563):
+      only 6–82 % of the gone area finds kept wood near, and a dilation is not a one-pixel shift. Two readings remain:
+      a regional stand-in for lost wood coverage where no kept wood is near (cards, or the clumps' planes, for wood),
+      or the band being the wrong test for sub-pixel wood
 - [x] Stage 1: clean ground
 - [x] Stage 2a: gate, settle, one measure, truth
 - [x] Stage 2b: prepass, motion vectors, upscale
