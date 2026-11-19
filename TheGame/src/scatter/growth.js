@@ -35,7 +35,7 @@ export const SNAP = 8, WORDS = 3;
 /** A share 0 … 1 as one byte (node code), and byte k of a 32-bit word back as a share: how a word packs four of them
     (this map's, the land's layer map's: src/terrain/layers.js). */
 export const byte = (v) => uint(round(clamp(v, 0, 1).mul(255)));
-export const un = (w, k) => float(w.shiftRight(uint(8 * k)).bitAnd(uint(255))).mul(1 / 255);
+export const un = (w, k) => float(w.shiftRight(typeof k === 'number' ? uint(8 * k) : uint(k).mul(uint(8))).bitAnd(uint(255))).mul(1 / 255);   // (k: a number, or a node: a loop's)
 
 let CURRENT = null;
 /** The world's growth map, once the trees' engine has made it (null before, and without WebGPU): what the meadow reads
