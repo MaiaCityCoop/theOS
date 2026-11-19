@@ -5,11 +5,21 @@
 // shader gate names each shader so (tools/gate/wgsl.js). Never from a stack: Bun's frames differ from version to version
 // (2026-11-19: on 1.4.2 the census found 13 places never built that 1.4.4 built) and lie a few lines off the source.
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { Glob } from 'bun';
 import { Linter } from 'eslint';
 
 /** The game's own code, by its path from the game's folder: what the loader marks and the census reads (not the tools,
     nor three's, nor a worker's own file). */
-export const GAME = /^(src|world|biomes|assets|materials|characters|camera|cine)\/(?!.*worker).*\.js$/;
+const DIRS = ['src', 'world', 'biomes', 'assets', 'materials', 'characters', 'camera', 'cine'];
+export const GAME = new RegExp(`^(${DIRS.join('|')})/(?!.*worker).*\\.js$`);
+/** The game's files in the folder `root` (paths from it): git's, where it is git's tree; else every one in it (a commit
+    unpacked, as tools/health.js unpacks its base: all of it git's). Git asked as from root whatever a hook set (inside
+    one, GIT_DIR made it list the repository from its top; set empty, git found no repository at all). */
+export function gameFiles(root) {
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^GIT_(DIR|WORK_TREE|INDEX_FILE)$/.test(k))), listed = spawnSync('git', ['ls-files', '*.js'], { cwd: root, encoding: 'utf8', env });
+  return (listed.status === 0 ? listed.stdout.split('\n') : [...new Glob(`{${DIRS.join(',')}}/**/*.js`).scanSync(root)]).filter((f) => GAME.test(f));
+}
 const linter = new Linter();
 
 /** Every place in `code` (the file `file`, from the game's folder) that makes a node material (`new …NodeMaterial(`) or a
