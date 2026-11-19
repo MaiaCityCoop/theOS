@@ -55,6 +55,11 @@ function held(cls, by) {
   if (all > peakAll) peakAll = all;
   if (!R && n > BUDGET_MB[cls] * MB) past(cls, by, n, BUDGET_MB[cls], true);
 }
+// How many kinds each drawer draws coarser than a pixel now (src/scatter/drawer.js: a band not come yet, a stand-in, no
+// slot for it), by its name: beside the memory in the one ledger, so the gate's board shows it fall as the bands come
+const SHORT = new Map();
+/** Drawer `name` draws n kinds coarser than a pixel now (the ledger's short). */
+export const short = (name, n) => { SHORT.set(name, n); };
 /** The one ledger (the game's memory(), src/boot.js; the hour's gate reads it), MB:
       gpu, peak, budget   what the game holds on the GPU now and the most it held (all the device made, where it is
                           counted; else what the pools note), and GPU_MB
@@ -65,7 +70,8 @@ function held(cls, by) {
                           kind), the largest first: [[class, what, MB, how many], …], where no pool's note says it
       over                [{ who, by, times, mb, budget }]: each class, or the whole, a make took past its budget, with
                           what, how often, at the most
-      rows                [[name, gpu MB, page MB, class], …], what each pool notes, the largest first */
+      rows                [[name, gpu MB, page MB, class], …], what each pool notes, the largest first
+      short               { drawer: how many kinds it draws coarser than a pixel now } (short, above) */
 export const ledger = () => {
   const mb = (b) => +(b / MB).toFixed(1), rows = [...HELD].map(([n, h]) => [n, h.gpu, h.page, h.cls]).sort((a, b) => b[1] + b[2] - a[1] - a[2]);
   const classes = Object.fromEntries(CLASS_NAMES.map((c) => [c, { gpu: 0, peak: 0, noted: 0, page: 0, budget: BUDGET_MB[c] }]));
@@ -76,7 +82,7 @@ export const ledger = () => {
     gpu: mb(R ? made : noted), peak: mb(R ? peakMade : peakAll), budget: GPU_MB, classes, noted: mb(noted), page: mb(rows.reduce((s, r) => s + r[2], 0)),
     unnoted: R ? mb(Math.max(0, made - noted)) : null,
     makers: [...KINDS.values()].filter((k) => k.bytes > 0).sort((a, b) => b.bytes - a.bytes).slice(0, 24).map((k) => [k.cls, k.kind, mb(k.bytes), k.n]),
-    over: [...OVER.values()].map((o) => ({ ...o })), rows: rows.map(([n, g, p, c]) => [n, mb(g), mb(p), c]),
+    over: [...OVER.values()].map((o) => ({ ...o })), rows: rows.map(([n, g, p, c]) => [n, mb(g), mb(p), c]), short: Object.fromEntries(SHORT),
   };
 };
 

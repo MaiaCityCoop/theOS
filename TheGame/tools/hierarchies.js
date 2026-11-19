@@ -8,9 +8,8 @@
 //     of every kind's clusters, and the whole of its coarse end;
 //   - its cuts closed: from eyes anywhere, the error allowed growing with each sphere's distance as the cut's does, what
 //     the rule draws (each at its morph) holds every edge once each way, at the same two places: no crack, no overlap;
-//   - its bands in their rooms: every band, its hierarchy's and what stands in for it (blob.js blobBand), packed into
-//     the room the heap gives it (rooms.json, tools/rooms.js), none past it; how many are short (cut down to fit, or a
-//     stand-in: coarser than a pixel, its drawer counts them).
+//   - its bands in their rooms: every band (blob.js blobBand) packed into the room the heap gives it (rooms.json,
+//     tools/rooms.js), none past it; how many are short (cut down to fit: coarser than a pixel, its drawer counts them).
 //
 //   bun tools/hierarchies.js [kinds: 0,1,2] [cuts: 12]    a line a kind; exits 1 if anything fails
 import { readFileSync } from 'node:fs';
@@ -77,18 +76,16 @@ function closed(D, n) {
   return open;
 }
 
-/** Kind k's bands packed into their rooms (rooms.json's zoo blobs): how many of its hierarchy's are cut down to fit,
-    and what of either kind passes its room, in words. */
+/** Kind k's bands packed into their rooms (rooms.json's zoo blobs): how many are cut down to fit, and which pass
+    their room, in words. */
 const ROOMS = JSON.parse(readFileSync(new URL('../rooms.json', import.meta.url), 'utf8'))['zoo: blobs'];
 function rooms(k) {
   let cut = 0; const over = [];
   for (let l = 0; l < SURFACE_LEVELS; l++) {
     const r = roomFrom(ROOMS.shapes[0][l], STILL_PER, l), room = { tris: r.tris, elems: r.verts * STILL_PER };
-    for (const real of [true, false]) {
-      const m = blobBand(k, l, room, real);
-      if (m.index.length > room.tris * 3 || m.verts.length / 4 > room.elems) over.push(`band ${l}${real ? '' : ' (standing in)'} past its room`);
-      if (real && m.short) cut++;
-    }
+    const m = blobBand(k, l, room);
+    if (m.index.length > room.tris * 3 || m.verts.length / 4 > room.elems) over.push(`band ${l} past its room`);
+    if (m.short) cut++;
   }
   return { cut, over };
 }
