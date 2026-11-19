@@ -22,7 +22,17 @@
 //     M.computed               every compute node the game asked to compile or run
 //     M.tiles                  the world's baked tiles, stood in by one small array texture (src/world/tile.js), and set
 //     lean: the page's GPU for src/core/gpu.js (useGPU): what only the GPU reads made on the device, as the game makes it
+//   pageFrames()               the page's frames (requestAnimationFrame), for a tool that draws on and waits for what
+//                             they pace: not set by mock(), so a tool that draws one frame counts what it counted
+//
+// Its GPU draws nothing and takes no time: a buffer read back reads zeros (what it drew), its queue is done at once, and
+// its clock's timestamps are never written (src/core/pace.js: no time, heard by the queue). So the start's view comes
+// complete here (tools/census.js --settle): the land's pages read a sweep of asks, none, and what is paced by its time
+// on the GPU (the far ends' bakes, src/detail/impostor.js) goes at the most its pace lets.
 import './glob.js';
+
+/** The page's frames, as a browser gives them: requestAnimationFrame(f) calls f at the next turn with its time. */
+export const pageFrames = () => { globalThis.requestAnimationFrame ??= (f) => setTimeout(() => f(performance.now())); globalThis.cancelAnimationFrame ??= (id) => clearTimeout(id); };
 
 Object.assign(globalThis, { innerHeight: 1080, innerWidth: 1920, window: globalThis, addEventListener() {}, removeEventListener() {}, devicePixelRatio: 1, navigator: { gpu: undefined, userAgent: 'bun', hardwareConcurrency: 4 },
   location: { search: '', hash: '', pathname: '/', origin: 'http://localhost', href: 'http://localhost/' } });
@@ -36,6 +46,7 @@ globalThis.document ??= { createElement: element, createElementNS: element, getE
   addEventListener() {}, removeEventListener() {}, hidden: false, visibilityState: 'visible', fonts: { ready: Promise.resolve() } };
 globalThis.GPUBufferUsage ??= { MAP_READ: 1, MAP_WRITE: 2, COPY_SRC: 4, COPY_DST: 8, INDEX: 16, VERTEX: 32, UNIFORM: 64, STORAGE: 128, INDIRECT: 256, QUERY_RESOLVE: 512 };
 globalThis.GPUTextureUsage ??= { COPY_SRC: 1, COPY_DST: 2, TEXTURE_BINDING: 4, STORAGE_BINDING: 8, RENDER_ATTACHMENT: 16 };
+globalThis.GPUMapMode ??= { READ: 1, WRITE: 2 };
 
 export async function mock({ webgl = false, dpr = 1, record = false, lean = false, size = [1920, 1080] } = {}) {
   const THREE = await import('three/webgpu'), TSL = await import('three/tsl');
@@ -43,10 +54,21 @@ export async function mock({ webgl = false, dpr = 1, record = false, lean = fals
   const Builder = webgl ? THREE.GLSLNodeBuilder : THREE.WGSLNodeBuilder, features = new Set(['indirect-first-instance', 'timestamp-query', 'texture-compression-bc']);   // (every feature the game asks of a device: a Mac's, BC's packed paint among them, src/materials/bake.js)
   const ids = new Map(), id = (o) => (o == null ? null : (ids.has(o) || ids.set(o, `#${ids.size}`), ids.get(o)));
   const calls = [], drawn = new Set(), computed = new Set(), done = () => ({ destroy() {} });
+  // (a buffer: what is written into it goes nowhere, and read back it reads what the stand-in drew, nothing: zeros, as
+  // getArrayBufferAsync answers. The land's pages read the asks a frame's pixels made so: a sweep of them read, none
+  // asked; a buffer that could not be mapped never answered, and the start's view never settled here)
+  const buffer = ({ size = 16 } = {}) => ({ size, destroy() {}, mapAsync: () => Promise.resolve(), getMappedRange: (at = 0, n = size - at) => new ArrayBuffer(n), unmap() {} });
+  // (what the backend keeps of an object, as three's backends keep it: what the game sets on it (a buffer made for an
+  // attribute: src/core/gpu.js gpuStorage), there when it is asked again)
+  const kept = new WeakMap(), keptOf = (o) => { if (o === null || typeof o !== 'object') return {}; let k = kept.get(o); if (!k) kept.set(o, (k = {})); return k; };
   const device = { features, limits: { maxStorageBufferBindingSize: 2 ** 30, maxBufferSize: 2 ** 30, maxComputeWorkgroupsPerDimension: 65535, maxTextureArrayLayers: 2048, maxUniformBufferBindingSize: 65536, maxTextureDimension2D: 8192 },
-    createBuffer: done, createTexture: done, queue: { writeBuffer() {}, writeTexture() {}, submit() {} },
-    createCommandEncoder: () => ({ copyBufferToTexture() {}, copyBufferToBuffer() {}, copyTextureToTexture() {}, finish: () => ({}) }) };   // (an encoder of copies: what the game copies on the GPU itself, src/materials/bake.js's packed blocks into their layers)
-  const backend = { isWebGPUBackend: !webgl, isWebGLBackend: webgl, compatibilityMode: false, parameters: {}, get: () => ({}), has: () => false, device: webgl ? null : device,   // (get, has: what it keeps of an object, as three's backends ask it; it keeps nothing)
+    createBuffer: buffer, createTexture: done, queue: { writeBuffer() {}, writeTexture() {}, submit() {}, onSubmittedWorkDone: () => Promise.resolve() },   // (done at once: it draws nothing, so what is paced by its time on the GPU takes none here, src/core/pace.js ownGpuMs)
+    createCommandEncoder: () => ({ copyBufferToTexture() {}, copyBufferToBuffer() {}, copyTextureToTexture() {}, beginComputePass: () => ({ setPipeline() {}, dispatchWorkgroups() {}, end() {} }), resolveQuerySet() {}, finish: () => ({}) }),   // (an encoder of copies: what the game copies on the GPU itself, src/materials/bake.js's packed blocks into their layers; and the marks of its clock)
+    // (its clock, src/core/pace.js: a set of timestamps it never writes, read back as zeros: no time, so what is paced by
+    // its time on the GPU is heard, by its queue, done at once)
+    // (and the pass its marks dispatch, a workgroup doing nothing: a pipeline made of a module, never run here)
+    createShaderModule: done, createComputePipeline: done, createQuerySet: done, pushErrorScope() {}, popErrorScope: () => Promise.resolve(null) };
+  const backend = { isWebGPUBackend: !webgl, isWebGLBackend: webgl, compatibilityMode: false, parameters: {}, get: keptOf, has: () => false, device: webgl ? null : device,   // (get: what it keeps of an object, as three's backends ask it; has: whether three made it, never)
     coordinateSystem: webgl ? THREE.WebGLCoordinateSystem : THREE.WebGPUCoordinateSystem,   // (as each of three's backends says it: the node code built for it, MathNode's atan2, the shadows' and the screen's depth, as the game's)
     capabilities: { getUniformBufferLimit: () => 65536 }, utils: { getTextureSampleData: () => ({ primarySamples: 1, samples: 1, isMSAA: false }) },
     extensions: { has: () => true, get: () => ({}) }, createNodeBuilder: (o, r) => new Builder(o, r) };

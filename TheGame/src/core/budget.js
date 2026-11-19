@@ -120,3 +120,8 @@ export const STUCK_MS = 20000;
     one frame (src/core/settle.js arriving). unit: frames. source: the ground's maps (src/scatter/ground.js), and the
     master, 2026-11-19 ("each fades in as it arrives, over the same FADE frames the ground maps use") */
 export const FADE_FRAMES = 36;
+/** The longest the world may take to come complete for the camera, or to settle again, before what waits for it calls
+    it broken: settle's own timeout (src/core/settle.js settle), and the start's view's in the tools (tools/census.js
+    --settle, held by tools/smoke.js). unit: ms. source: the master, 2026-11-19 (settle's timeout since #239, "settle()
+    did not resolve in 300 s"; the start's view settled in 43 s on 269288f, 73-88 s on the CPU stand-in) */
+export const SETTLE_MS = 300000;

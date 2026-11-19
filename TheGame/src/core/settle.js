@@ -38,7 +38,7 @@ export function waiting() {
   return out;
 }
 
-import { FADE_FRAMES } from './budget.js';
+import { FADE_FRAMES, SETTLE_MS } from './budget.js';
 let V = null, clock = NaN, frames = 0, still = 0, need = 32, first = null;
 const asks = new Set(), seen = new Float64Array(37), broke = new Set();
 /** A promise: the world complete for the page's first view, and the picture built over time come to rest on it (what
@@ -117,11 +117,13 @@ export const onSettled = (fn) => void CALM.add(fn);
     itself (the library's stage circling its subject: src/stage/studio.js) stands still meanwhile, or it never would. */
 export const settling = () => asks.size > 0;
 
+/** How long the world may take to come complete before what waits for it calls it broken (src/core/budget.js). */
+export { SETTLE_MS };
 /** A promise: the world complete for the camera as it stands now, resolved at a frame drawn after this call, once
     nothing has been out and nothing has changed for as long as the picture built over time takes to come to rest.
     { frames, ms, still }: how long it took, and for how many frames nothing changed. timeout (ms): rejected after it,
     with what is still out. */
-export function settle({ timeout = 300000 } = {}) {
+export function settle({ timeout = SETTLE_MS } = {}) {
   return new Promise((res, rej) => {
     const a = { from: frames, t0: performance.now(), res };
     a.timer = setTimeout(() => { asks.delete(a); rej(new Error(`settle: after ${timeout / 1000} s, still out: ${JSON.stringify(waiting())}; ${still} frames of ${need} unchanged`)); }, timeout);

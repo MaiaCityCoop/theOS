@@ -7,7 +7,11 @@
 // that does not load) throws here, on the CPU, in a minute or two: CI runs it on every push. And every place in the
 // game's code that makes shaders (tools/sites.js) is held against what was built: one the smoke never built, and that
 // tools/unbuilt.json does not name, fails (2026-11-19: the canopy's two passes were never made here, so never compiled
-// by the gate, tools/gate/wgsl.js).
+// by the gate, tools/gate/wgsl.js). And beside it all, in a process of its own, the start's view (tools/census.js
+// --settle): the world made as the start makes it, its workers building, drawn on at the start's view till it is
+// complete. Every drawer must have asked the recipes' workers for its meshes and put them in, and the world come
+// complete within its limit (src/core/settle.js SETTLE_MS); a drawer that did not is named. An empty world built every
+// material here and passed (2026-11-19: the phone's sky and grey ground, 14 draws): its workers could not load.
 //
 //   bun tools/smoke.js        a line a part (what it made, what it built), every failure with where it was thrown;
 //                             exit 1 if anything failed
@@ -20,7 +24,7 @@
 //                             modules): a minute, so the hour and gate.js wgsl run it, CI's smoke does not
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { mock } from './gpu-mock.js';
+import { mock, pageFrames } from './gpu-mock.js';
 import { sitesIn, gameFiles } from './sites.js';
 
 const t0 = performance.now(), failed = [], made = [], bakers = [];
@@ -42,17 +46,15 @@ const pipelinesOf = ({ render, compute }) => {
   const modules = new Set([...[...render].flatMap((p) => p.split('\0')), ...compute]);
   return { render: render.size, compute: compute.size, modules: modules.size, bytes: [...modules].reduce((s, m) => s + Buffer.byteLength(m), 0) };
 };
+// (the start's view, begun first: it runs beside everything below, and is held at the end)
+const START = startView();
+// (and what a page has and Bun has not, its frames: what is made here goes on in them while the start's view is held,
+// a made thing's impostor baked, the figures grown; and its workers import the game's modules, tools/glob.js)
+pageFrames();
 // (the run's mode, decided once: the quick one CI runs, or --full, which waits for what grows after it is made, the
-// characters' figures, flesh and skin, and gives Bun what a page has and it has not for it: its frames, and its workers
-// able to import the game's modules, given tools/glob.js first. Each mode says what it waits for of a thing made, and
-// which unbuilt places it knows, tools/unbuilt.json)
-const MODE = process.argv.includes('--full') ? fullMode() : { grown: () => null, known: (J) => ({ ...J.sites, ...J.full }) };
-function fullMode() {
-  globalThis.requestAnimationFrame ??= (f) => setTimeout(() => f(performance.now())); globalThis.cancelAnimationFrame ??= (id) => clearTimeout(id);
-  const Real = globalThis.Worker, GLOB = new URL('./glob.js', import.meta.url).pathname;
-  globalThis.Worker = class extends Real { constructor(url, o = {}) { super(url, { ...o, preload: [...[o.preload ?? []].flat(), GLOB] }); } };
-  return { grown: (made) => made.grown, known: (J) => ({ ...J.sites }) };
-}
+// characters' figures, flesh and skin. Each mode says what it waits for of a thing made, and which unbuilt places it
+// knows, tools/unbuilt.json)
+const MODE = process.argv.includes('--full') ? { grown: (made) => made.grown, known: (J) => ({ ...J.sites }) } : { grown: () => null, known: (J) => ({ ...J.sites, ...J.full }) };
 const M = await mock({ lean: true }), { THREE, renderer } = M;
 // (where each material and compute pass is made: the game's own frames on the stack as three's constructor sets its
 // flag, by function, tools/sites.js; what a shader is called where it is kept, with its step and name below:
@@ -217,6 +219,8 @@ await tryTo('the WebGL 2 fallback', async () => {
   (await import('../src/core/temporal.js')).createTemporal(G.renderer);
   for (const o of MADE.isMesh) for (const m of [o.material].flat()) if (MADE.isMaterial.indexOf(m) >= from) { TWINS.add(m); part = `the WebGL 2 fallback: ${nameOf(o)} (${m.name || m.type})${at(m)}`; try { G.build(o, m); glsl++; built_(m); } catch (e) { failed.push(`${part}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); } }
 });
+// ---- the start's view (startView, begun first): every drawer asked and put, the world complete within its limit ----
+const start = await tryTo("the start's view", async () => startHeld(await START));
 
 console.error = said;
 // (a place that makes shaders the smoke does not build, and tools/unbuilt.json does not know: a new gap, a failure;
@@ -227,7 +231,7 @@ const KNOWN = new URL('./unbuilt.json', import.meta.url), J = existsSync(KNOWN) 
 for (const u of unmade) count[u.at] = (count[u.at] ?? 0) + 1;
 for (const [at, n] of Object.entries(count)) if (n > (known[at] ?? 0)) failed.push(`what the game makes at ${at} the smoke never builds (${n} place${n > 1 ? 's' : ''}: ${unmade.filter((u) => u.at === at).map((u) => `line ${u.line}`).join(', ')}), so the gate never compiles it: make it here, or name it in tools/unbuilt.json with why`);
 const closed = Object.entries(known).filter(([at, n]) => (count[at] ?? 0) < n).map(([at]) => at), fullOnly = Object.keys(count).filter((at) => J.full?.[at]);
-const secs = ((performance.now() - t0) / 1000).toFixed(1), P = world.pipelines, summary = { world, library: libraryMade, stress: built.size - before - libraryMade, glsl, secs: +secs, unbuilt: unmade.map((u) => `${u.at} (line ${u.line})`), failed: [...new Set(failed)] };
+const secs = ((performance.now() - t0) / 1000).toFixed(1), P = world.pipelines, summary = { world, library: libraryMade, stress: built.size - before - libraryMade, glsl, start, secs: +secs, unbuilt: unmade.map((u) => `${u.at} (line ${u.line})`), failed: [...new Set(failed)] };
 keep(summary);
 const wgslAt = process.argv.indexOf('--wgsl');
 if (wgslAt > 0) writeFileSync(process.argv[wgslAt + 1], JSON.stringify({ render: [...shaders.render].map((t) => { const [vertex, fragment] = t.split('\0'); return { label: named.get(t), vertex, fragment }; }), compute: [...shaders.compute].map((code) => ({ label: named.get(code), code })) }));
@@ -238,8 +242,34 @@ if (fullOnly.length) console.log(`smoke: ${fullOnly.length} places built only wi
 const gaps = Object.keys(count).filter((at) => !J.full?.[at]);
 if (gaps.length) console.log(`smoke: ${gaps.length} places in the game's code make shaders the smoke does not build, as tools/unbuilt.json says: ${gaps.join('; ')}`);
 if (closed.length) console.log(`smoke: now built, take out of tools/unbuilt.json: ${closed.join('; ')}`);
+console.log(`smoke: the start's view came complete in ${start.secs} s (${start.frames} frames), each of its ${start.drawers} drawers asked the workers and put in`);
 console.log('smoke: every material and pass built');
 process.exit(0);   // (the game's own timers and loops would keep it running)
+
+/** tools/census.js --settle in a process of its own (the world made as src/boot.js makes it, its workers building, and
+    drawn on at the start's view), begun at once beside the rest: a promise of what it said (its census-json's settle),
+    or of why it said nothing ({ none }). */
+function startView() {
+  const run = Bun.spawn([process.execPath, new URL('./census.js', import.meta.url).pathname, '--settle'], { cwd: import.meta.dirname, stdout: 'pipe', stderr: 'pipe' });
+  return Promise.all([new Response(run.stdout).text(), new Response(run.stderr).text(), run.exited]).then(([out, err, code]) => {
+    const line = out.split('\n').find((l) => l.startsWith('census-json: '));
+    try { if (line) return JSON.parse(line.slice('census-json: '.length)).settle ?? { none: 'its census had no settle in it' }; } catch { /* said below */ }
+    return { none: `its census said nothing (exit ${code}): ${err.trim().split('\n').slice(-3).join(' · ').slice(0, 400)}` };
+  });
+}
+
+/** What the start's view said, held: every drawer asked the recipes' workers for its meshes and put them in, nothing
+    was thrown, and the world came complete within its limit; a drawer that did not, named. Its summary: { ready, secs,
+    frames, drawers }. */
+function startHeld(S) {
+  const why = "the start's view (tools/census.js --settle)";
+  if (!S || S.none) { failed.push(`${why}: ${S?.none ?? 'it said nothing'}`); return null; }
+  if (!S.drawers.length) failed.push(`${why}: no drawer was made, so nothing was asked of the workers or put in`);   // (a census that sees nothing must not pass)
+  for (const D of S.drawers) if (!D.asked || !D.put) failed.push(`${why}: the drawer '${D.name}' ${D.asked ? `asked for ${D.asked} meshes and put none in` : "asked the recipes' workers for nothing"}${D.out ? `, ${D.out} still out` : ''}`);
+  for (const e of S.threw) failed.push(`${why}: thrown as it was drawn on: ${e}`);
+  if (!S.ready) failed.push(`${why}: the world did not come complete within its ${S.limit} s (${S.frames} frames): still out ${JSON.stringify(S.out)}`);
+  return { ready: S.ready, secs: S.secs, frames: S.frames, drawers: S.drawers.length };
+}
 
 /** The run's summary kept for its commit (.gate/smoke/<commit>.json) where the tree is that commit as it stands:
     tools/health.js reads it instead of making the world again, and CI keeps main's, so a pull request's base is never
