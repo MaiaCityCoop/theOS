@@ -59,7 +59,11 @@ globalThis.__made = (id, x) => { if (x && typeof x === 'object' && !SITE.has(x))
 // (the game's own files and every place in them that makes shaders, read once: a frame named by its place's own line;
 // git asked as from here, whatever a hook running it set: inside one, GIT_DIR made it list the repository's from its top)
 const GIT = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^GIT_(DIR|WORK_TREE|INDEX_FILE)$/.test(k)));   // (set empty, git finds no repository at all: the census saw nothing, and said nothing)
-const FILES = spawnSync('git', ['ls-files', '*.js'], { cwd: ROOT, encoding: 'utf8', env: GIT }).stdout.split('\n').filter((f) => GAME.test(f)), SITES = sitesIn(ROOT, FILES), PLACE = new Map(SITES.map((p) => [p.id, p]));
+// (what git tracks where this is a checkout; where it is none, a commit as git archive unpacks it (tools/health.js
+// unpack: the base it measures against), every one the tree holds, which is what that commit tracked: so the base's
+// census sees its places too, and its smoke fails nothing that the commit's own does not, 2026-11-19)
+const TRACKED = spawnSync('git', ['ls-files', '*.js'], { cwd: ROOT, encoding: 'utf8', env: GIT });
+const FILES = (TRACKED.status === 0 ? TRACKED.stdout.split('\n') : [...new Bun.Glob('**/*.js').scanSync({ cwd: ROOT })]).filter((f) => GAME.test(f)), SITES = sitesIn(ROOT, FILES), PLACE = new Map(SITES.map((p) => [p.id, p]));
 const at = (x) => { const id = SITE.get(x); return id ? ` at ${id} ${PLACE.get(id)?.fn ?? ''}`.trimEnd() : ''; };   // (where it is made: its place's own name, and the function it is made in)
 const BUILT = new Set(), built_ = (x) => { const id = SITE.get(x); if (id) BUILT.add(id); };   // (the game's places whose materials and passes were built here: unmade below)
 // (what three says is wrong as it builds, it says by console.error: a failure here, said with the part it was in)
@@ -205,7 +209,7 @@ await tryTo('the WebGL 2 fallback', async () => {
 console.error = said;
 // (a place that makes shaders the smoke does not build, and tools/unbuilt.json does not know: a new gap, a failure;
 // one it knows, said; one it knows now built, said, to be taken out of it)
-if (!SITES.length) failed.push(`the game's code gave no place that makes shaders (git ls-files in ${ROOT}: ${FILES.length} files): nothing was held against what was built`);   // (a census that sees nothing must not pass)
+if (!SITES.length) failed.push(`the game's code gave no place that makes shaders (${TRACKED.status === 0 ? 'git ls-files' : 'the unpacked tree'} in ${ROOT}: ${FILES.length} files): nothing was held against what was built`);   // (a census that sees nothing must not pass)
 // (known: the gaps of every run, `sites`; and, but with --full, what only --full builds, `full`: --full must build it)
 const KNOWN = new URL('./unbuilt.json', import.meta.url), J = existsSync(KNOWN) ? JSON.parse(readFileSync(KNOWN, 'utf8')) : {}, unmade = unbuilt(), known = MODE.known(J), count = {};
 for (const u of unmade) count[u.at] = (count[u.at] ?? 0) + 1;
