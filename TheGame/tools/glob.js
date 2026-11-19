@@ -10,7 +10,7 @@ import { dirname, resolve } from 'node:path';
 import { Glob } from 'bun';
 import { buildRegistry } from './registry.js';
 
-buildRegistry(resolve(import.meta.dir, '..'));
+if (Bun.isMainThread) buildRegistry(resolve(import.meta.dir, '..'));   // (once, by the tool itself: a worker it starts, given this file first, tools/smoke.js --full, globs and reads it)
 const CALL = /import\.meta\.glob\(\s*(\[[^\]]*\]|'[^']*')\s*(?:,\s*(\{[^}]*\}))?\s*\)/g;
 
 plugin({
