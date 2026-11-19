@@ -517,12 +517,29 @@ export const PLANE = [[2, 1], [0, 2], [0, 1]], IN = 1 / 1024;
     far end from. The same shape at two levels is the same thing at the size where they meet: the coarser one holds a
     first share of what the finer one holds, and the rest is gone there. keep: the last parts stay (the library's plant,
     which wears no clumps). */
-export function levelOf(S, lo = 0, hi = Infinity, { keep = false, clumps = true } = {}) {
+/** What a level between lo and hi dial pixels holds of a shape: its first nc cards' corners (a first share of the turns),
+    its first solids (sv vertices, sc corners: thick first), its chunks' planes (C) where its band reaches under where
+    its crowd ends. Under far.lo nothing but the impostor. */
+const pickOf = (S, lo, hi, clumps = true) => {
   const near = hi > S.far.lo;   // (a band wholly under it holds nothing but the impostor)
   let t = 0; if (near) while (t < S.parts && drawnUnder(S.turns.go[t], S.size, hi)) t++;
-  const nc = !near ? 0 : t < S.parts ? S.turns.cards[t] : S.cards;
   let i = 0; if (near) while (i < S.solids && drawnUnder(S.steps.go[i], S.size, hi)) i++;
-  const sv = i ? S.steps.verts[i - 1] : 0, sc = i ? S.steps.corners[i - 1] : 0, C = clumps && near && S.clumps && lo < switchOf(S.win.hi, S.size) ? S.clumps : null, nk = C ? C.n * 12 : 0;
+  return { nc: !near ? 0 : t < S.parts ? S.turns.cards[t] : S.cards, sv: i ? S.steps.verts[i - 1] : 0, sc: i ? S.steps.corners[i - 1] : 0, C: clumps && near && S.clumps && lo < switchOf(S.win.hi, S.size) ? S.clumps : null };
+};
+/** A level's corners (lo … hi dial pixels, as levelOf picks them) into its shape's whole block, levelOf(S, 0, Infinity):
+    every card, every solid and the chunks' planes, in that order, which every level of a shape is a first share of. So a
+    shape's vertices are kept once and each level is only its corners into them (src/scatter/drawer.js: a make's levels
+    that share their finest's). -> Uint32Array */
+export function cornersIn(S, lo = 0, hi = Infinity, { clumps = true } = {}) {
+  const { nc, sc, C } = pickOf(S, lo, hi, clumps), all = S.solids ? S.steps.verts[S.solids - 1] : 0, out = new Uint32Array(nc * 6 + sc + (C ? C.n * 18 : 0));
+  let o = 0;
+  for (let c = 0; c < nc; c++) for (const q of [0, 1, 2, 0, 2, 3]) out[o++] = 4 * c + q;
+  for (let j = 0; j < sc; j++) out[o++] = S.index[j];   // (the solids where the block keeps them: after every card)
+  for (let c = 0, b = S.cards * 4 + all; C && c < C.n; c++) for (let a = 0; a < 3; a++, b += 4) for (const q of [0, 1, 2, 0, 2, 3]) out[o++] = b + q;
+  return out;
+}
+export function levelOf(S, lo = 0, hi = Infinity, { keep = false, clumps = true } = {}) {
+  const { nc, sv, sc, C } = pickOf(S, lo, hi, clumps), nk = C ? C.n * 12 : 0;
   const count = nc * 4 + sv + nk;
   const out = { count, position: new Float32Array(count * 3), normal: new Float32Array(count * 3), uv: new Float32Array(count * 2), part: new Float32Array(count), ao: new Float32Array(count), cn: new Float32Array(count * 3), root: new Float32Array(count * 3), twig: new Float32Array(count),
     go: new Float32Array(count), tip: new Float32Array(count * 3) };
