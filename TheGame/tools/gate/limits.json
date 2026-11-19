@@ -1,6 +1,4 @@
 {
-  "about": "Pipelines whose layout is over the game's binding limits, known, by the place they are made at (file and function, as the shaders are named: tools/gate/wgsl.js) and how many a run of one engine finds there. The game fits WebGPU's default binding limits (16 sampled textures, 8 storage buffers a stage: only sizes are asked of the adapter, src/core/gpu.js SIZED), and CI's check holds every layout to them (gate.js wgsl --cpu); one over that is not here fails it. Each here is to be brought within and taken out; the list only shrinks. 2026-11-19: four of patchPass's with 9 storage buffers a stage, found the night the check came; to 9a, with the cut's 17th texture, as one piece.",
-  "known": {
-    "src/scatter/tier.js patchPass": 4
-  }
+  "about": "Pipelines whose layout is over the game's binding limits, known, by the place they are made at (file and function, as the shaders are named: tools/gate/wgsl.js) and how many a run of one engine finds there. The game fits WebGPU's default binding limits (16 sampled textures, 8 storage buffers a stage: only sizes are asked of the adapter, src/core/gpu.js SIZED), and CI's check holds every layout to them (gate.js wgsl --cpu); one over that is not here fails it. Each here is to be brought within and taken out; the list only shrinks. 2026-11-19: four of patchPass's with 9 storage buffers a stage, found the night the check came (the stress stand's ladder read its bands' heap table beside its own); within the same day, the two heaps' rows one table (src/scatter/heap.js heapTable), and taken out.",
+  "known": {}
 }

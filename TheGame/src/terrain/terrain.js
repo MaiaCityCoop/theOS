@@ -164,7 +164,12 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
       land.n = water.n = 0; raised = 0;
       U.uLandEnd.value = R;
       const i0 = Math.floor((cx - R) / TOP), i1 = Math.floor((cx + R) / TOP), j0 = Math.floor((cz - R) / TOP), j1 = Math.floor((cz + R) / TOP);
-      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) select(i * TOP, j * TOP, TOP, top);
+      // (the top nodes nearest first, as each is walked its camera's quarter first: the land drawn front to back, so what
+      // a nearer hill hides of it is dropped by the depth test before its prepass works out its whole material there,
+      // src/terrain/material.js)
+      const tops = [];
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) tops.push([i * TOP, j * TOP, d2(i * TOP, j * TOP, TOP)]);
+      for (const [x, z] of tops.sort((a, b) => a[2] - b[2])) select(x, z, TOP, top);
       push(land); push(water);
       waterMesh.visible = water.n > 0;
     },

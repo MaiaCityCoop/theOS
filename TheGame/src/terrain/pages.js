@@ -157,7 +157,7 @@ export function createPages(renderer, tex) {
   const arrays = (format) => Array.from({ length: Math.ceil(SLOTS / PER) }, (_, k) => blocks(format, Math.min(PER, SLOTS - k * PER)));
   const A = PACKED ? arrays(THREE.RGBA_S3TC_DXT5_Format) : [laidInto(SLOTS)], N = PACKED ? arrays(THREE.RED_GREEN_RGTC2_Format) : [laidInto(SLOTS)], X = PACKED ? arrays(THREE.RED_GREEN_RGTC2_Format) : null;
   const SA = PACKED ? laidInto(BATCH) : A[0], SN = PACKED ? laidInto(BATCH) : N[0];   // (where a batch is laid: its own layers, or the atlas's)
-  note("the land's pages", SLOTS * SLOT_BYTES + (PACKED ? BATCH * SLOT * SLOT * 1.25 * 8 : 0), 0, 'ground');
+  note("the land's pages", SLOTS * SLOT_BYTES + (PACKED ? BATCH * SLOT * SLOT * 1.25 * 8 : 0), 0, 'ground', A, N, X, SA, SN);
   const tA = A.map((t) => texture(t)), tN = N.map((t) => texture(t)), tX = X ? X.map((t) => texture(t)) : null;
   // ---- the page table: for each level, its window's pages ----
   const T = gpuStorage('uint', LEVELS * K * K, "the land's page table", 'ground'), table = new Uint32Array(LEVELS * K * K), TN = T.node.toReadOnly();

@@ -27,7 +27,7 @@
 // and young (its placement's `young`: how much of the ground its saplings cover), in the class of its saplings. Each
 // layer whose cells are as large as the growth map's texels writes what it leaves there for the layers after it.
 import * as THREE from 'three/webgpu';
-import { Fn, If, Loop, float, int, uint, vec2, vec4, ivec2, uniform, uniformArray, smoothstep, clamp, mix, max, min, abs, floor, length, dot, pow, log, exp, sqrt, cos, sin, packHalf2x16, unpackHalf2x16 } from 'three/tsl';
+import { Fn, If, Loop, Break, float, int, uint, vec2, vec4, ivec2, uniform, uniformArray, smoothstep, clamp, mix, max, min, abs, floor, length, dot, pow, log, exp, sqrt, cos, sin, packHalf2x16, unpackHalf2x16 } from 'three/tsl';
 import { rnd, vnoise, groveAt, leadAt, riverInfo, shareOf, nearLake } from '../world/land.nodes.js';
 import { U } from '../core/uniforms.js';
 import { scatterRow } from '../../assets/index.js';
@@ -116,35 +116,103 @@ export const posIn = (c, L) => { const s = ofLayer(L, 'seed', 'uint'), inset = o
     (they were literals: each layer's gather was a compile of its own). */
 function ofLayer(L, name, type = 'float') { const u = (L.uniforms ||= {}); return (u[name] ||= uniform(L[name], type)); }
 
-/** How tall the thing of entry e stands in cell c of layer L (metres), and which of its kind's shapes it is (0 … its
-    count), as the trees' engine draws it (src/scatter/trees.js) and the growth map reckons its crown (gatherOf): its own
-    scale within its placement's; a tree that grows as old as its stand (its biome's `age`, a slow noise, and a share of
-    its own) or, a sapling, as its own age, its stage's height at that age (straight in the logarithms of age and height
-    between where the stage begins, its year and where it ends, as assets/kit/tree.js heightIn works it out); one that
-    does not grow, its asset's height and a shape at random. pos: where it stands (posIn). Nodes, worked out where the
-    thing is known to be e's. */
-export function grownIn(c, L, e, pos) {
-  const a = e.asset, GR = a.growth, AG = e.ages, n = e.shapes[1], N = numbersOf(e), h0 = (k) => uint(k + L.seed - 300), r = rnd(c.x, c.y, h0(312));
-  const own = mix(N.lo, N.hi, GR && AG ? rnd(c.x, c.y, h0(304)) : pow(rnd(c.x, c.y, h0(304)), 1.3)), h = float(1).toVar(), shape = float(0).toVar();
-  if (GR && AG) {
-    const age = (e.young ? mix(AG[0], AG[1], r.mul(r)) : mix(AG[0], AG[1], vnoise(pos.div(grovesOf(e.biome, L).clumps * 2.5), h0(311))).mul(mix(AGED[0], AGED[1], r))).toVar();
-    GR.stages.forEach((S, j) => {
-      if (S.offset >= n) return;   // (a sapling: only its first stages)
-      const lo = j ? S.from : -1, hi = j < GR.stages.length - 1 && GR.stages[j + 1].offset < n ? S.to : 1e9;
-      If(age.greaterThanEqual(lo).and(age.lessThan(hi)), () => {
-        const ag = clamp(age, S.from, S.to), low = ag.lessThan(S.year);
-        const t = low.select(log(ag.div(S.from)).div(Math.log(S.year / S.from)), log(ag.div(S.year)).div(Math.log(S.to / S.year)));
-        h.assign(exp(low.select(mix(float(Math.log(S.hFrom)), float(Math.log(S.h)), t), mix(float(Math.log(S.h)), float(Math.log(S.hTo)), t))).mul(own));
-        shape.assign(floor(rnd(c.x, c.y, h0(309)).mul(S.variants)).add(S.offset));
+/** The hashes of layer L's cells: h0(k) the k-th (300 its first), moved by the layer's seed (a uniform: every layer's
+    hashes by one code). */
+export const hashesOf = (L) => { const s = ofLayer(L, 'seed', 'uint'); return (k) => s.add(uint(k - 300)); };
+
+/** How tall the thing in cell c of layer L stands (metres), and which of its kind's shapes it is (0 … its count), as the
+    trees' engine draws it (src/scatter/trees.js) and the growth map reckons its crown (gatherOf): its own scale within
+    its placement's; a tree that grows as old as its stand (its biome's `age`, a slow noise, and a share of its own) or,
+    a sapling, as its own age, its stage's height at that age (straight in the logarithms of age and height between
+    where the stage begins, its year and where it ends, as assets/kit/tree.js heightIn works it out); one that does not
+    grow, its asset's height and a shape at random. k: which of the layer's entries it is (a node: placeIn's), its
+    numbers its row of the layer's table (placerOf: whether it grows, whether it is a sapling, are numbers of it, not
+    code of its own); pos: where it stands (posIn). Nodes, worked out where the thing is known to stand. */
+export function grownIn(c, L, k, pos) {
+  const P = placerOf(L), at = k.mul(P.span).toVar(), row = (j) => P.rows.element(at.add(j)), N = row(0), H = row(1), h0 = hashesOf(L), r = rnd(c.x, c.y, h0(312)), has = P.has;
+  const grows = has.grows && has.still ? H.w.greaterThan(0) : has.grows, h = float(1).toVar(), shape = float(0).toVar();   // (a node where some of its entries grow and some do not; else what all of them do)
+  const own = mix(N.x, N.y, either(grows, () => rnd(c.x, c.y, h0(304)), () => pow(rnd(c.x, c.y, h0(304)), 1.3))).toVar();
+  const growing = () => {
+    const sapling = () => mix(H.x, H.y, r.mul(r)), stand = () => mix(H.x, H.y, vnoise(pos.div(H.z), h0(311))).mul(mix(AGED[0], AGED[1], r));   // (a sapling: its own age; grown, as old as its stand and a share of its own)
+    const age = (has.young && has.grown ? either(row(2).w.greaterThan(0.5), sapling, stand) : has.young ? sapling() : stand()).toVar();
+    // its stage: the first whose ages hold its age (each stage's If did it, its numbers written in: the same work a thread)
+    Loop({ start: int(0), end: int(H.w), type: 'int', condition: '<' }, ({ i }) => {
+      const j = i.mul(3).add(P.own), A = row(j), B = row(j.add(1)), C = row(j.add(2));
+      If(age.greaterThanEqual(A.x).and(age.lessThan(A.y)), () => {
+        // (before its year: from its first age to its year; after it: from its year to its last)
+        const ag = clamp(age, A.z, A.w), low = ag.lessThan(B.x), t = log(ag.div(low.select(A.z, B.x))).div(low.select(B.y, B.z));
+        h.assign(exp(mix(low.select(C.x, C.y), low.select(C.y, C.z), t)).mul(own));
+        shape.assign(floor(rnd(c.x, c.y, h0(309)).mul(B.w)).add(C.w));
+        Break();
       });
     });
-  } else { h.assign(own.mul(N.height)); shape.assign(floor(rnd(c.x, c.y, h0(309)).mul(N.n)).min(N.n.sub(1))); }
+  };
+  const still = () => { h.assign(own.mul(N.z)); shape.assign(floor(rnd(c.x, c.y, h0(309)).mul(N.w)).min(N.w.sub(1))); };
+  if (typeof grows === 'boolean') (grows ? growing : still)(); else If(grows, growing).Else(still);
   return { h, shape };
 }
-/** Entry e's own numbers as grownIn reads them (its scale's two ends, its asset's height, its shapes), uniforms kept with
-    it: what sizes a thing of it is then code alike for every entry of its sort, and the stands whose kinds differ only in
-    them pack by one pipeline (they were literals: each stand's pass a compile of its own). */
-const numbersOf = (e) => (e.numbers ||= { lo: uniform(e.asset.placement.scale[0]), hi: uniform(e.asset.placement.scale[1]), height: uniform(e.asset.size.height), n: uniform(e.shapes[1]) });
+
+// ---- what the placer reads of each entry: its numbers, a table a layer ----
+/** The biomes of layer L's entries, and the groups of them that lead in patches (more than one kind shares them out):
+    each entry's own among them is a number of it (ownOf). */
+const biomesIn = (L) => (L.biomes ||= [...new Set(L.entries.map((e) => e.biome))]);
+const leadersIn = (L) => (L.leaders ||= L.groups.filter((g) => g.entries.length > 1));
+/** Entry e's numbers as its density reads them (densIn), plain numbers: written into the code where each entry has its
+    own (the land's far stands, src/terrain/layers.js, through densOf), or as a row of its layer's table where one code
+    reads every entry (the placer: placeIn, placerOf). biome: its biome's place among its layer's; leads (group: its lead
+    group's place, -1 none): whether it is of a group that shares out its patches, its most at a cell then its group's
+    (most: else its own); edges: its slice of the lead's noise, softly (a, b its ends; lo, hi: whether they cut, a > 0,
+    b < 1); flat: the third of it it holds everywhere; light: its density in the light under what stands over it, from
+    none to full; from: whether it grows only on the litter of others, mask: whose (their numbers' bits: none, it grows
+    nowhere); lakes: only near the lakes; shore: only on the river's shore between its two ends (rim: softly). */
+const ownOf = (e, L) => {
+  const g = leadersIn(L).indexOf(e.group), [a, b] = g >= 0 ? e.slice : [0, 1], s = e.shore ?? [0, 0];
+  return { biome: biomesIn(L).indexOf(e.biome), group: g, leads: g >= 0, most: g >= 0 ? e.group.most : e.most, a, b, lo: a > 0, hi: b < 1, edges: [a - 0.06, a + 0.06, b - 0.06, b + 0.06], flat: (b - a) * 0.3,
+    light: e.light, from: !!e.from, mask: (e.from ?? []).reduce((m, id) => m + 2 ** id, 0), lakes: !!e.lakes, shore: !!e.shore, rim: [s[0] - 0.08, s[0] + 0.08, s[1] - 0.1, s[1] + 0.1] };
+};
+/** What the placer reads of each of layer L's entries, one table of uniforms for the layer (until 2026-11-19 every entry
+    was code of its own in every packing of its layer: its density, its growth, its stages, each with its numbers written
+    in): span rows an entry, entry k's from k * span: [its scale's two ends, its asset's height, its shapes], [its ages
+    (its biome's, or a sapling's), how wide its groves' patches are (its biome's at the layer's scale), how many stages
+    it may be drawn at (a sapling: its first ones; none: it does not grow)], [its biome, its lead group, its most, 1 if a
+    sapling], [its edges], [a, b, flat, mask], [its light's two ends, 1 near the lakes only, 1 on litter only], [its
+    shore's rim], [1 on the shore only, its feet's first row (feetOf)] (ownOf: what each is), then three rows a stage:
+    [where it holds from (none before its first: -1), to (none past its last: 1e9), its first and last age], [its year,
+    log(year / first), log(last / year), its variants], [log of its height at its first age, at its year, at its last,
+    its first shape]. As many entries and stages as the most any layer has (the rest nought): every layer's placer
+    declares it alike; own: the rows an entry has before its stages; count: its entries; has: what any of them has
+    (whether any grows, any does not, any is a sapling, any grown, any leads in patches, any grows on litter, keeps to
+    the lakes, to the shore): the code reads only what the layer's entries have. One uniform buffer a layer, however
+    many kinds stand in it. */
+function placerOf(L) {
+  if (L.placer) return L.placer;
+  const all = LAYERS ?? [L], stagesOf = (e) => (e.asset.growth && e.ages ? e.asset.growth.stages.filter((s) => s.offset < e.shapes[1]) : []);
+  const most = Math.max(1, ...all.flatMap((W) => W.entries.map((e) => stagesOf(e).length))), longest = Math.max(...all.map((W) => W.entries.length)), V = (...v) => new THREE.Vector4(...v);
+  const heads = L.entries.map((e) => {
+    const S = stagesOf(e), o = ownOf(e, L), a = e.asset;
+    if (Math.fround(o.mask) !== o.mask || (e.from ?? []).some((id) => 2 ** id !== (1 << id) >>> 0)) throw new Error(`rule.js: the litter ${e.asset.uid} grows on does not fit its mask`);
+    return [V(a.placement.scale[0], a.placement.scale[1], a.size.height, e.shapes[1]), V(e.ages?.[0] ?? 0, e.ages?.[1] ?? 0, grovesOf(e.biome, L).clumps * 2.5, S.length),
+      V(o.biome, o.group, o.most, e.young ? 1 : 0), V(...o.edges), V(o.a, o.b, o.flat, o.mask), V(o.light[0], o.light[1], +o.lakes, +o.from), V(...o.rim), V(+o.shore, e.feetRow ?? 0, 0, 0)];
+  });
+  const own = heads[0].length, span = own + most * 3, rows = [];
+  L.entries.forEach((e, k) => {
+    const S = stagesOf(e);
+    rows.push(...heads[k]);
+    S.forEach((s, j) => rows.push(V(j ? s.from : -1, j < S.length - 1 ? s.to : 1e9, s.from, s.to), V(s.year, Math.log(s.year / s.from), Math.log(s.to / s.year), s.variants), V(Math.log(s.hFrom), Math.log(s.h), Math.log(s.hTo), s.offset)));
+    for (let j = S.length * 3; j < most * 3; j++) rows.push(V());
+  });
+  while (rows.length < longest * span) rows.push(V());
+  const grows = (e) => stagesOf(e).length > 0, any = (f) => L.entries.some(f);
+  const has = { grows: any(grows), still: any((e) => !grows(e)), young: any((e) => grows(e) && e.young), grown: any((e) => grows(e) && !e.young), leads: leadersIn(L).length > 0, from: any((e) => e.from), lakes: any((e) => e.lakes), shore: any((e) => e.shore) };
+  return (L.placer = { rows: uniformArray(rows, 'vec4'), span, own, has, count: uniform(L.entries.length, 'int') });
+}
+/** Entry k's numbers (a node: which of layer L's) as its density reads them (densIn): its row of the layer's table;
+    what none of the layer's entries has, none (false). */
+const rowOf = (L, k) => {
+  const P = placerOf(L), at = k.mul(P.span).toVar(), row = (j) => P.rows.element(at.add(j)), B = row(2), E = row(3), W = row(4), V = row(5), S = row(6), Z = row(7), has = P.has;
+  return { node: true, biome: B.x, group: B.y, leads: has.leads && B.y.greaterThanEqual(0), most: B.z, lo: W.x.greaterThan(0), hi: W.y.lessThan(1), edges: [E.x, E.y, E.z, E.w], flat: W.z, mask: W.w,
+    light: [V.x, V.y], lakes: has.lakes && V.z.greaterThan(0.5), from: has.from && V.w.greaterThan(0.5), rim: [S.x, S.y, S.z, S.w], shore: has.shore && Z.x.greaterThan(0.5), feet: Z.y };
+};
 
 // ---- the light under the crowns: what the growth map's shade is ----
 // The light that comes down to the ground through what stands over it: each crown as large as it is drawn (grownIn,
@@ -278,60 +346,76 @@ const feetIn = (c, L, B, pos, q) => {
 const coveredAt = (p, Ws, ws, M) => { const on = float(0).toVar(); Ws.forEach((W, n) => { if (W.feet) If(on.lessThan(0.5).and(ws[n].feet.greaterThan(0.5)), () => { on.assign(footAt(p, W, M)); }); }); return on; };
 
 /** What the larger layers left at p for layer L (M: the growth map): the light that comes through (0..1); foot(),
-    whether the ground at p is covered by their things (coveredAt); and litter(ids): how much of the litter of those
-    things lies there. */
+    whether the ground at p is covered by their things (coveredAt); and litter(mask): how much of the litter of the
+    things whose numbers are its bits lies there (a node or a number: ownOf's mask). */
 function influenceAt(p, L, M) {
   if (!M || !L.reads.length) return null;
   const words = L.reads.map((W) => M.read(p, W.word)), light = float(1).toVar();
   for (const w of words) light.mulAssign(float(1).sub(w.shade));
-  return { light, foot: () => coveredAt(p, L.reads, words, M), litter: (ids) => words.reduce((s, w) => s.add(ids.map((id) => w.lead.equal(uint(id))).reduce((a, b) => a.or(b)).select(w.litter, float(0))), float(0)) };
+  return { light, foot: () => coveredAt(p, L.reads, words, M), litter: (mask) => { const m = uint(mask); return words.reduce((s, w) => s.add(m.shiftRight(w.lead).bitAnd(uint(1)).equal(uint(1)).select(w.litter, float(0))), float(0)); } };
 }
 
 /** The rule at cell c of layer L, its thing to stand at pos (posIn): which of the layer's things stands there (k: its
     entry, -1 none), the river there (I: riverInfo). The cheap test first (every thing at its most, as if far from the
-    river, with nothing over it), as most cells of a thinly grown layer hold none; the ground the larger things cover
-    last, where one would stand. M: the growth map (none: nothing larger is read). */
+    river, with nothing over it), as most cells of a thinly grown layer hold none; then its entries in their order, each
+    its density there (densIn, its numbers its row of the layer's table: one code for all of them), until the share of
+    them the cell's rank falls in; the ground the larger things cover last, where one would stand. M: the growth map
+    (none: nothing larger is read). */
 export function placeIn(c, L, M, pos) {
-  const h0 = (k) => uint(k + L.seed - 300), rank = rankOf(c, rnd(c.x, c.y, h0(300))).toVar(), k = int(-1).toVar(), I = vec4(0).toVar();
-  const bios = [...new Set(L.entries.map((e) => e.biome))], top = Math.max(...bios.map((b) => L.entries.filter((e) => e.biome === b).reduce((s, e) => s + e.most, 0)));   // (the most its things stack to in one of its biomes)
+  const h0 = hashesOf(L), rank = rankOf(c, rnd(c.x, c.y, h0(300))).toVar(), k = int(-1).toVar(), I = vec4(0).toVar();
+  const bios = biomesIn(L), top = Math.max(...bios.map((b) => L.entries.filter((e) => e.biome === b).reduce((s, e) => s + e.most, 0)));   // (the most its things stack to in one of its biomes)
   const clump = (b) => groveAt(pos, grovesOf(b, L));   // (0 … 1.6: thick in its groves, open in its glades)
   const coarse = bios.map((b) => (b.river ? float(1) : shareOf(b, { p: pos, dist: float(0), d: float(1e5), w: float(1), b: float(0) })).mul(clump(b))).reduce((a, x) => max(a, x));
   If(rank.lessThan(coarse.mul(top)), () => {
     I.assign(riverInfo(pos));
-    const F = influenceAt(pos, L, M), dens = densOf(L, pos, { p: pos, dist: float(0), d: abs(I.x), w: I.y, b: I.z }, F), D = float(0).toVar();
-    for (const e of L.entries) {
-      D.addAssign(dens[e.i]);
-      If(k.lessThan(0).and(rank.lessThan(D)), () => { k.assign(e.i); });
-    }
+    const F = influenceAt(pos, L, M), A = placeAt(L, pos, { p: pos, dist: float(0), d: abs(I.x), w: I.y, b: I.z }, F), D = float(0).toVar();
+    Loop({ start: int(0), end: placerOf(L).count, type: 'int', condition: '<' }, ({ i }) => {
+      D.addAssign(densIn(A, rowOf(L, i)));
+      If(rank.lessThan(D), () => { k.assign(i); Break(); });
+    });
     // (and none stands on ground a larger thing covers: in a trunk, on a log, a branch or a stone)
     if (F) If(k.greaterThanEqual(0), () => { If(F.foot().greaterThan(0.5), () => { k.assign(-1); }); });
   });
   return { k, I, rank };
 }
+/** What the rule reads at pos once for all of layer L's entries (densIn): each of its biomes' share there (ctx: the
+    place as the biomes read it, the river with it) in its groves, off the places kept clear; each of its lead groups'
+    slow noise; the lakes (where any of its entries keeps to them); the river's shore; F (influenceAt). */
+function placeAt(L, pos, ctx, F) {
+  const clear = clearAt(pos).toVar();
+  return { F, s: () => ctx.d.div(ctx.w), near: L.entries.some((e) => e.lakes) ? nearLake(pos).toVar() : null,
+    shares: biomesIn(L).map((b) => shareOf(b, ctx).mul(groveAt(pos, grovesOf(b, L))).mul(clear).toVar()),
+    leads: leadersIn(L).map((g) => leadAt(pos, grovesOf(g.biome, L)).mul(0.7).add(0.15).toVar()) };
+}
+/** One of a few nodes by its place (i: a number, that one; a node, the one it says). */
+const pick = (list, i) => (typeof i === 'number' ? list[i] : list.reduce((acc, x, j) => (j ? int(i).equal(j).select(x, acc) : x), null));
+/** f() where c holds, g() where not: c a boolean (the code holds only the one) or a node (a select). */
+const either = (c, f, g) => (typeof c === 'boolean' ? (c ? f() : g()) : c.select(f(), g()));
+/** How likely the thing of an entry is to stand at a cell (A: placeAt, there), by its numbers D (ownOf: plain numbers,
+    its code its own, where they hold; or rowOf: its row of the layer's table, one code for every entry): its biome's
+    share in its groves, its kind's slice of the patches its kinds lead in, its most, the light and the litter the layers
+    before it leave (none: what grows only under another's litter grows nowhere), the lakes, the shore. */
+function densIn(A, D) {
+  let v = pick(A.shares, D.biome).mul(D.most);
+  if (D.node) v = v.toVar();
+  /** v times f() where c holds (a boolean: here or not; a node: where it does) */
+  const times = (c, f) => { if (c === false) return; if (!D.node) v = v.mul(f()); else if (c === true) v.mulAssign(f()); else If(c, () => { v.mulAssign(f()); }); };
+  // (a kind that leads in patches: its slice of the slow noise, softly, and a third of it everywhere)
+  if (A.leads.length) times(D.leads, () => { const t = pick(A.leads, D.group), [e0, e1, e2, e3] = D.edges; return either(D.lo, () => smoothstep(e0, e1, t), () => float(1)).mul(either(D.hi, () => float(1).sub(smoothstep(e2, e3, t)), () => float(1))).mul(0.7).add(D.flat); });
+  if (A.F) { times(true, () => mix(D.light[0], D.light[1], A.F.light)); times(D.from, () => clamp(A.F.litter(D.mask).mul(1.5), 0, 1)); }
+  else if (D.from === true) v = float(0);
+  else if (D.from !== false) If(D.from, () => { v.assign(0); });
+  if (A.near) times(D.lakes, () => A.near);
+  times(D.shore, () => { const s = A.s(), [r0, r1, r2, r3] = D.rim; return smoothstep(r0, r1, s).mul(float(1).sub(smoothstep(r2, r3, s))); });
+  return v;
+}
 /** How likely each of layer L's things is to stand in a cell at pos (node code, in a Fn): the rule's own density, an
-    entry each (L.entries' order): its biome's share there (ctx: the place as the biomes read it, the river with it) in
-    its groves, off the places kept clear, its kind's slice of the patches its kinds lead in, its most, the light and the
-    litter the layers before it leave (F: influenceAt; null, nothing larger read: what grows only under another's litter
-    grows nowhere), the lakes, the shore. What places a thing (placeIn) and what the land wears for a stand where its
-    things are no longer drawn (src/terrain/layers.js) read it alike. */
+    entry each (L.entries' order; densIn, by its own numbers written in: ownOf); ctx: the place as the biomes read it, the
+    river with it; F: influenceAt (null: nothing larger read). What places a thing (placeIn) and what the land wears for a
+    stand where its things are no longer drawn (src/terrain/layers.js) read it alike: the one densIn. */
 export function densOf(L, pos, ctx, F = null) {
-  const bios = [...new Set(L.entries.map((e) => e.biome))], clump = (b) => groveAt(pos, grovesOf(b, L)), clear = clearAt(pos).toVar();
-  const share = new Map(bios.map((b) => [b, shareOf(b, ctx).mul(clump(b)).mul(clear).toVar()]));
-  const leads = new Map(L.groups.filter((g) => g.entries.length > 1).map((g) => [g, leadAt(pos, grovesOf(g.biome, L)).mul(0.7).add(0.15).toVar()]));
-  const d = ctx.d, w = ctx.w;
-  return L.entries.map((e) => {
-    let dens = share.get(e.biome);
-    // (a kind that leads in patches: its slice of the slow noise, softly, and a third of it everywhere)
-    if (e.group && leads.has(e.group)) { const t = leads.get(e.group), [a, b] = e.slice; dens = dens.mul(e.group.most).mul((a > 0 ? smoothstep(a - 0.06, a + 0.06, t) : float(1)).mul(b < 1 ? float(1).sub(smoothstep(b - 0.06, b + 0.06, t)) : float(1)).mul(0.7).add((b - a) * 0.3)); }
-    else dens = dens.mul(e.most);
-    if (F) {
-      dens = dens.mul(mix(e.light[0], e.light[1], F.light));
-      if (e.from) dens = dens.mul(e.from.length ? clamp(F.litter(e.from).mul(1.5), 0, 1) : float(0));
-    } else if (e.from) dens = float(0);
-    if (e.lakes) dens = dens.mul(nearLake(pos));
-    if (e.shore) { const s = d.div(w); dens = dens.mul(smoothstep(e.shore[0] - 0.08, e.shore[0] + 0.08, s).mul(float(1).sub(smoothstep(e.shore[1] - 0.1, e.shore[1] + 0.1, s)))); }
-    return dens.toVar();
-  });
+  const A = placeAt(L, pos, ctx, F);
+  return L.entries.map((e) => densIn(A, ownOf(e, L)).toVar());
 }
 
 /** A layer's light over a texel (gatherOf): the mean of SUB x SUB points over it, two across its smallest crown (Nyquist's:
@@ -345,7 +429,7 @@ const lightOf = (L) => { const crowns = L.entries.filter(crowned), SUB = crowns.
     (gatherOf, footAt). M: the growth map. */
 export const recordOf = (L, M) => (c) => {
   const pos = posIn(c, L).toVar(), R = placeIn(c, L, M, pos), rec = uint(0).toVar();
-  for (const e of L.entries) If(R.k.equal(e.i), () => { const T = grownIn(c, L, e, pos); rec.assign(packHalf2x16(vec2(T.h, 0)).bitOr(uint(e.i + 1).shiftLeft(uint(16))).bitOr(uint(T.shape.add(e.feetRow)).shiftLeft(uint(L.record.row)))); });
+  If(R.k.greaterThanEqual(0), () => { const T = grownIn(c, L, R.k, pos); rec.assign(packHalf2x16(vec2(T.h, 0)).bitOr(uint(R.k.add(1)).shiftLeft(uint(16))).bitOr(uint(T.shape.add(rowOf(L, R.k).feet)).shiftLeft(uint(L.record.row)))); });
   return rec;
 };
 
