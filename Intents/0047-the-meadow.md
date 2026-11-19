@@ -134,3 +134,4 @@ they are set with the sliders.)
 | 2026-11-19 | `8eb7638` | the Meadow: sky, sun, grass, its realism pass; the navigation fixed with a self-test; the Studio over the grass |
 | 2026-11-19 | `bd81db9` | true colour: AgX and real grass reflectance; wind in the vertex shaders, shadows and motion included |
 | 2026-11-19 | `9a26fa9` | grass in rings around the camera, grown in the background; seed heads of three kinds; wind and 24-hour sun sliders |
+| 2026-11-19 | `330544d` | calm at zero wind; night sky; procedural ground floor, thatch and low plants; clouds; the Studio plays hour and wind |
