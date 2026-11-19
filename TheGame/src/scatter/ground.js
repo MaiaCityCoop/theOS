@@ -23,7 +23,7 @@ import { camDist, riverInfo, heightAt, pathN, pathMask, bareMask, outcropMask, p
 import { CLEARINGS } from '../../world/places.js';
 import { offWays, waysVersion } from '../world/ways.js';
 import { source } from '../core/settle.js';
-import { FADE_FRAMES, SUBMIT_MS } from '../core/budget.js';
+import { FADE_FRAMES } from '../core/budget.js';
 import { ownGpuMs, pace, frameShare } from '../core/pace.js';
 import { recipes } from '../core/registry.js';
 import { pxKMost, farMost } from '../detail/measure.js';
@@ -156,18 +156,18 @@ export function createGround(renderer, tex) {
   }
   // ---- the blocks a frame draws: held to what the GPU does in the ground's share of a frame (behind the veil, till the
   // first view is shown, the whole frame's), by each piece's own time on the GPU (src/core/pace.js); and a piece never
-  // more blocks than one submission may take (SUBMIT_MS) at what a block cost last. Its unit, never fewer a frame on a
+  // more blocks than one submission may take (pace.js most: SUBMIT_MS at what a block cost last). Its unit, never fewer a frame on a
   // time heard on the page's thread, a page of the land's texels (SLOT²: as many as a piece before #324 drew; one is
   // about 4 ms of the Mac mini's GPU, timed with the frame held, 2026-11-19) ----
-  const UNIT = (SLOT / BLOCK) ** 2, PACE = pace(UNIT), per = { ms: 0 };   // (per: what a block cost the GPU, ms, as its last piece was measured)
-  const timed = (n, draw) => ownGpuMs(renderer, draw)?.then((ms) => { per.ms = ms / n; PACE.measured(n, ms, frameShare('ground')); }).catch(() => {});   // (src/core/pace.js frameShare)
+  const UNIT = (SLOT / BLOCK) ** 2, PACE = pace(UNIT);
+  const timed = (n, draw) => ownGpuMs(renderer, draw)?.then((ms) => PACE.measured(n, ms, frameShare('ground'))).catch(() => {});   // (src/core/pace.js frameShare)
   // this frame's pieces: the first job's next blocks, a piece a submission, as many as the frame's pace leaves
   function pieces() {
     PACE.tick();
     const before = renderer.getRenderTarget(), ac = renderer.autoClear;
     renderer.autoClear = false;   // (the pieces drawn before kept)
     while (PACE.left > 0 && jobs.length) {
-      const J = jobs[0], bx = J.t % K, by = Math.floor(J.t / K), cap = per.ms > 0 ? Math.max(UNIT, Math.floor(SUBMIT_MS / per.ms)) : PACE.left, n0 = Math.min(PACE.left, cap);
+      const J = jobs[0], bx = J.t % K, by = Math.floor(J.t / K), n0 = Math.min(PACE.left, PACE.most(UNIT));
       const [w, h] = bx === 0 && n0 >= K ? [K, Math.min(Math.floor(n0 / K), K - by)] : [Math.min(n0, K - bx), 1], n = w * h;
       G.o.value.set(J.ox, J.oz); G.texel.value = J.texel; G.base.value = J.base;
       stage.viewport.set(0, 0, N, N); stage.scissor.set(bx * BLOCK, by * BLOCK, w * BLOCK, h * BLOCK);   // (the whole window's mapping, its piece's pixels only)
