@@ -3,7 +3,7 @@
 // keeps the state of the compile it is working through in the renderer itself, so two compiles at once can trip over
 // each other. So every compile goes through here: in turn, each with its own target set for as long as it runs. Inside
 // one compile the GPU compiles side by side all the same (three keeps up to sixteen in flight); what packs (compute)
-// reads no target, each of its shaders compiled once (shareComputeCompiles).
+// reads no target. A pipeline of the same make as one made is that one (sharePipelines).
 //
 // Made by need (intent 0038, the cold start): nothing is drawn or run before it is made. A frame asks for what it draws
 // and runs (the passes' routes: src/core/screen.js, src/world/shadow.js; a tier's packing: src/scatter/tier.js), and what
@@ -29,26 +29,48 @@ export function inTurn(fn, counted = true) {
   return done;
 }
 
-/** A compute pipeline asked for while another of the same shader is being compiled waits for that one, and is then
-    asked for itself: the browser keeps a compiled pipeline by what it is made of and gives it again at once. three makes
-    a pipeline for every compute node whatever its code (the tiers' 63 packing passes are 26 shaders), and asked for side
-    by side each was compiled in full (2026-11-15: ten of them again shaders of 120 to 150 KB). On the renderer's
-    device, once. */
-export function shareComputeCompiles(renderer) {
+/** One pipeline for whatever asks for one of the same make. three makes a compute pipeline for every node that runs a
+    program, and a render pipeline for every material and target its key tells apart, and the GPU compiles each it is
+    asked for, one at a time (2026-11-19, the master's Chrome probe: 189 compute pipelines in the start's first minute,
+    of 82 programs in the whole world). Here each is kept by what it is made of: its code (each shader module by its
+    WGSL), entry points and constants, its layout (each bind group by what it binds: layouts of equal entries are one to
+    the GPU), and for drawing its vertex buffers, targets and their blending, primitive, depth and stencil, and samples;
+    one asked for again of the same make is given the one made, or being made. What is laid out 'auto', or made of what
+    was made before this (unknown here), is its own, never shared. On the renderer's device, once, before anything is
+    compiled on it. */
+export function sharePipelines(renderer) {
   const dev = renderer.backend?.device;
   if (!dev?.createComputePipelineAsync || dev.__sharing) return;
   dev.__sharing = true;
-  const make = dev.createComputePipelineAsync, going = new WeakMap();   // a shader module: the compile of it running
-  dev.createComputePipelineAsync = function (d) {
-    const m = d?.compute?.module, first = m && going.get(m);
-    if (first) {
-      const copy = { label: d.label, layout: d.layout, compute: d.compute };   // (three empties the descriptor it hands over once this returns)
-      return first.then(() => make.call(this, copy), () => make.call(this, copy));
-    }
-    const p = make.call(this, d);
-    if (m) { going.set(m, p); const done = () => { if (going.get(m) === p) going.delete(m); }; p.then(done, done); }
-    return p;
+  const keys = new WeakMap(), codes = new Map(), made = new Map();   // (a module or a layout -> what it is made of; a WGSL -> its number; a make -> { promise, pipeline })
+  const known = (fn, keyOf) => { const f = dev[fn]; dev[fn] = function (d) { const o = f.call(this, d), k = keyOf(d); if (k != null) keys.set(o, k); return o; }; };
+  known('createShaderModule', (d) => { let n = codes.get(d.code); if (n == null) codes.set(d.code, (n = codes.size)); return `wgsl ${n}`; });
+  known('createBindGroupLayout', (d) => JSON.stringify(d.entries));
+  known('createPipelineLayout', (d) => (d.bindGroupLayouts.every((g) => keys.has(g)) ? d.bindGroupLayouts.map((g) => keys.get(g)).join(' | ') : null));
+  // (a pipeline's make, as a string: its descriptor with each module and its layout by what they are made of, its label
+  // left out; none where any of them is unknown, or its layout 'auto')
+  const makeOf = (kind, d) => {
+    if (!keys.has(d?.layout)) return null;
+    let unknown = false;
+    const s = JSON.stringify(d, (k, v) => { if (k === 'label') return undefined; if (k !== 'module' && k !== 'layout') return v; if (!keys.has(v)) unknown = true; return keys.get(v); });
+    return unknown ? null : `${kind} ${s}`;
   };
+  const later = (fn, kind) => { const f = dev[fn]; dev[fn] = function (d) {
+    const k = makeOf(kind, d), had = k != null && made.get(k);
+    if (k == null || had) return k == null ? f.call(this, d) : had.promise;
+    const e = { promise: f.call(this, d), pipeline: null }; made.set(k, e);
+    e.promise.then((p) => { e.pipeline = p; }, () => { if (made.get(k) === e) made.delete(k); });   // (one that failed is asked for again as it is next wanted)
+    return e.promise;
+  }; };
+  later('createComputePipelineAsync', 'compute'); later('createRenderPipelineAsync', 'render');
+  // (made at once: given the one made, else made and kept; one still being made cannot be waited for here)
+  const now = (fn, kind) => { const f = dev[fn]; dev[fn] = function (d) {
+    const k = makeOf(kind, d), had = k != null && made.get(k);
+    if (had?.pipeline) return had.pipeline;
+    const p = f.call(this, d); if (k != null && !had) made.set(k, { promise: Promise.resolve(p), pipeline: p });
+    return p;
+  }; };
+  now('createComputePipeline', 'compute'); now('createRenderPipeline', 'render');
 }
 
 // ---- what the GPU is asked to compile, timed (__game.compiles(): src/boot.js) ----
@@ -61,15 +83,17 @@ const PIPES = [], TURNS = [];
 let running = null;
 let modules = 0, moduleBytes = 0;   // (the shader modules asked for: distinct code, and its size)
 /** Every pipeline and shader module the renderer's device is asked to make, kept with how long it took (compiles). On
-    the renderer's device, once, after shareComputeCompiles: a pipeline's time is from three's ask to its pipeline. */
+    the renderer's device, once, after sharePipelines: a pipeline's time is from three's ask to its pipeline, and one
+    given the one of its make (shared) is said so. */
 export function watchCompiles(renderer) {
   const dev = renderer.backend?.device;
   if (!dev?.createRenderPipelineAsync || dev.__watched) return;
   dev.__watched = true;
-  const timed = (fn, kind) => { const make = dev[fn]; dev[fn] = function (d) { const p = { kind, name: d?.label ?? '', at: performance.now(), ms: null }; PIPES.push(p); running?.pipes.push(p); const r = make.call(this, d); r.then(() => { p.ms = performance.now() - p.at; }, () => { p.ms = performance.now() - p.at; p.failed = true; }); return r; }; };
+  const given = new WeakSet();   // (what the device gave: given again, it was shared)
+  const timed = (fn, kind) => { const make = dev[fn]; dev[fn] = function (d) { const p = { kind, name: d?.label ?? '', at: performance.now(), ms: null }; PIPES.push(p); running?.pipes.push(p); const r = make.call(this, d); if (given.has(r)) p.shared = true; else given.add(r); r.then(() => { p.ms = performance.now() - p.at; }, () => { p.ms = performance.now() - p.at; p.failed = true; }); return r; }; };
   timed('createRenderPipelineAsync', 'render'); timed('createComputePipelineAsync', 'compute');
   // (made at once: a pipeline first used in a frame, which waits for it)
-  const now = (fn, kind) => { const make = dev[fn]; dev[fn] = function (d) { const p = { kind, name: d?.label ?? '', at: performance.now(), ms: 0, sync: true }; PIPES.push(p); running?.pipes.push(p); return make.call(this, d); }; };
+  const now = (fn, kind) => { const make = dev[fn]; dev[fn] = function (d) { const p = { kind, name: d?.label ?? '', at: performance.now(), ms: 0, sync: true }; PIPES.push(p); running?.pipes.push(p); const r = make.call(this, d); if (given.has(r)) p.shared = true; else given.add(r); return r; }; };
   now('createRenderPipeline', 'render'); now('createComputePipeline', 'compute');
   const mod = dev.createShaderModule; dev.createShaderModule = function (d) { modules++; moduleBytes += d?.code?.length ?? 0; return mod.call(this, d); };
 }
@@ -83,7 +107,7 @@ const sum = (L, f) => L.reduce((s, x) => s + f(x), 0);
 function readTurn(t) {
   let last = t.at, overtook = 0;
   for (const p of t.pipes) {
-    if (p.ms == null) continue;
+    if (p.ms == null || p.shared) continue;   // (one shared is the one it was given: no compile of its own)
     const ready = p.at + p.ms;
     if (ready < last) overtook++;
     p.own = Math.max(0, ready - Math.max(p.at, last)); last = Math.max(last, ready);
@@ -94,27 +118,28 @@ function readTurn(t) {
       firstView   the first view's asks (the snapshot its first frame waits for), the turns that made any of them, the
                   pipelines those turns asked of the GPU (fewer than the asks: what three had made before, shared), the
                   time from the first of those turns to the last, and the GPU's own time in it (readTurn)
-      pipelines   how many, render and compute; sync: made as a frame first drew it; waiting: not made yet; the shader
+      pipelines   how many three asked for, render and compute; shared: given the one of their make (sharePipelines),
+                  the GPU compiled the rest; sync: made as a frame first drew it; waiting: not made yet; the shader
                   modules (distinct code) and their size
       parallel    of the pipelines that turns asked after another, how many were ready before one asked earlier: none,
                   the GPU compiles one at a time (a slow one holds every one asked after it)
-      turns       each turn of made-by-need: { name, asks, inView, pipes, issued (ms from its start to the last pipeline
+      turns       each turn of made-by-need: { name, asks, inView, pipes (the GPU compiled), shared, issued (ms from its start to the last pipeline
                   it asked: three building the code, the page's frames between), ms, gpu (its pipelines' own times:
                   near ms, the turn was the GPU's; far under, it waited on the page's thread), overtook, slowest (its
                   pipeline of the longest own time), failed (its compile threw: each of its asks made alone after it) }
       slowest     the pipelines of the longest own time (ms: from asked to ready, the wait for those before it in it);
                   byName: each material's or pass's pipelines, each one's own time */
 export function compiles() {
-  const ms = (t) => t.ms ?? performance.now() - t.at, issued = (t) => Math.max(0, ...t.pipes.map((p) => p.at - t.at)), gpu = (t) => sum(t.pipes, (p) => p.own ?? 0);
+  const ms = (t) => t.ms ?? performance.now() - t.at, issued = (t) => Math.max(0, ...t.pipes.map((p) => p.at - t.at)), gpu = (t) => sum(t.pipes, (p) => p.own ?? 0), compiled = (L) => L.filter((p) => !p.shared);
   const inView = (t) => (t.list && view ? t.list.filter((e) => view.has(e)).length : t.inView), read = TURNS.map((t) => ({ t, overtook: readTurn(t) })), first = TURNS.filter(inView), byName = {};
   const own = (p) => p.own ?? p.ms, top = (L) => L.reduce((a, p) => (own(p) > own(a) ? p : a));
   for (const p of PIPES) (byName[familyOf(p)] ||= []).push(Math.round(own(p) ?? -1));
   return {
-    firstView: { asks: view?.size ?? null, turns: first.length, pipes: sum(first, (t) => t.pipes.length), ms: first.length ? Math.round(Math.max(...first.map((t) => t.at + ms(t))) - first[0].at) : 0, gpu: Math.round(sum(first, gpu)) },
-    pipelines: { render: PIPES.filter((p) => p.kind === 'render').length, compute: PIPES.filter((p) => p.kind === 'compute').length, sync: PIPES.filter((p) => p.sync).length, waiting: PIPES.filter((p) => p.ms == null).length, modules, kb: Math.round(moduleBytes / 1024) },
-    parallel: { overtook: sum(read, (r) => r.overtook), of: sum(TURNS, (t) => Math.max(0, t.pipes.filter((p) => p.ms != null).length - 1)) },
-    turns: read.map(({ t, overtook }) => ({ name: t.name, asks: t.asks, inView: inView(t), pipes: t.pipes.length, issued: Math.round(issued(t)), ms: Math.round(ms(t)), gpu: Math.round(gpu(t)), overtook, ...(t.pipes.some((p) => p.ms != null) ? { slowest: ((p) => ({ name: familyOf(p), own: Math.round(own(p)) }))(top(t.pipes.filter((p) => p.ms != null))) } : {}), ...(t.failed ? { failed: true } : {}) })),
-    slowest: PIPES.filter((p) => p.ms != null).sort((a, b) => own(b) - own(a)).slice(0, 20).map((p) => ({ name: familyOf(p), kind: p.kind, own: Math.round(own(p)), ms: Math.round(p.ms) })),
+    firstView: { asks: view?.size ?? null, turns: first.length, pipes: sum(first, (t) => compiled(t.pipes).length), ms: first.length ? Math.round(Math.max(...first.map((t) => t.at + ms(t))) - first[0].at) : 0, gpu: Math.round(sum(first, gpu)) },
+    pipelines: { render: PIPES.filter((p) => p.kind === 'render').length, compute: PIPES.filter((p) => p.kind === 'compute').length, shared: PIPES.filter((p) => p.shared).length, sync: PIPES.filter((p) => p.sync).length, waiting: PIPES.filter((p) => p.ms == null).length, modules, kb: Math.round(moduleBytes / 1024) },
+    parallel: { overtook: sum(read, (r) => r.overtook), of: sum(TURNS, (t) => Math.max(0, compiled(t.pipes).filter((p) => p.ms != null).length - 1)) },
+    turns: read.map(({ t, overtook }) => ({ name: t.name, asks: t.asks, inView: inView(t), pipes: compiled(t.pipes).length, shared: t.pipes.length - compiled(t.pipes).length, issued: Math.round(issued(t)), ms: Math.round(ms(t)), gpu: Math.round(gpu(t)), overtook, ...(compiled(t.pipes).some((p) => p.ms != null) ? { slowest: ((p) => ({ name: familyOf(p), own: Math.round(own(p)) }))(top(compiled(t.pipes).filter((p) => p.ms != null))) } : {}), ...(t.failed ? { failed: true } : {}) })),
+    slowest: compiled(PIPES).filter((p) => p.ms != null).sort((a, b) => own(b) - own(a)).slice(0, 20).map((p) => ({ name: familyOf(p), kind: p.kind, own: Math.round(own(p)), ms: Math.round(p.ms) })),
     byName,
   };
 }

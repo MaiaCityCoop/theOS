@@ -56,7 +56,7 @@ import { useGround } from './world/rocksolid.js';
 import { showBodies } from './world/bodies.js';
 import { createCity } from './city/index.js';
 import { createLakes } from './world/lakes.js';   // the city's plots over the land, seen from above (world/city.js)
-import { shareComputeCompiles, watchCompiles, compiles, countCompiles, making, ahead } from './core/compile.js';
+import { sharePipelines, watchCompiles, compiles, countCompiles, making, ahead } from './core/compile.js';
 import { waitsOn, gpuLost } from './core/waits.js';   // what the start waits for, watched: the veil says what holds it up, or what stopped the page
 import { flag } from './core/flags.js';
 import { FIRST_FRAME, stampDone } from './core/marks.js';   // (the first frame that draws the world, on the page's own timeline)
@@ -89,7 +89,7 @@ export async function boot({ profile = 'world' } = {}) {
   renderer.onDeviceLost = (info) => { dropped.call(renderer, info); gpuLost(info); };   // and the page says so, with a way to reload
   await waitsOn('the GPU', renderer.init(), null);
   useGPU(renderer);   // what only the GPU reads is kept on the GPU only (src/core/gpu.js)
-  shareComputeCompiles(renderer);   // a compute shader compiled once, however many passes run it (src/core/compile.js)
+  sharePipelines(renderer);   // a pipeline of the same make as one made is that one, however many nodes and materials ask (src/core/compile.js)
   watchCompiles(renderer);   // and every pipeline the GPU is asked for kept with how long it took: __game.compiles() (src/core/compile.js)
   countCompiles();   // and what the world waits for to be compiled counted: it is not complete before (src/core/settle.js)
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;   // the screen's curve is put on once, by the upscale (src/core/temporal.js), or by a material drawn elsewhere (src/world/light.js toScreen)

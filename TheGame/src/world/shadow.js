@@ -80,16 +80,16 @@ export function useCascades({ reach, crown, top, radius }) {
   // (what a shader reads of cascade k, k its index: its matrix, its texel, and its bias in its own depth's units, so one
   // loop reads them all, src/world/light.js)
   const mats = uniformArray(half.map(() => new THREE.Matrix4()), 'mat4');
-  const texelAt = uniformArray(texel, 'float'), backAt = uniformArray(bias.map((b, k) => b / range[k]), 'float');
-  C = { S, n, half, texel, bias, range, top, casters: { reach, crown, top, radius }, mats, texelAt, backAt };
+  const texelAt = uniformArray(texel, 'float'), backAt = uniformArray(bias.map((b, k) => b / range[k]), 'float'), rangeAt = uniformArray(range, 'float');
+  C = { S, n, half, texel, bias, range, top, casters: { reach, crown, top, radius }, mats, texelAt, backAt, rangeAt };
   return C;
 }
 /** The cascades as useCascades laid them out: { S (texels a side), n (how many), half (each one's half side, m), texel (m), bias (m along the
     light a caster stands back before it shades: two of its texels, the 2 × 2 comparison's reach; what is steep to the
     light is moved off along its normal, light.js), range (the depth it holds, m), top (the tallest caster, m), casters
     (what they were laid out from: reach, crown, top, radius, m), mats (each one's matrix from the world to its u, v and
-    depth: one uniform array, mats.array[k] here, mats.element(k) in a shader), texelAt, backAt (each one's texel and
-    bias over its range, the same way, for the shaders) }. */
+    depth: one uniform array, mats.array[k] here, mats.element(k) in a shader), texelAt, backAt, rangeAt (each one's
+    texel, bias over its range and range, the same way, for the shaders) }. */
 export const cascades = () => {
   if (!C) throw new Error('the shadow cascades are laid out at the start, before any material is built (src/world/light/start.js startLight, where src/boot.js and tools/smoke.js start the light)');
   return C;
