@@ -3,10 +3,11 @@
 // taken 120 frames and two and a half seconds after a jump to the pine stand, in a browser that had kept nothing,
 // showed no tree at all (2026-11-17): the plants were still being made in the workers.
 //
-// Complete is two things, one after the other:
+// Settled (settle, ready: what the gate waits for) is two things, one after the other:
 //   - nothing is still out: every part whose work ends later than the frame that asked for it (a worker builds, the
 //     browser reads back what it kept, the GPU compiles a pipeline or reads a map back) says how much of it is out, a
-//     count asked once a frame (source: cheap), and every one says none;
+//     count asked once a frame (source: cheap), and every one says none. The first frame drawn so is `complete`: the
+//     first the world shows (src/boot.js), whatever that frame put in;
 //   - then the picture built over time (src/core/temporal.js) has come to rest on it: as many frames in a row in which
 //     nothing changed (nothing packed again, put in or painted; the camera, its lens, the pixels, the detail governor as
 //     they were) as it takes for what it kept before to have left the picture (temporal.settles).
@@ -41,6 +42,9 @@ export const ready = new Promise((res) => (first = res));
     room made again every 100 ms, and the veil stayed up for good, the master's check of main with A). Nor does a part
     that cannot say what it has out: it is said in the console (a still waits for it all the same: settle). */
 export const complete = new Promise((res) => (whole = res));
+let SHOWN = false; complete.then(() => (SHOWN = true));
+/** Whether the first frame has been drawn (complete): what the start does all at once, and the world after it in turn. */
+export const shown = () => SHOWN;
 
 /** What a frame's view is compared by: the camera, the renderer (its canvas's pixels), the screen (the inside's pixels:
     the governor's ratio), the picture built over time, the shared uniforms (the clock, the detail governor). */

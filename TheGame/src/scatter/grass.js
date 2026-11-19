@@ -3,7 +3,7 @@
 // camera, made from the grass's blade alone (assets/grass.js: its full detail: ringsOf) and each where its own error is
 // the one ERROR_PX (bandsOf, as the measure is now): every blade as it is, in its own cells, its bends fewer further off.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, bool, vec2, vec3, vec4, If, min, uniform, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor, uintBitsToFloat, floatBitsToUint } from 'three/tsl';
+import { Fn, float, int, uint, bool, vec2, vec3, vec4, If, min, uniform, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor, uintBitsToFloat, floatBitsToUint, exp, sqrt } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { hashI, camDist, BASE } from '../world/land.nodes.js';
 import { lit, weathered, windAt, windStrength, snowDepth, SNOW } from '../world/light.js';
@@ -38,6 +38,29 @@ const driedOf = (a) => { const lo = a.mul(1.2).sub(0.25), F = (u) => { const c =
     a blade's tip is drawn (bladeMaterial): its shade (0.7 + 0.35 r3 + 0.35 c3, r3's mean 0.5), dried to straw as much as
     it is, at its tip's value. */
 export const meadowTip = (tint, a, c3) => mix(tint.mul(float(0.875).add(c3.mul(0.35))), straw(), driedOf(a)).mul(valueUp(float(1)));
+/** The meadow's blades as optics, a square metre of them where it all grows (one a cell): their area upright, as a ray
+    along the ground meets it (over their headings, 2/π of a flat blade's), and from above (their arcs), m² a m². The mean
+    blade as bladeMaterial draws it: 2w wide (r1's mean width), tapering by 1 - 0.8 t², rising t (1 - 0.42 bend t) of its
+    height and arcing out 1.15 bend t² of it; bladeIn's mean height and bend (as meanTop). height: the asset's; R: a ring
+    (its cell and the blade's half width w, as they are in every ring: ringsOf). -> [upright, from above] */
+export const opticsOf = (height, R) => {
+  const h = height * (0.5 + 0.55 / 3 + 0.8 / 3), b = 0.2 + 0.55 / 2 + 0.35 / 2, W = 2 * R.w, rho = 1 / (R.cell * R.cell);
+  const up = W * h * (1 - 0.8 / 3 - 0.42 * b + (0.42 * b * 0.8) / 2), out = W * h * 2.3 * b * (1 / 2 - 0.8 / 4);   // (the width up its rise and along its arc, t 0 … 1)
+  return [(rho * up * 2) / Math.PI, rho * out];
+};
+/** The meadow past its blades as the eye sees it from where it is (node code): e, the way to the eye (a unit vec3);
+    cover, how much of the meadow grows there (0 … 1). A ray down at γ through the layer the blades stand in meets
+    cover x (their upright area / tan γ + their area from above) of them (U.uMeadowOptics: opticsOf), τ: the share
+    e^-τ of rays reaches the floor between them, the rest meet a blade first at the mean depth into the layer of an
+    exponential cut at its foot. -> { shade: what shows, of the tips' value (a blade's value where it is met, valueUp;
+    the floor's, underShade), t: how far up the blades it meets them (their light: bladeLight) } */
+export const meadowSeen = (e, cover) => {
+  const s = clamp(e.y, 1e-3, 1), tg = s.div(sqrt(float(1).sub(s.mul(s)).max(1e-6)));
+  const tau = cover.mul(U.uMeadowOptics.x.div(tg).add(U.uMeadowOptics.y)).max(1e-4).toVar(), hit = float(1).sub(exp(tau.negate())).toVar();
+  const depth = tau.lessThan(0.05).select(float(0.5).sub(tau.div(12)), float(1).div(tau).sub(exp(tau.negate()).div(hit)));   // (the exponential's mean over 0 … 1; its series where τ is small)
+  const t = clamp(float(1).sub(depth), 0, 1);
+  return { shade: hit.mul(valueUp(t)).div(valueUp(float(1))).add(float(1).sub(hit).mul(underShade())), t };
+};
 /** How much darker the floor under standing blades is than their tips, as seen from above between them: a blade's value
     over its lower half (what shows of it down there) to its tip's (node). Its mean over the lower half by two points
     (Gauss-Legendre's, exact for the value's quadratic). */
@@ -209,6 +232,7 @@ function bladeMaterial(T) {
 export function createGrass(scene, tex, ground, asset, gpu = false) {
   const rings = asset.tiers, now = () => bandsOf(rings, asset.height, dialK());
   U.uMeadowTop.value = meanTop(asset.height);   // (what the carpet is raised to past the blades: src/terrain/material.js)
+  U.uMeadowOptics.value.set(...opticsOf(asset.height, rings[0]));   // (how much of it shows from where the eye is: meadowSeen)
   return rings.map((R, k) => {
     const T = { cell: uniform(R.cell), w: uniform(R.w), near: uniform(0), nearFade: uniform(0), far: uniform(0), farFade: uniform(0) };
     // (its store and its gather: tier.js; without WebGPU both at once, per vertex)

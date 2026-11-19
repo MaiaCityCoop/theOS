@@ -35,6 +35,7 @@ import { bakeTextures } from './materials/bake.js';
 import { createTerrain, landMaterials } from './terrain/terrain.js';
 import { createGround } from './scatter/ground.js';
 import { createScatter } from './scatter/index.js';
+import { outlinesAhead } from './scatter/trees.js';   // (what the stands need of each tree kind, reckoned in the recipes' workers)
 import { recipe } from './core/registry.js';
 import { place } from './world/place.js';
 import { stand } from './scatter/placed.js';   // what stands at a spot of its own, drawn by the one drawer (intent 0029)
@@ -64,6 +65,9 @@ const SKY = 0x9fc2e6, REACH = 6000;   // REACH: how far the stage's land is draw
 /** Start the world for this page: { profile: 'world' | 'stage' }. A promise of the game, once its parts are made. */
 export async function boot({ profile = 'world' } = {}) {
   const world = profile === 'world', t0 = performance.now();
+  // (what the stands need to know of each tree kind before they are made, its outline and rooms, reckoned in the recipes'
+  // workers from here on, beside the renderer, the textures, the ground and the land: src/scatter/trees.js outlinesAhead)
+  const outlines = outlinesAhead(world);
   const canvas = document.getElementById('c');
   // (textures of many layers: more than a device gives unasked. The land's pages are two arrays of up to 2048,
   // src/terrain/pages.js; the stress stand keeps its kinds' own textures in one, src/scatter/stress.js. And buffers as
@@ -146,7 +150,7 @@ export async function boot({ profile = 'world' } = {}) {
     game.scatter = g.scatter;   // for timings and pages that look at it
     g.packing = g.scatter.compile();   // the tiers' packing passes, side by side with the textures' (they read no target)
   };
-  if (world) scatterOf(grown);
+  if (world) { await waitsOn("the plants' outlines", outlines, null); mark('outlines'); scatterOf(grown); }
   mark('scatter');
   if (world) for (const at of Object.values(PLACES)) { const a = recipe(at.asset); if (!stand(a, at)) place(scene, a, at); }   // what stands at a named place, from the asset library: in the one list (src/scatter/placed.js), else on its own (a fire's light; no WebGPU)
   const controls = world ? createControls(camera, canvas, document.getElementById('msg'), document.getElementById('stat')) : null;

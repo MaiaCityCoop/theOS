@@ -109,7 +109,9 @@ const CLASSIX = []; const classIndex = (c) => (CLASSIX[c] ||= new THREE.BufferAt
 // the recipes' workers (recipes.worker.js, watched: src/core/workers.js): one set for every drawer, made when the first
 // asks; all(jobs) tells every one of them, before anything asked after it
 let POOL = null;
-const pool = () => (POOL ||= (() => {
+/** The recipes' workers (see above): ask(jobs) -> what they made; shared by every drawer, and by the start's outlines
+    (src/scatter/trees.js outlinesAhead). */
+export const pool = () => (POOL ||= (() => {
   const workers = Array.from({ length: 3 }, () => asking(new Worker(new URL('./recipes.worker.js', import.meta.url), { type: 'module' }), "the recipes' worker")); let turn = 0;
   const ask = (jobs) => workers[turn++ % workers.length]({ jobs }).then(({ out }) => out);
   ask.all = (jobs) => { for (const w of workers) w.worker.postMessage({ id: -1, jobs }); };

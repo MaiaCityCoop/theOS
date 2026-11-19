@@ -56,7 +56,7 @@ import { levelOf, handOver, sinkInto } from '../detail/handover.js';
 import { createAtlas, bakers, viewClip, tileClip, impostorRead, clumpRead, facingOf, facingEnc, planeFrame, litIn, atlases } from '../detail/impostor.js';
 import { levelsUnder } from '../detail/atlas.js';
 import { offScreen, clipOf, Tier } from './tier.js';
-import { createDrawer } from './drawer.js';
+import { createDrawer, pool } from './drawer.js';
 import { castsInto } from '../world/shadow.js';
 import { heapRow } from './heap.js';
 import { plantOf } from './plantvert.js';
@@ -705,6 +705,19 @@ function cutOf(G) {
     pad its band keeps for that (src/detail/handover.js padOf); what the level looks at is its region tree's
     (src/scatter/regions.js), however far its band reaches. */
 const patchOf = (cell, reach) => Math.min(256, Math.max(4, 2 ** Math.ceil(Math.log2(Math.max(1, (0.105 * reach) / cell)))));
+
+/** At a start with nothing kept of a tree kind's rooms (assets/kit/tree.js crowdRooms): its outline and its rooms
+    reckoned by the recipes' workers, a job a kind, side by side and beside the rest of the start, and taken by its asset
+    as if kept (takeOutline), before the stands are made (src/boot.js). The page's thread builds none of their meshes: it
+    built every kind's finest and reckoned its crowd, 2.9 of the scatter stage's 5 s (2026-11-19, the master's loadMs).
+    A promise, once every kind is in; a kind its worker could not reckon is reckoned on the page, as before. world:
+    whether the start makes the world's stands (the library's stage makes them when a subject asks: nothing ahead). */
+export function outlinesAhead(world = true) {
+  const A = world ? atlases() : null, kinds = world ? recipes('asset').filter((a) => a.outlineFor && !a.roomsKnown(A)) : [];
+  if (!kinds.length) return Promise.resolve();
+  const ask = pool(), plain = { ...A };
+  return Promise.all(kinds.map((a) => ask([['outline', a.uid, plain]]).then(([o]) => a.takeOutline(A, o), (e) => console.warn(`plants: the workers could not reckon '${a.name}': reckoned here`, e))));
+}
 
 /** Everything this engine places: for every stand a drawer of its own kinds (drawer.js: a heap of their shapes at their
     levels) and a tier a level of detail, each where a plant of it is the size on screen its kind asks, a draw a

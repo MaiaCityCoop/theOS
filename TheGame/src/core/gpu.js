@@ -9,10 +9,11 @@
 // The game must run on a machine of 8 GB, and holds at most 2 GB of it on the GPU (src/core/budget.js GPU_MB), shared
 // out by the frame's classes as its milliseconds are (src/core/classes.js: geometry, light, ground, upscale/post, other;
 // each its budget, BUDGET_MB). So every pool says here what it holds and whose it is (note, more: at its making, again
-// when it is made anew, nought when it is let go), and each such make is held against its class's budget, as all the
-// device makes is against the whole: past it, it is said once, loudly, with the class and the maker, and counted (the
-// ledger's over), and made all the same, so nothing breaks while its owner sizes it to the room its class has (roomOf);
-// the hour's gate fails on it (tools/gate.js). The readout in the corner shows the sum (src/core/hud.js); the game's
+// when it is made anew, nought when it is let go). One tally is held against the budgets, one check: what the device
+// itself makes, every buffer and texture under the class whose code made it (below), where the device is counted (on
+// WebGPU); else what the pools say they hold. Past a class's budget, or the whole's, it is said once, loudly, with the
+// class and the maker, and counted (the ledger's over), and made all the same, so nothing breaks while its owner sizes
+// it to the room its class has (roomOf); the hour's gate fails on it (tools/gate.js). The readout in the corner shows the sum (src/core/hud.js); the game's
 // memory() (window.__game.memory(), src/boot.js) is the one ledger: by class, now and at its most, beside each class's
 // budget, and beside it what the device itself has made (every buffer and texture, counted as it is made and
 // destroyed): what no pool notes shows there, the difference. A pool that may be larger or smaller (an atlas, the
@@ -37,21 +38,22 @@ const heldBy = (cls) => { let n = 0; for (const h of HELD.values()) if (h.cls ==
     it for its code (the more of the two: what three makes for it too). */
 export const roomOf = (cls) => BUDGET_MB[cls] * MB - Math.max(heldBy(cls), MADE[cls] ?? 0);
 /** A make that took `who` (a class, or the whole GPU) past its budget (MB), `by` (the pool, or what the device was asked
-    to make) holding `bytes` there then: said once a class and maker (once: once a class, whatever made it), loudly, and
-    counted; what was made is kept, so nothing breaks while its owner fits it to the room its class has (roomOf). */
+    to make) holding `bytes` there then: said once a class and maker (once: once a class, whatever made it first; the
+    one tally's check, held and counted below, says it so), loudly, and counted; what was made is kept, so nothing
+    breaks while its owner fits it to the room its class has (roomOf). */
 const past = (who, by, bytes, budget, once = false) => {
   const key = once ? who : `${who}: ${by}`, o = OVER.get(key), mb = +(bytes / MB).toFixed(1);
   if (o) { o.times++; o.mb = Math.max(o.mb, mb); return; }
   OVER.set(key, { who, by, times: 1, mb, budget });
   console.error(`GPU memory: ${who} holds ${mb} MB, more than its ${budget} MB (src/core/budget.js), with ${by}: made all the same, until it is sized to the room its class has (src/core/gpu.js roomOf)`);
 };
-/** After a pool of `cls` changed (`by`: its name): the class's most and the whole's, and whether the class is past its
-    budget. */
+/** After a pool of `cls` changed (`by`: its name): the class's most and the whole's, and, where the device itself is not
+    counted (the one tally there is then: no WebGPU), whether the class is past its budget. */
 function held(cls, by) {
   const n = heldBy(cls); if (n > (PEAK[cls] ?? Infinity)) PEAK[cls] = n;
   let all = 0; for (const h of HELD.values()) all += h.gpu;
   if (all > peakAll) peakAll = all;
-  if (n > BUDGET_MB[cls] * MB) past(cls, by, n, BUDGET_MB[cls]);
+  if (!R && n > BUDGET_MB[cls] * MB) past(cls, by, n, BUDGET_MB[cls], true);
 }
 /** The one ledger (the game's memory(), src/boot.js; the hour's gate reads it), MB:
       gpu, peak, budget   what the game holds on the GPU now and the most it held (all the device made, where it is
@@ -96,8 +98,9 @@ const texBytes = (d) => {
   return sum * (d.sampleCount ?? 1);
 };
 // (each counted under the class whose code made it: the class of the pass running (mark: three makes its own buffers and
-// targets as it first draws them, in some pass), or the one a pool here is made for (asClass); else other. Each make is
-// held against its class's budget and the whole's: what no pool notes counts too)
+// targets as it first draws them, in some pass), or the one a pool here is made for (asClass); else other. This is the
+// one tally held against the budgets, the class's and the whole's, where the device is counted: what no pool notes
+// counts too, and a pool's own make is counted once)
 let NOW = 'other', made = 0, peakMade = 0;   // (whose code runs; what the device has made, bytes; the most it held)
 const MADE = Object.fromEntries(CLASS_NAMES.map((c) => [c, 0])), MADE_PEAK = { ...MADE }, KINDS = new Map(), SIZE = new WeakMap();
 /** make() run as `cls`'s: what the device makes meanwhile is that class's. */
@@ -108,7 +111,7 @@ const counted = (o, bytes, kind) => {
   made += bytes; MADE[cls] += bytes;
   if (made > peakMade) peakMade = made;
   if (MADE[cls] > MADE_PEAK[cls]) MADE_PEAK[cls] = MADE[cls];
-  if (MADE[cls] > BUDGET_MB[cls] * MB) past(`${cls}, all made for it`, kind, MADE[cls], BUDGET_MB[cls], true);
+  if (MADE[cls] > BUDGET_MB[cls] * MB) past(cls, kind, MADE[cls], BUDGET_MB[cls], true);
   if (made > GPU_MB * MB) past(WHOLE, kind, made, GPU_MB, true);
   const d = o.destroy;
   o.destroy = function () {
