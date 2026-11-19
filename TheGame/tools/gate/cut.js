@@ -4,14 +4,11 @@
 //
 //   bun tools/gate/cut.js [--url http://127.0.0.1:5303/]
 import { webkit, chromium } from 'playwright-core';
-import { existsSync, readdirSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { webkitAt } from '../browsers.js';
 
 const at = process.argv.indexOf('--url'), BASE = (at > 0 && process.argv[at + 1]) || 'http://127.0.0.1:5303/';
 const url = new URL('tools/gate/cut.html', BASE).href;
-// (Playwright's own WebKit, the newest kept: one this version of Playwright did not bring is taken where it lies)
-const CACHE = `${homedir()}/Library/Caches/ms-playwright`, WK = existsSync(CACHE) ? readdirSync(CACHE).filter((d) => d.startsWith('webkit-')).sort().map((d) => `${CACHE}/${d}/pw_run.sh`).filter(existsSync).pop() : null;
-for (const [name, type, opts] of [['webkit', webkit, WK ? { executablePath: WK } : {}], ['chrome', chromium, { channel: 'chrome', args: ['--enable-unsafe-webgpu'] }]]) {
+for (const [name, type, opts] of [['webkit', webkit, webkitAt()], ['chrome', chromium, { channel: 'chrome', args: ['--enable-unsafe-webgpu'] }]]) {
   let b = null;
   try {
     b = await type.launch({ headless: true, ...opts });

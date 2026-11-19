@@ -11,6 +11,7 @@
 //   start    the start's marks (src/boot.js) and when it was ready, or that it was not
 // and what the page said (errors and warnings). Runs a GPU: one job at a time, on the machine the master gives the turn.
 import { chromium, webkit } from 'playwright-core';
+import { webkitAt } from './browsers.js';
 
 const [kind = 'webkit', url = 'http://localhost:5180/game/', seconds = '170'] = process.argv.slice(2);
 if (!['webkit', 'chromium'].includes(kind)) throw new Error(`pipecheck: webkit or chromium, not ${kind}`);
@@ -47,7 +48,7 @@ function watch() {
 
 // ---- the run ----
 const said = [];
-const browser = kind === 'webkit' ? await webkit.launch() : await chromium.launch({ channel: 'chrome', args: ['--enable-unsafe-webgpu'] });
+const browser = kind === 'webkit' ? await webkit.launch(webkitAt()) : await chromium.launch({ channel: 'chrome', args: ['--enable-unsafe-webgpu'] });
 try {
   const page = await (await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 })).newPage();
   await page.addInitScript(watch);
