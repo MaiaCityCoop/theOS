@@ -1,6 +1,7 @@
 // The river's water (node code): on the terrain's grid (the nodes near the river only), its surface flat at the valley's
-// floor less the drop; running along the river's flow, two takes half a cycle apart cross-faded, so it runs and never
-// stretches. Its look is the light's, by water's own optics (src/world/physics.js), not a colour of its own:
+// floor less the drop; its ripples the flow's own, held still over its bed at the wavelength its speed holds them at
+// (the stationary waves), and the wind's, running with the wind, two takes half a cycle apart cross-faded, so they run
+// and never stretch. Its look is the light's, by water's own optics (src/world/physics.js), not a colour of its own:
 //   - what meets its surface is reflected as Fresnel's equations say for water's index of refraction (unpolarized), the
 //     rest goes into it; what it reflects is the sky along the reflected way (src/world/sky/dome.js skyAlong), and the
 //     sun: its glint as a microfacet surface reflects it (GGX), as wide as the sun's own disc where the pixel shows each
@@ -22,15 +23,16 @@
 //     src/core/temporal.js; a frame late, which does not show on water), marched on that frame's screen; where it meets
 //     nothing there, the sky along it.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec2, vec3, vec4, varying, attribute, abs, max, min, clamp, mix, smoothstep, length, normalize, pow, fract, sqrt, exp, refract, reflect, If, Discard, Loop, Break, int, ivec2, uniform, texture, screenCoordinate, cameraProjectionMatrix, cameraFar, ceil, log2, dFdx, dFdy } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, varying, attribute, abs, max, min, clamp, mix, smoothstep, length, normalize, pow, fract, sqrt, exp, refract, reflect, If, Discard, Loop, Break, int, ivec2, uniform, texture, screenCoordinate, cameraProjectionMatrix, cameraFar, ceil, log2, dFdx, dFdy, step, floor, exp2 } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { riverInfo, riverRaw, riverCarve, riverBank, baseB, WATER_DROP_N, lakeAt } from '../world/land.nodes.js';
+import { riverInfo, riverCarve, riverBank, baseB, WATER_DROP_N, lakeAt } from '../world/land.nodes.js';
 import { toScreen, airOf, lightOn, sunAt, windDir, windStrength } from '../world/light.js';
 import { skyAlong } from '../world/sky/dome.js';
 import { blueAt } from '../world/light/noise.js';
 import { gridPoint, GRID } from './material.js';
 import { WATER } from '../world/biomes.js';
-import { WATER_IOR, WATER_RED_ABSORPTION, WATER_REFLECTANCE_F } from '../world/physics.js';
+import { WATER_IOR, WATER_RED_ABSORPTION, WATER_REFLECTANCE_F, GRAVITY, WATER_SURFACE_TENSION, WATER_DENSITY } from '../world/physics.js';
+import { recipe } from '../core/registry.js';
 import { SUN_DIAMETER } from '../world/light/physics.js';
 import { NDF_FILTER_VARIANCE, NDF_FILTER_MOST } from '../core/method.js';
 import { FRAME_MS_BY_CLASS } from '../core/budget.js';
@@ -38,6 +40,13 @@ import { ownGpuMs, pace, spentSince } from '../core/pace.js';
 import { CLASSES } from '../core/classes.js';
 
 const water = WATER;
+// the ripples a river's flow holds still (Dolcetti, Horoshenkov, Krynkin & Tait 2016, "Frequency-wavenumber spectrum of
+// the free surface of shallow turbulent flows over a rough boundary", Phys. Fluids 28, doi:10.1063/1.4964926: a flowing
+// surface's pattern is its stationary waves): a wave of wavenumber k runs at c² = g/k + (γ/ρ)k, so one stands still on a
+// flow of speed U where c = U: k = (U² − √(U⁴ − 4gγ/ρ)) / (2γ/ρ) (its gravity root; ≈ g/U² on a fast flow), and none
+// where U is under the least c, (4gγ/ρ)^¼ (about 0.23 m/s). How much of it there is, the root's own discriminant over
+// U² (0 at that least speed, towards 1 above): how far the flow is past where no wave can stand
+const TG = WATER_SURFACE_TENSION / WATER_DENSITY, LEAST = (4 * GRAVITY * TG) ** 0.25, RIPPLE = recipe(water.floor.material);
 
 /** What a water surface reflects of light meeting it at cos θ = c from the air (Fresnel's equations, unpolarized; n its
     index of refraction): numbers in JS, nodes in node code. */
@@ -123,23 +132,29 @@ export function waterMaterials(tex) {
   const wp = gridPoint();
   const I = riverInfo(wp);   // (signed distance, half-width, bank side)
   const world = vec3(wp.x, baseB(wp).sub(WATER_DROP_N), wp.y);
-  const vWorld = varying(world), vI = varying(I), vG = varying(riverRaw(wp).yz), vLake = varying(lakeAt(wp));   // (in a lake the water stands)   // the river's field's gradient: the flow is along it, turned a quarter
+  const vWorld = varying(world), vI = varying(I), vLake = varying(lakeAt(wp));   // (in a lake the water stands)
 
   const frag = (gives) => Fn(() => {
     const d = abs(vI.x), w = vI.y, b = vI.z;
     If(d.greaterThan(w.mul(1.5)), () => { Discard(); });
     const p = vWorld.xz;
     const depth = max(riverCarve(d, w, b).sub(riverBank(d, w, b)).sub(WATER_DROP_N), 0).toVar();   // (metres of water over its bed)
-    const fl = normalize(vec2(vG.y.negate(), vG.x).add(1e-9));
     const mid = clamp(float(1).sub(d.div(w)), 0, 1), speed = sqrt(mid).mul(0.9).add(0.25).mul(float(1).sub(vLake.mul(0.92)));   // (a lake's water stands: only the wind moves it)
     const t = U.uTime.mul(0.3), f1 = fract(t), f2 = fract(t.add(0.5)), wb = abs(f1.mul(2).sub(1));
-    // the surface runs with the river, and the wind drags it its own way: the harder it blows, the more its ripples go with the wind
-    const drift = fl.mul(speed).add(windDir.mul(windStrength.mul(0.9)));
-    const o1 = drift.mul(f1.sub(0.5)).mul(3.3), o2 = drift.mul(f2.sub(0.5)).mul(3.3);
+    const ripples = (uv, o) => tex.n(water.floor.material, uv).xy.add(tex.n(water.floor.material, uv.mul(3.1).add(o)).xy).sub(1);
+    // the flow's own ripples, still over the bed (stationary waves: above): the ripples' coarsest cell at their wavelength,
+    // read at the two whole octaves of the material's tile round it, by how far between (a scale that changes across the
+    // river stretches nothing), as much as the flow is past the least speed a wave runs at
+    const U2 = speed.mul(speed), disc = sqrt(max(U2.mul(U2).sub(4 * GRAVITY * TG), 0)), kf = U2.sub(disc).div(2 * TG).max(1e-3), stands = disc.div(U2.max(1e-6));
+    const oct = log2(float(2 * Math.PI * RIPPLE.cells).div(kf)), o0 = floor(oct), of = oct.sub(o0), tile0 = exp2(o0);
+    const flow = mix(ripples(p.div(tile0), 0.2), ripples(p.div(tile0.mul(2)).add(0.37), 0.4), of).mul(step(LEAST, speed)).mul(stands);
+    // and the wind's, which it drags its own way: the harder it blows, the more they go with it
+    const drift = windDir.mul(windStrength.mul(0.9)), o1 = drift.mul(f1.sub(0.5)).mul(3.3), o2 = drift.mul(f2.sub(0.5)).mul(3.3);
     const uA = p.sub(o1).div(water.floor.tile), uB = p.sub(o2).div(water.floor.tile).add(0.43);
-    const nA = tex.n(water.floor.material, uA).xy.add(tex.n(water.floor.material, uA.mul(3.1).add(0.2)).xy).sub(1), nB = tex.n(water.floor.material, uB).xy.add(tex.n(water.floor.material, uB.mul(3.1).add(0.6)).xy).sub(1);
-    const nn = mix(nA, nB, wb), rough = mid.mul(0.3).add(0.16).add(windStrength.mul(windStrength).mul(0.55));   // the wind roughens it: a storm breaks the reflections up
-    const n = normalize(vec3(nn.x.mul(rough), 1, nn.y.mul(rough))).toVar();
+    const wind = mix(ripples(uA, 0.2), ripples(uB, 0.6), wb);
+    // (how steep each is: the flow's and the wind's, by hand still: no measure of a deep river's own ripples to hand)
+    const nn = flow.mul(mid.mul(0.3).add(0.16)).add(wind.mul(windStrength.mul(windStrength).mul(0.55)));   // the wind roughens it: a storm breaks the reflections up
+    const n = normalize(vec3(nn.x, 1, nn.y)).toVar();
     const V = normalize(U.uCam.sub(vWorld)).toVar(), up = vec3(0, 1, 0);
 
     // ---- at the surface: what it reflects (Fresnel's, from water's index of refraction) ----

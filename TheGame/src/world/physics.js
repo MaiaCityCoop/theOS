@@ -56,3 +56,18 @@ export const WATER_RED_ABSORPTION = 0.34;
     (src/terrain/water.js). unit: none. source: Morel & Prieur 1977, "Analysis of variations in ocean color", Limnology
     and Oceanography 22(4): f = 0.33 (after Gordon, Brown & Jacobs 1975), for the sun not low. */
 export const WATER_REFLECTANCE_F = 0.33;
+
+/** How fast a body falls, more each second, at the Earth's surface: the standard acceleration of gravity. What waves
+    on water run by (src/terrain/water.js: the ripples a river's flow holds still). unit: m/s². source: 3rd General
+    Conference on Weights and Measures (CGPM), 1901: 9.80665. */
+export const GRAVITY = 9.80665;
+
+/** How hard water's surface pulls together: its surface tension at 20 °C. The shortest ripples run by it rather than by
+    gravity, and no wave on water runs slower than a speed it and gravity give (src/terrain/water.js). unit: N/m.
+    source: Vargaftik, Volkov & Voljak 1983, "International tables of the surface tension of water", J. Phys. Chem.
+    Ref. Data 12(3): 72.75 mN/m at 20 °C. */
+export const WATER_SURFACE_TENSION = 0.07275;
+
+/** How heavy water is: its density at 20 °C. unit: kg/m³. source: Tanaka et al. 2001, "Recommended table for the density
+    of water between 0 °C and 40 °C based on recent experimental reports", Metrologia 38(4): 998.207 kg/m³ at 20 °C. */
+export const WATER_DENSITY = 998.207;
