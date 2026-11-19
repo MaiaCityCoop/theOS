@@ -1,0 +1,329 @@
+//! The interface, drawn by Bevy in theOS's look (brand/brand.css: Meadow): the dashboard with its two tiles, the
+//! Game's few words, and the Studio's shot strip.
+
+use crate::View;
+use crate::film::Studio;
+use crate::world::Eye;
+use bevy::prelude::*;
+use bevy::picking::events::{PointerClick, PointerDrag, PointerPress};
+use bevy::picking::hover::Hovered;
+use bevy::ui::UiGlobalTransform;
+
+// brand/brand.css, :root
+const PAPER: Color = Color::srgb(0.969, 0.941, 0.890); // --paper #f7f0e3
+const CREAM: Color = Color::srgb(0.984, 0.965, 0.918); // --cream #fbf6ea
+const SAND: Color = Color::srgb(0.925, 0.882, 0.800); // --sand #ece1cc
+const FOREST: Color = Color::srgb(0.090, 0.212, 0.333); // --forest #173655
+const FOREST2: Color = Color::srgb(0.275, 0.349, 0.431); // --forest2 #46596e
+const CLAY: Color = Color::srgb(0.310, 0.616, 0.204); // --clay #4f9d34
+const SUN: Color = Color::srgb(0.949, 0.710, 0.267); // --sun #f2b544
+const GLASS: Color = Color::srgba(0.984, 0.965, 0.918, 0.82);
+
+#[derive(Resource)]
+struct Fonts {
+    serif: Handle<Font>,
+    sans: Handle<Font>,
+    mono: Handle<Font>,
+}
+
+#[derive(Component, Clone, Copy)]
+enum Act {
+    Open(View),
+    Home,
+    PlayPause,
+    NewShots,
+}
+
+#[derive(Component)]
+struct Strip;
+#[derive(Component)]
+struct Playhead;
+#[derive(Component)]
+struct Clock;
+#[derive(Component)]
+struct PlayLabel;
+
+pub fn plugin(app: &mut App) {
+    app.init_resource::<Fonts>()
+        .add_systems(OnEnter(View::Home), home)
+        .add_systems(OnEnter(View::Game), game)
+        .add_systems(OnEnter(View::Studio), studio)
+        .add_observer(press)
+        .add_observer(scrub_press)
+        .add_observer(scrub_drag)
+        .add_systems(Update, (hover, escape, (strip_follows, playhead).run_if(in_state(View::Studio))));
+}
+
+impl FromWorld for Fonts {
+    fn from_world(world: &mut World) -> Self {
+        let assets = world.resource::<AssetServer>();
+        Fonts {
+            serif: assets.load("fonts/DMSerifDisplay-Regular.ttf"),
+            sans: assets.load("fonts/DMSans-Variable.ttf"),
+            mono: assets.load("fonts/DMMono-Regular.ttf"),
+        }
+    }
+}
+
+fn text(font: &Handle<Font>, size: f32, color: Color, words: impl Into<String>) -> impl Bundle {
+    (Text::new(words), TextFont { font: font.clone().into(), font_size: FontSize::Px(size), ..default() }, TextColor(color))
+}
+
+fn pill(f: &Fonts, act: Act, words: &'static str, dark: bool) -> impl Bundle {
+    let (bg, fg) = if dark { (FOREST, CREAM) } else { (CREAM, FOREST) };
+    (
+        Hovered::default(),
+        act,
+        Node {
+            height: Val::Px(40.0),
+            padding: UiRect::horizontal(Val::Px(18.0)),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            border_radius: BorderRadius::MAX,
+            ..default()
+        },
+        BackgroundColor(bg),
+        children![text(&f.sans, 15.0, fg, words)],
+    )
+}
+
+fn eye_on(cams: &mut Query<&mut Camera, With<Eye>>, on: bool) {
+    for mut c in cams.iter_mut() {
+        c.is_active = on;
+    }
+}
+
+// ---- the dashboard: a welcome line and two tiles ----
+
+fn home(mut commands: Commands, f: Res<Fonts>, mut cams: Query<&mut Camera, With<Eye>>) {
+    eye_on(&mut cams, false);
+    let tile = |act: Act, dark: bool, label: &'static str, title: &'static str, words: &'static str, grow: f32| {
+        let (bg, fg) = if dark { (FOREST, CREAM) } else { (CREAM, FOREST) };
+        (
+            Hovered::default(),
+            act,
+            Node {
+                flex_grow: grow,
+                flex_basis: Val::Px(0.0),
+                min_height: Val::Px(420.0),
+                padding: UiRect::all(Val::Px(30.0)),
+                flex_direction: FlexDirection::Column,
+                border_radius: BorderRadius::all(Val::Px(32.0)),
+                ..default()
+            },
+            BackgroundColor(bg),
+            BoxShadow::new(Color::srgba(0.09, 0.21, 0.33, 0.10), Val::Px(0.0), Val::Px(10.0), Val::Px(0.0), Val::Px(28.0)),
+            children![
+                text(&f.mono, 13.0, if dark { SUN } else { CLAY }, label),
+                (text(&f.serif, 46.0, fg, title), Node { margin: UiRect::vertical(Val::Px(12.0)), ..default() }),
+                text(&f.sans, 18.0, fg, words),
+            ],
+        )
+    };
+    commands.spawn((
+        DespawnOnExit(View::Home),
+        Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            flex_direction: FlexDirection::Column,
+            padding: UiRect::all(Val::Px(36.0)),
+            row_gap: Val::Px(20.0),
+            ..default()
+        },
+        BackgroundColor(PAPER),
+        children![
+            (
+                Node {
+                    padding: UiRect::axes(Val::Px(28.0), Val::Px(20.0)),
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(18.0),
+                    border_radius: BorderRadius::all(Val::Px(32.0)),
+                    ..default()
+                },
+                BackgroundColor(CREAM),
+                children![
+                    text(&f.serif, 34.0, FOREST, "NativeGame"),
+                    (text(&f.sans, 17.0, FOREST2, "Day one, auf der grünen Wiese: a green plain, and a camera to film it."), Node { margin: UiRect::left(Val::Auto), ..default() }),
+                ],
+            ),
+            (
+                Node { column_gap: Val::Px(20.0), flex_grow: 1.0, ..default() },
+                children![
+                    tile(Act::Open(View::Game), true, "A · GAME", "Game", "Walk the green plain. W A S D, the mouse held to look, Shift to run.", 2.0),
+                    tile(Act::Open(View::Studio), false, "B · STUDIO", "Studio", "Five shots, played live through the world by the virtual camera.", 1.0),
+                ],
+            ),
+        ],
+    ));
+}
+
+// ---- the Game: the world, and a line of help ----
+
+fn game(mut commands: Commands, f: Res<Fonts>, mut cams: Query<&mut Camera, With<Eye>>) {
+    eye_on(&mut cams, true);
+    commands.spawn((
+        DespawnOnExit(View::Game),
+        Node { position_type: PositionType::Absolute, top: Val::Px(20.0), left: Val::Px(20.0), right: Val::Px(20.0), column_gap: Val::Px(12.0), align_items: AlignItems::Center, ..default() },
+        children![
+            pill(&f, Act::Home, "Home", false),
+            (
+                Node { height: Val::Px(40.0), padding: UiRect::horizontal(Val::Px(18.0)), align_items: AlignItems::Center, border_radius: BorderRadius::MAX, ..default() },
+                BackgroundColor(GLASS),
+                children![text(&f.mono, 13.0, FOREST, "W A S D walk · hold the mouse to look · Shift runs · E Q rise and sink · Esc home")],
+            ),
+        ],
+    ));
+}
+
+// ---- the Studio: the world through the virtual camera, the shots as a strip under it ----
+
+fn studio(mut commands: Commands, f: Res<Fonts>, s: Res<Studio>, mut cams: Query<&mut Camera, With<Eye>>) {
+    eye_on(&mut cams, true);
+    commands
+        .spawn((
+            DespawnOnExit(View::Studio),
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(20.0),
+                right: Val::Px(20.0),
+                bottom: Val::Px(20.0),
+                padding: UiRect::all(Val::Px(14.0)),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(12.0),
+                border_radius: BorderRadius::all(Val::Px(28.0)),
+                ..default()
+            },
+            BackgroundColor(GLASS),
+        ))
+        .with_children(|p| {
+            p.spawn(Node { column_gap: Val::Px(10.0), align_items: AlignItems::Center, ..default() }).with_children(|row| {
+                row.spawn(pill(&f, Act::Home, "Home", false));
+                row.spawn((
+                    Hovered::default(),
+                    Act::PlayPause,
+                    Node {
+                        height: Val::Px(40.0),
+                        width: Val::Px(92.0),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        border_radius: BorderRadius::MAX,
+                        ..default()
+                    },
+                    BackgroundColor(FOREST),
+                    children![(PlayLabel, text(&f.sans, 15.0, CREAM, "Play"))],
+                ));
+                row.spawn((Clock, text(&f.mono, 15.0, FOREST, "0.0 s")));
+                row.spawn((text(&f.serif, 22.0, FOREST, s.timeline.title.clone()), Node { margin: UiRect::left(Val::Px(8.0)), ..default() }));
+                row.spawn((Node { margin: UiRect::left(Val::Auto), ..default() },)).with_children(|r| {
+                    r.spawn(pill(&f, Act::NewShots, "Five new shots", false));
+                });
+            });
+            p.spawn((
+                Strip,
+                Node { height: Val::Px(86.0), column_gap: Val::Px(4.0), ..default() },
+            ));
+        });
+}
+
+/// The strip shows the shot list it is given: one card per shot, as wide as the shot is long, and the playhead.
+fn strip_follows(mut commands: Commands, f: Res<Fonts>, s: Res<Studio>, strip: Query<Entity, With<Strip>>, mut shown: Local<Option<String>>) {
+    let Ok(strip) = strip.single() else { return };
+    if shown.as_deref() == Some(s.timeline.title.as_str()) {
+        return;
+    }
+    *shown = Some(s.timeline.title.clone());
+    commands.entity(strip).despawn_children();
+    let total = s.duration().max(1e-3);
+    commands.entity(strip).with_children(|p| {
+        for c in &s.timeline.clips {
+            let mm = c.keys.first().map_or(35.0, |k| k.mm);
+            p.spawn((
+                Node {
+                    width: Val::Percent(c.secs / total * 100.0),
+                    padding: UiRect::all(Val::Px(10.0)),
+                    flex_direction: FlexDirection::Column,
+                    overflow: Overflow::clip(),
+                    border_radius: BorderRadius::all(Val::Px(16.0)),
+                    ..default()
+                },
+                BackgroundColor(SAND),
+                Pickable::IGNORE,
+                children![
+                    (text(&f.sans, 15.0, FOREST, c.name.clone()), Pickable::IGNORE),
+                    (text(&f.mono, 12.0, FOREST2, format!("{} · {:.0} mm · {:.1} s", c.kind, mm, c.secs)), Pickable::IGNORE),
+                ],
+            ));
+        }
+        p.spawn((
+            Playhead,
+            Pickable::IGNORE,
+            Node { position_type: PositionType::Absolute, top: Val::Px(-4.0), bottom: Val::Px(-4.0), width: Val::Px(3.0), border_radius: BorderRadius::MAX, ..default() },
+            BackgroundColor(SUN),
+        ));
+    });
+}
+
+fn playhead(
+    s: Res<Studio>,
+    mut head: Query<&mut Node, With<Playhead>>,
+    mut clock: Query<&mut Text, (With<Clock>, Without<PlayLabel>)>,
+    mut label: Query<&mut Text, (With<PlayLabel>, Without<Clock>)>,
+) {
+    let total = s.duration().max(1e-3);
+    for mut n in &mut head {
+        n.left = Val::Percent((s.time / total * 100.0).clamp(0.0, 100.0));
+    }
+    for mut t in &mut clock {
+        t.0 = format!("{:.1} / {:.1} s", s.time, total);
+    }
+    for mut t in &mut label {
+        let words = if s.playing { "Pause" } else { "Play" };
+        if t.0 != words {
+            t.0 = words.into();
+        }
+    }
+}
+
+/// Click or drag on the strip: the playhead goes where the pointer is.
+fn scrub_press(ev: On<PointerPress>, strip: Query<(&ComputedNode, &UiGlobalTransform), With<Strip>>, s: ResMut<Studio>) {
+    seek(ev.entity, ev.pointer.position.x, &strip, s);
+}
+fn scrub_drag(ev: On<PointerDrag>, strip: Query<(&ComputedNode, &UiGlobalTransform), With<Strip>>, s: ResMut<Studio>) {
+    seek(ev.entity, ev.pointer.position.x, &strip, s);
+}
+fn seek(e: Entity, x: f32, strip: &Query<(&ComputedNode, &UiGlobalTransform), With<Strip>>, mut s: ResMut<Studio>) {
+    let Ok((node, at)) = strip.get(e) else { return };
+    let (centre, width) = (at.translation.x * node.inverse_scale_factor, node.size.x * node.inverse_scale_factor);
+    s.time = ((x - (centre - width / 2.0)) / width.max(1.0)).clamp(0.0, 1.0) * s.duration();
+}
+
+fn press(mut click: On<PointerClick>, acts: Query<&Act>, mut next: ResMut<NextState<View>>, mut s: ResMut<Studio>) {
+    let Ok(act) = acts.get(click.entity) else { return };
+    click.propagate(false);
+    match *act {
+        Act::Open(v) => next.set(v),
+        Act::Home => next.set(View::Home),
+        Act::NewShots => s.new_shots(),
+        Act::PlayPause => {
+            if s.time >= s.duration() {
+                s.time = 0.0;
+            }
+            s.playing = !s.playing;
+        }
+    }
+}
+
+/// The buttons whose hover changed this frame.
+type HoverChanged = (Changed<Hovered>, With<Act>);
+
+fn hover(mut q: Query<(&Hovered, &mut Node), HoverChanged>) {
+    for (h, mut n) in &mut q {
+        n.top = if h.get() { Val::Px(-2.0) } else { Val::Px(0.0) };
+    }
+}
+
+fn escape(keys: Res<ButtonInput<KeyCode>>, state: Res<State<View>>, mut next: ResMut<NextState<View>>) {
+    if keys.just_pressed(KeyCode::Escape) && *state.get() != View::Home {
+        next.set(View::Home);
+    }
+}
