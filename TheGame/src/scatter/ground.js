@@ -31,6 +31,7 @@ import { GONE } from '../detail/error.js';
 import { most } from '../../assets/kinds.js';
 import { ringsOf, bandsOf } from './grass.js';
 import { BLOCK } from './regions.js';
+import { SLOT } from '../terrain/pages.js';
 
 const N = 512;   // texels a side of every level; level 0's texel is 0.5 m to the 68° lens and grows with a longer one, so it always covers what reads it
 /** How far round the camera level 0 surely reaches, metres as the 68° lens sees them: half its side, less the 32 texels
@@ -155,8 +156,12 @@ export function createGround(renderer, tex) {
   }
   // ---- the blocks a frame draws: held to what the GPU does in the ground's share of a frame (behind the veil, till the
   // first view is shown, the whole frame's), by each piece's own time on the GPU (src/core/pace.js); and a piece never
-  // more blocks than one submission may take (SUBMIT_MS) at what a block cost last. From one block a frame ----
-  const PACE = pace(), per = { ms: 0 };   // (per: what a block cost the GPU, ms, as its last piece was measured)
+  // more blocks than one submission may take (SUBMIT_MS) at what a block cost last. Never fewer than a page of the land's
+  // a frame (SLOT², as many texels as the pieces before were, two of them a frame): a piece's time is when the GPU's
+  // done is heard, on the page's thread, which a busy frame holds back (2026-11-19, WebKit: pairs of 231 and 0 ms,
+  // 461 and 0, where the piece's own code is a few thousand operations a texel, tools/groundcount.js). Held to one block
+  // a frame by that, a window took more than a minute ----
+  const LEAST = (SLOT / BLOCK) ** 2, PACE = pace(LEAST), per = { ms: 0 };   // (per: what a block cost the GPU, ms, as its last piece was measured)
   let veiled = true; ready.then(() => { veiled = false; });
   const timed = (n, draw) => ownGpuMs(renderer, draw)?.then((ms) => { per.ms = ms / n; PACE.measured(n, ms, veiled ? FRAME_MS : FRAME_MS_BY_CLASS.ground); }).catch(() => {});
   // this frame's pieces: the first job's next blocks, a piece a submission, as many as the frame's pace leaves
@@ -165,7 +170,7 @@ export function createGround(renderer, tex) {
     const before = renderer.getRenderTarget(), ac = renderer.autoClear;
     renderer.autoClear = false;   // (the pieces drawn before kept)
     while (PACE.left > 0 && jobs.length) {
-      const J = jobs[0], bx = J.t % K, by = Math.floor(J.t / K), cap = per.ms > 0 ? Math.max(1, Math.floor(SUBMIT_MS / per.ms)) : PACE.left, n0 = Math.min(PACE.left, cap);
+      const J = jobs[0], bx = J.t % K, by = Math.floor(J.t / K), cap = per.ms > 0 ? Math.max(LEAST, Math.floor(SUBMIT_MS / per.ms)) : PACE.left, n0 = Math.min(PACE.left, cap);
       const [w, h] = bx === 0 && n0 >= K ? [K, Math.min(Math.floor(n0 / K), K - by)] : [Math.min(n0, K - bx), 1], n = w * h;
       G.o.value.set(J.ox, J.oz); G.texel.value = J.texel; G.base.value = J.base;
       stage.viewport.set(0, 0, N, N); stage.scissor.set(bx * BLOCK, by * BLOCK, w * BLOCK, h * BLOCK);   // (the whole window's mapping, its piece's pixels only)
