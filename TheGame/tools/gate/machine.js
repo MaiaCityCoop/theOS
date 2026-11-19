@@ -17,11 +17,11 @@ import { promisify } from 'node:util';
 import { GPU_MB } from '../../src/core/budget.js';
 import { SHARED } from '../gpu/lock.js';
 
-const MB = 1048576, KEPT = join(SHARED, '.gate-machine.json'), exec = promisify(execFile);
+const KEPT = join(SHARED, '.gate-machine.json'), exec = promisify(execFile);
 const read = (cmd, args) => { try { return execFileSync(cmd, args, { encoding: 'utf8' }); } catch { return ''; } };
 /** The machine now: { total and free (MB), share (free, of its memory), swap (MB in use) }. */
 function machine() {
-  const total = +read('sysctl', ['-n', 'hw.memsize']) / MB, share = +(read('memory_pressure', []).match(/free percentage:\s*(\d+)%/)?.[1] ?? NaN) / 100;
+  const total = +read('sysctl', ['-n', 'hw.memsize']) / 1048576, share = +(read('memory_pressure', []).match(/free percentage:\s*(\d+)%/)?.[1] ?? NaN) / 100;
   return { total: Math.round(total), share, free: Math.round(total * share), swap: Math.round(+(read('sysctl', ['-n', 'vm.swapusage']).match(/used\s*=\s*([\d.]+)M/)?.[1] ?? NaN)) };
 }
 
@@ -70,7 +70,7 @@ function sampled() {
     try {
       const rows = await processes(), ours = new Map([...withChildren(rows, (p) => p.ppid === process.pid), ...withChildren(rows, WEBKIT)]), H = await heldBy(ours), by = {};
       for (const p of ours.values()) { const k = WEBKIT(p) ? 'WebKit' : CHROME(p) ? 'Chrome' : null; if (k) by[k] = (by[k] ?? 0) + H.of(p); }   // (the browsers alone: not the gate's other helpers)
-      for (const [k, b] of Object.entries(by)) most[k] = Math.max(most[k] ?? 0, Math.round(b / MB));
+      for (const [k, b] of Object.entries(by)) most[k] = Math.max(most[k] ?? 0, Math.round(b / 1048576));
     } finally { busy = false; }
   };
   const timer = setInterval(() => look().catch(() => {}), 1000);
