@@ -120,7 +120,7 @@ impl Biome {
                 layer("damp", [0.045, 0.060, 0.025], 0.7, 3.0, 0.62, 0.20, 0.4),
                 // sandy, earthy patches where no grass grows: open ground of sand and loam, with cracks and pebbles
                 // (the grass's `bare` reads this same noise)
-                Layer { grass: false, ..layer("sandy earth", [0.16, 0.125, 0.085], 1.0, 16.0, 0.74, 0.06, 1.0) },
+                Layer { grass: false, ..layer("sandy earth", [0.13, 0.10, 0.068], 1.0, 16.0, 0.74, 0.06, 1.0) },
             ],
             relief: 0.6,
             mottle: 0.35,

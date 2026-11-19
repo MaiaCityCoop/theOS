@@ -117,6 +117,12 @@ pictures looked at by Samuel; the navigation self-test, `cargo run -- --navtest`
   on blades a few pixels thin its history pulled in the sky of the frame before. The Meadow uses SMAA now.
   (Two earlier fixes, the depth prepass and the normals, were real but not the cause.)
 
+- **The grass carpet** (after SmartImposter's lawn, made procedural): beyond the real blades the ground shader
+  treats the sward as a slab of grass. A ray's horizontal path through it decides by Beer-Lambert how often it is
+  stopped by a blade and at what height (grazing: near the tips, light and dense; steep: among the dark roots);
+  the blades are found at that height (parallax), as blade-wide streaks along the view, never finer than two pixels.
+  No baking and no texture: it is computed per pixel from the same numbers as the blades.
+
 ### How the scene evolved
 
 The story of the Meadow, stage by stage, for the devlog. Every stage is a commit on `aven/0047-meadow`; checked out

@@ -88,7 +88,7 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
         var lift = 0.0; // this pixel's small height, for its shade and its relief
         if (bare > 0.01 && near > 0.0) {
             // damp and dry: the soil darkens in soft-edged patches where it holds water
-            let damp = smoothstep(0.52, 0.6, tnoise(p, 2.2, 80u));
+            let damp = smoothstep(0.45, 0.65, tnoise(p, 2.2, 80u));
             colour = mix(colour, colour * vec3<f32>(0.62, 0.6, 0.58), damp * bare);
             // dry soil cracks into plates a hand across: dark, narrow edges where the cells meet
             let warp = vec2<f32>(tnoise(p, 0.09, 82u), tnoise(p, 0.09, 83u)) - 0.5;
@@ -120,13 +120,43 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
         let fine = clamp(0.1 / px - 0.5, 0.0, 1.0);
         let m = (tnoise(p, 0.17, 90u) - 0.5) + 0.5 * (tnoise(p, 0.045, 91u) - 0.5) * clamp(0.03 / px - 0.5, 0.0, 1.0);
         colour = colour * (1.0 + biome.micro.y * m * 1.6 * fine);
-        // from afar, a sward is countless blade tips: fine streaks lighter and darker, stretched along the view, so
-        // the carpet beyond the blades reads as grass and not as paint
-        // the view's direction along the ground: how the ground position changes from one pixel row to the next
-        let along = normalize(dpdy(p) + vec2<f32>(1e-6, 0.0));
-        let across = vec2<f32>(-along.y, along.x);
-        let streak = tnoise(vec2<f32>(dot(p, across) * 9.0, dot(p, along) * 0.8), 1.0, 95u) - 0.5;
-        colour = colour * (1.0 + 0.5 * streak * (1.0 - bare) * (1.0 - fine * 0.7));
+        // ---- the grass carpet: the sward beyond the blades, as a slab of grass, not paint ----
+        // A ray into a sward crosses blades until one stops it. Seen steeply it reaches far down, among the dark
+        // roots and the ground between; seen at a grazing angle it is stopped near the tips, light and dense. That
+        // is the Beer-Lambert law over the ray's horizontal path through the slab. The blades it meets are found at
+        // the height where it is stopped (parallax): blade-wide streaks along the view, shifted as the eye moves.
+        let carpet = smoothstep(0.004, 0.012, px) * (1.0 - bare); // where the real blades have thinned out
+        if (carpet > 0.0) {
+            let V = pbr_input.V;
+            let slope = max(V.y, 0.03); // the view's steepness: sin of its elevation
+            let H = 0.3; // the sward's mean height
+            let sigma = 2.5; // blades a ray meets per metre of horizontal path (625 a m², 4 mm wide)
+            let run = H * length(V.xz) / slope; // horizontal path through the slab
+            let cover = 1.0 - exp(-sigma * run); // share of rays stopped by a blade, not the ground
+            // the mean height a stopped ray hits, as a share of H: near the tips when grazing
+            let x = sigma * run;
+            let hit = clamp(1.0 - (1.0 - exp(-x)) / max(x, 1e-3) * 0.5 - 0.5 * exp(-x), 0.0, 1.0);
+            // where that point lies on the ground plane: back along the view by its height
+            let q = p + V.xz / slope * (hit * H);
+            // blade-wide streaks there: narrow across the view, long along it; never finer than two pixels
+            let along = normalize(V.xz + vec2<f32>(1e-5, 0.0));
+            let across = vec2<f32>(-along.y, along.x);
+            let w = max(0.012, px * 2.0);
+            // two value noises at an angle to each other, averaged: one alone shows its square cells as diamonds
+            let u = vec2<f32>(dot(q, across) / w, dot(q, along) / (w * 6.0));
+            let blade = 0.5 * (tnoise(u, 1.0, 96u) + tnoise(vec2<f32>(u.x * 0.8 + u.y * 0.6, u.y * 0.8 - u.x * 0.6) * 1.3, 1.0, 98u));
+            let tuft = tnoise(q, 0.6, 97u); // clumps, a little higher and greener
+            // the blade's colour at the height it was struck: dark roots, light yellow-green tips
+            let green = biome.colours[0].rgb;
+            let tip = green * vec3<f32>(1.55, 1.5, 1.1) * (0.85 + 0.35 * tuft);
+            let root = green * 0.35;
+            let struck = mix(root, tip, clamp(hit + 0.35 * (blade - 0.5), 0.0, 1.0));
+            // between the blades: the ground in their shade
+            let under = colour * 0.55;
+            let lawn = mix(under, struck, cover) * (0.9 + 0.25 * (blade - 0.5));
+            colour = mix(colour, lawn, carpet);
+            rough = mix(rough, 0.75, carpet);
+        }
         pbr_input.material.base_color = vec4<f32>(colour, 1.0);
         pbr_input.material.perceptual_roughness = rough;
         // a sward catches the low sun as a soft sheen (a field of blade tips); bare soil does not
