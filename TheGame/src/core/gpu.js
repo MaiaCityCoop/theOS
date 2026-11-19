@@ -33,6 +33,23 @@ if (Object.values(BUDGET_MB).reduce((s, b) => s + b, 0) !== GPU_MB) throw new Er
     same name: replaced (nought: let go). owns: what it is (three's textures and targets): each named by it, its class
     and its name, as the device's own record and the ledger then call what is made of it (own). */
 export const note = (name, gpu = 0, page = 0, cls = 'other', ...owns) => { HELD.set(name, { gpu, page, cls }); held(cls, name); own(cls, name, owns); };
+/** What a pool is (note's), then made on the GPU at once: its owner named first, so what the device makes of it is its
+    owner's class's from its first byte (ownedMade; 2026-11-19, the land's pages made before they were named took 'other'
+    past its budget in WebKit). The one way the game makes on the GPU what a pool owns before it is drawn (tools/lint.js:
+    no initTexture or initRenderTarget elsewhere): a target (or a target's own picture: its target) by initRenderTarget,
+    a texture by initTexture; a compressed one, sent empty to be filled on the GPU, keeps nothing of its data on the page
+    once made. */
+export function makeOwned(renderer, name, gpu, page, cls, ...owns) {
+  note(name, gpu, page, cls, ...owns);
+  const seen = new Set();   // (each made once: a target named by its pictures too, a texture named twice)
+  for (const o of owns.flat()) {
+    const x = o?.renderTarget ?? o;
+    if (!x || seen.has(x)) continue;
+    seen.add(x);
+    if (x.isRenderTarget) renderer.initRenderTarget(x);
+    else if (x.isTexture) { renderer.initTexture(x); if (x.isCompressedTexture) for (const m of x.mipmaps) m.data = new Uint8Array(0); }
+  }
+}
 /** The same, added to what the name holds already (many small buffers under one name). */
 export const more = (name, gpu = 0, page = 0, cls = 'other', ...owns) => { const h = HELD.get(name) ?? { gpu: 0, page: 0, cls }; h.gpu += gpu; h.page += page; HELD.set(name, h); held(h.cls, name); own(h.cls, name, owns); };
 /** What a class's pools hold on the GPU now, bytes. */
@@ -190,11 +207,13 @@ let R = null;
     did not ask): gpuStorage makes an ordinary buffer, kept twice. */
 export const useGPU = (renderer) => { R = renderer?.backend?.device ? renderer : null; if (R) { countMade(R.backend.device); ownedMade(R.backend); } timesOn(R?.backend.device); };
 /** What three makes of a texture a pool owns (own), called and counted as its owner's, when it makes it (again: a target
-    made larger). */
+    made larger): made as its owner's class's (asClass), so its bytes are its owner's from the first (the tally and the
+    budget's check never see a pool's make as another class's: 2026-11-19, the land's pages, made before they were
+    owned, took 'other' past its 192 MB in WebKit, src/terrain/pages.js). One rule for every pool: own it, then make it. */
 const ownedMade = (backend) => {
   const U2 = backend.textureUtils; if (!U2 || U2.__owned) return; U2.__owned = true;
   const make = U2.createTexture;
-  U2.createTexture = function (texture, options) { const r = make.call(this, texture, options), o = OWNS.get(texture), g = o && backend.get(texture)?.texture; if (g) relabel(g, o.label, o.cls); return r; };
+  U2.createTexture = function (texture, options) { const o = OWNS.get(texture), r = o ? asClass(o.cls, () => make.call(this, texture, options)) : make.call(this, texture, options), g = o && backend.get(texture)?.texture; if (g) relabel(g, o.label, o.cls); return r; };
 };
 export const lean = () => !!R;
 /** Whether the renderer's GPU has a WebGPU feature (none without WebGPU). */

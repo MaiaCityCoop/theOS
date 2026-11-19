@@ -22,6 +22,9 @@ import { basename, dirname, join, resolve } from 'node:path';
 const common = spawnSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: import.meta.dirname, encoding: 'utf8' }).stdout.trim();
 const DIR = resolve(process.env.GPU_LOCK_DIR || dirname(dirname(common))), LOCK = join(DIR, '.gate-lock'), HOLDER = join(LOCK, 'holder.json'), QUEUE = join(DIR, '.gate-queue.d');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** Where the lock and its queue stand: the folder every worktree of this machine shares (tools/gate/machine.js keeps the
+    game's footprint here). */
+export const SHARED = DIR;
 
 /** When a process started ('' where it is gone): with its pid, what tells it from a later one given the same pid. */
 const startOf = (pid) => spawnSync('ps', ['-o', 'lstart=', '-p', String(pid)], { encoding: 'utf8' }).stdout?.trim() ?? '';

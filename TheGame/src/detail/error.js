@@ -5,8 +5,8 @@
 // sprigs, its clumps, its impostor, a cluster's parent, a ring of blades bent in fewer pieces, last of all nothing),
 // and each rung carries its error in object space: the farthest any of it lies from where the thing is, in metres,
 // measured on the thing itself. Nothing that builds a rung knows a pixel. Pixels exist only at runtime, and there is
-// one definition of them: the pixels drawn (the inside's, at the governor's ratio of the screen's: src/core/screen.js),
-// through the walker's 68° lens. One rule decides every switch of detail, at runtime:
+// one definition of them: the output's (the canvas's rows, src/core/output.js, whatever the governor draws inside:
+// src/core/screen.js), through the walker's 68° lens. One rule decides every switch of detail, at runtime:
 //
 //     e · pxK() / dist  ≤  ERROR_PX()        on the GPU: e · U.uPxK / dist ≤ U.uErrorPx (measure.js)
 //
@@ -25,8 +25,8 @@ let DIAL = 1, K = NaN;   // (K: none until the page says: the workers never ask)
 /** The dial: the most pixels drawn by which a rung may differ from the thing at full detail. 1 at rest; the governor
     turns it (src/core/governor.js), through the measure (measure.js). */
 export const ERROR_PX = () => DIAL;
-/** The live pixel: pixels drawn a metre covers one metre from the eye, through the walker's 68° lens (the inside's height
-    in pixels, at the governor's ratio: measure.js keepMeasure). */
+/** The live pixel: the output's pixels a metre covers one metre from the eye, through the walker's 68° lens (the
+    canvas's height in pixels: measure.js keepMeasure, moved only a BAND at a time). */
 export const pxK = () => K;
 /** The page's numbers now, kept by the measure only (src/detail/measure.js): the live pixel and the dial. */
 export const keepNumbers = ({ k = K, dial = DIAL } = {}) => { K = k; DIAL = dial; };

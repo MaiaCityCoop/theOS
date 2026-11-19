@@ -9,7 +9,10 @@
 //     off: ?url, ?raw, ?worker) and the file a worker is started from (`new Worker(new URL('…', import.meta.url))`,
 //     a SharedWorker's alike). A `new URL` that names data (a file a tool writes as it runs) is not looked for;
 //   - a name imported, or exported again, that its module does not export: a file's exports read from its own code
-//     (`export * from` followed), a package's from the package itself, loaded.
+//     (`export * from` followed), a package's from the package itself, loaded;
+//   - a texture or a target made on the GPU (initTexture, initRenderTarget) anywhere in the game but src/core/gpu.js
+//     makeOwned, which names its pool first: one made before its owner is named is counted under another class as it is
+//     made (2026-11-19: the land's pages took 'other' past its budget in WebKit).
 //
 //   bun tools/lint.js [path…]     the game's folders and its tools (or the paths given): a line a problem, exit 1 if any
 import { readFileSync, existsSync, statSync } from 'node:fs';
@@ -26,6 +29,8 @@ const readonly = (names) => Object.fromEntries([...names].map((k) => [k, 'readon
 const PAGE = readonly(new Set([...declared('lib.dom.d.ts'), ...declared('lib.webworker.d.ts')])), BUN = { ...PAGE, ...readonly(Object.getOwnPropertyNames(globalThis)) };
 const LANG = (globals) => ({ ecmaVersion: 'latest', sourceType: 'module', globals });
 const WEBGPU = /^'GPU[A-Z]\w*' is not defined/;
+// (what a pool makes on the GPU, made by the one maker that names it first)
+const MAKER = 'src/core/gpu.js', MADE = { 'no-restricted-syntax': ['error', { selector: 'CallExpression[callee.property.name=/^init(Texture|RenderTarget)$/]', message: `made on the GPU before its owner is named: make it through ${MAKER} makeOwned(renderer, name, bytes, page, class, …what it owns)` }] };
 
 // ---- the files: as git sees them (tracked, or new and not ignored) ----
 const asked = process.argv.slice(2), git = spawnSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', ...(asked.length ? asked : [...CODE, ...TOOLS])], { cwd: GAME, encoding: 'utf8' });
@@ -46,7 +51,7 @@ for (const f of files) {
     ImportExpression: (n) => { if (n.source.type === 'Literal') take(n.source.value, [], n.loc.start.line); },
     NewExpression: (n) => { const u = (n.callee.name === 'Worker' || n.callee.name === 'SharedWorker') && n.arguments[0] && urlOf(n.arguments[0]); if (u) take(u, [], n.loc.start.line); },   // (the code a worker runs)
   }) };
-  const msgs = linter.verify(readFileSync(at, 'utf8'), { languageOptions: LANG(toolOf(f) ? BUN : PAGE), plugins: { lint: { rules: { imports: collect } } }, rules: { 'no-undef': 'error', 'lint/imports': 'error' } }, at);
+  const msgs = linter.verify(readFileSync(at, 'utf8'), { languageOptions: LANG(toolOf(f) ? BUN : PAGE), plugins: { lint: { rules: { imports: collect } } }, rules: { 'no-undef': 'error', 'lint/imports': 'error', ...(toolOf(f) || f === MAKER ? {} : MADE) } }, at);
   for (const m of msgs) if (!WEBGPU.test(m.message)) problems.push(`${f}:${m.line}: ${m.message}`);
 }
 
