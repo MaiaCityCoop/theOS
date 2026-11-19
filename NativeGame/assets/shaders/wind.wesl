@@ -124,7 +124,7 @@ fn blade(slot: vec3<f32>, side: f32, t: f32, w: Wind, time: f32, before: f32) ->
     let d = distance(p, w.eye.xz);
     let reach = REACH * s;
     var keep = 1.0 - smoothstep(0.7 * reach, reach, d);
-    if (level == 3u) {
+    if (level == 1u) {
         keep = 1.0 - smoothstep(0.45 * reach, reach, d);
     }
     if (level > 0u) {

@@ -66,7 +66,53 @@ struct Tile {
 
 /// The finest cell of the GPU grass and its levels (as in `wind.wesl`).
 const FINE: f32 = 0.04;
-const LEVELS: u32 = 4;
+const LEVELS: u32 = 2; // real blades to ~9 m; baked patches beyond (`patches.rs`)
+
+/// A tile of the baked patches: its level (cell 1 m × 2^level) and its place in the level's 4 × 4 tiles.
+#[derive(Component)]
+struct PatchTile {
+    level: u32,
+    a: u32,
+    b: u32,
+}
+
+fn lay_patches(state: Res<State<View>>, eye: Query<&GlobalTransform, With<Eye2>>, mut tiles: Query<(&PatchTile, &mut Transform, &mut Visibility)>) {
+    let Ok(eye) = eye.single() else { return };
+    let at = eye.translation();
+    let hide = at.y - crate::terrain::height(at.x, at.z) > HIGH || *state.get() == View::Library;
+    let n = crate::patches::TILE as f32;
+    for (tile, mut t, mut v) in &mut tiles {
+        let s = 2f32.powi(tile.level as i32);
+        let (ox, oz) = ((at.x / s).floor() * s - 2.0 * n * s, (at.z / s).floor() * s - 2.0 * n * s);
+        *t = Transform::from_xyz(ox + tile.a as f32 * n * s, 0.0, oz + tile.b as f32 * n * s).with_scale(Vec3::new(s, 1.0, s));
+        *v = if hide { Visibility::Hidden } else { Visibility::Inherited };
+    }
+}
+
+/// Spawns the baked patches' tiles once the grass patch's bake exists (it is made at startup, which a scene opened
+/// from the command line enters before).
+fn spawn_patches(
+    mut commands: Commands,
+    bake: Option<Res<crate::patches::PatchBake>>,
+    field: Option<Res<Field>>,
+    tiles: Query<(), With<PatchTile>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut fields: ResMut<Assets<crate::patches::PatchField>>,
+) {
+    let (Some(bake), Some(_)) = (bake, field) else { return };
+    if !tiles.is_empty() || std::env::var_os("MEADOW_NO_PATCHES").is_some() {
+        return;
+    }
+    let material = fields.add(crate::patches::PatchField::of(&bake.0, 7.0));
+    let tile = meshes.add(crate::patches::tile());
+    for level in 0..2 {
+        for a in 0..4 {
+            for b in 0..4 {
+                commands.spawn((GrassWorld, MEADOW, PatchTile { level, a, b }, Mesh3d(tile.clone()), MeshMaterial3d(material.clone()), Transform::default()));
+            }
+        }
+    }
+}
 
 /// Lays each level's tiles around the eye, on whole cells, so every blade stays fixed to the world; hides them all
 /// high above, where the far land alone is drawn.
@@ -276,7 +322,7 @@ pub fn plugin(app: &mut App) {
         .add_systems(OnExit(View::Library), leave)
         .add_systems(
             Update,
-            (stream, lay, reframe, focus, crate::clouds::drift).run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio | View::Library)),
+            (stream, lay, spawn_patches, lay_patches, reframe, focus, crate::clouds::drift).run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio | View::Library)),
         )
         .add_systems(Update, (hours, sun).chain().run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio | View::Library)));
 }

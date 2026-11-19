@@ -43,6 +43,7 @@ pub fn builtin() -> Vec<Asset> {
         asset("plantain", "plant", "plantain", [0.18, 0.30], [0.04, 0.09, 0.025], [0.05, 0.11, 0.03], 1.0),
         asset("dandelion", "plant", "dandelion", [0.24, 0.40], [0.045, 0.11, 0.03], [0.055, 0.13, 0.035], 1.0),
         asset("moss", "plant", "moss", [0.12, 0.32], [0.03, 0.075, 0.015], [0.07, 0.11, 0.02], 1.0),
+        asset("grass patch", "plant", "grass_patch", [1.0, 1.0], [0.045, 0.120, 0.018], [0.100, 0.230, 0.035], 1.0),
         asset("grass tuft", "plant", "grass_tuft", [0.12, 0.45], [0.045, 0.120, 0.018], [0.100, 0.230, 0.035], 1.0),
         asset("seed head", "plant", "seed_head", [0.55, 0.95], [0.30, 0.24, 0.10], [0.20, 0.16, 0.08], 1.0),
     ]

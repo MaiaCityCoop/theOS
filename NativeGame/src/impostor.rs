@@ -16,6 +16,9 @@ use bevy::shader::ShaderRef;
 pub const FRAMES: u32 = 8;
 pub const RES: u32 = 128;
 
+/// Ticks a bake waits on its first view before it starts, for its shaders to compile.
+const WARM: i32 = 90;
+
 const ALBEDO_LAYER: usize = 4;
 const NORMAL_LAYER: usize = 5;
 
@@ -53,7 +56,9 @@ struct Baking(u32);
 /// views read back so far.
 #[derive(Component)]
 struct Shooting {
-    k: u32,
+    /// The view taken this tick; below zero, the ticks still waited for its shaders to compile (a view taken
+    /// before that comes out empty).
+    k: i32,
     centre: Vec3,
     radius: f32,
     views: Vec<Handle<Image>>,
@@ -164,7 +169,7 @@ pub fn bake(
     let normal = images.add(atlas(TextureFormat::Rgba8Unorm));
     let m = meshes.add(mesh);
     let flat = colours.add(StandardMaterial { base_color: Color::WHITE, unlit: true, double_sided: true, cull_mode: None, ..default() });
-    let ticks = FRAMES * FRAMES + 8;
+    let ticks = FRAMES * FRAMES + 8 + WARM as u32;
     commands.spawn((Baking(ticks), Mesh3d(m.clone()), MeshMaterial3d(flat), RenderLayers::layer(ALBEDO_LAYER), Transform::default()));
     commands.spawn((Baking(ticks), Mesh3d(m), MeshMaterial3d(normals.add(NormalBake {})), RenderLayers::layer(NORMAL_LAYER), Transform::default()));
     for (layer, target, format) in [(ALBEDO_LAYER, &albedo, TextureFormat::Rgba8UnormSrgb), (NORMAL_LAYER, &normal, TextureFormat::Rgba8Unorm)] {
@@ -179,7 +184,7 @@ pub fn bake(
         let first = views[0].clone();
         commands.spawn((
             Baking(ticks + 200),
-            Shooting { k: 0, centre, radius, views, atlas: target.clone(), got: Default::default() },
+            Shooting { k: -WARM, centre, radius, views, atlas: target.clone(), got: Default::default() },
             Camera3d::default(),
             Camera { order: -100, clear_color: ClearColorConfig::Custom(Color::NONE), ..default() },
             RenderTarget::Image(first.into()),
@@ -202,12 +207,13 @@ pub fn bake(
 /// lays them into the atlas.
 fn shoot(mut commands: Commands, mut cams: Query<(&mut Shooting, &mut RenderTarget, &mut Transform, &mut Camera)>) {
     for (mut s, mut target, mut t, mut c) in &mut cams {
-        let n = FRAMES * FRAMES;
+        let n = (FRAMES * FRAMES) as i32;
         if s.k < n {
-            let (i, j) = (s.k % FRAMES, s.k / FRAMES);
+            let k = s.k.max(0) as u32;
+            let (i, j) = (k % FRAMES, k / FRAMES);
             let f = frame_dir(i, j);
             *t = Transform::from_translation(s.centre + f * s.radius * 2.0).looking_at(s.centre, frame_up(f));
-            *target = RenderTarget::Image(s.views[s.k as usize].clone().into());
+            *target = RenderTarget::Image(s.views[k as usize].clone().into());
         } else if s.k == n + 2 {
             c.is_active = false;
             // every view drawn: read each back and lay it into the atlas at its frame
