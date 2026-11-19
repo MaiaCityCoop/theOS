@@ -701,7 +701,7 @@ function relayout(s) {
     has risen since it was laid out, in its class's turn (rise). */
 function relayKind(s, me, N, P) {
   const held = needOf(s); me.want = [N, P]; me.wantAt = restDial();
-  const went = relayIn(s.cls, s, sum(Object.values(needOf(s))), sum(Object.values(held)), () => sayKind(s), () => { relaid(s); return true; }, () => s.dirty || !!s.swap || retiring(s.cls) > 0);
+  const went = relayIn(s.cls, s, sum(Object.values(needOf(s))), sum(Object.values(held)), () => sayKind(s), () => { relaid(s); return true; }, () => s.dirty || retiring(s.cls) > 0);   // (through once laid out and what its stores were is let go: not its whole fill anew, which holds only what is drawn, and gives way at its swap)
   if (went) { me.N = N; me.P = P; }   // (what it packs at till its kind is laid out, as ever)
   return went;
 }

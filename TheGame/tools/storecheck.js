@@ -151,31 +151,46 @@ function paged(tiers, cost, fills, held, budget) {
     three frames (src/core/gpu.js retire: two frames, then the GPU's done). -> { rest, least (MB), total (MB, at the
     end), peak (MB: the most it held, the old beside the new), budget, smaller (stores made smaller), frames (till
     nothing is laid out or let go) } */
-function knob(cls, bases, fixed) {
+function knob(cls, bases, fixed, walk = 0) {
   const MB = 2 ** 20, each = 256, n = bases.length, first = WG * 32;   // (each: a thing's bytes; first: a store's first room, things)
-  const rooms = [], rest = [], letting = [], out = { smaller: 0 }, name = (i) => `check: a store of ${cls} (${i})`;
+  const rooms = [], rest = [], letting = [], out = { smaller: 0, laid: 0, short: 0, rises: 0 }, name = (i) => `check: a store of ${cls} (${i})`;
   gpuM.more(`check: what of ${cls} follows no dial`, fixed * MB, 0, cls);
   const holding = () => (rooms.reduce((a, r) => a + r, 0) * each + letting.reduce((a, l) => a + l.bytes, 0)) / MB + fixed;
   let frame = 0, peak = 0, last = 0;
   const lay = (i, N) => {
     letting.push({ bytes: rooms[i] * each, until: frame + 3 }); gpuM.letting(cls, rooms[i] * each);   // (as src/core/gpu.js retire holds it)
     gpuM.more(name(i), (N - rooms[i]) * each, 0, cls); if (N < rooms[i]) out.smaller++;
-    rooms[i] = N; rest[i] = restDial(); last = frame; peak = Math.max(peak, holding());
+    rooms[i] = N; rest[i] = restDial(); last = frame; peak = Math.max(peak, holding()); out.laid++;
     return true;
   };
-  for (; frame < 4000 && (rooms.length < n || letting.length || frame < last + 30); frame++) {
+  // (a frame: the turn, what is let go, a store made where the world fills, and every store's read of what it finds,
+  // `dense` times what it needs at the dial's rest; -> whether one found more than it holds: drawn short)
+  const step = (dense) => {
     tick();   // (each class's turn: tier.js rise)
     for (const l of letting.filter((x) => x.until <= frame)) { letting.splice(letting.indexOf(l), 1); gpuM.letting(cls, -l.bytes); }
     if (rooms.length < n) { gpuM.more(name(rooms.length), first * each, 0, cls); rooms.push(first); rest.push(restDial()); }
+    let short = false;
     rooms.forEach((r, i) => {
-      const found = Math.round((bases[i] * MB) / each / restDial() ** 2), N = roomsFor([found], [r], true, rest[i] < restDial() ? 1 : BAND);
+      const found = Math.round((bases[i] * dense * MB) / each / restDial() ** 2), N = roomsFor([found], [r], true, rest[i] < restDial() ? 1 : BAND);
+      short ||= found > r;
       if (!N || N[0] === r) return;
       const at = restDial(), bytes = N[0] * each;
       relayIn(cls, `${cls} ${i}`, bytes, r * each, () => gpuM.byDial(name(i), cls, bytes), () => lay(i, atRest(N, at)[0]), () => gpuM.retiring(cls) > 0);
     });
     peak = Math.max(peak, holding());
+    return short;
+  };
+  for (; frame < 4000 && (rooms.length < n || letting.length || frame < last + 30); frame++) step(1);
+  const boot = { rest: restDial(), least: Math.min(...rooms) * each / MB, total: holding(), peak, smaller: out.smaller, frames: last };
+  // (then a walk into what is denser: `walk` frames, what it finds growing to two and a half times as much, swaying a
+  // sixth either way as the camera moves; its re-layouts, the dial's rises and the frames a store found more than it held)
+  Object.assign(out, { laid: 0, short: 0 }); peak = 0;
+  let was = restDial();
+  for (let f = 0; f < walk; f++, frame++) {
+    if (step((1 + (1.5 * f) / walk) * (1 + Math.sin(f / 7) / 6))) out.short++;
+    if (restDial() !== was) { out.rises++; was = restDial(); }
   }
-  return { rest: restDial(), least: Math.min(...rooms) * each / MB, total: holding(), peak, budget: gpuM.budgetOf(cls), smaller: out.smaller, frames: last };
+  return { ...boot, budget: gpuM.budgetOf(cls), walked: { frames: walk, laid: out.laid, rises: out.rises, short: out.short, peak, rest: restDial(), total: holding() } };
 }
 
 /** The sequences, each said and failed on where it breaks: the own-patch tiers, and a resident store over fills of a
@@ -187,9 +202,13 @@ function knobs() {
   const share = gpuM.budgetShare();
   console.log(`the dial as memory's one knob, a phone's (share ${share}: src/core/gpu.js byDial, src/scatter/tier.js relayIn):`);
   if (share !== 0.375) fail(`the knob: the phone's share is ${share}, not 0.375`);
+  const WALK = 1200;   // (frames of the walk: twenty seconds at 60)
   for (const [cls, bases, fixed] of KNOB) {
-    const K = knob(cls, bases, fixed), all = bases.reduce((a, b) => a + b, 0);
+    const K = knob(cls, bases, fixed, WALK), all = bases.reduce((a, b) => a + b, 0), W = K.walked, per = (x) => ((x * 60) / W.frames).toFixed(2);
     console.log(`  ${cls}: ${bases.length} stores needing ${all} MB at the dial's rest beside ${fixed} MB that follows no dial, of its ${K.budget} MB: the dial at rest ${K.rest.toFixed(3)}, every store holding some (the least ${K.least.toFixed(2)} MB), ${K.smaller} made smaller, the class ${K.total.toFixed(1)} MB, at the most ${K.peak.toFixed(1)} MB (the old beside the new), still from frame ${K.frames}`);
+    console.log(`    walking into what is two and a half times as dense, ${W.frames} frames: the dial at rest rose ${W.rises} times to ${W.rest.toFixed(3)}, ${W.laid} layouts (${per(W.laid)} a second at 60 frames), ${W.short} frames a store found more than it held (${per(W.short)} a second), the class ${W.total.toFixed(1)} MB, at the most ${W.peak.toFixed(1)} MB`);
+    if (W.peak > K.budget * 1.000001) fail(`the knob, ${cls}, walking: the class held ${W.peak.toFixed(1)} MB at the most, past its ${K.budget} MB`);
+    if (W.rises > 3) fail(`the knob, ${cls}, walking: the dial at rest rose ${W.rises} times, chasing what the stores find (2026-11-19, the iPhone in a forest: the trees blinking)`);
     if (!(K.least > 0)) fail(`the knob, ${cls}: a store holds nothing`);
     if (K.total > K.budget * 1.000001) fail(`the knob, ${cls}: the class holds ${K.total.toFixed(1)} MB, past its ${K.budget} MB`);
     if (K.peak > K.budget * 1.000001) fail(`the knob, ${cls}: the class held ${K.peak.toFixed(1)} MB at the most, past its ${K.budget} MB`);

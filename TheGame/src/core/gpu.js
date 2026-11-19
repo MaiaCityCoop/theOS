@@ -27,6 +27,7 @@ import { passBegins, timesOn } from './pace.js';
 import { pass as framePass } from './frames.js';
 import { aboutToTake } from './journal.js';
 import { restDial, raiseRest } from '../detail/measure.js';
+import { BAND } from '../detail/error.js';
 
 // ---- a compute pass called by its maker ----
 // three calls a compute pipeline by its node's name (computePipeline_compute_<name>); one made without a name is just
@@ -95,9 +96,12 @@ export const roomOf = (cls) => budgetOf(cls) * MB - Math.max(heldBy(cls) + (LETT
 // A store sized by what lies within reach at the dial at rest (its things, cells, rings) takes its need there, never
 // what its class has left, so none is short for having come late. Where its class's stores sized anew as the dial moves
 // (V, their needs) and the rest of what the class holds (F, with what is about to be made once) would pass its budget
-// (B), the dial at rest rises to D √((V + W) / (B − F)): what lies within a reach goes as the reach's square, and a dial
-// D times as coarse reaches 1/D as far. Each of them is sized again at it (onMeasure), all a little coarser; it is
-// checked again as they say what they need there, till they fit. W: the room one of them takes while it is made again
+// (B), the dial at rest rises to D √(BAND (V + W) / (B − F)): what lies within a reach goes as the reach's square, and a
+// dial D times as coarse reaches 1/D as far; a BAND to spare, so what grows as the camera moves raises it again only
+// once it has grown a BAND, not at every read that finds more (2026-11-19, Samuel's iPhone walking into a forest: the
+// dial raised at every such read, every store laid out again each time, the trees there blinking and the far ones
+// never filled in). Each of them is sized again at it (onMeasure), all a little coarser; it is checked again as they
+// say what they need there, till they fit. W: the room one of them takes while it is made again
 // (the largest's need: what it was is held beside it till what it is is bound everywhere, retire, and they are made
 // again one at a time where their class has no room for more, src/scatter/tier.js rise), so no making of one takes its
 // class past its budget (2026-11-19: an iPhone's geometry, every store made again at once, old and new); what a class
@@ -115,7 +119,7 @@ export function byDial(name, cls, bytes, again = true) {
   if (V + W + F <= B) return restDial();
   if (!(B - F > 0)) { past(cls, `what does not follow the dial (${name} last)`, F, budgetOf(cls), true); return restDial(); }   // (no dial fits it: said, counted)
   const was = restDial();
-  if (V > 0 && raiseRest(was * Math.sqrt((V + W) / (B - F)))) { const k = (was / restDial()) ** 2; for (const t of BY_DIAL.values()) t.bytes *= k; }   // (each store's need at the new dial, by the same rule, till it says its own there: none counted at the old one)
+  if (V > 0 && raiseRest(was * Math.sqrt((BAND * (V + W)) / (B - F)))) { const k = (was / restDial()) ** 2; for (const t of BY_DIAL.values()) t.bytes *= k; }   // (each store's need at the new dial, by the same rule, till it says its own there: none counted at the old one)
   return restDial();
 }
 /** A make that took `who` (a class, or the whole GPU) past its budget (MB), `by` (the pool, or what the device was asked
