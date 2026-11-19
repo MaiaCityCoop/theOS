@@ -23,11 +23,28 @@
 import * as THREE from 'three/webgpu';
 import { Fn, If, vec2, vec3, vec4, uv, float, uint, uvec2, uvec4, ivec2, uniform, sqrt, clamp, normalize, texture, textureLoad, property, outputStruct, instancedArray, instanceIndex, min, max, dot, round, select, uniformArray, int, renderGroup } from 'three/tsl';
 import { recipes, manifest } from '../core/registry.js';
-import { note, makeOwned } from '../core/gpu.js';
+import { note, makeOwned, budgetOf } from '../core/gpu.js';
+import { BUDGET_MB } from '../core/budget.js';
 import { compileFor, inTurn } from '../core/compile.js';
 import { source, ready as settled } from '../core/settle.js';
 
-const SIZE = 1024, LEVELS = Math.log2(SIZE) + 1;
+// (a tile's side, texels, and what follows from it, set once: its levels; its blocks level by level, where each lies in
+// the buffers they are written to (rows of 32 blocks at the least: a row of a copy from a buffer is a multiple of 256
+// bytes, and R's blocks are 8); a material of numbers' rows, each level's laid so too. MAC_SIDE on the Mac; a device
+// with less room for the ground, fewer: tileSide, at bakeTextures)
+const MAC_SIDE = 1024, ROWS = (s) => Math.ceil((s * 4) / 256) * 256;
+let SIZE = 0, LEVELS = 0, SIDES = [], STRIDES = [], FIRST = [], AT = [], BLOCKS = 0, ROOM = 0, DATA_AT = [], DATA_BYTES = 0;
+const sizeTo = (n) => {
+  SIZE = n; LEVELS = Math.log2(n) + 1;
+  SIDES = Array.from({ length: LEVELS }, (_, l) => Math.max(1, SIZE >> (l + 2))); STRIDES = SIDES.map((x) => Math.max(32, x)); FIRST = []; AT = []; BLOCKS = 0; ROOM = 0;
+  SIDES.forEach((x, l) => { FIRST[l] = BLOCKS; BLOCKS += x * x; AT[l] = ROOM; ROOM += STRIDES[l] * x; });
+  DATA_AT = []; DATA_BYTES = 0; for (let l = 0; l < LEVELS; l++) { DATA_AT[l] = DATA_BYTES; DATA_BYTES += ROWS(SIZE >> l) * (SIZE >> l); }
+};
+sizeTo(MAC_SIDE);
+/** A tile's side on this device: the largest power of two up to MAC_SIDE whose textures (as many layers, their painter's
+    tiles: all of it as its side's square) take no larger a share of the ground's budget here (src/core/gpu.js budgetOf,
+    at boot) than MAC_SIDE's take of the Mac's (budget.js BUDGET_MB); at least a block's side (4). */
+const tileSide = () => { const fits = budgetOf('ground') / BUDGET_MB.ground; let n = MAC_SIDE; while (n > 4 && (n / MAC_SIDE) ** 2 > fits) n /= 2; return n; };
 const PAINTER = "the world's textures: their painter's tiles";   // (what a material is painted through, while there is something to paint: painter, below)
 
 // one material's tile, painted once, into two targets: its albedo (gamma 2) and height as the tile keeps them, and the
@@ -66,11 +83,6 @@ function reliefProgram(src) {
   return { mat, bumpInv };
 }
 
-// A tile's blocks, level by level: how many a side, and where each level lies in the buffers they are written to (rows
-// of 32 blocks at the least: a row of a copy from a buffer is a multiple of 256 bytes, and R's blocks are 8).
-const SIDES = Array.from({ length: LEVELS }, (_, l) => Math.max(1, SIZE >> (l + 2))), STRIDES = SIDES.map((s) => Math.max(32, s)), FIRST = [], AT = [];
-let BLOCKS = 0, ROOM = 0;
-SIDES.forEach((s, l) => { FIRST[l] = BLOCKS; BLOCKS += s * s; AT[l] = ROOM; ROOM += STRIDES[l] * s; });
 
 /** One channel of a block of 4 × 4 texels (v: its sixteen values, 0 … 1, row by row) as BC4 keeps it, in 8 bytes (two
     uint nodes): its largest and its smallest as bytes, then each texel the nearest of the eight steps between the two (3
@@ -159,9 +171,6 @@ const keyOf = (m) => { const h = m.uid === 'stand-in' ? PAINTER_V : manifest[m.u
 // (a layer as kept: its albedo's blocks, its relief's and its roughness's, each level where the packing lays it (AT,
 // STRIDES: rows of 32 blocks at the least, as a copy between a buffer and a texture wants them); a material of numbers,
 // its own array's texels, each level's rows laid so too)
-const ROWS = (s) => Math.ceil((s * 4) / 256) * 256, DATA_AT = [];
-let DATA_BYTES = 0;
-for (let l = 0; l < LEVELS; l++) { DATA_AT[l] = DATA_BYTES; DATA_BYTES += ROWS(SIZE >> l) * (SIZE >> l); }
 /** Layer i of the pool's textures (data: of the numbers' own array) level by level, as kept: { bytes, levels: [texture,
     its level, offset, bytes a row, rows, side] }. */
 const levelsOf = (renderer, { A, Nn, Rr, Dd }, i, data) => {
@@ -221,6 +230,7 @@ function storeOf(renderer, textures, packed, keepWhen, pool) {
     and leaves each subject's to be painted when it is first worn: src/boot.js). A GPU without the formats gets them as
     painted, uncompressed. */
 export function bakeTextures(renderer, { spare = 6, first = null, keepWhen } = {}) {
+  sizeTo(tileSide());   // (a tile's side on this device, set before anything of it is made)
   // seen at a low angle a texture is filtered along the slope, several taps a read: four for the colours, two for the
   // relief (its blur is not seen), not eight for both: at eye level the ground is most of the picture and its reads most
   // of a frame's time (a walk in the forest: 23 ms at eight, 19 at four and two, at one and a half pixels a point)
