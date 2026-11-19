@@ -52,6 +52,14 @@ export const FRAME_MS_BY_CLASS = { geometry: 5, light: 3, ground: 1.5, 'upscale/
     device was lost (main d7f7f6d, 2026-11-19). The game keeps to a quarter of the machine. unit: MiB. source:
     Intents/0038, Define (the hard gates: a machine of 8 GB); the master's measurement, 2026-11-19 */
 export const GPU_MB = 2048;
+/** The device the budget's numbers are for (GPU_MB and BUDGET_MB): the 8 GB Mac's largest buffer, as WebKit's adapter
+    gives it there (its maxBufferSize: WebKit's Source/WebGPU/WebGPU/HardwareCapabilities.mm makes it, on a Mac, the more
+    of min(L, 1 GiB) and min(INT_MAX, L / 3) of Metal's maxBufferLength L, 4 GiB on the M2: 1.33 GiB, to a multiple of
+    4). Every other device's budget is the Mac's scaled by how its own largest buffer stands to this, never more than
+    the Mac's (src/core/gpu.js shareOf): the one sign of a device's class both engines give a page (an iPhone's at most
+    1 GiB in WebKit, by the same file). unit: bytes. source: the master, 2026-11-19 (WebKit on the M2: 1.33 GiB; Samuel's
+    iPhone on next killed 1-2 s past ready, asked for the Mac's 2 GB) */
+export const MAC_BUFFER = 1431655764;
 /** GPU_MB shared out by the frame's classes (src/core/classes.js), what each class's pools may hold together:
       geometry: the plants' and the rocks' meshes, their far ends' atlases (a quarter of it: src/core/classes.js
         SHARE_MB), what the tiers pack and what the culling keeps of it, the growth map the placing reads, the picture

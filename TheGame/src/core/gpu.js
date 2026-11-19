@@ -21,7 +21,7 @@
 import * as THREE from 'three/webgpu';
 import { storage } from 'three/tsl';
 import { CLASS_NAMES, classOf } from './classes.js';
-import { BUDGET_MB, GPU_MB } from './budget.js';
+import { BUDGET_MB, GPU_MB, MAC_BUFFER } from './budget.js';
 import { MiB } from './physics.js';
 import { passBegins, timesOn } from './pace.js';
 import { pass as framePass } from './frames.js';
@@ -69,11 +69,24 @@ export function makeOwned(renderer, name, gpu, page, cls, ...owns) {
 }
 /** The same, added to what the name holds already (many small buffers under one name). */
 export const more = (name, gpu = 0, page = 0, cls = 'other', ...owns) => { const h = HELD.get(name) ?? { gpu: 0, page: 0, cls }; h.gpu += gpu; h.page += page; HELD.set(name, h); held(h.cls, name); own(h.cls, name, owns); };
+// ---- the budget on the device the game runs on: the 8 GB Mac's (budget.js GPU_MB, BUDGET_MB) scaled by the device's
+// share of it (shareOf), set at boot from its adapter (askedLimits); each class its share of it, as on the Mac ----
+let SHARE = 1;
+/** The share of the Mac's budget a device has whose adapter's largest buffer is `bytes` (its maxBufferSize): as that
+    stands to the Mac's (budget.js MAC_BUFFER), never more than all of it (Chrome's tiers give the same Mac 4 GiB: a
+    larger reading is the Mac's case, not twice it); all of it where there is none (no WebGPU, the CPU's stand-in). */
+export const shareOf = (bytes) => (bytes > 0 ? Math.min(1, bytes / MAC_BUFFER) : 1);
+/** The device's share of the Mac's budget (shareOf, at boot). */
+export const budgetShare = () => SHARE;
+/** What class `cls` may hold on the GPU of this device, MiB: its share of the Mac's (BUDGET_MB), scaled. */
+export const budgetOf = (cls) => BUDGET_MB[cls] * SHARE;
+/** What the game may hold on the GPU of this device in all, MiB (GPU_MB, scaled). */
+export const wholeBudget = () => GPU_MB * SHARE;
 /** What a class's pools hold on the GPU now, bytes. */
 const heldBy = (cls) => { let n = 0; for (const h of HELD.values()) if (h.cls === cls) n += h.gpu; return n; };
 /** The room a class has left on the GPU, bytes: its budget less what it holds, as its pools say it or as the device made
     it for its code (the more of the two: what three makes for it too). */
-export const roomOf = (cls) => BUDGET_MB[cls] * MB - Math.max(heldBy(cls), MADE[cls] ?? 0);
+export const roomOf = (cls) => budgetOf(cls) * MB - Math.max(heldBy(cls), MADE[cls] ?? 0);
 /** A make that took `who` (a class, or the whole GPU) past its budget (MB), `by` (the pool, or what the device was asked
     to make) holding `bytes` there then: said once a class and maker (once: once a class, whatever made it first; the
     one tally's check, held and counted below, says it so), loudly, and counted; what was made is kept, so nothing
@@ -90,7 +103,7 @@ function held(cls, by) {
   const n = heldBy(cls); if (n > (PEAK[cls] ?? Infinity)) PEAK[cls] = n;
   let all = 0; for (const h of HELD.values()) all += h.gpu;
   if (all > peakAll) peakAll = all;
-  if (!R && n > BUDGET_MB[cls] * MB) past(cls, by, n, BUDGET_MB[cls], true);
+  if (!R && n > budgetOf(cls) * MB) past(cls, by, n, Math.round(budgetOf(cls)), true);
 }
 // How many kinds each drawer draws coarser than a pixel now (src/scatter/drawer.js: a band not come yet, a stand-in, no
 // slot for it), by its name: beside the memory in the one ledger, so the gate's board shows it fall as the bands come
@@ -111,12 +124,12 @@ export const short = (name, n) => { SHORT.set(name, n); };
       short               { drawer: how many kinds it draws coarser than a pixel now } (short, above) */
 export const ledger = () => {
   const mb = (b) => +(b / MB).toFixed(1), rows = [...HELD].map(([n, h]) => [n, h.gpu, h.page, h.cls]).sort((a, b) => b[1] + b[2] - a[1] - a[2]);
-  const classes = Object.fromEntries(CLASS_NAMES.map((c) => [c, { gpu: 0, peak: 0, noted: 0, page: 0, budget: BUDGET_MB[c] }]));
+  const classes = Object.fromEntries(CLASS_NAMES.map((c) => [c, { gpu: 0, peak: 0, noted: 0, page: 0, budget: Math.round(budgetOf(c)) }]));
   for (const [, g, p, c] of rows) { classes[c].noted += g; classes[c].page += p; }
   for (const c of CLASS_NAMES) Object.assign(classes[c], { gpu: mb(R ? MADE[c] : classes[c].noted), peak: mb(R ? MADE_PEAK[c] : PEAK[c]), noted: mb(classes[c].noted), page: mb(classes[c].page) });
   const noted = rows.reduce((s, r) => s + r[1], 0);
   return {
-    gpu: mb(R ? made : noted), peak: mb(R ? peakMade : peakAll), budget: GPU_MB, classes, noted: mb(noted), page: mb(rows.reduce((s, r) => s + r[2], 0)),
+    gpu: mb(R ? made : noted), peak: mb(R ? peakMade : peakAll), budget: Math.round(wholeBudget()), share: +SHARE.toFixed(3), classes, noted: mb(noted), page: mb(rows.reduce((s, r) => s + r[2], 0)),
     unnoted: R ? mb(Math.max(0, made - noted)) : null,
     makers: [...KINDS.values()].filter((k) => k.bytes > 0).sort((a, b) => b.bytes - a.bytes).slice(0, 24).map((k) => [k.cls, k.kind, mb(k.bytes), k.n]),
     over: [...OVER.values()].map((o) => ({ ...o })), rows: rows.map(([n, g, p, c]) => [n, mb(g), mb(p), c]), short: Object.fromEntries(SHORT),
@@ -154,8 +167,8 @@ const counted = (o, bytes, kind) => {
   made += bytes; MADE[cls] += bytes;
   if (made > peakMade) peakMade = made;
   if (MADE[cls] > MADE_PEAK[cls]) MADE_PEAK[cls] = MADE[cls];
-  if (MADE[cls] > BUDGET_MB[cls] * MB) past(cls, kind, MADE[cls], BUDGET_MB[cls], true);
-  if (made > GPU_MB * MB) past(WHOLE, kind, made, GPU_MB, true);
+  if (MADE[cls] > budgetOf(cls) * MB) past(cls, kind, MADE[cls], Math.round(budgetOf(cls)), true);
+  if (made > wholeBudget() * MB) past(WHOLE, kind, made, Math.round(wholeBudget()), true);
   const d = o.destroy;
   o.destroy = function () {
     const s = SIZE.get(o);
@@ -247,8 +260,9 @@ const limitsFrom = (A) => Object.fromEntries(SIZED.filter((k) => A?.[k] != null)
 export const askedLimits = async () => {
   const a = await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null);
   if (a) {
-    const A = (ADAPTER = { maxBufferSize: a.limits.maxBufferSize, maxStorageBufferBindingSize: a.limits.maxStorageBufferBindingSize, vendor: a.info?.vendor ?? '', architecture: a.info?.architecture ?? '' }), gib = (b) => `${(b / 2 ** 30).toFixed(2)} GiB`;
-    console.info(`the device: ${A.vendor} ${A.architecture}, its largest buffer ${gib(A.maxBufferSize)}, its largest storage binding ${gib(A.maxStorageBufferBindingSize)} (window.__game.adapter)`);   // (once, where any inspector reads it: a phone's tab too, tethered, before the page is ready)
+    SHARE = shareOf(a.limits.maxBufferSize);   // (the budget this device is held to: its class's, from its largest buffer)
+    const A = (ADAPTER = { maxBufferSize: a.limits.maxBufferSize, maxStorageBufferBindingSize: a.limits.maxStorageBufferBindingSize, vendor: a.info?.vendor ?? '', architecture: a.info?.architecture ?? '', budget: Math.round(wholeBudget()), share: +SHARE.toFixed(3) }), gib = (b) => `${(b / 2 ** 30).toFixed(2)} GiB`;
+    console.info(`the device: ${A.vendor} ${A.architecture}, its largest buffer ${gib(A.maxBufferSize)}, its largest storage binding ${gib(A.maxStorageBufferBindingSize)}; the game's GPU budget here ${A.budget} MB, ${Math.round(A.share * 100)} % of the 8 GB Mac's (window.__game.adapter)`);   // (once, where any inspector reads it: a phone's tab too, tethered, before the page is ready)
   }
   return limitsFrom(a?.limits);
 };
