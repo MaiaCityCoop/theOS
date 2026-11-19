@@ -126,6 +126,10 @@ export const bandsOf = (a) => { const g = goneOf(a), last = rungAt(g); return Ar
 /** How large shape `shape` of a plant is at scale 1, as its size on screen is measured (src/scatter/trees.js sizeAtOne). */
 export const shapeSize = (a, shape) => { const H = a.size.height, S = a.growth?.stages?.find((x) => shape >= x.offset && shape < x.offset + x.variants); return (S ? a.heights?.[shape] ?? S.h : H) * (kindRule(a, 'measure') === 'height' ? 1 : Math.max(most(a.size.length), most(a.size.width ?? 0), most(H)) / H); };
 const BUILT = new Map();   // (the last few shapes built: a kind's levels are asked for one after another)
+let MEASURED = () => null;   // (what the build measured of a shape: none till the recipes' workers are handed it)
+/** Hand the kit what the build measured of the plants' shapes (src/core/crowds.js: crowds.bin, assets/kit/measures.js):
+    of(asset, shape, A) -> its measure at this version and these atlases' numbers, or none (it is measured here). */
+export const takeMeasures = (of) => { MEASURED = of; };
 // (the shade of a plant that has none, where its stand's drawer asks every kind for one: nothing)
 const NONE = { position: [], normal: [], uv: [], cn: [], root: [], part: [], ao: [], index: [] };
 /** A place along one axis as the GPU reads it back from the heap (the grid a vertex is packed on, above): where a
@@ -137,7 +141,7 @@ export const onGrid = (v, axis) => (axis === 1 ? gy(v) * SY + GRID.y0 : gx(v) * 
     src/detail/impostor.js atlases; none for a plant without a far end). */
 export const crowdOf = (a, i, A = null) => {
   const key = `${a.uid}:${a.placement?.seed}:${i}:${A?.key ?? ''}`; let S = BUILT.get(key);
-  if (!S) { if (BUILT.size >= 4) BUILT.delete(BUILT.keys().next().value); BUILT.set(key, (S = crowd(a.finest(i), { size: shapeSize(a, i), grid: onGrid, far: hasFar(a), ...A }))); }
+  if (!S) { if (BUILT.size >= 4) BUILT.delete(BUILT.keys().next().value); BUILT.set(key, (S = crowd(a.finest(i), { size: shapeSize(a, i), grid: onGrid, far: hasFar(a), ...A, measured: MEASURED(a, i, A) }))); }
   return S;
 };
 /** Level l of shape i: what it is drawn with between its sizes on screen (its first level: every size above its own).

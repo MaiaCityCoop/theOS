@@ -20,17 +20,20 @@ const noise = byRole('noise');   // the baked cloudy noise: whichever material p
 // base biome lies under all of them; the water's is drawn as the water. Nothing here knows a biome by name.
 const LAID = BIOMES.filter((b) => b.where).sort((a, b) => a.layer - b.layer);
 export { BASE, LAID };
-/** how much of p the library's sandbox covers: round (x, z) of uSand the land is one biome (uSand.w: its number) */
-export const sandW = Fn(([p]) => U.uSand.z.greaterThan(0).select(float(1).sub(smoothstep(220, 340, length(p.sub(U.uSand.xy)))), float(0)));
-const sandIs = (b) => abs(U.uSand.w.sub(BIOMES.indexOf(b))).lessThan(0.5).select(float(1), float(0));
-const riverSand = () => (WATER ? sandIs(WATER).greaterThan(0.5) : float(0).greaterThan(1));   // the river's sandbox brings its own river
+/** how much of p the library's sandbox covers: round (x, z) of uSand the land is one biome (uSand.w: its number); sand:
+    uSand, or what a function is handed of it (riverRaw) */
+const sandOf = (p, sand) => sand.z.greaterThan(0).select(float(1).sub(smoothstep(220, 340, length(p.sub(sand.xy)))), float(0));
+export const sandW = Fn(([p]) => sandOf(p, U.uSand));
+const sandIs = (b, sand = U.uSand) => abs(sand.w.sub(BIOMES.indexOf(b))).lessThan(0.5).select(float(1), float(0));
+const riverSand = (sand = U.uSand) => (WATER ? sandIs(WATER, sand).greaterThan(0.5) : float(0).greaterThan(1));   // the river's sandbox brings its own river
 // a biome's share at p: its own rule; in a sandbox, the sandbox's biome all round the stage (what lies by a river keeps to
-// the river in the river's sandbox)
-const placed = (b, natural, p) => { const s = mix(natural, sandIs(b), sandW(p)); return b.river ? riverSand().select(natural, s) : s; };
+// the river in the river's sandbox; sand: uSand, or what a function is handed of it)
+const placed = (b, natural, p, sand = U.uSand) => { const s = mix(natural, sandIs(b, sand), sandOf(p, sand)); return b.river ? riverSand(sand).select(natural, s) : s; };
 /** paths, bare patches, outcrops (the base biome's own): none in a sandbox */
-/** one biome's share at a point (ctx as biomesAt's): its rule, placed (the library's sandbox); as biomesAt kept it with
-    the place, where it has (its variables: one shader works a rule out once, however many ask) */
-export const shareOf = (b, ctx) => ctx.shares?.get(b) ?? placed(b, clamp(b.where(ctx), 0, 1), ctx.p);
+/** one biome's share at a point (ctx as biomesAt's): its rule, placed (the library's sandbox: ctx.sand, what a function
+    is handed of uSand; else uSand); as biomesAt kept it with the place, where it has (its variables: one shader works a
+    rule out once, however many ask) */
+export const shareOf = (b, ctx) => ctx.shares?.get(b) ?? placed(b, clamp(b.where(ctx), 0, 1), ctx.p, ctx.sand);
 export const placeOff = (p, natural) => natural.mul(float(1).sub(sandW(p)));
 /** 1 under the roof of what stands at a place (its asset's `roofed`), 0 in the open: where no snow falls */
 export const roofAt = (p) => Object.values(PLACES).map((P) => [P, recipe(P.asset)?.roofed]).filter(([, r]) => r).reduce((a, [P, r]) => max(a, float(1).sub(smoothstep(r - 0.15, r + 0.1, length(p.sub(vec2(P.x, P.z)))))), float(0));
@@ -50,12 +53,15 @@ const riverMeander = Fn(([p, sand, s]) => {
   const gr = vec2(gu.mul(c).sub(sn), gu.mul(sn).add(c)).div(1600);
   return vec3(g.greaterThanEqual(0).select(1, -1).mul(abs(g).div(1600).add(float(1).sub(s).mul(2).mul(length(gr)).mul(1600))), gr);
 }).setLayout({ name: 'riverMeander', type: 'vec3', inputs: [{ name: 'p', type: 'vec2' }, { name: 'sand', type: 'vec3' }, { name: 's', type: 'float' }] });
-/** the river's raw field: (r, 0 on the stream's line; its gradient) */
-export const riverRaw = Fn(([p]) => {
-  const R = riverWorld(p).toVar(), s = sandW(p);
-  If(U.uSand.z.greaterThan(0).and(riverSand()).and(s.greaterThan(0)), () => { R.assign(riverMeander(p, U.uSand.xyz, s)); });
+/** the river's raw field: (r, 0 on the stream's line; its gradient). A function of its own (until 2026-11-19 written out
+    wherever it was read: riverInfo reads it three times, and every packing of the plants twice over): written once in
+    a shader, the sandbox's uniform handed to it (sand: uSand), as a function may not name one */
+const riverRawAt = Fn(([p, sand]) => {
+  const R = riverWorld(p).toVar(), s = sandOf(p, sand);
+  If(sand.z.greaterThan(0).and(riverSand(sand)).and(s.greaterThan(0)), () => { R.assign(riverMeander(p, sand.xyz, s)); });
   return R;
-});
+}).setLayout({ name: 'riverRaw', type: 'vec3', inputs: [{ name: 'p', type: 'vec2' }, { name: 'sand', type: 'vec4' }] });
+export const riverRaw = (p) => riverRawAt(p, U.uSand);
 // ---- the lakes (src/world/land.js: what a ring of river closes round is water): their middles, how far they reach,
 // the sign of the river's field inside, as the CPU found them (setLakes; none: radius 0) ----
 // (looked through as many as there are, a number the loop does not know when it is compiled: a loop of a fixed 32 is

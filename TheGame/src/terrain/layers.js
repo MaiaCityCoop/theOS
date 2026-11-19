@@ -20,7 +20,7 @@ import { If, Loop, float, int, uint, vec2, vec3, abs, max, clamp, smoothstep, lo
 import { U } from '../core/uniforms.js';
 import { byRole } from '../core/registry.js';
 import { riverInfo, biomesAt, grassFrom, groveAt, leadAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, BASE, LAID, PATH_W } from '../world/land.nodes.js';
-import { endOf, meadowTip } from '../scatter/grass.js';
+import { standsFor, meadowTip } from '../scatter/grass.js';
 import { byte, un } from '../scatter/growth.js';
 import { BAND } from '../detail/error.js';
 import { standsOf, rowsOf, densOf } from '../scatter/rule.js';
@@ -377,7 +377,7 @@ export function layersFrom(load, f, ny) {
     at dist2 metres off (1 near … 0 where it is let go). The library's stage wears what uStageGround says. */
 export const layerOf = (id) => {
   const row = TABLE.element(id), stage = id.equal(STAGE), g = U.uStageGround, own = g.x.lessThan(0).select(TABLE.element(BARE).x, g.x);
-  return { material: int(stage.select(own, row.x)), tile: stage.select(g.y, row.y), fade: (D, s) => row.w.greaterThan(0.5).select(endOf(D), row.z.greaterThan(0).select(smoothstep(s.mul(2 * MAPN), s.mul(2 * MAPN * BAND), row.z), float(1))) };
+  return { material: int(stage.select(own, row.x)), tile: stage.select(g.y, row.y), fade: (D, s) => row.w.greaterThan(0.5).select(standsFor(D), row.z.greaterThan(0).select(smoothstep(s.mul(2 * MAPN), s.mul(2 * MAPN * BAND), row.z), float(1))) };
 };
 /** A stand's numbers ({ colour (its x under 0: none yet), grain, span, fade [a, b], reach }: as STANDS has them), for
     the fragment. */

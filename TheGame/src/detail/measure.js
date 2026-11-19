@@ -4,9 +4,10 @@
 // seen from where it stands, is within the dial (only the stress world's zoo still keeps its ladder,
 // assets/kit/ladder.js, until 8b); this says what such a pixel is, and keeps the dial.
 //
-// One definition of a pixel: the pixels drawn, the inside's (the governor's ratio of the screen's: src/core/screen.js),
-// through the walker's 68° lens (the lens every level is set for; a longer one is the detail governor's factor, U.uLodInv:
-// src/core/governor.js, folded into every distance: src/world/noise.nodes.js camDist).
+// One definition of a pixel: the output's, the canvas's rows (src/core/output.js), however many the governor draws
+// inside (src/core/screen.js: the picture built over time lays them out to the output's), through the walker's 68° lens
+// (the lens every level is set for; a longer one is the detail governor's factor, U.uLodInv: src/core/governor.js,
+// folded into every distance: src/world/noise.nodes.js camDist). It moves only once it lies a BAND off (keep).
 //
 //   pxK()                pixels drawn a metre covers one metre from the eye (error.js: kept here, live)
 //   ERROR_PX()           the dial: the most pixels drawn a rung may differ from the thing at full detail (error.js;
@@ -34,7 +35,7 @@
 import { float, max } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { flag, flagNum } from '../core/flags.js';
-import { ERROR_PX, pxK, keepNumbers } from './error.js';
+import { ERROR_PX, pxK, keepNumbers, BAND } from './error.js';
 
 
 const LENS = 1 / Math.tan((68 / 2) * Math.PI / 180);   // the walker's 68° lens as a projection's scale (what a camera's projectionMatrix holds at [5])
@@ -50,24 +51,27 @@ export const pxThrough = (camera, h) => camera.projectionMatrix.elements[5] * h 
 export const lensOf = (camera) => camera.projectionMatrix.elements[5] / LENS;
 
 // ---- the live pixel and the dial, kept ----
-let inside = () => 1, most = () => 1;   // the governor's ratio of the pixels drawn (keepMeasure: the screen's inside), and the most it can be (the canvas's, as it is now: src/core/output.js)
+let output = () => 1, most = () => 1;   // the canvas's ratio, the output's (keepMeasure: src/core/output.js, as it is now), and the most the inside may be drawn at (no fewer than the window's own points)
 const listeners = new Set(); let version = 0;
-/** The inside's height, pixels drawn, as the screen has it now (the window's CSS height at the governor's ratio). */
-const drawnHeight = () => (globalThis.innerHeight || 1080) * inside();
-/** Both numbers to error.js, the uniforms and whoever listens, where either changed. */
+/** The output's height, its pixels (the window's CSS height at the canvas's ratio): what the picture shows, however many
+    the governor draws inside (src/core/screen.js), the picture built over time laying them out to it
+    (src/core/temporal.js). So a step of the governor's ratio moves no switch: a pop the dial never asked for. */
+const outputHeight = () => (globalThis.innerHeight || 1080) * output();
+/** Both numbers to error.js, the uniforms and whoever listens, where either changed: the live pixel only once it lies a
+    BAND off the one kept (a window drawn a little larger or smaller moves no switch, and none goes back and forth: every
+    hand-over spans a BAND, src/detail/error.js), the dial at once. */
 function keep(dial = ERROR_PX()) {
-  const k = pxKAt(drawnHeight());
-  if (k === pxK() && dial === ERROR_PX()) return false;
+  const now = pxKAt(outputHeight()), was = pxK(), k = was > 0 && now < was * BAND && now > was / BAND ? was : now;
+  if (k === was && dial === ERROR_PX()) return false;
   keepNumbers({ k, dial }); U.uPxK.value = k; U.uErrorPx.value = dial; version++;
   for (const f of listeners) f();
   return true;
 }
 keep();   // (from the start, before the screen says its ratio: the window's own pixels)
-/** Keep the measure current: drawn, the screen's ratio of the pixels drawn (src/core/screen.js inside), and out, the most
-    it can be (the canvas's, src/core/output.js: read as it is now, a resize changes it); the window's size is followed,
-    and each frame asks again (measureNow). */
-export function keepMeasure(drawn = null, out = () => 1) {
-  if (drawn) inside = drawn;
+/** Keep the measure current: out, the canvas's ratio (src/core/output.js: read as it is now, a resize changes it); the
+    window's size is followed, and each frame asks again (measureNow). */
+export function keepMeasure(out = () => 1) {
+  output = out;
   most = () => Math.max(1, out());
   keep(); addEventListener('resize', () => keep());
 }
