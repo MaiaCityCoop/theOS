@@ -32,8 +32,13 @@ It also times what each shader costs, so an owner knows which one to shrink and 
 - **What is timed:** every pipeline's WGSL bytes, its modules' compile, and its own making, one pipeline at a time, in
   each engine. The board shows the 20 costliest, each named by the step of the start that made it and the game's own
   files where it is made (`src/terrain/pages.js:226 < src/terrain/terrain.js:61`).
-- **Ceilings:** the worst pipeline and the world's total are held to `tools/gate/shaders.json`, set from main's run
-  with `--ratchet` and only ever lowered.
+- **The first view's own:** in the hour, the device run keeps every program the game made before its first frame
+  showed (its own WGSL, each once), and those are compiled cold the same way: what the start waits for, shader by
+  shader. Each takes the smoke's name where its code is the smoke's; the line says how many are. The board's table is
+  the first view's costliest, where it was timed.
+- **Ceilings:** the worst pipeline of all the smoke builds and the first view's total are held to
+  `tools/gate/shaders.json`, set from main's run with `--ratchet` (`gate.js wgsl --ratchet`, `gate.js hourly --ratchet`)
+  and only ever lowered.
 - **Cold, once per shader set:** a Mac keeps compiled shaders from run to run (Metal's cache: a second run took a
   tenth of the first). So each set of shaders is marked (a private variable its entry point writes, so the driver's
   source is new) and measured once cold. Its numbers are kept in `.gate/wgsl/` for later runs of the same set.

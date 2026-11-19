@@ -199,6 +199,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   }
   const sizes = Float32Array.from({ length: SOLID ? STAND : 0 }, (_, k) => look[k * STRIDE + 15]), LEAVES = Array.from({ length: NL }, (_, k) => look[k * STRIDE + 17]).some((x) => x > 0.5);   // a standing kind's largest side, metres (its look's); LEAVES: some kind is cut out as leaves
   const lookRows = new THREE.StorageBufferAttribute(look, 4), mats = storage(lookRows, 'vec4', Math.max(1, NK * (STRIDE / 4))), lookOf = (kind, j) => mats.element(kind.mul(uint(STRIDE / 4)).add(uint(j))), numOf = (kind, j) => lookOf(kind, LR + j);
+  const uRows = uniform(STRIDE / 4, 'uint'), uBox = uniform(BR, 'uint');   // (a kind's rows and its box's among them, for the culling's boxes: boundsOf)
   // every kind's own texture (assets/kit/blob.js: blobSkin), SKIN pixels a side: a layer of one array texture for each
   // kind that is large enough on screen to show it, painted in a worker when it comes near, its layer given to another
   // when it has gone (as the fine meshes are: the pump, below). Ten thousand at once would be 950 MB; these are 89.
@@ -680,10 +681,10 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // blows, and the snow lying on it). far: the bucket of its far end's quad (MAKE.far: it stands over its whole sphere,
   // half of it towards the eye), drawn round half again the box's corner. A kind whose box is not known yet is never hidden
   const GROWN = grownOf(SOLID, MAKE);
-  const boundsOf = (grow, far = -1) => { const uFar = far >= 0 ? uniform(far, 'uint') : null; return (A, B, k) => {   // (uFar: a uniform, so a level's culling is one pipeline whatever its far end's bucket)
-    const R = lookOf(uint(B.y.add(0.5)), BR).toVar(), s = A.w;
+  const boundsOf = (grow, far = -1) => { const uFar = far >= 0 ? uniform(far, 'uint') : null, uGrow = uniform(grow); return (A, B, k) => {   // (uFar, uGrow: uniforms, so a level's culling is one pipeline whatever its far end's bucket and its growth)
+    const R = mats.element(uint(B.y.add(0.5)).mul(uRows).add(uBox)).toVar(), s = A.w;   // (its box's row by uniforms: the drawers of other looks cull by one pipeline)
     const half = vec3(R.x, R.z.sub(R.y).mul(0.5), R.x).mul(s), h = uFar ? k.equal(uFar).select(vec3(length(half).mul(1.5)), half) : half;
-    return { c: vec3(A.x, A.z.add(R.y.add(R.z).mul(0.5).mul(s)), A.y), h: R.w.greaterThan(0.5).select(h.add(s.mul(grow)).add(0.05), vec3(1e6)), w: s.mul(0.1).add(1.5) };
+    return { c: vec3(A.x, A.z.add(R.y.add(R.z).mul(0.5).mul(s)), A.y), h: R.w.greaterThan(0.5).select(h.add(s.mul(uGrow)).add(0.05), vec3(1e6)), w: s.mul(0.1).add(1.5) };
   }; };
   // The draws level i's tier has (shadow: the shadow's stand-in). The full meshes are a draw a slot of the heap, each as
   // long as the mesh that lies in it (set when it is put in: arrive, above): a full mesh is 50 000 to 200 000 triangles,

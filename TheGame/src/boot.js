@@ -56,7 +56,7 @@ import { useGround } from './world/rocksolid.js';
 import { showBodies } from './world/bodies.js';
 import { createCity } from './city/index.js';
 import { createLakes } from './world/lakes.js';   // the city's plots over the land, seen from above (world/city.js)
-import { shareComputeCompiles, watchCompiles, compiles, countCompiles, making, ahead } from './core/compile.js';
+import { sharePipelines, watchCompiles, compiles, countCompiles, making, ahead } from './core/compile.js';
 import { waitsOn, gpuLost } from './core/waits.js';   // what the start waits for, watched: the veil says what holds it up, or what stopped the page
 import { flag } from './core/flags.js';
 import { FIRST_FRAME, stampDone } from './core/marks.js';   // (the first frame that draws the world, on the page's own timeline)
@@ -64,6 +64,14 @@ import { FIRST_FRAME, stampDone } from './core/marks.js';   // (the first frame 
 const SKY = 0x9fc2e6, REACH = 6000;   // REACH: how far the stage's land is drawn (m): it ends in the air beyond what its camera looks at
 
 /** Start the world for this page: { profile: 'world' | 'stage' }. A promise of the game, once its parts are made. */
+/** The water's reads of the frame before and its own draw, its time taken (src/terrain/water.js: its march held to the
+    light's room), and what lies over it drawn after it (the city's plan): src/core/screen.js afterPrepass, apart. */
+function drawnApart(screen, temporal, renderer, terrain, city) {
+  screen.afterPrepass((f) => waterReads(f, temporal.history(), temporal.K.most), 'water');
+  screen.apart(terrain.waterMesh, (render) => waterDrawn(renderer, render), 'water');
+  if (city?.group) screen.apart(city.group, (render) => render(), 'city');
+}
+
 export async function boot({ profile = 'world' } = {}) {
   const world = profile === 'world', t0 = performance.now();
   // (what the stands need to know of each tree kind before they are made, its outline and rooms, reckoned in the recipes'
@@ -81,7 +89,7 @@ export async function boot({ profile = 'world' } = {}) {
   renderer.onDeviceLost = (info) => { dropped.call(renderer, info); gpuLost(info); };   // and the page says so, with a way to reload
   await waitsOn('the GPU', renderer.init(), null);
   useGPU(renderer);   // what only the GPU reads is kept on the GPU only (src/core/gpu.js)
-  shareComputeCompiles(renderer);   // a compute shader compiled once, however many passes run it (src/core/compile.js)
+  sharePipelines(renderer);   // a pipeline of the same make as one made is that one, however many nodes and materials ask (src/core/compile.js)
   watchCompiles(renderer);   // and every pipeline the GPU is asked for kept with how long it took: __game.compiles() (src/core/compile.js)
   countCompiles();   // and what the world waits for to be compiled counted: it is not complete before (src/core/settle.js)
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;   // the screen's curve is put on once, by the upscale (src/core/temporal.js), or by a material drawn elsewhere (src/world/light.js toScreen)
@@ -146,8 +154,6 @@ export async function boot({ profile = 'world' } = {}) {
   const terrain = (game.terrain = createTerrain(scene, tex, renderer, world ? {} : { reach: REACH }));
   const layerPass = terrain.compile();   // the land's pages' passes, beside the others (they read no target)
   screen.afterPrepass(terrain.pages.ask, 'pages');   // (which pages the land's pixels read: src/terrain/pages.js)
-  screen.afterPrepass((f) => waterReads(f, temporal.history(), temporal.K.most), 'water');   // (what the water reflects of the world: the frame before, src/terrain/water.js)
-  screen.apart(terrain.waterMesh, (render) => waterDrawn(renderer, render), 'water');   // (drawn on its own, its time taken: its march held to its share)
   mark('terrain');
   const scatterOf = (g) => {
     g.scatter = createScatter(g.into, tex, g.ground, renderer, camera);
@@ -168,6 +174,7 @@ export async function boot({ profile = 'world' } = {}) {
   game.light = game.shadows = shadows;
   game.controls = controls;
   const city = world ? (game.city = createCity({ scene, camera, canvas, renderer, compile: (o) => screen.compile(o, camera, scene) })) : null;   // (compiled for the target the world is drawn into)
+  drawnApart(screen, temporal, renderer, terrain, city);   // (the water on its own, and the city's plan over it)
   const hudAt = document.getElementById('hud'), hud = hudAt ? createHud(hudAt, renderer, camera, governor, game) : null;
   if (controls) spawn(controls);
   // the lakes round the camera (src/world/lakes.js: no river runs in a ring; what it rings round is water): found before the first frame
