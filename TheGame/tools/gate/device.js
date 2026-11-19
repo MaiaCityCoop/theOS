@@ -12,7 +12,9 @@
 // - every submission's own GPU time (the queue runs in order: done less the later of its submit and the one before's
 //   done), the longest with the passes it held (where each began, its pipeline, its calls), and how many took more than
 //   a frame's budget (FRAME_MS); any destroyed buffer a submission binds (WebKit says only "Validation failure.");
-// - whether the device survives (device.lost), and what the device said wrong (uncaptured errors).
+// - whether the device survives (device.lost), and what the device said wrong (uncaptured errors);
+// - till ready, what held it: each source src/core/settle.js counts as still out (window.__game.waiting(), the game's
+//   own registry), from and till when, the start's last stage (window.__game.boot, its own marks) and the veil's words.
 // A lost device fails; the rest is shown.
 import { webkit } from 'playwright-core';
 import { webkitAt } from '../browsers.js';
@@ -73,7 +75,10 @@ export function watch(frameMs) {
   };
 }
 /** In the page: the ledger now (src/core/gpu.js), with the gate's own count and the device's state. */
-const look = () => ({ ready: window.__game?.loadMs ?? null, shown: performance.getEntriesByName('game:first-frame')[0]?.startTime ?? null, ledger: window.__game?.memory?.() ?? null, ...window.__device });
+const look = () => {
+  let out = null; try { out = window.__game?.waiting?.() ?? null; } catch (e) { out = { [`waiting() threw: ${e.message}`]: 1 }; }   // (a source that cannot say: said, by name)
+  return { ready: window.__game?.loadMs ?? null, shown: performance.getEntriesByName('game:first-frame')[0]?.startTime ?? null, ledger: window.__game?.memory?.() ?? null, out, stage: Object.entries(window.__game?.boot ?? {}).at(-1) ?? null, step: document.body?.dataset.step ?? null, ...window.__device };
+};
 /** The resident memory of every process of the WebKit Playwright runs (its pages', its GPU's, its own), MB (0 where it
     cannot be read). */
 function gpuProcess() {
@@ -103,8 +108,16 @@ export async function device(url, { secs = 60 } = {}) {
     (or the device was lost before). */
 async function arrived(page, out, t0, secs) {
   let s = await sample(page, out);
-  while (s.ready == null && !s.lost && Date.now() - t0 < secs * 4e3) { await page.waitForTimeout(1e3); s = await sample(page, out); }
+  while (s.ready == null && !s.lost && Date.now() - t0 < secs * 4e3) { hold(out, s, Math.round((Date.now() - t0) / 1e3)); await page.waitForTimeout(1e3); s = await sample(page, out); }
   return s.ready == null || s.lost ? null : +((Date.now() - t0) / 1e3).toFixed(1);
+}
+/** What held the start at a look s, t seconds in, kept in out.held: each source still out (settle.js waiting()), from
+    and till when, its most at once and its count now; the start's last stage and the veil's words. */
+function hold(out, s, t) {
+  const H = (out.held ??= { sources: {} });
+  for (const [k, n] of Object.entries(s.out ?? {})) { const h = (H.sources[k] ??= { from: t, most: 0 }); h.until = t; h.most = Math.max(h.most, n); }
+  for (const [k, h] of Object.entries(H.sources)) h.now = s.out?.[k] ?? 0;
+  Object.assign(H, { at: t, stage: s.stage, step: s.step });
 }
 /** A look, kept in out: the ledger's device now, its most as the page kept it (and what the ledger held then), the
     browser's resident memory at its most. */
@@ -130,7 +143,10 @@ async function stay(page, out, secs) {
 
 /** Whether the game came: ready (window.__game.loadMs set: the start's world made and drawn) and in how long, the first
     frame shown (the game's mark, src/core/marks.js) beside it; the hour's board's first line. */
-export const readyLine = (d) => (d?.ready != null ? `Ready: yes, ${d.ready} s in${d.shown != null ? ` (the first frame shown ${d.shown} s in)` : ''}, on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}× in WebKit.` : `**Ready: no**${d ? `, on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}× in WebKit${d.lost ? ' (the device lost first)' : ''}` : ''}: the game never came.`);
+export const readyLine = (d) => (d?.ready != null ? `Ready: yes, ${d.ready} s in${d.shown != null ? ` (the first frame shown ${d.shown} s in)` : ''}, on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}× in WebKit.` : `**Ready: no**${d ? `, on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}× in WebKit${d.lost ? ' (the device lost first)' : ''}` : ''}: the game never came.${stillOut(d?.held, d?.submits)}`);
+/** What still held the start when the run ended (hold): each source still out, with its count and since when, the
+    start's last stage, the veil's words, the submissions drawn meanwhile (frames behind the veil, or none). */
+const stillOut = (H, submits) => (!H ? '' : ` Still out: ${Object.entries(H.sources).filter(([, h]) => h.now).map(([k, h]) => `${k} (${h.now}, since ${h.from} s)`).join(', ') || 'nothing settle.js counts'}; the start's last stage ${H.stage ? `'${H.stage[0]}', ${(H.stage[1] / 1e3).toFixed(1)} s in` : 'none'}${H.step ? `; the veil: "${H.step}"` : ''}; ${submits ?? 0} submissions drawn.`);
 /** The device's lines, as the hour's board begins with them (after readyLine). */
 export function lines(d) {
   if (d?.peak == null) return [];

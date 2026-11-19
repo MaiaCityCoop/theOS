@@ -159,14 +159,14 @@ async function settled({ wait, at, keep = false }) {
   // from before the world's ready until it has settled)
   let done = false, said;
   if (C?.on) (async () => { while (!done) { await C.step(C.last); await new Promise((r) => setTimeout(r, 0)); } })();
-  // (what held it, and till when: every 2 s, what each source still had out, src/core/settle.js waiting(); a source's
-  // `until` is the last second it had anything out, its `most` the most it had at once)
-  const held = {}, R = performance.getEntriesByType('resource').map((e) => e.name), path = R.filter((n) => n.includes('src/core/settle.js')).at(-1);
-  const look = path ? import(path).then(({ waiting }) => setInterval(() => { const t = Math.round((Date.now() - t0) / 1000); for (const [k, n] of Object.entries(waiting())) { const h = (held[k] ||= { from: t, until: t, most: 0 }); h.until = t; h.most = Math.max(h.most, n); } }, 2000)) : null;
+  // (what held it, and till when: every 2 s, what each source still had out, src/core/settle.js waiting() as the game
+  // gives it, window.__game.waiting; a source's `until` is the last second it had anything out, its `most` the most it
+  // had at once)
+  const held = {}, look = setInterval(() => { const t = Math.round((Date.now() - t0) / 1000); let w = {}; try { w = window.__game?.waiting?.() ?? {}; } catch (e) { w = { [`waiting() threw: ${e.message}`]: 1 }; } for (const [k, n] of Object.entries(w)) { const h = (held[k] ||= { from: t, until: t, most: 0 }); h.until = t; h.most = Math.max(h.most, n); } }, 2000);
   let ok = true;
   try { said = await Promise.race([Promise.resolve(s.ready).then(() => s.settle({ timeout: wait })), late]); }
   catch (e) { if (!keep) throw e; ok = false; said = String(e?.message ?? e); }   // (keep: what ran out of its wait is said and measured, not the end)
-  finally { done = true; if (look) clearInterval(await look); }
+  finally { done = true; clearInterval(look); }
   let kept = null; try { kept = JSON.parse(JSON.stringify(said ?? null)); } catch {}
   return { ms: Date.now() - t0, said: kept, now: Math.round(performance.now()), held, settled: ok };
 }
