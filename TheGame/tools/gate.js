@@ -680,26 +680,51 @@ const walkLines = (W, D) => Object.entries(W ?? {}).map(([w, r]) => (r.notSettle
     lowered to it with --ratchet), the WGSL compiled, and the paths walk and zoom (each frame's time, the GPU's, the
     memory, the first frame). Kept as .gate/hourly/<commit>/summary.json (the run as tools/gate/ten.js reads it), and its scoreboard,
     board.md: every measure against the hour before. */
+/** The hour's stages, in the order it runs them: each its key in the hour's summary and what it is. Each says how it
+    went as it ends (hourly's stage): measured; not measured, and why (the machine: tools/gate/machine.js onMachine);
+    failed, and what it threw. One that said nothing (a line that never ran, a branch skipped: 2026-11-19, a comment
+    took the compile and the walks for three hours, unsaid) fails the hour, on its board the same hour; so does one that
+    failed. The summary keeps them in this order, and the board says them. */
+const STAGES = [['wgsl', 'the WGSL on the device'], ['device', 'the device (WebKit at the 8 GB machine)'], ['firstView', "the first view's shaders (cold)"], ['smoke', 'the GPU smoke'], ['stills', 'the stills'], ['truth', 'the ?truth stills'],
+  ['bench', 'the bench (twice)'], ['compile', 'the compile'], ['walks', 'the walks'], ['flip', 'FLIP against the truth'], ['paths', 'the paths']];
+/** The hour's stages as its board says them: how each went, those that went alike (and for the same reason) together,
+    in the order they first ran. */
+function stagesLine(R) {
+  const by = new Map();
+  for (const x of R.stages ?? []) { const k = `${x.state}\0${x.why ?? ''}`; by.set(k, [...(by.get(k) ?? []), x.name]); }
+  const said = [...by].map(([k, names]) => { const [state, why] = k.split('\0'); return `${state === 'measured' ? 'measured' : `**${state}**`}${why ? ` (${why.slice(0, 200)})` : ''}: ${names.join(', ')}`; });
+  return `The hour's stages: ${said.join('; ') || 'none said (a summary from before they were kept)'}.`;
+}
 async function hourly(opt) {
-  const tag = commit(), views = opt.views ?? HOURLY.join(','), at = `${OUT}hourly/`;
+  const tag = commit(), views = opt.views ?? HOURLY.join(','), at = `${OUT}hourly/`, said = {};
   KEEP.on = true;   // (a start or a view that does not settle is said on the board, and what settles is measured all the same)
-  const G = await import('./gate/wgsl.js');
-  const run = await locked('the hour', async () => { const W = await G.wgsl(opt); return { wgsl: W, ...(await onMachine(async () => {   // (first the WGSL, no game: it runs on a machine short of memory too; then the measures, which a machine short of memory would measure its disk with: the hour is not measured)
-    const dev = await (await import('./gate/device.js')).device(BASE, { programs: true });   // (first: the device on the machine the 8 GB gate is for, and the programs its first view made)
-    const first = await G.firstView(dev.programs, W, opt);   // (those compiled again cold, one at a time: what the start waits for, shader by shader)
-    const chrome = await launch({ ...opt, fresh: true });
+  const G = await import('./gate/wgsl.js'), D = await import('./gate/device.js');
+  /** fn run as the hour's stage `key`: what it gave (null where it threw: the hour goes on), and how it went kept. */
+  const stage = async (key, fn) => {
+    const t0 = Date.now(), took = () => Math.round((Date.now() - t0) / 1e3);
+    try { const r = await fn(); said[key] = r?.notMeasured ? { state: 'not measured', why: r.notMeasured, s: took() } : { state: 'measured', s: took() }; return r; }
+    catch (e) { said[key] = { state: 'failed', why: String(e?.message ?? e).slice(0, 300), s: took() }; console.log(`  the hour: ${key} failed: ${said[key].why}`); return null; }
+  };
+  const run = await locked('the hour', async () => { const W = await stage('wgsl', () => G.wgsl(opt)); return { wgsl: W, ...(await onMachine(async () => {   // (first the WGSL, no game: it runs on a machine short of memory too; then the measures, which a machine short of memory would measure its disk with: the hour is not measured)
+    const dev = await stage('device', () => D.device(BASE, { programs: true }));   // (first: the device on the machine the 8 GB gate is for, and the programs its first view made)
+    const first = await stage('firstView', () => G.firstView(dev?.programs, W, opt));   // (those compiled again cold, one at a time: what the start waits for, shader by shader)
+    const chrome = await launch({ ...opt, fresh: true }).catch((e) => { for (const k of ['smoke', 'stills', 'truth', 'bench', 'compile', 'walks']) said[k] = { state: 'failed', why: `Chrome did not start: ${String(e.message).slice(0, 200)}` }; return null; });
     let s, a, t, b, c, w;
-    try {
+    if (chrome) try {
       const set = (o) => stills(chrome, o).catch((e) => { console.log(`  stills ${o.tag}: ${e.message.slice(0, 300)}`); return o.tag; });   // (a view the GPU refused is marked in its gate.json; the hour goes on)
-      s = await smoke(chrome, { views }); a = await set({ tag, views }); t = await set({ tag: `${tag}-truth`, truth: true, views });
-      b = await (await import('./gate/ceilings.js')).rule(() => bench(chrome, opt), { twice: true, ratchet: opt.ratchet }, tag); c = await compile(chrome, opt); w = await walks(chrome);   // (the bench twice: the hour's own noise)
+      s = await stage('smoke', () => smoke(chrome, { views })); a = await stage('stills', () => set({ tag, views })); t = await stage('truth', () => set({ tag: `${tag}-truth`, truth: true, views }));
+      b = await stage('bench', () => import('./gate/ceilings.js').then((C) => C.rule(() => bench(chrome, opt), { twice: true, ratchet: opt.ratchet }, tag)));   // (the bench twice: the hour's own noise)
+      c = await stage('compile', () => compile(chrome, opt)); w = await stage('walks', () => walks(chrome));
     } finally { await closeHard(chrome, chrome.gateDir); }
-    const unsettled = (set) => Object.entries(JSON.parse(readFileSync(`${OUT}${set}/gate.json`, 'utf8')).views ?? {}).filter(([, r]) => r.notSettled).map(([k]) => k);
-    return { tag, when: new Date().toISOString(), out: OUTPUT, device: dev, firstView: first, walks: w, start: s.start, smoke: s, stills: { lod: unsettled(a), truth: unsettled(t) }, flip: await diff(a, t, { ...opt, views }).catch((e) => ({ none: e.message })), bench: b, compile: c, paths: await paths({ ...opt, paths: opt.paths ?? 'walk,zoom' }) };
+    const unsettled = (set) => (set ? Object.entries(JSON.parse(readFileSync(`${OUT}${set}/gate.json`, 'utf8')).views ?? {}).filter(([, r]) => r.notSettled).map(([k]) => k) : []);
+    return { tag, when: new Date().toISOString(), out: OUTPUT, device: dev, firstView: first, walks: w, start: s?.start, smoke: s, stills: { lod: unsettled(a), truth: unsettled(t) }, flip: await stage('flip', () => diff(a, t, { ...opt, views })), bench: b, compile: c, paths: await stage('paths', () => paths({ ...opt, paths: opt.paths ?? 'walk,zoom' })) };
   }, (o) => ({ tag, when: new Date().toISOString(), ...o }))) }; });
-  run.submissions = (await import('./gate/device.js')).submitRule(run, lastMeasured(at, tag));   // (held against the last hour whose device was measured)
+  const machine = run.notMeasured && !run.device ? { state: 'not measured', why: run.notMeasured } : null;   // (the machine refused the game: every stage of it not measured, and why)
+  run.stages = STAGES.map(([key, name]) => ({ key, name, ...(said[key] ?? (key === 'wgsl' ? null : machine) ?? { state: 'no report', why: 'it never said it ran: a line that did not run, a branch skipped' }) }));
+  run.submissions = D.submitRule(run, lastMeasured(at, tag));   // (held against the last hour whose device was measured)
   mkdirSync(`${at}${tag}/`, { recursive: true }); save(`${at}${tag}/summary.json`, run);   // (its own folder, whatever else made one: a hour not measured made none, and left no board, 2026-11-19)
-  if (run.device?.pass === false || run.wgsl?.pass === false || run.bench?.ceilings?.pass === false || run.submissions.pass === false) process.exitCode = 1;   // (a lost device fails the hour, a module the device will not compile, a class or pass of a bench view past its ceiling, and a submission the rule refuses)
+  const broken = run.stages.some((x) => x.state === 'failed' || x.state === 'no report');
+  if (broken || run.device?.pass === false || run.wgsl?.pass === false || run.bench?.ceilings?.pass === false || run.submissions.pass === false) process.exitCode = 1;   // (a stage that failed or said nothing fails the hour, a lost device, a module the device will not compile, a class or pass of a bench view past its ceiling, and a submission the rule refuses)
   return board(tag, at);
 }
 /** The hours kept in `at` before `tag`, the newest first. */
@@ -715,7 +740,7 @@ async function board(tag, at) {
   const H = before ? held(here, runOf(`${at}${before}/summary.json`)) : null, R = JSON.parse(readFileSync(`${at}${tag}/summary.json`, 'utf8')), mem = memoryOn(R.smoke);
   const { wgslLines, costBlock } = await import('./gate/wgsl.js');
   const md = [`# The hour on main, ${tag} (${OUTPUT.width} × ${OUTPUT.height}), ${new Date().toISOString().slice(0, 16)}`, '',
-    ...head(R, (await import('./gate/device.js')).readyLine).flatMap((l, i) => (i ? [l] : [l, ...wgslLines(R.wgsl, R.firstView)])),   // (first: was it measured, did the game come at all; the WGSL on the device and what it costs; the machine)
+    ...head(R, (await import('./gate/device.js')).readyLine).flatMap((l, i) => (i ? [l] : [l, ...wgslLines(R.wgsl, R.firstView)])), stagesLine(R),   // (first: was it measured, did the game come at all; the WGSL on the device and what it costs; the machine; how each stage went)
     ...costBlock(R.wgsl, R.firstView),
     ...(R.notMeasured && !R.device ? ['', 'The game was not run this hour (the machine, above): nothing of it is measured, nor held against the hour before.'] : await measuresOf(R, H, mem))].join('\n');   // (a hour not measured: its board all the same, what ran without the game on it)
   writeFileSync(`${at}${tag}/board.md`, md + '\n');
