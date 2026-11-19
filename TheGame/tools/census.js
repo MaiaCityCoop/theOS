@@ -68,6 +68,7 @@ const { createUniforms } = await import('../src/core/uniforms.js'), U = createUn
 const { createTemporal } = await import('../src/core/temporal.js'), { createScreen } = await import('../src/core/screen.js'), { createLens } = await import('../src/camera/post.js');
 const temporal = createTemporal(renderer), screen = createScreen(renderer, { temporal, lens: createLens(renderer) });
 const { keepMeasure, measureNow } = await import('../src/detail/measure.js'); keepMeasure(() => screen.out);
+await M.planned();   // (the start's plan, as src/boot.js solves it: tools/gpu-mock.js planned)
 let tex = M.tiles;
 try { tex = (await import('../src/materials/bake.js')).bakeTextures(renderer, { spare: 1 }); } catch { /* the stand-in's tiles */ }
 (await import('../src/world/tile.js')).useTiles(tex);

@@ -12,6 +12,7 @@
 //   const M = await mock({ webgl, dpr, record, lean })
 //     M.THREE, M.TSL          three as the game imports it
 //     M.renderer              the stand-in (webgl: as WebGL 2's backend, three's GLSL builder; dpr: its pixel ratio)
+//     M.planned()             the start's plan solved and its pools made, as src/boot.js does once the measure is kept
 //     M.build(object, material = object.material, { context, camera })   -> { vertex, fragment, uniforms }: the object's
 //                             code with that material (context: what node code reads as it is built); throws where three
 //                             throws
@@ -106,5 +107,11 @@ export async function mock({ webgl = false, dpr = 1, record = false, lean = fals
   const tiles = { a: read, n: read, r: read, used: [], layer: () => 0, flush() {}, ready: Promise.resolve() };
   (await import('../src/world/tile.js')).useTiles(tiles);
   if (lean && !webgl) (await import('../src/core/gpu.js')).useGPU(renderer);
-  return { THREE, TSL, renderer, build, compute, calls, drawn, computed, id, tiles };
+  // (the start's plan, as src/boot.js solves it once the measure is kept: what is made once says its need as its module
+  // is loaded (boot.js holds them from the start), the dial at rest solved once, the pools made at it: src/core/gpu.js planDial)
+  const planned = async () => {
+    for (const m of ['../src/terrain/terrain.js', '../src/scatter/ground.js', '../src/scatter/index.js']) await import(m);
+    (await import('../src/core/pool.js')).makePools((await import('../src/core/gpu.js')).planDial());
+  };
+  return { THREE, TSL, renderer, build, compute, calls, drawn, computed, id, tiles, planned };
 }

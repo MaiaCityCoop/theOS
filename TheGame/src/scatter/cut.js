@@ -53,7 +53,7 @@ export const ruleOf = (self, parent, bS, bP) => ({ drawn: self.lessThanEqual(bS)
 /** The most things a cut holds at once: of things `size` metres large at the most, a thing a cell of `cell` metres, as
     many as stand within where that size is px dial pixels large at the most (measure.js pxKMost; px: where level 0
     ends). */
-export const cutThings = (size, cell, px) => Math.ceil(Math.PI * ((size * pxKMost()) / px / cell + 1) ** 2);
+export const cutThings = (size, cell, px, dial) => Math.ceil(Math.PI * ((size * pxKMost(dial)) / px / cell + 1) ** 2);   // (dial: the dial at rest, or another, the start's plan's)
 
 /** Level 0's cut for a tier's bucket of the things drawn there (T: a tier of src/scatter/tier.js; k: the bucket; H: the
     heap; room: the most a kind's level holds, { tris, clusters }: src/scatter/rooms.js; things: the most things that can
@@ -62,8 +62,11 @@ export const cutThings = (size, cell, px) => Math.ceil(Math.PI * ((size * pxKMos
 export function createCut({ T, k = 0, H, room, name, things }) {
   // (MAXC: the most clusters a kind's level holds, each tested by a thread of its own; MOST: the list's room, an entry 16
   // bytes: as many as its things can ask for at once, every packed thing every cluster of its level; no more than one
-  // buffer the GPU binds, nor than the geometry's class has room for: src/core/classes.js)
-  const S = T.slots, cap = things, MAXC = Math.max(1, room.clusters), MOST = Math.max(1, Math.min(cap * MAXC, Math.floor(Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity, roomOf('geometry')) / 16)));
+  // buffer the GPU binds, nor than the geometry's class has room for: src/core/classes.js. cap: the things it tests, as
+  // many as stand within its reach (things: at a dial of 0 every one, Infinity), held to what its list holds an entry
+  // each and to one dispatch's workgroups down (a thing a row of them): the rest is the dial's)
+  const S = T.slots, MAXC = Math.max(1, room.clusters), MOST = Math.max(1, Math.min(things * MAXC, Math.floor(Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity, roomOf('geometry')) / 16)));
+  const cap = Math.min(things, MOST, limitOf('maxComputeWorkgroupsPerDimension') || Infinity);
   // (the list the GPU's alone: it writes it and reads it)
   const list = gpuStorage('uvec4', MOST, `${name}: the cut's list`, 'geometry').node, count = instancedArray(1, 'uint').toAtomic(), packed = storage(T.args, 'uint', T.args.array.length).toReadOnly();
   const drawArgs = new THREE.IndirectStorageBufferAttribute(new Uint32Array([MAXT * 3, 0, 0, 0, 0]), 5), DA = storage(drawArgs, 'uint', 5);

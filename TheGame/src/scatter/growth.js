@@ -26,7 +26,7 @@
 // took to it. Where a layer's window does not reach, nothing of that layer has left anything.
 import * as THREE from 'three/webgpu';
 import { Fn, If, float, int, uint, vec2, ivec2, uniform, globalId, floor, clamp, round } from 'three/tsl';
-import { gpuStorage, byDial } from '../core/gpu.js';
+import { gpuStorage, byDial, roomOf, limitOf } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { ownGpuMs, pace, frameShare } from '../core/pace.js';
 import { source } from '../core/settle.js';
@@ -47,11 +47,26 @@ export const growthMap = () => CURRENT;
 /** The map: its buffer (made with the renderer, on the GPU only, as its passes are built), what reads it, and how it is
     kept round the camera. fields: a word's each, in its order ({ band: its texel, metres (the layer's band limit:
     rule.js layersOf), far: metres its farthest reader is drawn to at the most }). */
+/** The map's sides and what it holds, made of `fields` (createGrowth's) with the cells its writers' gathers read (list:
+    { w: a word, span(n): the most cells along a side n texels of it read }, rule.js spansOf), within `most` bytes: N,
+    each word's texels a side, the fewest (a power of two) that reach its `far` from where its snap leaves it, no more
+    than its share of `most`, four bytes a texel; then, while all of it with its cells would pass `most`, the word with
+    the most texels halved, again, till it fits (it reaches less far: at a dial of 0 every `far` is Infinity, the rest
+    is the dial's); bytes, its words' texels and each writer's cells, four bytes each. What the map is made at (build)
+    and what the start plans for it (src/scatter/trees.js: the growth map's need at a dial), one rule. */
+export function sidesOf(fields, list, most) {
+  const W = Math.max(1, Math.min(WORDS, fields.length)), N = fields.slice(0, W).map(() => 4 * SNAP);
+  fields.slice(0, W).forEach(({ band, far }, w) => { while ((N[w] / 2 - SNAP) * band < far && 4 * (2 * N[w]) ** 2 <= most / W) N[w] *= 2; });
+  const cells = (w) => { const L = list.find((x) => x.w === w); return L ? 2 ** (2 * Math.ceil(Math.log2(L.span(N[w])))) : 0; };
+  const total = () => N.reduce((n, s, w) => n + s * s + cells(w), 0);   // (its numbers as build lays them: each word's texels, each layer's cells)
+  while (4 * total() > most) { const w = N.reduce((a, s, i) => (s > N[a] ? i : a), 0); if (N[w] <= 4 * SNAP) break; N[w] /= 2; }
+  return { N, bytes: 4 * total() };
+}
+
 export function createGrowth(renderer, fields) {
   // (each word's texel, side and first texel as uniforms besides (uT, uN, uBase): every layer's passes and readers are
-  // code alike, the words differing only in them)
+  // code alike, the words differing only in them; its sides set as it is built, sidesOf)
   const W = Math.max(1, Math.min(WORDS, fields.length)), words = fields.slice(0, W).map(({ band, far }) => ({ T: band, far, N: 4 * SNAP, base: 0, origin: uniform(new THREE.Vector2(0, 0)), window: null, uT: uniform(band), uN: uniform(4 * SNAP, 'int'), uBase: uniform(0, 'uint') }));
-  for (const Wd of words) while ((Wd.N / 2 - SNAP) * Wd.T < Wd.far) Wd.N *= 2;   // (the fewest texels that reach its `far` from where its snap leaves it)
   let B = null, writers = [], passes = [], fills = [], uRect = uniform(new THREE.Vector4()), uCells = uniform(new THREE.Vector4()), version = 0, key = '';
   const slot = (ix, iz, w) => { const Wd = words[w], n = Wd.uN; return uint(ix.bitAnd(n.sub(1)).add(iz.bitAnd(n.sub(1)).mul(n))).add(Wd.uBase); };
   const inside = (ix, iz, w) => { const o = words[w].origin, n = words[w].uN; return ix.greaterThanEqual(int(o.x)).and(ix.lessThan(int(o.x).add(n))).and(iz.greaterThanEqual(int(o.y))).and(iz.lessThan(int(o.y).add(n))); };
@@ -74,10 +89,12 @@ export function createGrowth(renderer, fields) {
       its window of cells (where c is one the gather of its texels' window reads: whoever asks keeps to that). */
   const places = [], placeOf = (w) => (places[w] ||= { side: uniform(1, 'int'), base: uniform(0, 'uint') });   // (each layer's cells' window: its side and its first, uniforms set as it is built)
   const at = (w, c) => { const P = placeOf(w); return B.element(uint(c.x.bitAnd(P.side.sub(1)).add(c.y.bitAnd(P.side.sub(1)).mul(P.side))).add(P.base)); };
-  // (its need: its words as far as their readers reach at the dial at rest, and the cells its gather reads, 4 bytes
-  // each; never what the geometry's class has left: made once at the dial at rest, src/core/gpu.js byDial)
+  // (its sides, and its need: its words as far as their readers reach at the dial at rest, and the cells its gather
+  // reads, within what geometry has left and one binding (sidesOf, the start's plan's rule: planned for at the start,
+  // src/scatter/trees.js, so what is left holds it); made once at the dial at rest, src/core/gpu.js byDial)
   const sides = (list) => {
-    const bytes = words.reduce((b, Wd, w) => { const L = list.find((x) => x.w === w); return b + 4 * (Wd.N * Wd.N + (L ? 2 ** (2 * Math.ceil(Math.log2(L.span(Wd.N)))) : 0)); }, 0);
+    const { N, bytes } = sidesOf(fields, list, Math.min(Math.max(0, roomOf('geometry')), limitOf('maxStorageBufferBindingSize') || Infinity));
+    words.forEach((Wd, w) => (Wd.N = N[w]));
     byDial('the growth map', 'geometry', bytes, false);
   };
   /** The passes, one a layer that writes, in their order (rule.js writersOf): record(c), what stands in cell c of the

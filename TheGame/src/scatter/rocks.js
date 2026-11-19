@@ -13,7 +13,7 @@ import { U } from '../core/uniforms.js';
 import { rnd, camDist, riverInfo, heightAt, outcropMask, grassTint, dryAt } from '../world/land.nodes.js';
 import { offWays } from '../world/ways.js';
 import { lit, weathered, snowLift } from '../world/light.js';
-import { byRole } from '../core/registry.js';
+import { byRole, recipes } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
 import { farMost } from '../detail/measure.js';
 import { source, ready } from '../core/settle.js';
@@ -24,7 +24,7 @@ import { placedBy, lookOf as zooLook, fingerprint } from '../../assets/zoo/index
 import { rockFull, rockBody } from '../../assets/kit/rock.js';
 import { STILL_PER } from '../../assets/kit/solid.js';
 import { roomsOf, mostOf } from './rooms.js';
-import { byDial } from '../core/gpu.js';
+import { byDial, plan } from '../core/gpu.js';
 import { SURFACE_LEVELS, surfaceBand, surfacePx, GONE, BAND } from '../detail/error.js';
 import { rocksAround, rocksDrawn } from '../world/rocksolid.js';
 
@@ -41,11 +41,20 @@ import { rocksAround, rocksDrawn } from '../world/rocksolid.js';
 // not yet in is drawn by the next coarser one, and grows into level 0 as it comes. The coarser levels: their need, made
 // with the heap (byDial, once). (2026-11-19: level 0 made at the dial at 1 held 57 of an iPhone's 384 MB of geometry,
 // and the tiers' room the dial left to the plants was 39 MB)
-const levelsOf = (Z, rows, famOf) => {
+/** The levels and what they need: { LV, bytes(room), near(dial): level 0's slots at a dial (the dial at rest by
+    default), rest: the coarser levels' bytes }. Nothing made. */
+const levelsAt = (Z, rows, famOf) => {
   const LV = Array.from({ length: SURFACE_LEVELS }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), delta: 0, room: mostOf(Z.families.flatMap((F) => roomsOf(F.F.asset, i, STILL_PER).slice(0, F.count))) }));
   const bytes = (r) => r.tris * 3 * 4 + r.verts * 16;   // (a level's place in the heap: its corners, 4 bytes each, its elements, 16: src/scatter/heap.js)
-  const near = () => Math.min(Z.count, rows.reduce((n, row) => n + Math.min(famOf(row).count, cutThings(row.size[1], row.cell, LV[0].px)), 0));
-  const rest = LV.slice(1).reduce((s, l) => s + Z.count * bytes(l.room), 0);
+  const near = (dial) => Math.min(Z.count, rows.reduce((n, row) => n + Math.min(famOf(row).count, cutThings(row.size[1], row.cell, LV[0].px, dial)), 0));
+  return { LV, bytes, near, rest: LV.slice(1).reduce((s, l) => s + Z.count * bytes(l.room), 0) };
+};
+// (the start's plan: the rocks' meshes, every level of every shape the scatter places, level 0 as many as can lie near at
+// a dial, said before anything is made: src/core/gpu.js planDial)
+const placedRocks = () => { const Z = placedBy('rocks'), famOf = (row) => Z.families.find((F) => F.F.asset === row.uid); return { Z, famOf, rows: recipes('asset').filter((a) => a.placement?.at === 'scatter' && a.placement.engine === 'rocks').map(rockRow).filter(famOf) }; };
+plan('rocks: meshes', 'geometry', (dial) => { const { Z, famOf, rows } = placedRocks(); if (!rows.length) return 0; const { LV, bytes, near, rest } = levelsAt(Z, rows, famOf); return rest + Math.max(1, near(dial)) * bytes(LV[0].room); });
+const levelsOf = (Z, rows, famOf) => {
+  const { LV, bytes, near, rest } = levelsAt(Z, rows, famOf);
   byDial('rocks: meshes', 'geometry', rest, false);
   Object.assign(LV[0], { cut: true, slots: Math.max(1, near()), later: true });   // (slots: what it asks now, what makes it a level of slots; laid at ready)
   /** Level 0 laid, at the dial at rest now: its need said (byDial: the dial may rise), then reckoned at the dial as it is. */

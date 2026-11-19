@@ -94,8 +94,10 @@ export const levelOf = (raw, b) => Math.min(TOP, Math.max(0, Math.floor(raw + b 
 // pixels wide than that: its texels at most 2^1.5 a pixel across the eye's ray), and the last. The walk is pictured as
 // often as the eye moves the side of the finest page it asks, so every page it crosses is asked by one of its pictures.
 let NEED = 0;
-/** How many pages the land needs at the most (above): the pool is sized by it, the ground class's room its ceiling. */
-function pagesNeeded() {
+/** How many pages the land needs at the most (above): the pool is sized by it, the ground class's room its ceiling;
+    most: the most it may have, the last level's pins held to a square of as many (at a dial of 0 the land's reach is
+    Infinity: the rest is the dial's). */
+function pagesNeeded(most = Infinity) {
   if (NEED) return NEED;
   const { width: W, height: H } = mostOutput(), across = Math.max(1, Math.floor(PAGE / 2 ** 1.5 / SWEEP)) * SWEEP, keyOf = (l, i, j) => l * 1e12 + (i + 5e5) * 1e6 + (j + 5e5);
   // the pages a view asks for: the eye `eye` metres over the land at (0, z), its pitch, its picture `fov` degrees tall;
@@ -127,7 +129,7 @@ function pagesNeeded() {
     const v = rigAt(key.h), pitch = (-v.fov * Math.PI) / 360, reach = farthestMost() / (2 * Math.tan((v.fov * Math.PI) / 360) * pxKAt(1)), pages = new Set();   // (the land's reach as the measure's lens sees it, through this one)
     const walk = v.speed * 2 * FIXATION, n0 = Math.ceil(walk / sideOf(asked(pages, key.h, 0, pitch, v.fov, reach)));
     for (let k = 1; k <= n0; k++) asked(pages, key.h, (-walk * k) / n0, pitch, v.fov, reach);
-    const P = sideOf(TOP), n = Math.ceil(reach / P);
+    const P = sideOf(TOP), n = Math.min(Math.ceil(reach / P), Math.ceil(Math.sqrt(most) / 2));
     for (let j = -n - 1; j <= n; j++) for (let i = -n - 1; i <= n; i++) if (Math.hypot(Math.max(i * P, 0, -(i + 1) * P), Math.max(j * P, 0, -(j + 1) * P)) <= reach) pages.add(keyOf(TOP, i, j));
     NEED = Math.max(NEED, pages.size);
   }
@@ -156,7 +158,7 @@ export function createPages(renderer, tex) {
   // land's reach asks follows the dial (src/core/gpu.js byDial: made once, at the dial at rest), so where the ground's
   // class cannot hold them beside the rest, the dial rises for what is sized anew: the meadow)
   const OWN = (PACKED ? BATCH * SLOT * SLOT * 1.25 * 8 + BATCH * 3 * ((SLOT / 4) ** 2 + (SLOT / 8) ** 2) * bytesOf('uvec4') : 0) + BATCH * POINTS * 2 * bytesOf('uvec4') + BATCH * 3 * bytesOf('vec4') + LEVELS * K * K * bytesOf('uint') + BLOCKS_MOST * 2 * bytesOf('uint');
-  const SLOTS = Math.min(PACKED ? Math.min(2 * LAYERS_MOST, VALID, pagesNeeded()) : Math.min(LAYERS_MOST, 640), Math.floor((budgetOf('ground') * 2 ** 20 - OWN) / SLOT_BYTES)), PER = Math.min(SLOTS, LAYERS_MOST);   // (PER: layers an array; and never more than the ground's class holds in all: src/core/budget.js)
+  const FITS = Math.floor((budgetOf('ground') * 2 ** 20 - OWN) / SLOT_BYTES), SLOTS = Math.min(PACKED ? Math.min(2 * LAYERS_MOST, VALID, pagesNeeded(Math.min(2 * LAYERS_MOST, VALID, FITS))) : Math.min(LAYERS_MOST, 640), FITS), PER = Math.min(SLOTS, LAYERS_MOST);   // (PER: layers an array; and never more than the ground's class holds in all: src/core/budget.js)
   byDial('the land\'s pages', 'ground', OWN + SLOTS * SLOT_BYTES, false);
   const look = { minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, anisotropy: ANISO, colorSpace: THREE.NoColorSpace, generateMipmaps: false };
   const laidInto = (n) => Object.assign(new THREE.StorageArrayTexture(SLOT, SLOT, n), look, { mipmaps: [{ width: SLOT, height: SLOT }, { width: SLOT / 2, height: SLOT / 2 }] });
