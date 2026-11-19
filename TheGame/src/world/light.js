@@ -222,7 +222,9 @@ export const contactShade = Fn((builder) => (onScreen(builder) ? mix(float(1), S
                     as tight as `lobe` (3), coloured by `tint` on the way
       ao            its own occlusion (its mesh's, a crown's depth): the sky's light is lost faster than the sun's
       sky           what else dims the sky's light on it (the ground's own shade)
-      gloss, sharp  its highlight: how bright, how tight */
+      gloss, sharp  its highlight: how bright, how tight (shineOf: from its material's roughness)
+      ns            the way its highlight is reflected from, where that is not n (a leaf: its own card's, where n is its
+                    crown's dome) */
 export const lightOn = (s) => {
   const n = s.n, L = U.uSunDir, V = s.V ?? (s.w ? normalize((s.eye ?? U.uCam).sub(s.w)) : null), share = (s.sun ?? sunAt(s.w, s.how, s.n)).mul(contactShade());
   const wrap = s.wrap ?? 0, ndl = s.ndl ?? (wrap ? n.dot(L).add(wrap).div(float(wrap).add(1)) : n.dot(L)).max(0);
@@ -236,9 +238,13 @@ export const lightOn = (s) => {
   if (s.sky) sky = sky.mul(s.sky);
   if (s.ao) { const ao = float(s.ao); sky = sky.mul(ao.mul(ao).mul(0.75).add(ao.mul(0.25))); sun = sun.mul(ao.mul(0.6).add(0.4)); }
   // (its highlight)
-  const spec = s.gloss ? light.mul(pow(max(n.dot(normalize(V.add(L))), 0), s.sharp ?? 40)).mul(s.gloss) : vec3(0);
+  const spec = s.gloss ? light.mul(pow(max((s.ns ?? n).dot(normalize(V.add(L))), 0), s.sharp ?? 40)).mul(s.gloss) : vec3(0);
   return { sky, sun, spec, light, V, back, ndl };
 };
+/** A surface's highlight from its material's roughness (rough: 0 … 1, its painting's, src/materials/bake.js tex.r),
+    as its material is shown (src/materials/preview.js) and as it is lit in the world: { gloss, sharp } for lightOn.
+    ndl: how its reflecting side faces the sun (the highlight goes with it). */
+export const shineOf = (rough, ndl) => ({ gloss: float(1).sub(rough).mul(0.5).mul(ndl), sharp: mix(60, 6, rough) });
 /** A surface lit and seen through the air, for the screen: { colour (its own, linear), extra (light of another kind on
     it: a fire's), glow (its own light), ...lightOn's }. */
 export const lit = (s) => { const L = lightOn(s); let d = L.sky.add(L.sun); if (s.extra) d = d.add(s.extra); let c = s.colour.mul(d).add(L.spec); if (s.glow) c = c.add(s.glow); return finish(c, s.w, s.eye); };
