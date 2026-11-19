@@ -71,7 +71,8 @@
 //   bun tools/gate.js smoke [--views a,b]                        the GPU smoke: at HOURLY's views, the world settled
 //                                                                posed, turned about and walked on, and every WebGPU
 //                                                                error meanwhile
-//   bun tools/gate.js hourly [--views a,b] [--paths a,b]         the hour's measure of main, under the GPU lock once:
+//   bun tools/gate.js hourly [--views a,b] [--paths a,b]         the hour's measure of main, under the GPU lock once
+//                        [--ratchet]                             (--ratchet: the shader ceilings lowered to it):
 //                                                                the smoke, the stills, ?truth and FLIP at HOURLY's views, the
 //                                                                bench (the ceilings shown), the compile, the paths
 //                                                                walk and zoom; .gate/hourly/<commit>/summary.json and
@@ -683,8 +684,10 @@ const walkLines = (W) => Object.entries(W ?? {}).map(([w, r]) => (r.notSettled ?
 async function hourly(opt) {
   const tag = commit(), views = opt.views ?? HOURLY.join(','), at = `${OUT}hourly/`;
   KEEP.on = true;   // (a start or a view that does not settle is said on the board, and what settles is measured all the same)
-  const run = await locked('the hour', async () => ({ wgsl: await (await import('./gate/wgsl.js')).wgsl(), ...(await onMachine(async () => {   // (first the WGSL, no game: it runs on a machine short of memory too; then the measures, which a machine short of memory would measure its disk with: the hour is not measured)
-    const dev = await (await import('./gate/device.js')).device(BASE);   // (first: the device on the machine the 8 GB gate is for)
+  const G = await import('./gate/wgsl.js');
+  const run = await locked('the hour', async () => { const W = await G.wgsl(opt); return { wgsl: W, ...(await onMachine(async () => {   // (first the WGSL, no game: it runs on a machine short of memory too; then the measures, which a machine short of memory would measure its disk with: the hour is not measured)
+    const dev = await (await import('./gate/device.js')).device(BASE, { programs: true });   // (first: the device on the machine the 8 GB gate is for, and the programs its first view made)
+    const first = await G.firstView(dev.programs, W, opt);   // (those compiled again cold, one at a time: what the start waits for, shader by shader)
     const chrome = await launch({ ...opt, fresh: true });
     let s, a, t, b, c, w;
     try {
@@ -693,9 +696,9 @@ async function hourly(opt) {
       b = await (await import('./gate/ceilings.js')).rule(() => bench(chrome, opt), {}, tag); c = await compile(chrome, opt); w = await walks(chrome);
     } finally { await closeHard(chrome, chrome.gateDir); }
     const unsettled = (set) => Object.entries(JSON.parse(readFileSync(`${OUT}${set}/gate.json`, 'utf8')).views ?? {}).filter(([, r]) => r.notSettled).map(([k]) => k);
-    return { tag, when: new Date().toISOString(), out: OUTPUT, device: dev, walks: w, start: s.start, smoke: s, stills: { lod: unsettled(a), truth: unsettled(t) }, flip: await diff(a, t, { ...opt, views }).catch((e) => ({ none: e.message })), bench: b, compile: c, paths: await paths({ ...opt, paths: opt.paths ?? 'walk,zoom' }) };
-  }, (o) => ({ tag, when: new Date().toISOString(), ...o }))) }));
-  save(`${at}${tag}/summary.json`, run);
+    return { tag, when: new Date().toISOString(), out: OUTPUT, device: dev, firstView: first, walks: w, start: s.start, smoke: s, stills: { lod: unsettled(a), truth: unsettled(t) }, flip: await diff(a, t, { ...opt, views }).catch((e) => ({ none: e.message })), bench: b, compile: c, paths: await paths({ ...opt, paths: opt.paths ?? 'walk,zoom' }) };
+  }, (o) => ({ tag, when: new Date().toISOString(), ...o }))) }; });
+  mkdirSync(`${at}${tag}/`, { recursive: true }); save(`${at}${tag}/summary.json`, run);   // (its own folder, whatever else made one: a hour not measured made none, and left no board, 2026-11-19)
   if (run.device?.pass === false || run.wgsl?.pass === false) process.exitCode = 1;   // (a lost device fails the hour, and a module the device will not compile)
   return board(tag, at);
 }
@@ -704,24 +707,28 @@ async function hourly(opt) {
 async function board(tag, at) {
   const { runOf, held } = await import('./gate/ten.js'), here = runOf(`${at}${tag}/summary.json`);
   const before = readdirSync(at).filter((d) => d !== tag && existsSync(`${at}${d}/summary.json`)).sort((x, y) => statSync(`${at}${y}/summary.json`).mtimeMs - statSync(`${at}${x}/summary.json`).mtimeMs)[0];
-  const H = before ? held(here, runOf(`${at}${before}/summary.json`)) : null, rows = here.bench?.ceilings?.rows ?? [];
-  const R = JSON.parse(readFileSync(`${at}${tag}/summary.json`, 'utf8')), S = R.start;
-  const out = [...(R.stills?.lod ?? []).map((v) => `${v} (stills)`), ...(R.stills?.truth ?? []).map((v) => `${v} (?truth)`), ...Object.keys(R.bench?.unsettled ?? {}).map((v) => `${v} (bench)`), ...['cold', 'warm'].flatMap((c) => Object.entries(R.paths?.[c]?.paths ?? {}).filter(([, r]) => r.notSettled).map(([k]) => `${k} (paths, ${c})`))];
-  const mem = memoryOn(R.smoke);
+  const H = before ? held(here, runOf(`${at}${before}/summary.json`)) : null, R = JSON.parse(readFileSync(`${at}${tag}/summary.json`, 'utf8')), mem = memoryOn(R.smoke);
   const { wgslLines, costBlock } = await import('./gate/wgsl.js');
   const md = [`# The hour on main, ${tag} (${OUTPUT.width} × ${OUTPUT.height}), ${new Date().toISOString().slice(0, 16)}`, '',
-    ...head(R, (await import('./gate/device.js')).readyLine).flatMap((l, i) => (i ? [l] : [l, ...wgslLines(R.wgsl)])),   // (first: was it measured, did the game come at all; the WGSL on the device and what it costs; the machine)
-    ...costBlock(R.wgsl),
-    mem.line,
+    ...head(R, (await import('./gate/device.js')).readyLine).flatMap((l, i) => (i ? [l] : [l, ...wgslLines(R.wgsl, R.firstView)])),   // (first: was it measured, did the game come at all; the WGSL on the device and what it costs; the machine)
+    ...costBlock(R.wgsl, R.firstView),
+    ...(R.notMeasured && !R.device ? ['', 'The game was not run this hour (the machine, above): nothing of it is measured, nor held against the hour before.'] : await measuresOf(R, H, here, mem))].join('\n');   // (a hour not measured: its board all the same, what ran without the game on it)
+  writeFileSync(`${at}${tag}/board.md`, md + '\n');
+  console.log(`\n${md}\n\n→ .gate/hourly/${tag}/summary.json and board.md`);
+  return { tag, before: before ?? null, worse: H?.worse ?? [], fails: mem.fails };
+}
+/** The board's lines of what the game was measured doing (R, the hour's run): the GPU's memory, the device, the start,
+    what did not settle, the walk, every measure against the hour before (H), and each bench part against its ceiling. */
+async function measuresOf(R, H, here, mem) {
+  const S = R.start, rows = here.bench?.ceilings?.rows ?? [];
+  const out = [...(R.stills?.lod ?? []).map((v) => `${v} (stills)`), ...(R.stills?.truth ?? []).map((v) => `${v} (?truth)`), ...Object.keys(R.bench?.unsettled ?? {}).map((v) => `${v} (bench)`), ...['cold', 'warm'].flatMap((c) => Object.entries(R.paths?.[c]?.paths ?? {}).filter(([, r]) => r.notSettled).map(([k]) => `${k} (paths, ${c})`))];
+  return [mem.line,
     ...(await import('./gate/device.js')).lines(R.device), '',
     S?.settled === false ? `**The start did not settle** in ${(S.ms / 1000).toFixed(0)} s: ${String(S.said).slice(0, 300)}` : `The start settled in ${((S?.ms ?? 0) / 1000).toFixed(1)} s.`,
     out.length ? `Not settled, so not measured: ${out.join(', ')}.` : 'Every view and path settled.', '',
     ...walkLines(R.walks), '', H ? H.text : `The first hour kept: nothing before it to hold it against.`, '',
     `Each part of each bench view against its ceiling (tools/gate/ceilings.json), shown, never blocking:`, '', '| View | Part | ms | Ceiling | Over |', '| --- | --- | --- | --- | --- |',
-    ...rows.map((r) => `| ${r.view} | ${r.part} | ${r.ms.toFixed(2)} | ${r.ceiling.toFixed(2)} | ${r.over ? 'over' : ''} |`)].join('\n');
-  writeFileSync(`${at}${tag}/board.md`, md + '\n');
-  console.log(`\n${md}\n\n→ .gate/hourly/${tag}/summary.json and board.md`);
-  return { tag, before: before ?? null, worse: H?.worse ?? [], fails: mem.fails };
+    ...rows.map((r) => `| ${r.view} | ${r.part} | ${r.ms.toFixed(2)} | ${r.ceiling.toFixed(2)} | ${r.over ? 'over' : ''} |`)];
 }
 async function all(opt) {
   const tag = opt.tag || commit(), chrome = await launch(opt);

@@ -199,6 +199,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   }
   const sizes = Float32Array.from({ length: SOLID ? STAND : 0 }, (_, k) => look[k * STRIDE + 15]), LEAVES = Array.from({ length: NL }, (_, k) => look[k * STRIDE + 17]).some((x) => x > 0.5);   // a standing kind's largest side, metres (its look's); LEAVES: some kind is cut out as leaves
   const lookRows = new THREE.StorageBufferAttribute(look, 4), mats = storage(lookRows, 'vec4', Math.max(1, NK * (STRIDE / 4))), lookOf = (kind, j) => mats.element(kind.mul(uint(STRIDE / 4)).add(uint(j))), numOf = (kind, j) => lookOf(kind, LR + j);
+  const uRows = uniform(STRIDE / 4, 'uint'), uBox = uniform(BR, 'uint');   // (a kind's rows and its box's among them, for the culling's boxes: boundsOf)
   // every kind's own texture (assets/kit/blob.js: blobSkin), SKIN pixels a side: a layer of one array texture for each
   // kind that is large enough on screen to show it, painted in a worker when it comes near, its layer given to another
   // when it has gone (as the fine meshes are: the pump, below). Ten thousand at once would be 950 MB; these are 89.
@@ -680,10 +681,10 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // blows, and the snow lying on it). far: the bucket of its far end's quad (MAKE.far: it stands over its whole sphere,
   // half of it towards the eye), drawn round half again the box's corner. A kind whose box is not known yet is never hidden
   const GROWN = grownOf(SOLID, MAKE);
-  const boundsOf = (grow, far = -1) => { const uFar = far >= 0 ? uniform(far, 'uint') : null; return (A, B, k) => {   // (uFar: a uniform, so a level's culling is one pipeline whatever its far end's bucket)
-    const R = lookOf(uint(B.y.add(0.5)), BR).toVar(), s = A.w;
+  const boundsOf = (grow, far = -1) => { const uFar = far >= 0 ? uniform(far, 'uint') : null, uGrow = uniform(grow); return (A, B, k) => {   // (uFar, uGrow: uniforms, so a level's culling is one pipeline whatever its far end's bucket and its growth)
+    const R = mats.element(uint(B.y.add(0.5)).mul(uRows).add(uBox)).toVar(), s = A.w;   // (its box's row by uniforms: the drawers of other looks cull by one pipeline)
     const half = vec3(R.x, R.z.sub(R.y).mul(0.5), R.x).mul(s), h = uFar ? k.equal(uFar).select(vec3(length(half).mul(1.5)), half) : half;
-    return { c: vec3(A.x, A.z.add(R.y.add(R.z).mul(0.5).mul(s)), A.y), h: R.w.greaterThan(0.5).select(h.add(s.mul(grow)).add(0.05), vec3(1e6)), w: s.mul(0.1).add(1.5) };
+    return { c: vec3(A.x, A.z.add(R.y.add(R.z).mul(0.5).mul(s)), A.y), h: R.w.greaterThan(0.5).select(h.add(s.mul(uGrow)).add(0.05), vec3(1e6)), w: s.mul(0.1).add(1.5) };
   }; };
   // The draws level i's tier has (shadow: the shadow's stand-in). The full meshes are a draw a slot of the heap, each as
   // long as the mesh that lies in it (set when it is put in: arrive, above): a full mesh is 50 000 to 200 000 triangles,
@@ -744,6 +745,35 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // A resident tier's kind (tier.js): the levels of one placer drawn alike pack by one piece of code, compiled once,
   // over numbers of the kind's own, which each of its tiers tells before it packs; the shadow's stand-in is a kind of
   // its own. (A placer that chooses its own patches packs by its tier's own numbers: tier, below.)
+  // A make's materials, one for every level of it drawn alike (its levels' numbers told by their meshes: userData.Lv,
+  // heapLevel, and what their tier's reading says, src/scatter/tier.js meshesOf): a key of how it is drawn and what it
+  // reads (share: none where a tier reads what is its own alone, and it has its own). Each was a material a level, built
+  // again in every pass with the same code: 118 of a start's 234 builds (cold start, 2026-11-19)
+  const ALIKE = new Map(), alike = (key, make) => { if (key.some((x) => x == null)) return make(); const k = key.join('|'); let m = ALIKE.get(k); if (!m) ALIKE.set(k, (m = make())); return m; };
+  /** What level i's tier draws its draw k with (src: what it reads, tier.js meshesOf): its far end's draw the far end's
+      material, a dot the dot's, a make's every draw one material, its levels drawn alike sharing it (alike), else the
+      solids' own. */
+  const drawnWith = (i, shadow, { KF, isDot, leafy, K0, KS }) => {
+    let made1 = null;   // (another make's material: one for every draw of the tier)
+    const makeKey = (src) => [shadow, RANGE[i] && CORNERED ? 1 : 0, MAKE.alike?.(i) ?? i, src.share];
+    return (src, k = 0) => {
+      if (k === KF) return alike(['far', src.share], () => MAKE.far.material(src, i));
+      if (isDot && !shadow) return dot(src);
+      if (MAKE) return (made1 ||= alike(makeKey(src), () => MAKE.material(src, i, shadow, atOf(i))));
+      return meshOf(src, i, shadow, false, leafy && k >= K0 && k !== KS, k === KS);
+    };
+  };
+  /** A tier's meshes told their level (what a material its levels share reads of it: alike), and where its band begins
+      (near, metres: what the first view waits for, src/core/screen.js), each time its band is reckoned again: only where
+      its material rises out of the ground as it arrives (a make that tells its levels: handover.js levelOfMesh's
+      arrived). Another, untold, is waited for: one that came later would come at once. */
+  const tagLevel = (T, i) => {
+    const Lv = MAKE?.levelOf?.(i) ?? null;
+    for (const m of T.meshes) Object.assign(m.userData, { heapLevel: i, Lv });
+    if (!Lv) return;   // (near only where the material rises as it comes: a level whose numbers its meshes tell; not a make's dot, nor its shade)
+    const near = () => { for (const m of T.meshes) m.userData.near = T.near; }, band = T.band;
+    T.band = () => { band(); near(); }; near();
+  };
   const kinds = new WeakMap();   // (by the placer's place: its kinds, by how they are drawn)
   const kindFor = (place, shadow, thing, flags) => {
     const key = [shadow, thing, flags.isDot, flags.perSlot, flags.classed, flags.byKind, !!flags.FAR, flags.KF, flags.leafy, flags.K0, flags.cLo, flags.cHi, flags.KS].join('|');
@@ -778,7 +808,6 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     const Lv = { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity }, band = { near: uniform(0), far: uniform(1), ...bandOf(Lv, fade, padOf(cell, P)) };
     const flags = drawsOf(i, shadow), { isDot, perSlot, classed, byKind, FAR, KF, leafy, K0, cLo, cHi, KS } = flags;
     const resident = !own && !extra.spans;
-    let made1 = null;   // (another make's material: one for every draw of the tier)
     const draws = classed ? Array.from({ length: cHi - cLo + 1 }, (_, c) => { const g = new THREE.InstancedBufferGeometry(); g.setIndex(classIndex(cLo + c)); return g; }) : Array.from({ length: byKind ? ALL : leafy ? K0 * 2 : K0 }, () => drawOf(i));
     if (FAR) draws.push(new THREE.InstancedBufferGeometry().setIndex([0, 1, 2, 0, 2, 3]));   // (the far end's quad: four corners, its vertex stage places them)
     const caps = FAR ? [...draws.slice(0, KF).map(() => cap), Math.min(1 << 20, cap * ALL)] : cap;   // (its own patches, till their count is read back: its far end's draw as many as every kind's, up to about a million)
@@ -806,13 +835,14 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       };
       packs = { live, cap: caps };
     }
-    const T = new Tier(scene, [...draws, ...(KS >= 0 ? [drawShaped(i)] : [])], (src, k = 0) => (k === KF ? FAR.material(src, i) : isDot && !shadow ? dot(src) : MAKE ? (made1 ||= MAKE.material(src, i, shadow, atOf(i))) : meshOf(src, i, shadow, false, leafy && k >= K0 && k !== KS, k === KS)), { cell, P, near: 0, far: 1, order: 1, ...packs, gpu: true, slots: ROWS, bounds: shadow ? null : boundsOf(GROWN, KF), ...extra });   // (the shadow's stand-in is never culled: what casts may stand where the eye does not see)
+    const T = new Tier(scene, [...draws, ...(KS >= 0 ? [drawShaped(i)] : [])], drawnWith(i, shadow, flags), { cell, P, near: 0, far: 1, order: 1, ...packs, gpu: true, slots: ROWS, bounds: shadow ? null : boundsOf(GROWN, KF), ...extra });   // (the shadow's stand-in is never culled: what casts may stand where the eye does not see)
     T.band = shadow ? () => { T.near = 0; T.far = SHADE.far; band.near.value = -1; band.far.value = SHADE.far * SHADE.wide; }
       : () => {
         [T.near, T.far] = band.reach(sizes[0], sizes[1], dialK()); if (i <= STREAMED) T.near = 0;   // (a level may stand in for the finer ones, right up to the camera)
         T.far = Math.min(T.far, far); band.near.value = T.near > 0 ? T.near : -1; band.far.value = T.far;
       };
     T.band(); T.level = i; T.shaped = KS; T.label(`${name} level ${i}`);
+    tagLevel(T, i);
     const cut = cutOf(i, shadow, T, cap, casts);   // (a level 0 drawn by its cut: below)
     for (const m of T.meshes) m.renderOrder = 1 + i * 0.01;   // the fine levels first: they are the near ones, and what is behind them need not be shaded
     if (shadow) for (const m of T.meshes) m.layers.set(1);

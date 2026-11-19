@@ -64,7 +64,7 @@ const nameOf = (o) => { let p = o; while (p && !p.name) p = p.parent; return p?.
 // ---- the world, as src/boot.js makes it ----
 const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(68, innerWidth / innerHeight, 0.15, 30000); scene.add(camera);
 const game = await tryTo('the screen', async () => {
-  const { createUniforms } = await import('../src/core/uniforms.js'), U = createUniforms(camera, 0x9fc2e6);
+  const { createUniforms } = await import('../src/core/uniforms.js'), U = createUniforms(camera);
   (await import('../src/detail/impostor.js')).setImpostorRenderer(renderer);
   const { createTemporal } = await import('../src/core/temporal.js'), { createScreen } = await import('../src/core/screen.js'), { createLens } = await import('../src/camera/post.js');
   const temporal = createTemporal(renderer), screen = createScreen(renderer, { temporal, lens: createLens(renderer) });
@@ -92,8 +92,8 @@ const light = await tryTo('the sky, the weather, the light', async () => {
   (await import('../src/world/sky.js')).createSky(scene, camera, renderer);
   (await import('../src/world/weather/index.js')).createWeather({ scene, renderer, camera });
   // (the light's passes as src/boot.js makes them: the shadow cascades and the canopy map with its sky probes)
-  const { createLight } = await import('../src/world/light/index.js'), { groundAt } = await import('../src/world/land.nodes.js');
-  return createLight(renderer, { groundAt, land: terrain?.pages });
+  const { createLight } = await import('../src/world/light/index.js'), { groundAt } = await import('../src/world/land.nodes.js'), { crownsAt, crownsVersion } = await import('../src/terrain/layers.js');
+  return createLight(renderer, { groundAt, land: terrain?.pages, crowns: { at: crownsAt, version: crownsVersion } });   // (its inputs as src/boot.js gives them)
 });
 await tryTo('the city', async () => { (await import('../src/city/index.js')).createCity({ scene, camera, canvas: { addEventListener() {}, style: {} }, renderer, compile: () => Promise.resolve() }); (await import('../src/world/lakes.js')).createLakes(); });
 await tryTo('a frame', async () => { light?.render(scene, camera, 0); game?.screen?.render(scene, camera); await Promise.resolve(); await (await import('../src/core/compile.js')).inTurn(() => {}); });   // (the light's passes before the picture, as src/boot.js draw; and what it asked to be made, made: its passes of their own, src/core/compile.js drawMade)

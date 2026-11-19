@@ -218,8 +218,11 @@ const eachDraw = (uK, fn) => { Loop({ start: uint(0), end: uK, type: 'uint', con
 /** Its meshes: each bucket's draw from its arguments, its material reading a thing's rows where the packing put it
     (through what the eye's culling kept, culled: C): its place (placeOf(at, slot): which of the store's things it is,
     slot a node, the bucket a mesh says), its rows there (S of them). room(k): as many as bucket k may hold. A material is
-    handed read(j), readAt(j, slot), and placeAt(slot): the thing's place (what the prepass's id says: src/core/pass.js). */
-function meshesOf(geos, material, args, C, room, data, S, placeOf) {
+    handed read(j), readAt(j, slot), and placeAt(slot): the thing's place (what the prepass's id says: src/core/pass.js);
+    and share: what its reading shares with another tier's that reads alike (a resident tier's: its kind and its arena,
+    the rest told by its meshes, tag: src/scatter/drawer.js makes one material for all of them), none where it reads
+    what is its own alone. */
+function meshesOf(geos, material, args, C, room, data, S, placeOf, { share = null, tag = null } = {}) {
   // (a row read once where a material asks for it, a variable: as an element of the store it was written out again, its
   // place's reads with it, at every use of it: 157 reads a corner in a stand's vertex where 17 are its own, 118 KB of
   // the world's WGSL. Apple's compiler merged them (measured, 2026-11-19: no GPU time); what it saves is the WGSL its
@@ -227,8 +230,8 @@ function meshesOf(geos, material, args, C, room, data, S, placeOf) {
   const at = C ? C.entry : (slot) => slot.add(instanceIndex), rowAt = (slot, j) => data.element(placeOf(at, slot).mul(S).add(uint(j))).toVar();
   return geos.map((g, k) => {
     g.setIndirect(args, k * 20); g.instanceCount = room(k);
-    const m = new THREE.Mesh(g, material({ read: (j) => rowAt(uint(k), j), readAt: (j, slot) => rowAt(slot, j), placeAt: (slot) => placeOf(at, slot) }, k));
-    m.userData.slot = k; return m;
+    const m = new THREE.Mesh(g, material({ read: (j) => rowAt(uint(k), j), readAt: (j, slot) => rowAt(slot, j), placeAt: (slot) => placeOf(at, slot), share }, k));
+    m.userData.slot = k; if (C) m.userData.cull = C.me; tag?.(m); return m;   // (cull: what its culler's entry reads, src/core/occlusion.js CULLED)
   });
 }
 
@@ -404,6 +407,8 @@ let GR = null;   // (what every resident tier shares: shared(), made with the fi
 // for its draws in all; read back to size its stores: residentOf, ask)
 const ZROW = ['held', 'found', 'packed'], ZAT = Object.fromEntries(ZROW.map((n, i) => [n, i]));
 const KINDS = new Map();   // (a kind of tier, by its key: its passes, its stores, its tiers)
+/** A resident tier's row in its kind's offs as the mesh drawing it tells it (mesh.userData.ofRow: meshesOf's tag). */
+const OF_ROW = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.ofRow ?? 0);
 function shared() {
   if (GR) return GR;
   useLimits();
@@ -483,7 +488,10 @@ function kindOf(key, { K, slots, found, select, twice, label, cls }) {
     p.dispatchSize = G.DG; return p;
   };
   const gcount = gather(false), gwrite = gather(true);
-  const s = { K, slots, twice, cls, stores, leaves, packed, data, tiers: [], visit, full: [G.begin, forward, visit, G.seal, gcount, G.lay, gwrite], before: [G.begin, forward], after: [G.seal, gcount, G.lay, gwrite], only: [G.gbegin, gcount, G.lay, gwrite], dirty: true, epoch: 0, asking: new Set(), wait: null };
+  // (offs: where each of its tiers' draws' things begin, K a tier, a row each: its copy of the tier's own (residentPackedOf),
+  // which its draws' materials read by the tier their mesh says, OF_ROW: one material for all its levels)
+  const offs = lean('uint', `tiers: where each draw's things begin, ${label}`, false, cls);
+  const s = { id: KINDS.size, K, slots, twice, cls, stores, leaves, packed, data, offs, tiers: [], visit, full: [G.begin, forward, visit, G.seal, gcount, G.lay, gwrite], before: [G.begin, forward], after: [G.seal, gcount, G.lay, gwrite], only: [G.gbegin, gcount, G.lay, gwrite], dirty: true, epoch: 0, asking: new Set(), wait: null };
   KINDS.set(key, s);
   return s;
 }
@@ -494,19 +502,20 @@ function residentPackedOf(T, geos, material, { found, select, store = 0, slots =
   me.P = (s.twice ? 2 : 1) * me.N;   // (what it packs for its draws: until its own count is read back, as much as its store, twice where a thing of it may be drawn twice)
   const P = () => me.P;
   G.tiers.push(me); G.KB += K; G.KMAX = Math.max(G.KMAX, K); G.dirty = G.stale = true; s.tiers.push(me); s.dirty = true;
-  const row = (k) => me.uKb.add(typeof k === 'number' ? uint(k) : k), count = { element: (k) => G.C.element(row(k)) }, { args, argsNode } = argsOf(geos);
+  me.row = (s.tiers.length - 1) * K; me.uRow = uniform(me.row, 'uint');   // (its row in its kind's offs)
+  const row = (k) => me.uKb.add(typeof k === 'number' ? uint(k) : k), count = { element: (k) => G.C.element(row(k)) }, { args, argsNode } = argsOf(geos), uSlots = uniform(slots, 'uint');   // (uSlots: its rows a thing, for its culling's boxes: one pipeline whatever its rows)
   // (where each of its draws' things begin in what its kind packed: its own copy, written with its draws' counts after
   // each packing, so its draws read it as any tier's draws read theirs)
   const OFF = new THREE.StorageBufferAttribute(new Uint32Array(K), 1), OFw = storage(OFF, 'uint', K), OFr = storage(OFF, 'uint', K).toReadOnly();
-  const offsOf = (k) => { OFw.element(k).assign(me.uBase.add(G.O.element(row(k)))); };
+  const offsOf = (k) => { const at = me.uBase.add(G.O.element(row(k))).toVar(); OFw.element(k).assign(at); s.offs.node.element(me.uRow.add(k)).assign(at); };
   const culled = !!bounds && hasFeature('indirect-first-instance') && cullable(P());   // (?truth too: what this frame's depth hides adds nothing to any pixel)
   Object.assign(T, { slots, data: s.data, args, offsets: OFF, residentRow: me, room: () => Infinity });
   T.offAt = (k) => OFr.element(k);   // (where bucket k's things begin in what its kind packed: a node, for what reads a bucket of it itself: src/scatter/cut.js)
-  const C = (T.culler = culled ? cullOf(T, { K, caps: null, offs: geos.map(() => 0), total: P(), S: slots, data: { element: (e) => s.data.element(me.uBase.mul(S).add(e)) }, args, count, box: bounds, offAt: (k) => G.O.element(row(k)), also: offsOf }) : null);
+  const C = (T.culler = culled ? cullOf(T, { K, caps: null, offs: geos.map(() => 0), total: P(), S: slots, data: { element: (e) => s.data.element(me.uBase.mul(uSlots).add(e)) }, args, count, box: bounds, offAt: (k) => G.O.element(row(k)), also: offsOf }) : null);
   const uK = uniform(K, 'uint'), ends = C ? [C.args, C.boxes] : [Fn(() => { eachDraw(uK, (k) => { argsNode.element(k.mul(uint(5)).add(uint(1))).assign(atomicLoad(count.element(k))); offsOf(k); }); })().compute(1)];
   T.resident = residentOf(T, me, s, ends);
   T.passes = [...new Set([...s.full, ...s.only, ...ends])];
-  return meshesOf(geos, material, args, C, P, s.data, S, (at, slot) => at(OFr.element(slot)));
+  return meshesOf(geos, material, args, C, P, s.data, S, (at, slot) => at(s.offs.node.element(OF_ROW.add(slot))), { share: `${s.id}|${C ? C.share : '-'}`, tag: (m) => { m.userData.ofRow = me.row; } });
 }
 /** A kind laid out again (a tier of it made again from its own count): each tier's range from its room, its stores and
     what it packed made again as large as all of them, its culling's ranges too; every tier of it packed again. Never
@@ -532,7 +541,7 @@ function relayout(s) {
     const C = me.T.culler; if (C) { C.from(me.dbase); C.resize(P(me), false); arenas.add(C.arena); }
     if (again) { me.T.n = 0; for (const m of me.T.meshes) m.visible = false; }   // (what it packed is gone: drawn again once it is packed again)
   }
-  s.stores.make(sb * s.slots); s.leaves.make(sb); s.packed.make(db * s.slots);
+  s.stores.make(sb * s.slots); s.leaves.make(sb); s.packed.make(db * s.slots); s.offs.make(s.tiers.length * s.K);
   for (const A of arenas) A.relayout();
 }
 /** Before any resident tier packs (each run, and the scatter's compile, src/scatter/index.js): the shared rows made as
