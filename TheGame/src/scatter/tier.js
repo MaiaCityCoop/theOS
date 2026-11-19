@@ -50,7 +50,7 @@ export const clipOf = Fn(([w, was], builder) => { if (passOf(builder) === 'pre')
 // tier that reckons its band by them (its band(): the drawer's tiers, src/scatter/drawer.js) reckons it again. One
 // handler for every tier of every placer.
 const ALL = new Set();
-const reband = () => { for (const T of ALL) { T.band?.(); const row = T.residentRow ?? T.ownRow; if (row) row.cap = null; } };   // (and a tier held to its class's room may ask again: what it finds has changed)
+const reband = () => { for (const T of ALL) { T.band?.(); const row = T.residentRow ?? T.ownRow; if (row) row.cap = null; T.ownRow?.rebound(); } };   // (and a tier held to its class's room may ask again: what it finds has changed)
 addEventListener('resize', reband); onMeasure(reband);
 const FOUND = [];   // (the patches a frame finds, before the nearest are taken)
 const bitsOf = (x) => new Uint32Array(new Float32Array([x]).buffer)[0];
@@ -250,7 +250,7 @@ function entriesOf(T, spans) {
 }
 /** Its packing: each bucket a room of its own, one after another, as large as it has found it needs (ownOf); till its
     count is read back, what its engine reckons (cap: one for all, or a list). */
-function packedOf(T, geos, material, { live, cap = 0, slots = 0, spans = null, bounds = null, family = null, label = null, thing = null }) {
+function packedOf(T, geos, material, { live, cap = 0, slots = 0, spans = null, bounds = null, family = null, label = null, thing = null, bound = null }) {
   const K = geos.length, S = uint(slots), { EN, nE, RN, STEPS } = entriesOf(T, spans);
   const caps = Array.isArray(cap) ? [...cap] : geos.map(() => cap), offs = caps.map(() => 0);   // (each bucket's room and where its things begin: laid out again from its count)
   const rooms = uniformArray(caps.map(() => new THREE.Vector2()), 'vec2');   // (the same, for its packing)
@@ -273,7 +273,7 @@ function packedOf(T, geos, material, { live, cap = 0, slots = 0, spans = null, b
   T.offAt = (k) => OFr.element(k);   // (where bucket k's things begin: a node, for what reads a bucket of it itself)
   const C = (T.culler = culled ? cullOf(T, { K, caps, offs, total, S: slots, data, args, count, box: bounds }) : null);
   // (laid out again at N, a room a bucket: its draws as many, its culling's ranges too; packed again)
-  T.ownRow = ownOf(T, caps, (N) => { N.forEach((n, k) => { caps[k] = n; geos[k].instanceCount = n; }); const all = lay(); if (C) C.resize(all); T.ownRow.relaid(); T.repack(); });
+  T.ownRow = ownOf(T, caps, (N) => { N.forEach((n, k) => { caps[k] = n; geos[k].instanceCount = n; }); const all = lay(); if (C) C.resize(all); T.ownRow.relaid(); T.repack(); }, undefined, bound);
   const uK = uniform(K, 'uint'), zero = Fn(() => { eachDraw(uK, (k) => { atomicStore(count.element(k), uint(0)); }); })().compute(1);
   T.passes = [zero, patchPass({ K, S, data, count, rooms, entryOf: entryOf(EN, nE, STEPS) }, live, RN), ...(C ? [C.args, C.boxes] : [argsPass(argsNode, count, uK, rooms)])];
   return meshesOf(geos, material, args, C, (k) => caps[k], data, S, (at, slot) => at(OFr.element(slot)));
@@ -434,14 +434,25 @@ export const roomsFor = (found, rooms, whole, band = BAND) => {
     tier's store is sized (residentOf ask): after a packing, its count read back (what each bucket found, past its room
     too); every bucket laid out again a MARGIN larger than it found where one found more than it holds, or where all of
     them hold BAND times more than that (roomsFor: a packing of its own patches looks at all of them, every read whole).
-    The world is not complete till a packing at its rooms now is read back and fits (storeOf, src/core/settle.js). */
-export function ownOf(T, caps, lay, others = () => 0) {
+    The world is not complete till a packing at its rooms now is read back and fits (storeOf, src/core/settle.js).
+    bound: what moves (a herd, the stress stand's movers), its rooms the most of each draw the drawer reckons at the dial
+    at rest (bound()): laid out at that, its need said to its class, at its first read and again only once the measure
+    changes (rebound), never by what a read finds: more found is drawn coarser that frame, said to the governor (short).
+    So no layout follows a walking herd (2026-11-19: every read laid it out again as its things crossed a level's band,
+    at frames of their own). */
+export function ownOf(T, caps, lay, others = () => 0, bound = null) {
   const row = { cap: null }, S = storeOf();
-  let asking = false, all = 0, seen = 0, at = -1, rest = restDial();   // (all: its packings; seen: of them, read; at: the layout its last packing was at; rest: the dial at rest it was laid out at)
+  let asking = false, all = 0, seen = 0, at = -1, rest = restDial(), rebind = !!bound;   // (all: its packings; seen: of them, read; at: the layout its last packing was at; rest: the dial at rest it was laid out at; rebind: to be laid out at its bound)
   source(`tiers: a store made again (${T.asset ?? 'a tier'})`, () => (S.wrong() ? 1 : 0));
   // (laid out again at N, found at the dial at rest `at`: its need taken at the dial at rest now; whether it was)
   const relay = (N, at) => { holdOwn(T, row, caps, atRest(N, at), others()); rest = restDial(); const again = N.some((n, k) => n !== caps[k]); if (again) lay(N); return again; };
+  // (what moves, at its bound: its need said, and laid out at it where it moved)
+  const atBound = () => {
+    const each = T.slots * bytesOf('vec4'), bytes = sum(bound()) * each;
+    relayIn('geometry', T, bytes, sum(caps) * each, () => byDial(T.storeName, 'geometry', bytes), () => { const N = bound(); rest = restDial(); if (N.some((n, k) => n !== caps[k])) lay(N); return true; }, () => retiring('geometry') > 0);
+  };
   const check = (z, read) => {
+    if (bound) { T.short = caps.some((c, k) => (z[k] ?? 0) > c); S.fit(read); return; }   // (what moves: held to its bound)
     const risen = rest < restDial(), found = caps.map((_, k) => z[k] ?? 0), N = roomsFor(found, caps, true, risen ? 1 : BAND)?.map((n, k) => Math.min(n, row.cap?.[k] ?? Infinity));
     T.short = found.some((f, k) => f > caps[k]);   // (more found than it holds: said to the governor, as a resident tier's over)
     if (N?.some((n, k) => n !== caps[k])) {
@@ -458,9 +469,12 @@ export function ownOf(T, caps, lay, others = () => 0) {
     idle() { S.fit(S.at()); },
     /** Its rooms laid out again (its own, or its family's: what it held is gone). */
     relaid() { S.made(); },
+    /** The measure changed (reband): what moves laid out at its bound at its next ask. */
+    rebound() { rebind = !!bound; },
     /** What its last packing found, read back (one read at a time, after a packing; one packed while it was read, read
         once it is: what it found is known whether the tier runs again or not). */
     ask(renderer) {
+      if (rebind) { rebind = false; atBound(); }
       if (asking || seen === all) return;
       asking = true; seen = all; const read = at;
       renderer.getArrayBufferAsync(T.count.value).then((b) => check(new Uint32Array(b), read)).catch(() => { seen = -1; }).finally(() => { asking = false; if (seen >= 0) row.ask(renderer); });

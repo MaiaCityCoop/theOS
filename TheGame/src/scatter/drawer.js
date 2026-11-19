@@ -171,7 +171,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   const WORN = GROUND || (!SOLID && DOT);   // (its dot is the mean of the world's material its kind wears, in its tint)
   const L = LEVELS.length, STREAMED = LEVELS.filter((l) => l.slots).length, HULL = LEVELS.findIndex((l) => l.n > 0 && l.n <= 2), ROWS = (GROUND ? 3 : 2) + (STATE ? 1 : 0), SR = ROWS - 1;   // ROWS: what a tier packs of a thing, rows of four; SR: where a drawer made with `state` packs the thing's own (its tint, its wear: src/world/things.js)
   const room = (i) => LEVELS[i].room ?? (FULLMOST && LEVELS[i].n === FULLN ? { tris: trisOf(FULLMOST), verts: vertsOf(FULLMOST) } : roomOf(i));   // the most a level's mesh may be (a level's own, or the ladder's)
-  const H = createHeap({ kinds: ALL, name: `${name}: meshes`, later: BANDS, table: TABLE, levels: LEVELS.map((l, i) => { const r = room(i); return MAKE ? (DOT && i === L - 1 ? { idx: 3, elems: 3, one: true } : { idx: CORNERED && !l.slots ? r.tris * 3 : 0, elems: l.shares != null ? 0 : r.verts * MAKE.per, slots: l.slots, sizes: l.rooms && !l.slots ? { idx: CORNERED ? Uint32Array.from(l.rooms, (x) => x.tris * 3) : new Uint32Array(ALL), elems: l.shares != null ? new Uint32Array(ALL) : Uint32Array.from(l.rooms, (x) => x.verts * MAKE.per) } : null, shares: l.shares }) : { idx: r.tris * 3, elems: r.verts, slots: l.slots, one: l.n === DOTN, shape: !CORNERS && l.n > 0 ? ballCorners(l.n) : null }; }) });   // (shape: a level's ball, the ladder's: what is one is drawn by its one list of corners; another make's dot: one mesh for all)
+  const H = createHeap({ kinds: ALL, name: `${name}: meshes`, later: BANDS, table: TABLE, levels: LEVELS.map((l, i) => { const r = room(i); return MAKE ? (DOT && i === L - 1 ? { idx: 3, elems: 3, one: true } : { idx: CORNERED && !l.slots ? r.tris * 3 : 0, elems: l.shares != null ? 0 : r.verts * MAKE.per, slots: l.slots, sizes: l.rooms && !l.slots ? { idx: CORNERED ? Uint32Array.from(l.rooms, (x) => x.tris * 3) : new Uint32Array(ALL), elems: l.shares != null ? new Uint32Array(ALL) : Uint32Array.from(l.rooms, (x) => x.verts * MAKE.per) } : null, shares: l.shares }) : { idx: r.tris * 3, elems: r.verts, slots: l.slots, later: l.later, one: l.n === DOTN, shape: !CORNERS && l.n > 0 ? ballCorners(l.n) : null }; }) });   // (shape: a level's ball, the ladder's: what is one is drawn by its one list of corners; another make's dot: one mesh for all)
   const LO = uniformArray(LEVELS.map((l) => l.px));
   // every kind's look, six rows of numbers a kind: [its own texture's mean colour, model], [its second tint, metres a
   // tile of its textures], [the layer of the world's texture it takes its relief from, the layer its own texture lies in
@@ -950,10 +950,12 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       return { alive: out.alive.greaterThan(0.5), bucket: out.bucket };
     };
     // (one material for every mesh level of it, its level told by each mesh; one more for what is drawn by a level's own list)
-    // (what moves chooses its own patches, packed every frame, a room a draw till its count is read back: what is drawn
-    // large is few, four times as many a level further off, and as many more as the dial at rest reaches (measure.js
-    // restDial); then, as what stands still (resident), its buckets as large as it finds it needs: tier.js)
-    const packs = moving ? { live, cap: draws.map((d) => (d.dot ? cap : Math.min(cap, Math.ceil((16 * 4 ** Math.max(1, d.level)) / restDial() ** 2)))) } : { found, select, label: name };
+    // (what moves chooses its own patches, packed every frame, a room a draw: its bound, what is drawn large is few, four
+    // times as many a level further off, and as many more as the dial at rest reaches (measure.js restDial), laid out
+    // again only as that moves, never by what a read finds (tier.js ownOf); what stands still (resident), its buckets as
+    // large as it finds it needs: tier.js)
+    const bound = () => draws.map((d) => (d.dot ? cap : Math.min(cap, Math.ceil((16 * 4 ** Math.max(1, d.level)) / restDial() ** 2))));
+    const packs = moving ? { live, cap: bound(), bound } : { found, select, label: name };
     const mats = {}, T = new Tier(scene, draws.map((d) => (d.cut ? new THREE.InstancedBufferGeometry().setIndex([0, 1, 2]) : d.shared ? drawShaped(d.level) : drawOf(d.level))), (src, k = 0) => { const d = draws[k], key = d.dot ? 'dot' : d.shared ? 'shared' : 'plain'; return (mats[key] ||= d.dot ? dot(src) : meshOf(src, null, false, moving, false, !!d.shared, true)); }, { cell, P, near: 0, far: 1, order: 1, ...packs, gpu: true, slots: ROWS, bounds: boundsOf(GROWN + (moving ? 0.5 : 0)) });
     T.step = step;
     T.band = () => { T.near = 0; T.far = Math.min(far, farFor(THIN ? END : Math.max(END, LEVELS[last].px * (last === L - 1 ? 1 : 0.5)), sizes[1])); band.far.value = T.far; };   // (a drawer that thins its things away: packed until they are gone)
@@ -1002,6 +1004,8 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   const setNum = (k, j, v) => { const o = k * STRIDE + (LR + j) * 4; look.set(v, o); lookRows.addUpdateRange(o, 4); lookRows.needsUpdate = true; };
   /** A drawer whose heap is laid out later (bands): laid now, slots[i] kinds' at level i; what is near is asked. */
   const lay = (slots) => { H.lay(slots); feed(); tellShort(); };
+  /** Level i (laid later: its LEVELS `later`) given n kinds' slots now (heap.js grow); what was asked of it comes in. */
+  const grow = (i, n) => { H.grow(i, n); feed(); };
   tellShort();   // (every kind of a drawer of bands short till its bands come: said from the start)
-  return { H, LO, L, STREAMED, HULL, kindNo, lookOf, numOf, setNum, look, lookRows, sizes, skins, boneRows, fingerprint: FP, tier, tierAll, meshOf, dot, drawOf, drawShaped, shapeOf, ask, stats, pending, start, skinsIn, scan, near, waiting, lay };
+  return { H, LO, L, STREAMED, HULL, kindNo, lookOf, numOf, setNum, look, lookRows, sizes, skins, boneRows, fingerprint: FP, tier, tierAll, meshOf, dot, drawOf, drawShaped, shapeOf, ask, stats, pending, start, skinsIn, scan, near, waiting, lay, grow };
 }
