@@ -19,7 +19,8 @@ import { outlinesKept, keepOutlines } from './core/outlines.js';   // (first: wh
 import '../cine/cine.js';   // the virtual camera, before anything asks for a frame: it holds the game's camera wherever a page or a film says
 import '../cine/menu.js';   // the game's pill
 import * as THREE from 'three/webgpu';
-import { loadingStep, loadingSay, loadingDone } from './ui/loading.js';   // the veil is told what is being made
+import { loadingStep, loadingSay, loadingDone, loadingLast } from './ui/loading.js';   // the veil is told what is being made
+import { lastRunLine, keepRun } from './core/lastrun.js';   // what the last start reached, where it was killed (an iPhone's: no log a Mac reads)
 import { HMIN, heightAt } from './world/land.js';
 import { createUniforms } from './core/uniforms.js';
 import { keepMeasure, measureNow, truthAfter, TRUTH } from './detail/measure.js';
@@ -136,6 +137,7 @@ export async function boot({ profile = 'world' } = {}) {
   watch({ camera, renderer, screen, temporal, U });   // what the world complete is measured against (src/core/settle.js)
   const marks = (game.boot = {}), mark = (k) => (marks[k] = Math.round(performance.now() - t0));   // where the start's time goes
   mark('renderer');
+  loadingLast(lastRunLine());   // (the last start's note, where it ended other than as a page ends: once)
   await loadingStep('Painting the ground', 0.12);
   // (the shaders the start compiles, their bytes and the largest: `bun tools/gate.js compile`. The land's no longer grows
   // with the biomes: src/terrain/layers.js. The stage paints the land's materials at its start, a subject's when it wears them)
@@ -278,10 +280,10 @@ export async function boot({ profile = 'world' } = {}) {
   // few seconds (TheGame/.perf/hitches.jsonl), to find what makes the picture stop. Each post says which tab it is (an id
   // made at its load, its browser, its page), how many frames it drew since the last, and where the governor's dials stand:
   // the frame rate a person's own browser really holds, read from the file ----
-  const HITCH = 24, hitches = []; let frames = 0, sentAt = 0;
+  const HITCH = 24, hitches = []; let frames = 0, sentAt = 0, framesAll = 0;   // (framesAll: every frame drawn, the last start's note: src/core/lastrun.js)
   const TAB = { id: Math.random().toString(36).slice(2, 8), ua: /Chrome\//.test(navigator.userAgent) ? 'Chrome' : /Safari\//.test(navigator.userAgent) ? 'Safari' : 'other', page: location.pathname + location.search };
   function hitch(ms, now) {
-    frames++; const work = (game.work = taken());   // (what the frame did besides drawing: src/core/work.js; the last frame's, read as window.__game.work)
+    frames++; framesAll++; const work = (game.work = taken());   // (what the frame did besides drawing: src/core/work.js; the last frame's, read as window.__game.work)
     if (ms > HITCH && frames > 30) {
       const r = renderer.info.render, c = window.__cine, f = (v) => +v.toFixed(2);
       hitches.push({ at: Math.round(now), ms: f(ms), parts: frameSoFar(),
@@ -362,6 +364,7 @@ export async function boot({ profile = 'world' } = {}) {
     veiled = false;
     stampDone(renderer, FIRST_FRAME);   // (the first frame the world shows: what every measure of a start reads)
     game.loadMs = performance.now() - t0; mark('first');
+    { const f0 = framesAll; keepRun(performance.now(), () => framesAll - f0); }   // (where the start stands, kept from now on: src/core/lastrun.js)
     setTimeout(() => (game.outlines.made = keepOutlines()), 2500);   // what was measured anew this time, kept for the next start
     console.log(`[the game] ready in ${game.loadMs.toFixed(0)} ms`, marks);
     const C = compiles(); console.log(`[the game] the first view: ${C.firstView.asks} asks, ${C.firstView.pipes} pipelines asked of the GPU in ${C.firstView.turns} turns, ${C.firstView.ms} ms; the GPU's own ${C.firstView.gpu} ms; ${C.parallel.overtook} of ${C.parallel.of} pipelines ready before one asked earlier (none: one at a time) (__game.compiles())`);

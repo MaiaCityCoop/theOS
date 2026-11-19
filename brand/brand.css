@@ -276,12 +276,16 @@ html.os-loaded::before, html.os-loaded::after, html.os-loaded body::before, html
 @media (prefers-reduced-motion: reduce) { html.os-loading::after { animation: none; } }
 /* what is being made now, under the line of how far (src/ui/loading.js): one quiet line, cut short where it is long */
 #os-detail { display: none; }
+/* what the last start reached, where it was killed (src/core/lastrun.js): quieter still, under it, wrapping if it must */
+#os-last { display: none; }
+html.os-loading:not(.os-loaded) #os-last { display: block; position: fixed; z-index: 99991; left: 50%; top: calc(27% + 194px); width: min(360px, calc(100vw - 48px)); transform: translateX(-50%); pointer-events: none;
+  text-align: center; font: 400 11.5px/1.4 var(--sans); color: rgba(251, 246, 234, .42); }
 html.os-loading:not(.os-loaded) #os-detail { display: block; position: fixed; z-index: 99991; left: 50%; top: calc(27% + 168px); width: min(300px, calc(100vw - 48px)); transform: translateX(-50%); pointer-events: none;
   text-align: center; font: 400 12px/1.3 var(--sans); color: rgba(251, 246, 234, .5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* what holds the start up, or stopped the page (brand/loading.js: os:stuck, os:lost): a line under the step, what may
    help, and a button that reloads; shown only with the veil */
 #os-stuck { display: none; }
-html.os-loading:not(.os-loaded) #os-stuck { display: block; position: fixed; z-index: 99991; left: 50%; top: calc(27% + 198px); width: min(420px, calc(100vw - 32px)); transform: translateX(-50%);
+html.os-loading:not(.os-loaded) #os-stuck { display: block; position: fixed; z-index: 99991; left: 50%; top: calc(27% + 248px); width: min(420px, calc(100vw - 32px)); transform: translateX(-50%);
   text-align: center; font: 400 14px/1.45 var(--sans); color: #fbf6ea; text-shadow: 0 1px 12px rgba(10, 20, 35, .6); }
 #os-stuck p { margin: 0 0 6px; }
 #os-stuck p + p { font-size: 13px; color: rgba(251, 246, 234, .72); }
