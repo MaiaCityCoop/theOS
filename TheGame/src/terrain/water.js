@@ -14,16 +14,23 @@
 //     depth of it shows, its reflectance under the surface) by Morel's R = f · b_b / a, its backscattering b_b one
 //     number, fixed by pure water's own absorption of red light (WATER_RED_ABSORPTION), which is most of a water's;
 //   - the light into it is the one light's on a level surface there (src/world/light.js lightOn), less what the surface
-//     reflects of it.
+//     reflects of it;
+//   - what it reflects of the world (the banks, the trees, all that stands over it) is the last frame's picture where
+//     the reflected ray meets what that frame drew (its depth and its kept colour, the screen's own: src/core/screen.js,
+//     src/core/temporal.js; a frame late, which does not show on water), marched on that frame's screen; where it meets
+//     nothing there, the sky along it.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec2, vec3, vec4, varying, attribute, abs, max, min, clamp, mix, smoothstep, length, normalize, pow, fract, sqrt, exp, refract, reflect, If, Discard } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, varying, attribute, abs, max, min, clamp, mix, smoothstep, length, normalize, pow, fract, sqrt, exp, refract, reflect, If, Discard, Loop, Break, int, ivec2, uniform, texture, screenCoordinate, cameraProjectionMatrix, cameraFar, ceil, log2 } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { riverInfo, riverRaw, riverCarve, riverBank, baseB, WATER_DROP_N, lakeAt } from '../world/land.nodes.js';
 import { toScreen, airOf, lightOn, sunAt, windDir, windStrength } from '../world/light.js';
 import { skyAlong } from '../world/sky/dome.js';
+import { blueAt } from '../world/light/noise.js';
 import { gridPoint, GRID } from './material.js';
 import { WATER } from '../world/biomes.js';
 import { WATER_IOR, WATER_RED_ABSORPTION, WATER_REFLECTANCE_F } from '../world/physics.js';
+import { FRAME_MS_BY_CLASS } from '../core/budget.js';
+import { ownGpuMs, pace } from '../core/pace.js';
 
 const water = WATER;
 
@@ -39,6 +46,72 @@ const R_INF = water.colours.deep, BB = (WATER_RED_ABSORPTION * R_INF[0]) / WATER
 
 /** The water's two materials, drawn one after the other over the same surface (src/terrain/terrain.js): [what it keeps
     of what is under it, what it gives]. */
+// ---- what it reflects of the world: the last frame's picture, by that frame's depth ----
+// (built: how many frames a screen pixel is built from at the most, and one: src/core/temporal.js K.most. A ray marched
+// a sample every that many dial pixels, from a start of its own each frame (the blue noise), has every dial pixel of it
+// looked at within the frames a pixel is built from)
+// (steps: how many samples a pixel's march takes at the most this frame: PACE's)
+const WAS = { depth: texture(new THREE.DepthTexture(1, 1)), colour: texture(new THREE.Texture()), size: uniform(new THREE.Vector2(1, 1)), on: uniform(0), built: uniform(1), steps: uniform(1) };
+// how many samples a march takes at the most: held to what the water's own draw takes on the GPU, within the light's share
+// of the frame (src/core/budget.js FRAME_MS_BY_CLASS; its time measured each frame, src/core/pace.js), so it never costs
+// more than that on any GPU; from one
+const PACE = pace();
+/** The water drawn (src/core/screen.js apart: render() draws it), its own time on the GPU taken, the march's most samples
+    following it. */
+export function waterDrawn(renderer, render) {
+  PACE.tick(); WAS.steps.value = PACE.n;
+  ownGpuMs(renderer, render)?.then((ms) => PACE.measured(PACE.n, ms, FRAME_MS_BY_CLASS.light)).catch(() => {});
+}
+/** Each frame after the prepass (src/boot.js): the frame before's depth (src/core/screen.js afterPrepass: depthWas), its
+    kept picture (src/core/temporal.js history: null after a cut or a new size), which the water reflects the world from,
+    and how many frames the picture is built from at the most (temporal's K.most). */
+export function waterReads({ depthWas, w, h }, history, most) {
+  const ok = !!(depthWas && history && depthWas.image.width === w && depthWas.image.height === h);
+  WAS.on.value = ok ? 1 : 0; WAS.built.value = most + 1;
+  if (ok) { WAS.depth.value = depthWas; WAS.colour.value = history; WAS.size.value.set(w, h); }
+}
+/** What the world shows along the ray from w (the way R), as the last frame drew it: { c: its colour (the light's numbers,
+    the air before w taken off), hit: 1 where the ray meets what that frame drew, else 0 }. The ray from w to the far
+    plane, through that frame's camera (U.uWas), cut where it leaves its picture; marched along it on the picture, evenly,
+    a sample every `built` dial pixels from this pixel's own start (blueAt), never more samples than the frame's pace
+    allows (WAS.steps: then as many, further apart); a surface as thick as one step (its distance's change over it); the
+    first met, bisected down to a dial pixel. */
+const worldAlong = (w, R) => {
+  const out = { c: vec3(0).toVar(), hit: float(0).toVar() };
+  If(WAS.on.greaterThan(0.5), () => {
+    const c0 = U.uWas.mul(vec4(w, 1)).toVar(), c1 = U.uWas.mul(vec4(w.add(R.mul(cameraFar)), 1)).toVar(), s = float(1).toVar();
+    // (cut where it leaves the picture, or comes nearer than the eye: each side's plane in clip space, the ray's ends on it
+    // linear in its length)
+    for (const g of [(c) => c.w.sub(c.x), (c) => c.w.add(c.x), (c) => c.w.sub(c.y), (c) => c.w.add(c.y), (c) => c.w.sub(1e-3)]) {
+      const g0 = g(c0), g1 = g(c1);
+      If(g1.lessThan(0).and(g0.greaterThan(0)), () => { s.assign(min(s, g0.div(g0.sub(g1)))); });
+    }
+    const e = mix(c0, c1, s), size = WAS.size, pA = c0.xy.div(c0.w).mul(vec2(0.5, -0.5)).add(0.5).mul(size), pB = e.xy.div(e.w).mul(vec2(0.5, -0.5)).add(0.5).mul(size);
+    const len = length(pB.sub(pA)), n = int(min(ceil(len.div(U.uErrorPx.mul(WAS.built))), WAS.steps)).toVar(), iA = float(1).div(c0.w), iB = float(1).div(e.w);
+    // (along the picture the distance's inverse runs straight; the scene's distance from that frame's depth: the projection's
+    // own two numbers, the same but for its shift)
+    const at = (f) => ({ p: mix(pA, pB, f), d: float(1).div(mix(iA, iB, f)) });
+    const scene = (p) => cameraProjectionMatrix.element(3).z.div(float(WAS.depth.load(ivec2(clamp(p, vec2(0), size.sub(1))))).add(cameraProjectionMatrix.element(2).z));
+    const j = blueAt(screenCoordinate.xy).x, was = float(0).toVar();   // (its texel's first number)
+    Loop({ start: int(0), end: n, type: 'int', condition: '<' }, ({ i }) => {
+      const f = float(i).add(j).div(float(n)), A = at(f), thick = A.d.sub(at(was).d).abs().add(1e-3), d = A.d.sub(scene(A.p));
+      If(d.greaterThanEqual(0).and(d.lessThan(thick)), () => {
+        // (bisected between the last sample and this one, down to a dial pixel)
+        const lo = was.toVar(), hi = f.toVar();
+        Loop({ start: int(0), end: int(ceil(log2(max(len.div(float(n)).div(U.uErrorPx), 1)))), type: 'int', condition: '<' }, () => {
+          const m = lo.add(hi).mul(0.5), M = at(m);
+          If(M.d.greaterThanEqual(scene(M.p)), () => { hi.assign(m); }).Else(() => { lo.assign(m); });
+        });
+        const h = WAS.colour.sample(at(hi).p.div(size)).rgb, P = h.mul(h), c = P.div(float(1).sub(min(max(P.x, max(P.y, P.z)), 0.999)));
+        const air = airOf(w); out.c.assign(c.sub(air.col.mul(float(1).sub(air.k))).div(max(air.k, 1e-3))); out.hit.assign(1);
+        Break();
+      });
+      was.assign(f);
+    });
+  });
+  return out;
+};
+
 export function waterMaterials(tex) {
   const wp = gridPoint();
   const I = riverInfo(wp);   // (signed distance, half-width, bank side)
@@ -87,7 +160,8 @@ export function waterMaterials(tex) {
     // of it) as much as the water scatters back over that way (its reflectance R∞, as much as the way lets build up);
     // what it reflects; its foam; all through the air before it, and the air's own light where the picture's is kept less
     const Lin = lightOn({ n: up, w: vWorld, V }), into = Lin.sky.mul(1 - SKY_REFLECTED).add(Lin.sun.mul(float(1).sub(reflects(max(U.uSunDir.y, 1e-3), WATER_IOR))));
-    const own = vec3(...R_INF).mul(into).mul(float(1).sub(left)).mul(float(1).sub(F)).add(sky.mul(F)).add(sunC.mul(spec));
+    const world = worldAlong(vWorld, R), seen = mix(sky, max(world.c, vec3(0)), world.hit);   // (what the world shows along it; where nothing, the sky)
+    const own = vec3(...R_INF).mul(into).mul(float(1).sub(left)).mul(float(1).sub(F)).add(seen.mul(F)).add(sunC.mul(spec));
     const surface = mix(own, vec3(0.8).mul(Lin.sky.add(Lin.sun)), foam), A = airOf(vWorld);
     return toScreen(surface.mul(A.k).mul(edge).add(A.col.mul(float(1).sub(A.k)).mul(float(1).sub(keeps))));
   });
