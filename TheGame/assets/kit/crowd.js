@@ -629,7 +629,9 @@ export function crowd(m, opts = {}) {
 
   // ---- its solid pieces: how wide each is, its go (widthsOf). Thick wood, what is still there where the crowd ends, is
   // never gone by itself (go 0): the impostor takes it; so is what was laid without a part ----
-  widthsOf(solids, P, m.normal, I);
+  if (K.measured?.solids) solids.forEach((q, i) => { q.w = K.measured.solids[i * 2]; q.go = K.measured.solids[i * 2 + 1]; });   // (what the build measured: each piece's width and go)
+  else widthsOf(solids, P, m.normal, I);
+  const widths = Float64Array.from(solids.flatMap((q) => [q.w, q.go]));   // (what is kept of them: before the crowd's end keeps its thick wood)
   const outlasts = (q) => win.hi > 0 && q.go > win.hi;   // (still there where the crowd ends)
   const there = N > 0 || solids.some(outlasts);   // (a thing of sticks only, all gone before: nothing stays)
   if (!there) win.hi = win.lo = 0;
@@ -683,46 +685,82 @@ export function crowd(m, opts = {}) {
   return { count, cards, parts: N, solids: listed.length, ...out, ...S, index, steps, turns, size, mid, spread, win, grow: H.grow, cover, sphere, clumps,
     atlas: H.atlas, errors: H.errors, far: { lo: farLoOf(H), data: farDataOf(H, clumps) },
     // (what of it the build keeps, so a start reckons none of it: assets/kit/measures.js, tools/outlines.js)
-    measure: { order: H.order, own: H.errors.crowd, go: H.go, M: H.M, win: H.win, grow: H.grow, chunks: H.chunks, eC: H.errors.clumps, cover } };
+    measure: { order: H.order, own: H.errors.crowd, go: H.go, M: H.M, win: H.win, grow: H.grow, chunks: H.chunks, eC: H.errors.clumps, cover, solids: widths } };
 }
 /** Each solid piece's width and its go (metres). How wide: where it is widest, as any side shows it there (a branch is
-    thickest at its foot: its mean width would let its foot go a pixel and more wide), widestOf; a piece with no cross-
-    section to measure, its area over pi times its length (its mean width seen from the side). Leaving a piece out
-    differs by its width: it goes where that is within the dial (its go: its width; what was laid without a part stays).
-    N its corners' normals, I the mesh's corners. */
+    thickest at its foot: its mean width would let its foot go a pixel and more wide), its widest ring (ringsOf); a
+    piece with no cross-section to measure, its area over pi times its length (its mean width seen from the side).
+    Leaving a piece out differs by its width, and by what goes with it where it meets another (togetherOf): it goes
+    where that is within the dial (its go; what was laid without a part stays). N its corners' normals, I the mesh's
+    corners. */
 function widthsOf(solids, P, N, I) {
   for (const q of solids) {
-    if (q.stays) { q.w = 0; q.go = 0; continue; }
+    if (q.stays) { q.w = 0; q.go = 0; q.rings = null; continue; }
     const c = [0, 0, 0]; for (const v of q.verts) for (let a = 0; a < 3; a++) c[a] += P[v * 3 + a] / q.verts.length;
     const farFrom = (x, y, z) => { let at = q.verts[0], d = -1; for (const v of q.verts) { const e = (P[v * 3] - x) ** 2 + (P[v * 3 + 1] - y) ** 2 + (P[v * 3 + 2] - z) ** 2; if (e > d) { d = e; at = v; } } return at; };
     const a = farFrom(c[0], c[1], c[2]), b = farFrom(P[a * 3], P[a * 3 + 1], P[a * 3 + 2]), L = hypot(P[b * 3] - P[a * 3], P[b * 3 + 1] - P[a * 3 + 1], P[b * 3 + 2] - P[a * 3 + 2]) || 1e-9;
-    q.w = widestOf(q, P, N, I, L) || q.area / (PI * L); q.go = q.w;
+    q.rings = ringsOf(q, P, N, I, L);
+    let w = 0; for (let r = 3; r < q.rings.length; r += 4) w = max(w, q.rings[r]);
+    q.w = w || q.area / (PI * L); q.go = q.w;
   }
+  togetherOf(solids);
 }
-/** A piece's width where it is widest: the most distance across any of its cross-sections (a tube's ring: as wide as any
-    side shows it there, its corners and its flats alike). A corner's cross-section is the plane through it across the
-    piece, at right angles to `way`: its normal crossed with that of its neighbour round it (of the corners it shares an
-    edge with, the one whose normal is turned the most from its own: a tube's rings lie flat across it, each corner's
-    normal in its ring's plane), and the corners in that plane are its ring. L: the piece's length (what lies in the
-    plane is within a millionth of it, as numbers hold it). 0: none found. */
-function widestOf(q, P, N, I, L) {
-  const v0 = q.verts[0], n = q.verts.length, turn = new Float64Array(n), way = new Float64Array(n * 3), tol = L * 1e-6;
+/** A piece's rings: its cross-sections (a tube's: as wide as any side shows it there, its corners and its flats alike),
+    each its middle and its most distance across, four numbers a ring. A corner's cross-section is the plane through it
+    across the piece, at right angles to `way`: its normal crossed with that of its neighbour round it (of the corners it
+    shares an edge with, the one whose normal is turned the most from its own: a tube's rings lie flat across it, each
+    corner's normal in its ring's plane), and the corners in that plane are its ring. L: the piece's length (what lies in
+    the plane is within a millionth of it, as numbers hold it). */
+function ringsOf(q, P, N, I, L) {
+  const v0 = q.verts[0], n = q.verts.length, turn = new Float64Array(n), way = new Float64Array(n * 3), tol = L * 1e-6, seen = new Uint8Array(n), out = [];
   const pair = (a, b) => {
     const i = a - v0, ax = N[a * 3], ay = N[a * 3 + 1], az = N[a * 3 + 2], bx = N[b * 3], by = N[b * 3 + 1], bz = N[b * 3 + 2];
     const cx = ay * bz - az * by, cy = az * bx - ax * bz, cz = ax * by - ay * bx, m = sqrt(cx * cx + cy * cy + cz * cz);
     if (m > turn[i]) { turn[i] = m; way[i * 3] = cx / m; way[i * 3 + 1] = cy / m; way[i * 3 + 2] = cz / m; }
   };
   for (const t of q.tris) { const i = I[t], j = I[t + 1], k = I[t + 2]; pair(i, j); pair(j, i); pair(j, k); pair(k, j); pair(k, i); pair(i, k); }
-  let most = 0;
   for (let i = 0; i < n; i++) {
-    if (!(turn[i] > 0)) continue;
-    const v = v0 + i, x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2], tx = way[i * 3], ty = way[i * 3 + 1], tz = way[i * 3 + 2];
-    for (const u of q.verts) {
-      const dx = P[u * 3] - x, dy = P[u * 3 + 1] - y, dz = P[u * 3 + 2] - z;
-      if (abs(dx * tx + dy * ty + dz * tz) <= tol) most = max(most, dx * dx + dy * dy + dz * dz);   // (in its cross-section)
+    if (seen[i] || !(turn[i] > 0)) continue;
+    const v = v0 + i, x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2], tx = way[i * 3], ty = way[i * 3 + 1], tz = way[i * 3 + 2], ring = [];
+    for (let j = 0; j < n; j++) { const u = v0 + j; if (abs((P[u * 3] - x) * tx + (P[u * 3 + 1] - y) * ty + (P[u * 3 + 2] - z) * tz) <= tol) { ring.push(u); seen[j] = 1; } }   // (in its cross-section)
+    const m = [0, 1, 2].map((a) => ring.reduce((sum, u) => sum + P[u * 3 + a], 0) / ring.length);
+    let d = 0; for (const u of ring) for (const w of ring) d = max(d, (P[u * 3] - P[w * 3]) ** 2 + (P[u * 3 + 1] - P[w * 3 + 1]) ** 2 + (P[u * 3 + 2] - P[w * 3 + 2]) ** 2);
+    out.push(...m, sqrt(d));
+  }
+  return Float64Array.from(out);
+}
+/** Pieces that go together. Where two pieces meet (a ring of one and a ring of the other overlapping: a branch's foot in
+    its limb, two limbs leaving their fork side by side), leaving both out leaves out what both covered there, as wide as
+    their rings across, together: so a piece goes no sooner than its widest meeting, its ring's width and those of every
+    piece it meets there that goes no later, which is all gone when it goes (a limb with the limbs of its fork, not alone
+    under them). Raised till none is (each only ever later: what it meets going later is still drawn, and stands for the
+    meeting). What stays (go 0) is no piece that goes. */
+function togetherOf(solids) {
+  const pieces = solids.filter((q) => q.rings && q.go > 0), all = [];
+  let most = 0; pieces.forEach((q, k) => { for (let r = 0; r < q.rings.length; r += 4) { all.push([k, r]); most = max(most, q.rings[r + 3]); } });
+  if (pieces.length < 2) return;
+  // (the rings in a grid as wide as the widest: two that overlap lie in neighbouring cells)
+  const S = max(most, 1e-6), grid = new Map(), keyOf = (i, j, l) => (i * 4096 + j) * 4096 + l, cellOf = (q, r) => [floor(q.rings[r] / S), floor(q.rings[r + 1] / S), floor(q.rings[r + 2] / S)];
+  for (const [k, r] of all) { const [i, j, l] = cellOf(pieces[k], r), key = keyOf(i, j, l); if (!grid.has(key)) grid.set(key, []); grid.get(key).push([k, r]); }
+  // each ring's meetings: of every other piece, the widest of its rings that overlaps this one
+  const meets = new Map();
+  for (const [k, r] of all) {
+    const q = pieces[k], [i, j, l] = cellOf(q, r), widest = new Map();
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) for (const [k2, r2] of grid.get(keyOf(i + a, j + b, l + c)) ?? []) {
+      if (k2 === k) continue;
+      const o = pieces[k2], d = hypot(q.rings[r] - o.rings[r2], q.rings[r + 1] - o.rings[r2 + 1], q.rings[r + 2] - o.rings[r2 + 2]);
+      if (d <= (q.rings[r + 3] + o.rings[r2 + 3]) / 2) widest.set(k2, max(widest.get(k2) ?? 0, o.rings[r2 + 3]));
+    }
+    if (widest.size) meets.set(k * 1e6 + r, widest);
+  }
+  for (let moved = true; moved; ) {
+    moved = false;
+    for (const [key, widest] of meets) {
+      const k = floor(key / 1e6), r = key - k * 1e6, q = pieces[k];
+      let J = q.rings[r + 3]; for (const [k2, w] of widest) if (pieces[k2].go <= q.go) J += w;
+      if (J > q.go) { q.go = J; moved = true; }
     }
   }
-  return sqrt(most);
 }
 /** What the GPU bakes a far end from (src/detail/impostor.js), carried after its finest level's vertices
     (assets/kit/plant.js): [chunks, the sphere (4), its size, its impostor's error (metres: its views' texel, their
