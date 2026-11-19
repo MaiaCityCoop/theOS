@@ -15,6 +15,12 @@ export const FPS = 60;
     4.2 s, the device lost 38 s in). tools/gate/device.js watch keeps every one over it with what it held, in the
     device's run and the walks. unit: ms. source: the master, 2026-11-19 ("no GPU submission over 50 ms") */
 export const SUBMIT_MS = 50;
+/** A submission's own GPU time within the reach of the system's GPU watchdog, which ends the page's device for one so
+    long: one surely this long (however late its done was heard) fails the hour whatever came before it, a lost device
+    waiting to happen (tools/gate/device.js submitRule). unit: ms. source: the master, 2026-11-19 (deployed next at 62 %
+    free: the ledger flat at 1.10 GB while single submissions of the ground's piece pass took 4-7.4 s, and the device was
+    lost; iOS's watchdog is stricter: "any single submission over the watchdog's reach, 1 s or more, surely") */
+export const WATCHDOG_MS = 1000;
 /** The longest one piece of the page's own work may hold its thread: a frame, from its begin to the next one's, with
     what runs between the two (a worker's message, what an await resumes, a timer). Longer, the picture stops, and what
     the GPU has done is heard late (2026-11-19, WebKit, the master's check of 969339e: submissions done 315-403 ms late
@@ -35,6 +41,15 @@ export const OUTPUT = { width: 1920, height: 1080 };
     its browser gives the game a window of it. unit: CSS pixels, and device pixels a CSS pixel. source: Samuel's MacBook
     (8 GB, 2026-11-19: WebKit's GPU process died there 38 s past the start, the device lost) */
 export const MACHINE = { width: 1512, height: 945, dpr: 2 };
+/** The cores of the machine the gate is for (MACHINE), as its browser tells a page (navigator.hardwareConcurrency; WebKit
+    says no more than 8 on a Mac, 2 on an iPhone): what the start's worker pools are sized from, no device's from more
+    (src/core/workers.js poolSize). unit: cores. source: Samuel's MacBook (Apple M1, 8 cores: sysctl hw.ncpu, 2026-11-19) */
+export const MACHINE_CORES = 8;
+/** The cores a start keeps busy beside its workers: the page's own thread and the GPU process's. The rest its worker
+    pools share (src/core/workers.js poolSize: on the Mac 3 a pool, the recipes' and the impostors'). unit: cores. source:
+    the impostors' pool as it was (cores less 2, src/detail/impostor.js); the master, 2026-11-19 ("the Mac stays at its 3
+    and 3; a 0.375 device gets 1 each") */
+export const BUSY_CORES = 2;
 /** The 12 ms a frame shared out by the frame's classes: what a class's passes may take, the gate's ceilings start from
     it (tools/gate/ceilings.js). The upscale's is its floor: its bytes alone at a 4K output took about 1.9 ms (#86).
     'other', a pass no class names, is the slack. unit: ms. source: Intents/0038, Build (the bench pass by pass; the
@@ -46,6 +61,26 @@ export const FRAME_MS_BY_CLASS = { geometry: 5, light: 3, ground: 1.5, 'upscale/
     device was lost (main d7f7f6d, 2026-11-19). The game keeps to a quarter of the machine. unit: MiB. source:
     Intents/0038, Define (the hard gates: a machine of 8 GB); the master's measurement, 2026-11-19 */
 export const GPU_MB = 2048;
+/** The device the budget's numbers are for (GPU_MB and BUDGET_MB): the 8 GB Mac's largest buffer, as WebKit's adapter
+    gives it there (its maxBufferSize: WebKit's Source/WebGPU/WebGPU/HardwareCapabilities.mm makes it, on a Mac, the more
+    of min(L, 1 GiB) and min(INT_MAX, L / 3) of Metal's maxBufferLength L, 4 GiB on the M2: 1.33 GiB, to a multiple of
+    4). Every other device's budget is the Mac's scaled by how its own largest buffer stands to this, never more than
+    the Mac's (src/core/gpu.js shareOf): the one sign of a device's class both engines give a page (an iPhone's at most
+    1 GiB in WebKit, by the same file). unit: bytes. source: the master, 2026-11-19 (WebKit on the M2: 1.33 GiB; Samuel's
+    iPhone on next killed 1-2 s past ready, asked for the Mac's 2 GB) */
+export const MAC_BUFFER = 1431655764;
+/** WebKit's clamp on an iPhone's largest buffer, the floor of a Mac's (Source/WebGPU/WebGPU/HardwareCapabilities.mm: on
+    iOS the less of 1 GiB and maxBufferLength / 3, on a Mac never less than the less of 1 GiB and maxBufferLength): an
+    adapter at or under it is a phone's (src/core/gpu.js shareOf; Chrome's lowest tiers, a phone's or a small machine's,
+    alike). It says no more of the phone above it: every iPhone of 3 GiB of buffer reads 1 GiB. unit: bytes. source:
+    WebKit's HardwareCapabilities.mm (main, 2026-11-19) */
+export const PHONE_BUFFER = 1073741824;
+/** The most of the Mac's budget a phone (PHONE_BUFFER) is held to: under where an iPhone was killed, the page's own and
+    what no pool notes beside it. An iPhone on next was closed by iOS 1.1 s past ready holding 1.07 GB on the GPU, on
+    an adapter of 1.00 GiB, which the Mac's ratio alone gave 1536 MB; this gives it 768 MB, 0.3 GB under where it died.
+    unit: a share of GPU_MB. source: Samuel's iPhone, 2026-11-19 08:51, next 6ff5627 (the start's last note: "Last start
+    closed 1.1 s after it was ready, holding 1.07 GB (geometry 0.61), on an apple GPU of 1.00 GiB, 20 frames drawn") */
+export const PHONE_SHARE = 0.375;
 /** GPU_MB shared out by the frame's classes (src/core/classes.js), what each class's pools may hold together:
       geometry: the plants' and the rocks' meshes, their far ends' atlases (a quarter of it: src/core/classes.js
         SHARE_MB), what the tiers pack and what the culling keeps of it, the growth map the placing reads, the picture

@@ -9,9 +9,25 @@
 // for, counted with no GPU, and no machine's memory, in the way.
 //
 //   bun tools/census.js          a table, then the same as one line of JSON (census-json: …)
+//   --buffer=<bytes>             on a device whose adapter says its largest buffer is so large (the one sign of its class
+//                                the game reads: src/core/gpu.js shareOf; an iPhone's 1073741824, its share 0.375), and
+//   --window=<w>x<h>@<dpr>       a window of w × h CSS pixels at dpr device pixels a point (an iPhone's 390x844@3): then
+//                                what the first view holds there, by class against the device's budget, its largest
+//                                pools, and the dial at rest (memory: …). The tiers' own stores are not in it: they are
+//                                sized by what their packings find, read back from the GPU, and the stand-in finds none
 import { mock } from './gpu-mock.js';
 
-const M = await mock({ lean: true }), { THREE, renderer } = M;
+const ARG = Object.fromEntries(process.argv.slice(2).map((a) => a.replace(/^--/, '').split('=')));
+const [WW, WH, WD] = ARG.window ? ARG.window.split(/[x@]/).map(Number) : [1920, 1080, 1];
+const M = await mock({ lean: true, size: [WW, WH], dpr: WD }), { THREE, renderer } = M;
+Object.assign(globalThis, { innerWidth: WW, innerHeight: WH, devicePixelRatio: WD });
+if (ARG.buffer) {   // (the device's adapter, as src/boot.js asks it before anything is sized: its share of the budget)
+  const nav = globalThis.navigator, limits = { maxBufferSize: +ARG.buffer, maxStorageBufferBindingSize: Math.min(+ARG.buffer, 2 ** 30) };
+  nav.gpu = { requestAdapter: async () => ({ limits, info: { vendor: 'census', architecture: '' } }) };
+  await (await import('../src/core/gpu.js')).askedLimits(); nav.gpu = undefined;
+}
+// (where each material and compute pass is made, as the loader hands it over: its place's own name, tools/glob.js)
+const SITE = new WeakMap(); globalThis.__made = (id, x) => { if (x && typeof x === 'object' && !SITE.has(x)) SITE.set(x, id); return x; };
 
 // ---- the stand-in walks a scene, a thing at a time, to the route a pass draws with ----
 let route = null;
@@ -75,6 +91,7 @@ const { heightAt, HMIN } = await import('../src/world/land.js'), { WALKER } = aw
 const { setPlanes } = await import('../src/core/frustum.js'), { farthest } = await import('../src/detail/extent.js');
 const tent = PLACES.tent, dx = -Math.sin(tent.yaw), dz = -Math.cos(tent.yaw), cx = tent.x + dx * 14, cz = tent.z + dz * 14;
 camera.rotation.order = 'YXZ'; camera.position.set(cx, heightAt(cx, cz) + WALKER.eye, cz); camera.rotation.set(0, Math.atan2(dx, dz), 0);
+tex.flush?.();   // (a frame's first: the materials asked for painted, src/boot.js step)
 sky.update(1 / 60); weather.update(1 / 60);
 const p = camera.position, gy = heightAt(p.x, p.z), dy = (U.uDy.value = Math.max(0, p.y - gy - 2, HMIN - p.y));
 U.uAirH.value = Math.max(0, p.y - gy); camera.updateMatrixWorld();
@@ -119,6 +136,16 @@ for (const e of first.filter((x) => x.pass === 'run')) for (const n of [e.what].
 // (each compute shader's size, the largest first: what a compiler reads of the packing)
 const shaders = [...passCodes].map((c) => ({ kb: +(c.length / 1024).toFixed(1), who: [...passWho.get(c)].slice(0, 3) })).sort((a, b) => b.kb - a.kb);
 pipes.run = passCodes;
+// (all the start makes before its first frame, as the device counts it, tools/gate/device.js firstMade: the first view's
+// asks; what a frame draws alone, a quad (the screen's passes, the materials painted); every compute pass handed to be
+// compiled or run (the ground's, the land's, the scatter's at boot, a frame's). Each program once, by its code)
+const madeR = new Map(), madeC = new Map(), keepAs = (m, code, who) => { if (!m.has(code)) m.set(code, who); };
+for (const e of first) { let c; try { c = codeOf(e); } catch { continue; } if (e.pass === 'run') for (const x of c.split('\0')) keepAs(madeC, x, `asked: ${familyOf(e)}, packing`); else keepAs(madeR, c, `asked: ${familyOf(e)} · ${e.pass}`); }
+const nameOf = (o) => [SITE.get(o.material) ?? SITE.get(o), o.material?.name || o.name].filter(Boolean).join(' ') || o.material?.type || 'a quad';
+for (const o of [...M.drawn].filter(drawnAlone)) { try { const s = M.build(o, o.material); keepAs(madeR, `${s.vertex}\0${s.fragment}`, `drawn alone: ${nameOf(o)}`); } catch { /* the stand-in cannot build it: the smoke says why */ } }
+for (const n of M.computed) { try { keepAs(madeC, M.compute(n), `handed: ${SITE.get(n) ?? (n.name || 'a compute pass')}`); } catch { /* as above */ } }
+const madeBy = (m) => count([...m.values()], (w) => w.replace(/ level \d+.*$/, '').replace(/ \d+$/, ''));
+const made = { programs: madeR.size + madeC.size, render: madeR.size, compute: madeC.size, kb: Math.round([...madeR.keys(), ...madeC.keys()].reduce((t, c) => t + c.length, 0) / 1024), outside: { render: madeBy(new Map([...madeR].filter(([, w]) => !w.startsWith('asked')))), compute: madeBy(new Map([...madeC].filter(([, w]) => !w.startsWith('asked')))) } };
 const programs = Object.fromEntries(Object.entries(codes).map(([k, s]) => [k, s.size])), pipelines = Object.fromEntries(Object.entries(pipes).map(([k, s]) => [k, s.size]));
 // (the programs drawn more than one way, and what differs between their ways)
 const several = [...ways.values()].filter((w) => w.by.size > 1).map((w) => {
@@ -127,19 +154,32 @@ const several = [...ways.values()].filter((w) => w.by.size > 1).map((w) => {
 }).sort((a, b) => b.ways - a.ways);
 // (the first view's programs by their size: what a compiler reads)
 const sizes = [...ways.values()].map((w) => ({ pass: w.pass, kb: Math.round(w.bytes / 1024), who: [...new Set([...w.by.values()].flatMap((x) => [...x]))].slice(0, 3) })).sort((a, b) => b.kb - a.kb);
+// ---- with a device: what the GPU holds there, by class against its budget, and the dial at rest ----
+let memory = null;
+if (ARG.buffer) {
+  const L = (await import('../src/core/gpu.js')).ledger();
+  memory = { share: L.share, rest: L.rest, whole: L.budget, noted: L.noted, classes: Object.fromEntries(Object.entries(L.classes).map(([c, v]) => [c, { budget: v.budget, held: v.noted }])), rows: L.rows.slice(0, 16) };
+}
 const result = {
   first: { asks: first.length, programs: Object.values(programs).reduce((a, b) => a + b, 0), pipelines: Object.values(pipelines).reduce((a, b) => a + b, 0), byPass: count(first, (e) => e.pass), programsByPass: programs, pipelinesByPass: pipelines, several, sizes, shaders, computeKb: Math.round(shaders.reduce((t, x) => t + x.kb, 0)), byFamily: count(first, (e) => `${familyOf(e)} · ${e.pass}`) },
+  made,
   after: { asks: after.length, byPass: count(after, (e) => e.pass), byFamily: count(after, (e) => `${familyOf(e)} · ${e.pass}`) },
-  camera: [p.x, p.y, p.z].map((v) => +v.toFixed(1)), reach: +cascades().half[0].toFixed(1),
+  camera: [p.x, p.y, p.z].map((v) => +v.toFixed(1)), reach: +cascades().half[0].toFixed(1), memory,
 };
 {
   console.log(`census: the first view waits for ${result.first.asks} asks, ${result.first.programs} programs, ${result.first.pipelines} pipelines; ${result.after.asks} more come after it (camera at ${result.camera}, the near cascade's reach ${result.reach} m)`);
+  console.log(`  made before its first frame, as the device counts (asked, drawn alone, handed): ${made.programs} programs (${made.render} render, ${made.compute} compute), ${made.kb} KB; outside the first view's asks:`); for (const [k, n] of [...Object.entries(made.outside.render), ...Object.entries(made.outside.compute)]) console.log(`    ${String(n).padStart(4)}  ${k}`);
   console.log(`  by pass: ${JSON.stringify(result.first.byPass)}; programs: ${JSON.stringify(result.first.programsByPass)}; pipelines: ${JSON.stringify(result.first.pipelinesByPass)}`);
   console.log(`  programs drawn more than one way (each way a pipeline): ${several.length}`); for (const w of several) console.log(`    ${w.ways}×  ${w.pass} ${w.kb} KB, ${w.differ.join(', ')} differ: ${w.who.join(' | ')}`);
   console.log('  the largest programs:'); for (const z of sizes.slice(0, 12)) console.log(`    ${String(z.kb).padStart(4)} KB  ${z.pass}: ${z.who.join(' | ')}`);
   console.log(`  the packing's compute shaders: ${shaders.length}, ${result.first.computeKb} KB of WGSL; the largest:`); for (const z of shaders.slice(0, 14)) console.log(`    ${String(z.kb).padStart(5)} KB  ${z.who.join(' | ')}`);
   console.log('  by family and pass, the first view:'); for (const [k, n] of Object.entries(result.first.byFamily)) console.log(`    ${String(n).padStart(4)}  ${k}`);
   console.log(`  after it, by pass: ${JSON.stringify(result.after.byPass)}`); for (const [k, n] of Object.entries(result.after.byFamily).slice(0, 12)) console.log(`    ${String(n).padStart(4)}  ${k}`);
+}
+if (memory) {
+  console.log(`memory: on a share of ${memory.share} (${memory.whole} MB), the dial at rest ${memory.rest}; the first view holds ${memory.noted} MB:`);
+  for (const [c, v] of Object.entries(memory.classes)) console.log(`  ${c.padEnd(13)} ${String(v.held).padStart(7)} MB of ${v.budget}`);
+  for (const [n, mb, , c] of memory.rows) console.log(`    ${String(mb).padStart(7)} MB  ${c}: ${n}`);
 }
 console.log(`census-json: ${JSON.stringify(result)}`);
 process.exit(0);

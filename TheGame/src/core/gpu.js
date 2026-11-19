@@ -21,10 +21,28 @@
 import * as THREE from 'three/webgpu';
 import { storage } from 'three/tsl';
 import { CLASS_NAMES, classOf } from './classes.js';
-import { BUDGET_MB, GPU_MB } from './budget.js';
+import { BUDGET_MB, GPU_MB, MAC_BUFFER, PHONE_BUFFER, PHONE_SHARE } from './budget.js';
 import { MiB } from './physics.js';
 import { passBegins, timesOn } from './pace.js';
 import { pass as framePass } from './frames.js';
+import { restDial, raiseRest } from '../detail/measure.js';
+
+// ---- a compute pass called by its maker ----
+// three calls a compute pipeline by its node's name (computePipeline_compute_<name>); one made without a name is just
+// "computePipeline_compute", and a trace of the GPU's own time names none of them (2026-11-19: a submission of 2 s in
+// WebKit after the first view, one dispatch of 256 workgroups, called so). So every compute node is called, as it is
+// made, by where it was made (its file and line, the first frame of the game's own: the ledger calls a buffer by its
+// maker so), and one given a name of its own keeps that. (Node's constructor sets the name: the setter sees it made.)
+const MAKER = new WeakMap(), AT = /(?:TheGame\/|\/\/[^/]+\/)(src\/[^?:)\s]+)(?:\?[^:)\s]*)?:(\d+)/;   // (a file of the game's own: from its address's root, or its path's TheGame/)
+const makerOf = () => {
+  const was = Error.stackTraceLimit; Error.stackTraceLimit = 64;   // (three's own frames before the maker's: its constructors, its kernel, its chaining)
+  try { for (const l of (new Error().stack ?? '').split('\n').slice(2)) { const m = !l.includes('node_modules') && l.match(AT); if (m && m[1] !== 'src/core/gpu.js') return `${m[1]}:${m[2]}`; } return ''; } finally { Error.stackTraceLimit = was; }
+};
+Object.defineProperty(THREE.ComputeNode.prototype, 'name', {
+  configurable: true,
+  get() { const M = MAKER.get(this); return M ? M.own || M.at : ''; },
+  set(v) { const M = MAKER.get(this); if (M) M.own = v; else MAKER.set(this, { at: makerOf(), own: v }); },
+});
 
 const HELD = new Map(), MB = MiB, PEAK = Object.fromEntries(CLASS_NAMES.map((c) => [c, 0])), OVER = new Map(), WHOLE = 'the whole GPU';
 let peakAll = 0;
@@ -52,11 +70,49 @@ export function makeOwned(renderer, name, gpu, page, cls, ...owns) {
 }
 /** The same, added to what the name holds already (many small buffers under one name). */
 export const more = (name, gpu = 0, page = 0, cls = 'other', ...owns) => { const h = HELD.get(name) ?? { gpu: 0, page: 0, cls }; h.gpu += gpu; h.page += page; HELD.set(name, h); held(h.cls, name); own(h.cls, name, owns); };
+// ---- the budget on the device the game runs on: the 8 GB Mac's (budget.js GPU_MB, BUDGET_MB) scaled by the device's
+// share of it (shareOf), set at boot from its adapter (askedLimits); each class its share of it, as on the Mac ----
+let SHARE = 1;
+/** The share of the Mac's budget a device has whose adapter's largest buffer is `bytes` (its maxBufferSize): as that
+    stands to the Mac's (budget.js MAC_BUFFER), never more than all of it (Chrome's tiers give the same Mac 4 GiB: a
+    larger reading is the Mac's case, not twice it), nor, on a phone (at or under PHONE_BUFFER: WebKit's iPhone clamp),
+    more than a phone's (PHONE_SHARE: under where an iPhone was killed); all of it where there is none (no WebGPU, the
+    CPU's stand-in). */
+export const shareOf = (bytes) => (bytes > 0 ? Math.min(bytes <= PHONE_BUFFER ? PHONE_SHARE : 1, bytes / MAC_BUFFER) : 1);
+/** The device's share of the Mac's budget (shareOf, at boot). */
+export const budgetShare = () => SHARE;
+/** What class `cls` may hold on the GPU of this device, MiB: its share of the Mac's (BUDGET_MB), scaled. */
+export const budgetOf = (cls) => BUDGET_MB[cls] * SHARE;
+/** What the game may hold on the GPU of this device in all, MiB (GPU_MB, scaled). */
+export const wholeBudget = () => GPU_MB * SHARE;
 /** What a class's pools hold on the GPU now, bytes. */
 const heldBy = (cls) => { let n = 0; for (const h of HELD.values()) if (h.cls === cls) n += h.gpu; return n; };
 /** The room a class has left on the GPU, bytes: its budget less what it holds, as its pools say it or as the device made
     it for its code (the more of the two: what three makes for it too). */
-export const roomOf = (cls) => BUDGET_MB[cls] * MB - Math.max(heldBy(cls), MADE[cls] ?? 0);
+export const roomOf = (cls) => budgetOf(cls) * MB - Math.max(heldBy(cls), MADE[cls] ?? 0);
+// ---- what follows the dial: memory's one knob (src/detail/measure.js restDial) ----
+// A store sized by what lies within reach at the dial at rest (its things, cells, rings) takes its need there, never
+// what its class has left, so none is short for having come late. Where its class's stores sized anew as the dial moves
+// (V, their needs) and the rest of what the class holds (F, with what is about to be made once) would pass its budget
+// (B), the dial at rest rises to D √(V / (B − F)): what lies within a reach goes as the reach's square, and a dial D
+// times as coarse reaches 1/D as far. Each of them is sized again at it (onMeasure), all a little coarser; it is
+// checked again as they say what they need there, till they fit.
+const BY_DIAL = new Map();   // (a store sized anew as the dial moves, by its pool's name: its class, its need, bytes)
+/** A store that follows the dial (name: its pool's, as it notes itself; cls its class) needs `bytes` at the dial at rest
+    now: again, it is sized anew whenever the dial moves (a tier, through onMeasure); else it is about to be made once at
+    this dial, at its need, and holds it. Raises the dial at rest where its class cannot hold it all; returns the dial at
+    rest, which a store made once is made at. */
+export function byDial(name, cls, bytes, again = true) {
+  if (again) BY_DIAL.set(name, { cls, bytes });
+  let V = 0, own = 0;
+  for (const [n, s] of BY_DIAL) if (s.cls === cls) { V += s.bytes; own += HELD.get(n)?.gpu ?? 0; }
+  const B = budgetOf(cls) * MB, F = Math.max(heldBy(cls), MADE[cls] ?? 0) - own + (again ? 0 : Math.max(0, bytes - (HELD.get(name)?.gpu ?? 0)));
+  if (V + F <= B) return restDial();
+  if (!(B - F > 0)) { past(cls, `what does not follow the dial (${name} last)`, F, budgetOf(cls), true); return restDial(); }   // (no dial fits it: said, counted)
+  const was = restDial();
+  if (V > 0 && raiseRest(was * Math.sqrt(V / (B - F)))) { const k = (was / restDial()) ** 2; for (const t of BY_DIAL.values()) t.bytes *= k; }   // (each store's need at the new dial, by the same rule, till it says its own there: none counted at the old one)
+  return restDial();
+}
 /** A make that took `who` (a class, or the whole GPU) past its budget (MB), `by` (the pool, or what the device was asked
     to make) holding `bytes` there then: said once a class and maker (once: once a class, whatever made it first; the
     one tally's check, held and counted below, says it so), loudly, and counted; what was made is kept, so nothing
@@ -73,7 +129,7 @@ function held(cls, by) {
   const n = heldBy(cls); if (n > (PEAK[cls] ?? Infinity)) PEAK[cls] = n;
   let all = 0; for (const h of HELD.values()) all += h.gpu;
   if (all > peakAll) peakAll = all;
-  if (!R && n > BUDGET_MB[cls] * MB) past(cls, by, n, BUDGET_MB[cls], true);
+  if (!R && n > budgetOf(cls) * MB) past(cls, by, n, Math.round(budgetOf(cls)), true);
 }
 // How many kinds each drawer draws coarser than a pixel now (src/scatter/drawer.js: a band not come yet, a stand-in, no
 // slot for it), by its name: beside the memory in the one ledger, so the gate's board shows it fall as the bands come
@@ -83,6 +139,7 @@ export const short = (name, n) => { SHORT.set(name, n); };
 /** The one ledger (the game's memory(), src/boot.js; the hour's gate reads it), MB:
       gpu, peak, budget   what the game holds on the GPU now and the most it held (all the device made, where it is
                           counted; else what the pools note), and GPU_MB
+      rest                the dial at rest (src/detail/measure.js restDial): 1, or what this device's memory raised it to
       classes             { class: { gpu, peak (the same, the class's: what the device made for its code, else what its
                           pools note), noted (what its pools say they hold), page (what they keep on the page), budget } }
       noted, page         what all the pools note, on the GPU and on the page; unnoted: what the device made beyond it
@@ -94,12 +151,12 @@ export const short = (name, n) => { SHORT.set(name, n); };
       short               { drawer: how many kinds it draws coarser than a pixel now } (short, above) */
 export const ledger = () => {
   const mb = (b) => +(b / MB).toFixed(1), rows = [...HELD].map(([n, h]) => [n, h.gpu, h.page, h.cls]).sort((a, b) => b[1] + b[2] - a[1] - a[2]);
-  const classes = Object.fromEntries(CLASS_NAMES.map((c) => [c, { gpu: 0, peak: 0, noted: 0, page: 0, budget: BUDGET_MB[c] }]));
+  const classes = Object.fromEntries(CLASS_NAMES.map((c) => [c, { gpu: 0, peak: 0, noted: 0, page: 0, budget: Math.round(budgetOf(c)) }]));
   for (const [, g, p, c] of rows) { classes[c].noted += g; classes[c].page += p; }
   for (const c of CLASS_NAMES) Object.assign(classes[c], { gpu: mb(R ? MADE[c] : classes[c].noted), peak: mb(R ? MADE_PEAK[c] : PEAK[c]), noted: mb(classes[c].noted), page: mb(classes[c].page) });
   const noted = rows.reduce((s, r) => s + r[1], 0);
   return {
-    gpu: mb(R ? made : noted), peak: mb(R ? peakMade : peakAll), budget: GPU_MB, classes, noted: mb(noted), page: mb(rows.reduce((s, r) => s + r[2], 0)),
+    gpu: mb(R ? made : noted), peak: mb(R ? peakMade : peakAll), budget: Math.round(wholeBudget()), share: +SHARE.toFixed(3), rest: +restDial().toFixed(3), classes, noted: mb(noted), page: mb(rows.reduce((s, r) => s + r[2], 0)),
     unnoted: R ? mb(Math.max(0, made - noted)) : null,
     makers: [...KINDS.values()].filter((k) => k.bytes > 0).sort((a, b) => b.bytes - a.bytes).slice(0, 24).map((k) => [k.cls, k.kind, mb(k.bytes), k.n]),
     over: [...OVER.values()].map((o) => ({ ...o })), rows: rows.map(([n, g, p, c]) => [n, mb(g), mb(p), c]), short: Object.fromEntries(SHORT),
@@ -130,6 +187,9 @@ const texBytes = (d) => {
 let NOW = 'other', made = 0, peakMade = 0;   // (whose code runs; what the device has made, bytes; the most it held)
 const MADE = Object.fromEntries(CLASS_NAMES.map((c) => [c, 0])), MADE_PEAK = { ...MADE }, KINDS = new Map(), SIZE = new WeakMap();
 /** make() run as `cls`'s: what the device makes meanwhile is that class's. */
+/** Whether the game holds less on the GPU than all it may (wholeBudget): what the device made, where it is counted
+    (the ledger's gpu); else what the pools note. */
+export const underBudget = () => (R ? made : [...HELD.values()].reduce((n, h) => n + h.gpu, 0)) < wholeBudget() * MB;
 const asClass = (cls, make) => { const was = NOW; NOW = cls in MADE ? cls : 'other'; try { return make(); } finally { NOW = was; } };
 const counted = (o, bytes, kind) => {
   const cls = NOW, key = `${cls}: ${kind}`, K = KINDS.get(key) ?? { cls, kind, bytes: 0, n: 0 };
@@ -137,8 +197,8 @@ const counted = (o, bytes, kind) => {
   made += bytes; MADE[cls] += bytes;
   if (made > peakMade) peakMade = made;
   if (MADE[cls] > MADE_PEAK[cls]) MADE_PEAK[cls] = MADE[cls];
-  if (MADE[cls] > BUDGET_MB[cls] * MB) past(cls, kind, MADE[cls], BUDGET_MB[cls], true);
-  if (made > GPU_MB * MB) past(WHOLE, kind, made, GPU_MB, true);
+  if (MADE[cls] > budgetOf(cls) * MB) past(cls, kind, MADE[cls], Math.round(budgetOf(cls)), true);
+  if (made > wholeBudget() * MB) past(WHOLE, kind, made, Math.round(wholeBudget()), true);
   const d = o.destroy;
   o.destroy = function () {
     const s = SIZE.get(o);
@@ -225,8 +285,23 @@ export const hasFeature = (name) => !!R?.backend?.device?.features?.has(name);
 export const SIZED = ['maxBufferSize', 'maxStorageBufferBindingSize', 'maxUniformBufferBindingSize', 'maxComputeWorkgroupsPerDimension', 'maxTextureArrayLayers'];
 /** What to ask a device for, of its adapter's limits A: each of SIZED as A has it. */
 const limitsFrom = (A) => Object.fromEntries(SIZED.filter((k) => A?.[k] != null).map((k) => [k, A[k]]));
-/** What the device is asked for (src/boot.js): each of SIZED as this machine's adapter has it (none without WebGPU). */
-export const askedLimits = async () => limitsFrom((await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null))?.limits);
+/** What the device is asked for (src/boot.js): each of SIZED as this machine's adapter has it (none without WebGPU); and
+    what the adapter says of itself kept (adapterOf). */
+export const askedLimits = async () => {
+  const a = await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null);
+  if (a) {
+    SHARE = shareOf(a.limits.maxBufferSize);   // (the budget this device is held to: its class's, from its largest buffer)
+    const A = (ADAPTER = { maxBufferSize: a.limits.maxBufferSize, maxStorageBufferBindingSize: a.limits.maxStorageBufferBindingSize, vendor: a.info?.vendor ?? '', architecture: a.info?.architecture ?? '', budget: Math.round(wholeBudget()), share: +SHARE.toFixed(3) }), gib = (b) => `${(b / 2 ** 30).toFixed(2)} GiB`;
+    console.info(`the device: ${A.vendor} ${A.architecture}, its largest buffer ${gib(A.maxBufferSize)}, its largest storage binding ${gib(A.maxStorageBufferBindingSize)}; the game's GPU budget here ${A.budget} MB, ${Math.round(A.share * 100)} % of the 8 GB Mac's (window.__game.adapter)`);   // (once, where any inspector reads it: a phone's tab too, tethered, before the page is ready)
+  }
+  return limitsFrom(a?.limits);
+};
+let ADAPTER = null;
+/** The class of the device the game runs on, as its adapter said it at boot (askedLimits): its largest buffer and its
+    largest storage binding (bytes: each engine sizes them from the device, WebKit at most 1 GiB on an iPhone, between 1
+    and 2 GiB on a Mac; Chrome in tiers up to 4 GiB) and who made it (vendor, architecture). Null before, and without
+    WebGPU. A measure for a person and a tool to read (window.__game.adapter, the HUD's line): nothing is sized by it. */
+export const adapterOf = () => ADAPTER;
 /** One of the renderer's GPU's limits, one of SIZED (none without WebGPU: nothing then asks). */
 export const limitOf = (name) => { if (!SIZED.includes(name)) throw new Error(`gpu: ${name} is not a limit the device is asked for (SIZED)`); return R?.backend?.device?.limits?.[name] ?? 0; };
 /** Every buffer made here within the device's limits: one larger is an error of whoever sized it, said by name. */

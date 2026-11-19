@@ -21,12 +21,13 @@ import { meshOf, bandOf, skinOf, bonesOf, herdRooms } from '../../assets/zoo/ind
 import { keptGet, keptPut } from '../core/kept.js';
 import { recipe } from '../core/registry.js';
 import '../core/outlines.js';   // (what the build measured of the plants, handed to their kit as the page has it: the page and the workers cut a plant's levels by the same numbers)
+import { crowdsReady } from '../core/crowds.js';   // (and each shape's crowd's measure, the build's: none reckoned here)
 import { BONES } from '../../assets/kit/solid.js';
 import { useBuilder } from '../../assets/kit/surface.js';
 import { build, tailFrom, ready as built } from '../../assets/kit/clusters.js';
 
 // the builder of surfaces' hierarchies (meshoptimizer's WebAssembly: here, never on the page), before any job is done
-const ready = built.then(() => useBuilder(build, tailFrom));
+const ready = Promise.all([built.then(() => useBuilder(build, tailFrom)), crowdsReady]);
 
 /** The box round a solid mesh in its own frame, [x0, y0, z0, x1, y1, z1] (assets/kit/solid.js: a vertex's place, 16 bits
     a number over -1 … 1, and its way to where it lies on the coarser mesh it turns into, 10 bits over ± D, its level's

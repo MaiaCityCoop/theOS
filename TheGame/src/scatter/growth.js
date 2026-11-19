@@ -4,8 +4,8 @@
 // (src/terrain/layers.js): a texel's place in it is its place on the land modulo N, so as the camera moves only the rows
 // and columns the window comes onto are worked out, on the GPU, a layer at a time, the largest first. Its texel is the
 // layer's band limit (rule.js layersOf: half its smallest crown; a finer one holds nothing more), its side N the fewest
-// texels (a power of two) that reach as far as what reads it is drawn (its `far`), within the room the geometry's class
-// has left (src/core/gpu.js roomOf), else the most that fits there, and said.
+// texels (a power of two) that reach as far as what reads it is drawn (its `far`, at the dial at rest): its need, made
+// once at that dial (src/core/gpu.js byDial: where the geometry's class cannot hold it beside the rest, the dial rises).
 //
 // For every layer that writes (src/scatter/rule.js: those whose things are as large as a texel) it keeps two things:
 //   - what stands in each of the layer's own cells, a word a cell (rule.js recordOf: which of its things, which of its
@@ -26,8 +26,10 @@
 // took to it. Where a layer's window does not reach, nothing of that layer has left anything.
 import * as THREE from 'three/webgpu';
 import { Fn, If, float, int, uint, vec2, ivec2, uniform, globalId, floor, clamp, round } from 'three/tsl';
-import { gpuStorage, roomOf } from '../core/gpu.js';
+import { gpuStorage, byDial } from '../core/gpu.js';
 import { did } from '../core/work.js';
+import { ownGpuMs, pace, frameShare } from '../core/pace.js';
+import { source } from '../core/settle.js';
 
 /** Texels a window moves by at once; the most layers that write (a word each). */
 export const SNAP = 8, WORDS = 3;
@@ -72,13 +74,11 @@ export function createGrowth(renderer, fields) {
       its window of cells (where c is one the gather of its texels' window reads: whoever asks keeps to that). */
   const places = [], placeOf = (w) => (places[w] ||= { side: uniform(1, 'int'), base: uniform(0, 'uint') });   // (each layer's cells' window: its side and its first, uniforms set as it is built)
   const at = (w, c) => { const P = placeOf(w); return B.element(uint(c.x.bitAnd(P.side.sub(1)).add(c.y.bitAnd(P.side.sub(1)).mul(P.side))).add(P.base)); };
-  // (while it all holds more than the geometry's room, the largest word halved, and said: its words and the cells its
-  // gather reads, 4 bytes each)
+  // (its need: its words as far as their readers reach at the dial at rest, and the cells its gather reads, 4 bytes
+  // each; never what the geometry's class has left: made once at the dial at rest, src/core/gpu.js byDial)
   const sides = (list) => {
-    const bytes = () => words.reduce((b, Wd, w) => { const L = list.find((x) => x.w === w); return b + 4 * (Wd.N * Wd.N + (L ? 2 ** (2 * Math.ceil(Math.log2(L.span(Wd.N)))) : 0)); }, 0);
-    const held = words.map((Wd) => Wd.N);
-    while (bytes() > roomOf('geometry')) { const Wd = words.reduce((a, b) => (b.N > a.N ? b : a)); if (Wd.N <= 4 * SNAP) break; Wd.N /= 2; }
-    words.forEach((Wd, w) => { if (Wd.N < held[w]) console.warn(`the growth map, word ${w}: ${held[w]} texels a side reach its readers (${Math.round(Wd.far)} m); ${Wd.N} fit the geometry's room: ${Math.round((Wd.N / 2 - SNAP) * Wd.T)} m`); });
+    const bytes = words.reduce((b, Wd, w) => { const L = list.find((x) => x.w === w); return b + 4 * (Wd.N * Wd.N + (L ? 2 ** (2 * Math.ceil(Math.log2(L.span(Wd.N)))) : 0)); }, 0);
+    byDial('the growth map', 'geometry', bytes, false);
   };
   /** The passes, one a layer that writes, in their order (rule.js writersOf): record(c), what stands in cell c of the
       layer, worked out for the cells the gather of the texels to be worked out reads (cells(x0, w): those along a side
@@ -92,6 +92,7 @@ export function createGrowth(renderer, fields) {
     for (const Wd of words) { Wd.base = base; base += Wd.N * Wd.N; Wd.uN.value = Wd.N; Wd.uBase.value = Wd.base; }
     for (const { w, span } of writers) { const side = 2 ** Math.ceil(Math.log2(span(words[w].N))), P = placeOf(w); P.side.value = side; P.base.value = base; base += side * side; }
     const buf = gpuStorage('uint', base, 'the growth map', 'geometry'); B = buf.node;
+    P = pace(writers.reduce((n, { w, span }) => n + Math.ceil(span(words[w].N) / 8) ** 2 + Math.ceil(words[w].N / 8) ** 2, 0));   // (its unit: a whole window, above)
     fills = writers.map(({ w, record }) => Fn(() => {
       const g = globalId.xy;
       If(g.x.lessThan(uint(uCells.z)).and(g.y.lessThan(uint(uCells.w))), () => {
@@ -112,13 +113,45 @@ export function createGrowth(renderer, fields) {
   // worked out first (a later layer's window within an earlier one's: its readers are nearer); and what stands in its
   // cells before what it leaves at its texels. A cell worked out again is the same: the rule is the rule)
   const run = (n, rects) => {
-    const { cells } = writers[n], pass = passes[n];
-    for (const [x0, z0, ww, hh] of rects) {
-      const [cx, cx1] = cells(x0, ww), [cz, cz1] = cells(z0, hh), cw = cx1 - cx, ch = cz1 - cz;
-      uCells.value.set(cx, cz, cw, ch); renderer.compute(fills[n], [Math.ceil(cw / 8), Math.ceil(ch / 8), 1]);
-    }
-    for (const [x0, z0, ww, hh] of rects) { uRect.value.set(x0, z0, ww, hh); renderer.compute(pass, [Math.ceil(ww / 8), Math.ceil(hh / 8), 1]); }
+    const { cells } = writers[n];
+    for (const [x0, z0, ww, hh] of rects) { const [cx, cx1] = cells(x0, ww), [cz, cz1] = cells(z0, hh); jobs.push({ n, fill: true, x: cx, z: cz, w: cx1 - cx, h: cz1 - cz, r: 0, c: 0 }); }
+    for (const [x0, z0, ww, hh] of rects) jobs.push({ n, fill: false, x: x0, z: z0, w: ww, h: hh, r: 0, c: 0 });
   };
+  // ---- the work, a piece at a time ----
+  // (in that order, in pieces of whole workgroups, each its own submission: as many workgroups a frame as fit the frame's
+  // share for geometry (frameShare: behind the veil, till the first view is shown, the whole frame's), by each
+  // piece's own time on the GPU (src/core/pace.js), so no submission holds the GPU long. A window come onto whole (the
+  // first time, a jump, the rule changed) was one dispatch of all of it, 256 workgroups of a layer's gather: 2 s in
+  // WebKit after the first view, 2026-11-19. What reads the map packs again once all of it is worked out (version); the
+  // world is not complete before (settle). Without the GPU's clock to ask (the CPU's stand-in), all of it at once)
+  // (its unit: a whole window a frame, every writer's fill and gather, set as the writers are (build): a time heard on the
+  // page's thread never takes it under that (src/core/pace.js), so a stall charged to it never starves it, nor the
+  // world's Ready, which waits for it; and a piece never more than SUBMIT_MS by what a workgroup last took (P.most: a
+  // piece as small as a workgroup, the frame still a whole window))
+  const jobs = [];   // (a job: writer n's rectangle of cells (fill) or texels, x z w h; r, c: its workgroups' rows done, and of the next row)
+  let P = pace(1);
+  source('the growth map', () => jobs.length);
+  /** Its next k workgroups at most, as a rectangle: whole rows where k holds one, else part of a row. -> [x, z, w, h, k] */
+  const take = (J, k) => {
+    const cols = Math.ceil(J.w / 8), rows = Math.ceil(J.h / 8);
+    if (J.c === 0 && k >= cols) { const m = Math.min(rows - J.r, Math.floor(k / cols)), R = [J.x, J.z + J.r * 8, J.w, Math.min(m * 8, J.h - J.r * 8), m * cols]; J.r += m; return R; }
+    const m = Math.min(cols - J.c, k), R = [J.x + J.c * 8, J.z + J.r * 8, Math.min(m * 8, J.w - J.c * 8), Math.min(8, J.h - J.r * 8), m];
+    J.c += m; if (J.c === cols) { J.c = 0; J.r++; }
+    return R;
+  };
+  const work = () => {
+    P.tick();
+    let clocked = true;
+    while (jobs.length && (P.left > 0 || !clocked)) {
+      if (!(jobs[0].w > 0 && jobs[0].h > 0)) { jobs.shift(); continue; }   // (nothing to work out)
+      const J = jobs[0], [x0, z0, ww, hh, k] = take(J, clocked ? Math.min(P.left, P.most()) : Infinity), kernel = J.fill ? fills[J.n] : passes[J.n], u = J.fill ? uCells : uRect;
+      const ms = ownGpuMs(renderer, () => { u.value.set(x0, z0, ww, hh); renderer.compute(kernel, [Math.ceil(ww / 8), Math.ceil(hh / 8), 1]); });
+      if (ms) { P.left -= k; ms.then((t) => P.measured(k, t, frameShare('geometry'))).catch(() => {}); } else clocked = false;
+      if (J.r >= Math.ceil(J.h / 8)) jobs.shift();
+    }
+    if (!jobs.length && pending) { pending = false; version++; }
+  };
+  let pending = false;
   /** The rectangles word w's window comes onto as it is kept round (x, z) (all of it the first time or after a jump),
       its new place set; null where it has not moved. */
   const moved = (Wd, x, z) => {
@@ -144,10 +177,9 @@ export function createGrowth(renderer, fields) {
         jump, or when what the rule reads changed: `world`). Before anything that reads it packs. */
     update(x, z, world = '') {
       if (!passes.length) return;
-      if (world !== key) { key = world; for (const Wd of words) Wd.window = null; }
-      let any = false;
-      writers.forEach(({ w }, n) => { const rects = moved(words[w], x, z); if (rects) { run(n, rects); any = true; } });
-      if (any) version++;
+      if (world !== key) { key = world; jobs.length = 0; for (const Wd of words) Wd.window = null; }   // (what was left to work out of the windows before: worked out whole again)
+      writers.forEach(({ w }, n) => { const rects = moved(words[w], x, z); if (rects) { run(n, rects); pending = true; } });
+      work();
     },
     /** A number that changes whenever the map does: what reads it packs again. */
     version: () => version,

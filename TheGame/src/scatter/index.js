@@ -48,6 +48,7 @@ export function createScatter(scene, tex, ground, renderer, camera = null) {
   // (the engines that place the larger things first: what is smaller reads what they leave, src/scatter/growth.js)
   for (const [E, list] of [...rows].sort(([a], [b]) => !!b.createAll - !!a.createAll)) { if (E.createAll) take(E.createAll(scene, tex, ground, list, gpu, renderer), E.id); else for (const row of list) take(E.create(scene, tex, ground, row, gpu, renderer), row.name); }
   for (const E of Object.values(ENGINES)) if (E.createOwn) take(E.createOwn(scene, tex, ground, gpu, renderer), E.id);   // what an engine places of its own
+  let turn = 0;   // (which tier runs first this frame)
   return {
     tiers,
     /** The meshes that bake what the engines draw far off (trees.js: a stand's impostors and clumps), drawn by no tier:
@@ -64,7 +65,8 @@ export function createScatter(scene, tex, ground, renderer, camera = null) {
       const v = (u) => u.value.toArray?.().join(',') ?? u.value, kept = `${lod}|${v(U.uSand)}|${v(U.uStage)}|${v(U.uStageGround)}|${weatherKey()}|${waysVersion()}|${thingsVersion()}`, world = `${ground.version}|${kept}`;
       for (const f of before) f(cx, cz, `${v(U.uSand)}|${v(U.uStage)}`);   // (what the larger things leave for the smaller, before any packs: growth.js; worked out again whole only when the sandbox or the stage moves)
       tick();   // (the frame's cells for the resident tiers' packings to share: tier.js)
-      for (const t of tiers) t.run(renderer, world, cx, h0 + dy, cz, view, kept);
+      turn = (turn + 1) % Math.max(1, tiers.length);   // (each frame another tier first: where the frame's packings are spent, the rest take turns, tier.js)
+      for (let i = 0; i < tiers.length; i++) tiers[(i + turn) % tiers.length].run(renderer, world, cx, h0 + dy, cz, view, kept);
       for (const f of solid) f(renderer);
     },
     get over() { for (let i = 0; i < tiers.length; i++) if (tiers[i].over || tiers[i].short) return true; return false; },   // (short: its own patches found more than their rooms hold: tier.js)

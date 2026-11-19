@@ -30,14 +30,13 @@ import { lit, weathered, snowLift, unlit } from '../world/light.js';
 import { passOf } from '../core/pass.js';
 import { IN, PLANE } from '../../assets/kit/crowd.js';
 import { UV_TILES } from '../../assets/kit/plant.js';
-import { makeOwned, PORTABLE } from '../core/gpu.js';
-import { ownGpuMs, pace } from '../core/pace.js';
+import { makeOwned, PORTABLE, budgetShare } from '../core/gpu.js';
+import { ownGpuMs, pace, frameShare } from '../core/pace.js';
 import { shown } from '../core/settle.js';
 import { compileFor } from '../core/compile.js';
-import { FRAME_MS_BY_CLASS } from '../core/budget.js';
 import { SHARE_MB } from '../core/classes.js';
 import { FNV, fnv } from '../core/hash.js';
-import { asking } from '../core/workers.js';
+import { workerPool } from '../core/workers.js';
 import { pxAt } from './measure.js';
 import { atlasesOf, atlasBytes, levelsUnder, SS, LEAST, PICTURES } from './atlas.js';
 import { farLayers } from '../scatter/entries.js';
@@ -48,7 +47,7 @@ import { farLayers } from '../scatter/entries.js';
     device and at every start of the same world. Handed to the crowd kit wherever it builds a far end (in the recipes'
     workers with each level's band: src/scatter/trees.js); a made thing's card takes the same views. */
 let ATLASES = null;
-export const atlases = () => (ATLASES ||= atlasesOf({ layers: farLayers(), bytes: SHARE_MB.geometry.atlases * 2 ** 20, limits: PORTABLE, tiles: UV_TILES }));
+export const atlases = () => (ATLASES ||= atlasesOf({ layers: farLayers(), bytes: SHARE_MB.geometry.atlases * 2 ** 20 * budgetShare(), limits: PORTABLE, tiles: UV_TILES }));   // (their share of geometry's budget on this device: src/core/gpu.js budgetShare)
 
 // ---- the views: a direction over the half-sphere above, a point of the square [-1, 1]² (and back) ----
 /** A direction (y up, y ≥ 0) of the square's point (u, v), node or numbers. */
@@ -135,10 +134,10 @@ export function createAtlas(renderer, { name, side, layers, cell = side, views =
 
 // ---- the bake: a row of pictures at a time, SS x SS samples a texel, reduced on the GPU, read back, mipped in a worker ----
 let WORKERS = null;
-const workers = () => (WORKERS ||= Array.from({ length: Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 2)) }, () => asking(new Worker(new URL('./impostor.worker.js', import.meta.url), { type: 'module' }), "the impostors' worker")));
-/** The pictures' smaller ones, as a worker makes them (impostor.worker.js, the least busy of a few, watched:
-    src/core/workers.js): { levels: [{ colour, data, leaf, n }] }. */
-const mipsOf = (colour, data, leaf, side, cell, least) => workers().reduce((a, b) => (b.out() < a.out() ? b : a))({ colour, data, leaf, side, cell, least }, [colour.buffer, data.buffer, leaf.buffer]);
+const workers = () => (WORKERS ||= workerPool("the impostors' worker", () => new Worker(new URL('./impostor.worker.js', import.meta.url), { type: 'module' })));
+/** The pictures' smaller ones, as a worker makes them (impostor.worker.js, one of a pool as large as the device, watched:
+    src/core/workers.js workerPool): { levels: [{ colour, data, leaf, n }] }. */
+const mipsOf = (colour, data, leaf, side, cell, least) => workers().ask({ colour, data, leaf, side, cell, least }, [colour.buffer, data.buffer, leaf.buffer]);
 
 /** What bakes a family's pictures: rows of `per` pictures `px` texels a side, drawn by draw(row) (a mesh whose
     instances are the row's pictures, from PIECE's on: pictureOf; its one material's two outputs, mrt's `output` its
@@ -232,7 +231,7 @@ export function createBaker(renderer, { per, px }) {
         for (let r = 0; r < count; r++) for (let a = 0; a < per; ) {
           if (P.left <= 0) { await nextFrame(); P.tick(); }
           const at = a, n = shown() ? Math.min(per - a, P.left) : per - a; a += n; P.left -= n;
-          ownGpuMs(renderer, () => pieceOf(r, at, n, draw))?.then((ms) => P.measured(n, ms, FRAME_MS_BY_CLASS.geometry)).catch(() => {});
+          ownGpuMs(renderer, () => pieceOf(r, at, n, draw))?.then((ms) => P.measured(n, ms, frameShare('geometry'))).catch(() => {});
         }
         const [c, d, l] = await Promise.all(out.map((o) => renderer.readRenderTargetPixelsAsync(o, 0, 0, W, W)));
         // (of its pictures' levels, what the atlas keeps: from its own cell's on, a view's never-read finest not: atlasesOf STORED)

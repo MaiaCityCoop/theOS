@@ -8,10 +8,10 @@ export function createHud(el, renderer, camera, governor, stats) {
     frame(ms, now, note) {
       if (ms > worst) worst = ms;
       if (now - at < 300) return;
-      const r = renderer.info.render, p = camera.position, g = governor, mem = ledger();
+      const r = renderer.info.render, p = camera.position, g = governor, mem = ledger(), A = stats.adapter, gib = (b) => `${(b / 2 ** 30).toFixed(2)} GiB`;
       el.textContent = `${(1000 / g.ms).toFixed(0)} fps  ${g.ms.toFixed(1)} ms  worst ${worst.toFixed(0)} ms\n` +
         `${r.drawCalls ?? r.calls} draws  ${(r.triangles / 1e6).toFixed(2)} M tris  drawn ×${g.dpr.toFixed(2)} of ×${stats.screen?.out ?? g.dpr}  detail ×${g.lod.toFixed(2)}${g.zoom > g.lod + 0.01 ? ' of ×' + g.zoom.toFixed(1) : ''}  js ${cpu.toFixed(2)} ms  held ${mem.gpu.toFixed(0)} MB${mem.page >= 1 ? ' + ' + mem.page.toFixed(0) : ''}\n` +
-        `${p.x.toFixed(0)}, ${p.y.toFixed(0)}, ${p.z.toFixed(0)}${note}`;
+        `${p.x.toFixed(0)}, ${p.y.toFixed(0)}, ${p.z.toFixed(0)}${note}` + (A ? `\nGPU ${A.vendor} ${A.architecture}  buffer ${gib(A.maxBufferSize)}  binding ${gib(A.maxStorageBufferBindingSize)}  budget ${A.budget} MB (${Math.round(A.share * 100)} %)` : '');   // (the device's class: src/core/gpu.js adapterOf)
       Object.assign(stats, { fps: 1000 / g.ms, ms: g.ms, worst, calls: r.drawCalls ?? r.calls, triangles: r.triangles, dpr: g.dpr, cpu, lod: g.lod, zoom: g.zoom, heldGpu: mem.gpu, heldPage: mem.page });
       at = now; worst = 0;
     },

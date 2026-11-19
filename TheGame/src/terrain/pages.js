@@ -29,12 +29,12 @@ import { Fn, If, Loop, Break, float, int, uint, vec2, vec4, ivec2, uvec2, uvec4,
 import { U } from '../core/uniforms.js';
 import { boxIn } from '../core/frustum.js';
 import { HMIN, HMAX } from '../world/land.js';
-import { makeOwned, gpuStorage, roomOf } from '../core/gpu.js';
+import { makeOwned, gpuStorage, byDial, budgetOf, bytesOf } from '../core/gpu.js';
 import { did } from '../core/work.js';
-import { source, ready } from '../core/settle.js';
-import { FRAME_MS, FRAME_MS_BY_CLASS, OUTPUT } from '../core/budget.js';
-import { outputRatio } from '../core/output.js';
-import { ownGpuMs, pace } from '../core/pace.js';
+import { source } from '../core/settle.js';
+import { OUTPUT } from '../core/budget.js';
+import { outputRatio, mostOutput } from '../core/output.js';
+import { ownGpuMs, pace, frameShare } from '../core/pace.js';
 import { pxAt, dialPxAt, pxKAt } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
 import { standsFor } from '../scatter/grass.js';
@@ -67,7 +67,8 @@ const G0 = SLOT / MAPN + 2, G1 = SLOT / 2 / MAPN + 2, POINTS = G0 * G0 + G1 * G1
 // what is kept does not; between the two, its own step: a quarter level coarser, √2 fewer pages)
 const QUARTERS = 4 * TOP;
 const BLOCKS_MOST = Math.ceil(7680 / SWEEP) * Math.ceil(4320 / SWEEP);   // the blocks of the largest inside asked from (8K)
-const VALID = 1 << 12, FADED = 1 << 13;   // a page table entry: its slot (12 bits), these, the frame it came in (16 bits)
+export const VALID = 1 << 12;
+const FADED = 1 << 13;   // a page table entry: its slot (12 bits), these, the frame it came in (16 bits)
 const sideOf = (m) => PAGE * S0 * 2 ** m;   // a page's side at level m, metres
 // the pixels each block of SWEEP × SWEEP asks from, frame by frame, `takes` at a time: an ordered dither's order, so they
 // spread out
@@ -78,7 +79,8 @@ const stampOf = (f) => (f % 31) + 1;   // (what a pixel's ask is marked with: it
 const levelOf = (raw, b) => Math.min(TOP, Math.max(0, Math.floor(raw + b - 0.5)));
 
 // ---- how many pages the land needs: what the pixels ask for, by the asks' own rule, at the most pixels a canvas has ----
-// Over open flat land (nothing on it hides any of it), at the output (src/core/budget.js OUTPUT), for each of the rig's
+// Over open flat land (nothing on it hides any of it), at the most pixels a canvas has on this device (src/core/output.js
+// mostOutput: the output's, of them the device's share), for each of the rig's
 // keys (camera/rig.js: its lens and its pace; src/camera/rig.js at): the view of it that holds the most land, its
 // picture's top edge on the horizon, and the same walked ahead at its pace for as long as the pages keep what was asked
 // (slotFor: two sweeps, a sweep a fixation: src/world/physics.js FIXATION), every page any of them asks (a block's finest
@@ -92,7 +94,7 @@ let NEED = 0;
 /** How many pages the land needs at the most (above): the pool is sized by it, the ground class's room its ceiling. */
 function pagesNeeded() {
   if (NEED) return NEED;
-  const { width: W, height: H } = OUTPUT, across = Math.max(1, Math.floor(PAGE / 2 ** 1.5 / SWEEP)) * SWEEP, keyOf = (l, i, j) => l * 1e12 + (i + 5e5) * 1e6 + (j + 5e5);
+  const { width: W, height: H } = mostOutput(), across = Math.max(1, Math.floor(PAGE / 2 ** 1.5 / SWEEP)) * SWEEP, keyOf = (l, i, j) => l * 1e12 + (i + 5e5) * 1e6 + (j + 5e5);
   // the pages a view asks for: the eye `eye` metres over the land at (0, z), its pitch, its picture `fov` degrees tall;
   // the finest level it asks
   const asked = (pages, eye, z, pitch, fov, reach) => {
@@ -172,7 +174,8 @@ export function createPages(renderer, tex) {
   // ---- the atlas: a page a layer, two mips. Where the GPU has block compression (BC: every desktop) it is kept in
   // blocks, as the world's materials are (src/materials/bake.js): A (BC3) the colour, gamma 2, and the height; N (BC5)
   // the relief; X (BC5) the carpet's share and the stands' shade: 3 bytes a texel, 60 KB a page. As many pages as the
-  // land needs at the most (pagesNeeded), never more than the ground's class has room for, nor than a page table entry
+  // land needs at the most (pagesNeeded: on this device, at the dial at rest), never more than the ground's class holds
+  // in all (its budget, not what is left of it: what comes after takes its own need too), nor than a page table entry
   // names (its slot's 12 bits: VALID), in arrays of up to a device's most layers. A page is laid into a layer of its own
   // batch first, and packed into blocks from there. Elsewhere A and N are four bytes a texel each (N with the carpet and
   // the shade in it), 640 pages at the most, laid straight into the atlas. Where the pages asked for do not fit, every
@@ -180,7 +183,13 @@ export function createPages(renderer, tex) {
   // holds it too: R (BC4, half a byte a texel; elsewhere four), the stands' relief there as a share of the highest ----
   const dev = renderer.backend.device, PACKED = !!dev?.features?.has('texture-compression-bc'), LAYERS_MOST = dev?.limits?.maxTextureArrayLayers ?? 256;
   const SLOT_BYTES = SLOT * SLOT * 1.25 * (PACKED ? 3 : 8) + reliefBytes(PACKED);   // (a page's texels, with its second mip, in its formats: what the note below counts a slot)
-  const SLOTS = Math.min(PACKED ? Math.min(2 * LAYERS_MOST, VALID, pagesNeeded()) : Math.min(LAYERS_MOST, 640), Math.floor(roomOf('ground') / SLOT_BYTES)), PER = Math.min(SLOTS, LAYERS_MOST);   // (PER: layers an array; and never more than the ground's class has room for: src/core/budget.js)
+  // (what the pages hold besides their slots, made after them: the batch laid at once (packed: its texels, then its
+  // blocks), its layer map and its numbers, the page table, what the pixels ask for; the slots beside them. What the
+  // land's reach asks follows the dial (src/core/gpu.js byDial: made once, at the dial at rest), so where the ground's
+  // class cannot hold them beside the rest, the dial rises for what is sized anew: the meadow)
+  const OWN = (PACKED ? BATCH * SLOT * SLOT * 1.25 * 8 + BATCH * 3 * ((SLOT / 4) ** 2 + (SLOT / 8) ** 2) * bytesOf('uvec4') : 0) + BATCH * POINTS * 2 * bytesOf('uvec4') + BATCH * 3 * bytesOf('vec4') + LEVELS * K * K * bytesOf('uint') + BLOCKS_MOST * 2 * bytesOf('uint');
+  const SLOTS = Math.min(PACKED ? Math.min(2 * LAYERS_MOST, VALID, pagesNeeded()) : Math.min(LAYERS_MOST, 640), Math.floor((budgetOf('ground') * 2 ** 20 - OWN) / SLOT_BYTES)), PER = Math.min(SLOTS, LAYERS_MOST);   // (PER: layers an array; and never more than the ground's class holds in all: src/core/budget.js)
+  byDial('the land\'s pages', 'ground', OWN + SLOTS * SLOT_BYTES, false);
   const look = { minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, anisotropy: ANISO, colorSpace: THREE.NoColorSpace, generateMipmaps: false };
   const laidInto = (n) => Object.assign(new THREE.StorageArrayTexture(SLOT, SLOT, n), look, { mipmaps: [{ width: SLOT, height: SLOT }, { width: SLOT / 2, height: SLOT / 2 }] });
   const blocks = (format, n, bytes = 16) => {   // (every layer there from the start, empty, filled as pages are laid; bytes: a block's; made on the GPU once owned, below)
@@ -313,7 +322,7 @@ export function createPages(renderer, tex) {
   const at = (m, i, j) => m * K * K + (j & (K - 1)) * K + (i & (K - 1));
   const win = Array.from({ length: LEVELS }, () => null), inWin = (m, i, j) => { const w = win[m]; return !!w && i >= w[0] && i < w[0] + K && j >= w[1] && j < w[1] + K; };
   const fading = [];
-  let frame = 0, queue = [], key = '', bias = 0, made = 0, changed = true;
+  let frame = 0, queue = [], key = '', bias = 0, made = 0, lost = 0, changed = true;   // (lost: pages whose laying the GPU could not do)
   // (this frame's takes and the sweep's frames at them; where the dither's order is; the fades' clock, frames as the
   // frame's length makes them: a page comes in within a fixation at the most; when the last frame began)
   let takes = 1, span = SWEEP * SWEEP, seq = 0, fclock = 0, lastT = 0;
@@ -332,6 +341,8 @@ export function createPages(renderer, tex) {
   };
   // lay these pages ([{ m, i, j }], at most BATCH), and say in the table that they are in
   const lay = (list) => {
+    const dev = renderer.backend?.device, scoped = !!dev?.pushErrorScope;
+    if (scoped) { dev.pushErrorScope('out-of-memory'); dev.pushErrorScope('validation'); }
     list.forEach((q, b) => {
       const sm = S0 * 2 ** q.m, gx0 = (q.i * PAGE - BORDER + 0.5) / MAPN, gz0 = (q.j * PAGE - BORDER + 0.5) / MAPN, gx1 = (q.i * PAGE / 2 - BORDER / 2 + 0.5) / MAPN, gz1 = (q.j * PAGE / 2 - BORDER / 2 + 0.5) / MAPN;
       const n0 = [Math.floor(gx0), Math.floor(gz0), Math.floor(gx1), Math.floor(gz1)];
@@ -342,19 +353,27 @@ export function createPages(renderer, tex) {
     uMip.value = 0; renderer.compute(pageKernel, [SLOT / 8, (SLOT * list.length) / 8, 1]);
     uMip.value = 1; renderer.compute(pageKernel, [SLOT / 16, (SLOT / 2 * list.length) / 8, 1]);
     if (PACKED) pack(list);
-    for (const q of list) { put(q.idx, VALID | q.slot | ((fclock & 0xffff) << 16)); q.came = fclock; fading.push(q); moves(q); }
+    // (in the table once its laying is known done: the GPU says what it could not do (a buffer it could not make, short
+    // of memory: 2026-11-19, Samuel's iPhone), and a slot told in that was not laid shows what lay in it before, another
+    // place's ground; one not laid gives its slot back, and is asked for again as it is next wanted)
+    const laid = () => { for (const q of list) if (IN.get(q.key) === q) { put(q.idx, VALID | q.slot | ((fclock & 0xffff) << 16)); q.came = fclock; fading.push(q); moves(q); } };
+    if (!scoped) laid();
+    else Promise.all([dev.popErrorScope(), dev.popErrorScope()]).then(([v, o]) => {
+      if (!v && !o) { laid(); return; }
+      for (const q of list) if (IN.get(q.key) === q) { IN.delete(q.key); free.push(q.slot); }
+      lost += list.length; log({ k: 'unlaid', n: list.length, why: String((o ?? v)?.message ?? '').slice(0, 120) });
+    }, laid);
     made += list.length; did('pages', list.length);
     for (const q of list) { recent.push({ m: q.m, i: q.i, j: q.j, frame }); if (recent.length > 24) recent.shift(); log({ k: 'lay', m: q.m, i: q.i, j: q.j, pin: q.pin }); }   // (for a look: the last pages laid)
   };
   // ---- the pages a frame lays: held to what the GPU does in the ground's share of a frame ----
-  // (FRAME_MS_BY_CLASS.ground, src/core/budget.js; behind the veil, till the first view is shown, the whole frame's:
-  // nothing is seen moving then), by each lay's own time on the GPU (src/core/pace.js: as the tiers' packing). The pins
+  // (src/core/pace.js frameShare: the ground's, the whole frame behind the veil), by each lay's own time on the GPU
+  // (src/core/pace.js: as the tiers' packing). The pins
   // (pinTop) and the queue (layQueue) share them, the pins first; what is left waits for the frames after. From one page
   // a frame.
   const PACE = pace();
   let pinsOut = 0;   // (the last level's pages round the camera not laid yet: what the frame's pace left)
-  let veiled = true; ready.then(() => { veiled = false; });
-  const paced = (list) => ownGpuMs(renderer, () => lay(list))?.then((ms) => PACE.measured(list.length, ms, veiled ? FRAME_MS : FRAME_MS_BY_CLASS.ground)).catch(() => {});
+  const paced = (list) => ownGpuMs(renderer, () => lay(list))?.then((ms) => PACE.measured(list.length, ms, frameShare('ground'))).catch(() => {});
   // make each of these pages, BATCH at a time, as many as the frame's pace leaves: how many were made
   const make = (pages) => {
     let n = 0, batch = [];
@@ -629,7 +648,7 @@ export function createPages(renderer, tex) {
     /** For a look: the last pages laid, each with how far its middle is from (x, z) and what asked for it. */
     recent: (x, z) => recent.map((q) => { const P = sideOf(q.m), w = want.get(keyOf(q.m, q.i, q.j)); return { ...q, d: Math.round(Math.hypot((q.i + 0.5) * P - x, (q.j + 0.5) * P - z)), side: +P.toFixed(3), asked: w ? w.n : 0 }; }),
     /** What the GPU holds of it, for a look: { slots, in, queue, bias, made }. */
-    get stats() { return { slots: SLOTS, in: IN.size, need: want.size, queue: queue.length, fading: fading.length, bias, made, refs: refs.size, read: readTo, quiet: quietFrom, frame }; },
+    get stats() { return { slots: SLOTS, in: IN.size, need: want.size, queue: queue.length, fading: fading.length, bias, made, lost, refs: refs.size, read: readTo, quiet: quietFrom, frame }; },
     /** Once a frame, before the world is drawn: the windows kept round the camera, what the pixels asked for taken in,
         pages laid, the table sent. The last level is always in as far as the land is drawn (`pin`, metres:
         src/terrain/terrain.js, its reach from src/detail/extent.js): all round the camera as far as the walker's lens
