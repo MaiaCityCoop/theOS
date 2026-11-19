@@ -51,6 +51,9 @@ jobs:
       - name: The plants' outlines, measured as the page measures them (never kept in git)
         working-directory: TheGame
         run: bun tools/outlines.js
+      - name: What the build makes and git keeps, as its maker makes it of this commit (the solids' rooms)
+        working-directory: TheGame
+        run: bun tools/fresh.js
       - name: Every name bound, every import found
         working-directory: TheGame
         run: bun tools/lint.js

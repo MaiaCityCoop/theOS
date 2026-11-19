@@ -6,7 +6,7 @@ import { resolve, join, extname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { brotliCompressSync, gzipSync, constants as zlibConstants } from 'node:zlib';
 import { spawn } from 'node:child_process';
-import { buildRegistry, FOLDERS, SHARED } from './tools/registry.js';
+import { buildRegistry, FOLDERS, SHARED, MEASURES } from './tools/registry.js';
 import * as repo from '../server/repo.js';
 
 const ROOT = import.meta.dirname;
@@ -15,12 +15,11 @@ const ROOT = import.meta.dirname;
 // in a process of its own: the solids' rooms (rooms.json, tools/rooms.js: measured from their hierarchies, those whose
 // version changed) and the plants' outlines (outlines.json, tools/outlines.js: what the page must know of each plant
 // before any of its meshes is made); one run at a time (a change while one runs: one more after it)
-const MEASURES = ['tools/rooms.js', 'tools/outlines.js'];
 let measuring = null, again = false;
 const measure = () => {
   if (measuring) { again = true; return measuring; }
   const run = (f) => new Promise((res) => spawn(process.execPath, [resolve(ROOT, f)], { stdio: 'inherit' }).on('exit', res));
-  return (measuring = Promise.all(MEASURES.map(run)).then(() => { measuring = null; if (again) { again = false; return measure(); } }));
+  return (measuring = Promise.all(MEASURES.map((m) => run(m.maker))).then(() => { measuring = null; if (again) { again = false; return measure(); } }));
 };
 const registry = {
   name: 'registry',
