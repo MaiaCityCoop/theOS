@@ -338,28 +338,6 @@ function turnsOf(L, cls, mid) {
     while (q < 0) { mine = heapIn(ofClass[++c]); q = farthest(mine, s); }   // (a class is through: the next)
     out[s] = q; take(q, s);
   }
-  return sizeChosen(out, L);
-}
-/** The share error a picture shows, along the turns' order (out, its leaves' error out.err: turnsOf), chosen by how
-    large what goes is on the screen where it goes, not by a mode. Where a part left out is larger than a pixel, its
-    leaves' displacement is what the eye sees (the leaves' error); where it is under one, no part of it is seen, only how
-    much of each pixel the crown covers and where its outline lies: what stochastic pruning keeps, the kept grown to
-    cover what went (Cook, Halstead, Planck and Ryu 2007), so what moves is where the cover lies, the parts' middles (how
-    far a part left out lies from one drawn, by their middles), and that holds only where what went is under a pixel, at
-    no error under its largest part's size (a card's lesser side: under a pixel where that is). So err[t] =
-    min(leaves' error, max(middles' error, the largest part left out)): never more than the leaves' error, and over a
-    pixel's worth of what is seen nowhere. Every term never more as more are drawn, so neither is their choice. */
-function sizeChosen(out, L) {
-  const { X, Y, Z, gfrom, sides } = L, n = out.length, err = out.err, near = new Float64Array(n).fill(Infinity), drawn = new Uint8Array(n);
-  // (each part's size: its largest card's lesser side; a part that is its middle, none)
-  const size = new Float64Array(n); if (sides) for (let r = 0; r < n; r++) for (let g = gfrom[r]; g < gfrom[r + 1]; g++) size[r] = max(size[r], min(sides[g * 2], sides[g * 2 + 1]));
-  const largest = new Float64Array(n + 1); for (let t = n - 1; t >= 0; t--) largest[t] = max(largest[t + 1], size[out[t]]);   // (of the parts left out when t are drawn)
-  for (let t = 0; t < n; t++) {
-    const p = out[t]; drawn[p] = 1;
-    let mid = 0;
-    for (let r = 0; r < n; r++) { if (drawn[r]) continue; const d = (X[r] - X[p]) ** 2 + (Y[r] - Y[p]) ** 2 + (Z[r] - Z[p]) ** 2; if (d < near[r]) near[r] = d; if (near[r] > mid) mid = near[r]; }
-    err[t + 1] = min(err[t + 1], max(sqrt(mid), largest[t + 1]));
-  }
   return out;
 }
 /** Each card's part (gfrom: where each part's cards begin; none without cards). */
