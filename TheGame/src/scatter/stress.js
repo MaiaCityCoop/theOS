@@ -61,7 +61,7 @@ import { LADDER, FULLN, trisOf, ladderOf } from '../../assets/kit/ladder.js';
 import { SURFACE_LEVELS, surfaceBand, surfacePx } from '../detail/error.js';
 import { zooRooms, mostOf } from './rooms.js';
 import { ready } from '../core/settle.js';
-import { heapRow, heldOf } from './heap.js';
+import { heapTable, heapRow, heldOf } from './heap.js';
 import { pxAt, dialPxAt } from '../detail/measure.js';
 import { STAND, MOVING, KINDS as ALL, FAMILIES, HERDS, lookOf as lookOfKind, fullTris, fingerprint } from '../../assets/zoo/index.js';
 import { BONES, STILL_PER } from '../../assets/kit/solid.js';
@@ -427,8 +427,11 @@ export function createStress(scene, renderer, tex) {
   // the zoo's kinds that bring their bands are drawn by them where a band of theirs is in, as the world's rocks are
   // (bandsOf, above: its heap laid out once the world is made, from what is left, slotsOf). Here only where things
   // stand and move.
-  const NB = BANDED.reduce((n, E) => n + E.count, 0), D = createDrawer(scene, renderer, tex, { name: 'stand', LEVELS, SHADE, SMOOTH, skinShare: (ALL - NB) / ALL, zoo: { first: 0, ALL, STAND, MOVING, lookOfKind, fingerprint } });
-  const BANDS = NB ? bandsOf() : null, DB = NB ? createDrawer(scene, renderer, tex, { name: 'stand: bands', LEVELS: BANDS, SHADE, SMOOTH, still: true, bands: true, skinShare: NB / ALL, zoo: { first: 0, ALL: NB, STAND: NB, MOVING: 0, lookOfKind, fingerprint } }) : null;
+  // (the zoo's kinds' rows in the two, at the ladder's levels and at their bands, one table: the ladder's patches read
+  // both, banded below, one storage buffer: heap.js heapTable)
+  const NB = BANDED.reduce((n, E) => n + E.count, 0), BANDS = NB ? bandsOf() : null, ROWS = heapTable(ALL * LEVELS.length + (NB ? NB * BANDS.length : 0), 'stand: meshes');
+  const D = createDrawer(scene, renderer, tex, { name: 'stand', LEVELS, SHADE, SMOOTH, skinShare: (ALL - NB) / ALL, table: ROWS, zoo: { first: 0, ALL, STAND, MOVING, lookOfKind, fingerprint } });
+  const DB = NB ? createDrawer(scene, renderer, tex, { name: 'stand: bands', LEVELS: BANDS, SHADE, SMOOTH, still: true, bands: true, skinShare: NB / ALL, table: ROWS, zoo: { first: 0, ALL: NB, STAND: NB, MOVING: 0, lookOfKind, fingerprint } }) : null;
   if (DB) ready.then(() => DB.lay(slotsOf(BANDS, NB)));   // (the bands' room: what the world leaves once it is complete, never first: src/core/settle.js)
   const { H, lookOf, sizes, skins, boneRows, ask, stats, pending } = D;
   // (by which drawer a thing of the zoo's kind z, size metres, dist metres off, is drawn: by its bands where one of them
