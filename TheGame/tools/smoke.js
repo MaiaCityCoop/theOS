@@ -208,7 +208,11 @@ if (!SITES.length) failed.push(`the game's code gave no place that makes shaders
 // (known: the gaps of every run, `sites`; and, but with --full, what only --full builds, `full`: --full must build it)
 const KNOWN = new URL('./unbuilt.json', import.meta.url), J = existsSync(KNOWN) ? JSON.parse(readFileSync(KNOWN, 'utf8')) : {}, unmade = unbuilt(), known = MODE.known(J), count = {};
 for (const u of unmade) count[u.at] = (count[u.at] ?? 0) + 1;
-for (const [at, n] of Object.entries(count)) if (n > (known[at] ?? 0)) failed.push(`what the game makes at ${at} the smoke never builds (${n} place${n > 1 ? 's' : ''}: ${unmade.filter((u) => u.at === at).map((u) => `line ${u.line}`).join(', ')}), so the gate never compiles it: make it here, or name it in tools/unbuilt.json with why`);
+// (judged only on the Bun the repository pins, package.json packageManager, as CI runs it: the places are read from a
+// stack's frames, and another version gives other frames, 2026-11-19: bun 1.4.2 found 13 places never built that 1.4.4
+// built. On another it is said, not judged)
+const PINNED = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).packageManager?.replace(/^bun@/, ''), judged = Bun.version === PINNED, verdict = judged ? failed : { push: (w) => console.log(`smoke: not judged on Bun ${Bun.version} (the repository pins ${PINNED}: package.json packageManager, as CI): ${w}`) };
+for (const [at, n] of Object.entries(count)) if (n > (known[at] ?? 0)) verdict.push(`what the game makes at ${at} the smoke never builds (${n} place${n > 1 ? 's' : ''}: ${unmade.filter((u) => u.at === at).map((u) => `line ${u.line}`).join(', ')}), so the gate never compiles it: make it here, or name it in tools/unbuilt.json with why`);
 const closed = Object.entries(known).filter(([at, n]) => (count[at] ?? 0) < n).map(([at]) => at), fullOnly = Object.keys(count).filter((at) => J.full?.[at]);
 const secs = ((performance.now() - t0) / 1000).toFixed(1), P = world.pipelines, summary = { world, library: libraryMade, stress: built.size - before - libraryMade, glsl, secs: +secs, unbuilt: unmade.map((u) => `${u.at} (line ${u.line})`), failed: [...new Set(failed)] };
 keep(summary);
