@@ -635,7 +635,7 @@ const overlaps = (A, B) => A.bi * BLOCK < B.bi * BLOCK + B.w && B.bi * BLOCK < A
 function residentOf(T, me, s, ends) {
   const G = GR, regions = new Resident({ cell: T.cell, fixed: T.metres, room: LEAVES - 16 }), alive = new Uint32Array(LEAVES + 1);
   const ids = [], freed = [];   // (numbers free; and those let go this packing, free from the next: the store still holds their things till it is copied forward)
-  let at = 0, key = null, gkey = null, asking = false, wrong = 0, packs = 0, epoch = -1, fresh = 1, gathers = 0, gathered = 0;   // (gathered: a gather since its counts were read)   // (wrong: a packing changed its store, and whether it fits what it found is not yet read back: the world is not complete till it is)
+  let at = 0, key = null, gkey = null, asking = false, wrong = 0, packs = 0, epoch = -1, fresh = 1, gathers = 0, gathered = 0, whole = -1;   // (gathered: a gather since its counts were read; whole: the last packing after which it held all its regions, nothing waiting)   // (wrong: a packing changed its store, and whether it fits what it found is not yet read back: the world is not complete till it is)
   const drop = (id) => { alive[id] = 0; freed.push(id); };
   const letGo = (L) => { if (L.id != null) { drop(L.id); L.id = null; } };
   // (what it has still to visit, by region: { L, side (its pieces' side, cells: as large as its share lets when it is
@@ -674,15 +674,19 @@ function residentOf(T, me, s, ends) {
   };
   // (its own counts, read back after a packing or a gather: what it found, made again where that is more than its store
   // holds, or BAND times less than it would be made at (roomFor); what it packed for its draws, the same against their
-  // room; its kind laid out again once every tier of it asking then has answered)
+  // room; its kind laid out again once every tier of it asking then has answered. Less only from what it holds whole:
+  // a store filling in a piece a frame (the frame's cells, below) holds part of what it will, and made again smaller at
+  // that, everything of its kind is let go, filled in again from nothing, found to be more, made again larger, let go
+  // again: at a still camera, without end (2026-11-19, the meadow, the trees and shrubs by the tent coming and going)
   const ask = (renderer) => {
     if (asking) return;
-    asking = true; s.asking.add(me); const asked = packs, seen = gathers;
+    asking = true; s.asking.add(me); const asked = packs, seen = gathers, all = whole === packs;
     renderer.getArrayBufferAsync(G.Zs.attr).then((b) => {
       // (held to its class's room: no more than it was held to: a decision, not a wait)
       const z = new Uint32Array(b), f = z[me.zi + ZAT.found], p = z[me.zi + ZAT.packed], N = Math.min(roomFor(f), me.cap?.N ?? Infinity), P = Math.min(roomFor(p), me.cap?.P ?? Infinity);
       T.over = f > me.N || p > me.P;
-      if (N > me.N || N * BAND < me.N || P > me.P || P * BAND < me.P) { me.N = N; me.P = P; if (!s.dirty) s.wait = new Set(s.asking); s.dirty = G.stale = true; wrong = 1; return; }
+      const more = N > me.N || P > me.P, less = all && (N * BAND < me.N || P * BAND < me.P);
+      if (more || less) { me.N = more ? Math.max(N, me.N) : N; me.P = more ? Math.max(P, me.P) : P; if (!s.dirty) s.wait = new Set(s.asking); s.dirty = G.stale = true; wrong = 1; return; }
       if (asked === packs) wrong = 0;   // (no packing since: what it holds is what was read)
       if (seen === gathers) gathered = 0;
     }).catch(() => {}).finally(() => { asking = false; s.asking.delete(me); s.wait?.delete(me); });
@@ -724,6 +728,7 @@ function residentOf(T, me, s, ends) {
     if (adds) table(at, at, at, n, 1); else table(at, 1 - at, 1 - at, n);
     s.visit.dispatchSize = Math.max(WG, cells);
     timed(renderer, cells, s.before, [s.visit], [...s.after, ...ends]); if (!adds) at = 1 - at; gkey = g; packs++; wrong = 1; fresh = 0;
+    if (!waits.size) whole = packs;   // (all its regions in: what it found now is all it holds)
     did('packs'); did('kcells', Math.round(cells / 1000));
   };
   return {
