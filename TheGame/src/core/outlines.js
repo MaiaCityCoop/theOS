@@ -3,9 +3,10 @@
 // recipe's version (registry.json: the hash of its file and its kit). They are measured on a plant's nearest meshes, a
 // third of a second and more of the page's one thread for a tree, and the land asks them as its files are read (the
 // stands' colours: src/terrain/layers.js): 0.8 s of a first start (2026-11-19). So the build measures them, by the same
-// code (outlines.json: tools/outlines.js), and the page and the recipes' workers read them as this file is read; what is
-// reckoned of them later (each shape's rooms, its far end's chunks) is kept in the browser between starts
-// (localStorage: no waiting). A recipe changed since the build has another version: it is measured anew, here, and kept.
+// code (outlines.json: tools/outlines.js), and the page and the recipes' workers read them as this file is read: with
+// each tree kind's rooms and its far ends' chunks, which the start waited for the workers to reckon (3.0 s of them). What
+// is reckoned of them later, where the build did not (a recipe changed since the build has another version: it is
+// measured anew, here), is kept in the browser between starts (localStorage: no waiting).
 // The page and the workers must cut a plant's levels by the same numbers: the workers reckon its rooms by its bands
 // (assets/kit/plant.js bandsOf) and build its levels by the bands the page hands them, and a level cut by other numbers
 // than its room was may be larger than its place (src/scatter/recipes.worker.js: it is not drawn). So what is kept here
@@ -44,7 +45,7 @@ export function keepOutlines() {
     // only its chunks: a few numbers a plant. What the build ships, with nothing reckoned of it, is not kept again)
     const keep = (id, o) => {
       const k = keyOf(id), shipped = !!k && asShipped(k, o);
-      if (k && (o.rooms || !shipped)) all[k] = { ...o, ...(o.far ? { far: o.far.map(({ chunks }) => ({ chunks })) } : {}), ...(shipped ? { shipped } : {}) };
+      if (k && (!shipped || (o.rooms && !SHIPPED[k].rooms))) all[k] = { ...o, ...(o.far ? { far: o.far.map(({ chunks }) => ({ chunks })) } : {}), ...(shipped ? { shipped } : {}) };   // (what the build shipped whole is not kept again)
       return !!k;
     };
     for (const [id, o] of OUTLINES.kept) keep(id, o);

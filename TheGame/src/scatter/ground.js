@@ -4,10 +4,12 @@
 // and stones read their height, density, grass height, stone chance, colour and dryness from them instead of working
 // the land's noise out again at every vertex, from the finest level that holds them, going over into the next over its
 // window's outer eighth. A level is drawn again each time the camera has walked 32 of its texels, or when the library's
-// stage or sandbox changed (src/stage/studio.js: the land's nodes read them): in pieces as large as a page of the
-// land's, a piece a submission, into a staging window, then copied into its place whole, nearest level first; what reads it reads the
-// window it had until then (a GPU's work a submission small and bounded: a 512² window of the land's whole evaluation in
-// one pass is seconds on a small GPU, past what a browser lets one take).
+// stage or sandbox changed (src/stage/studio.js: the land's nodes read them): in pieces, a piece a submission, into a
+// staging window, then copied into its place whole, nearest level first; what reads it reads the window it had until
+// then. As much of it a frame as the GPU draws in the ground's share of a frame (behind the veil, the whole frame's), by
+// each piece's own time on the GPU (src/core/pace.js, as the land's pages are laid), and never a piece past what one
+// submission may take (budget.js SUBMIT_MS): a 128² piece of the land's whole evaluation was 0.1 to 0.5 s on the Mac
+// mini (2026-11-19), one of them 3.1 s, the device lost; a 512² window in one pass, seconds.
 // Its texels grow with a longer lens in steps (a step a half stop: √2), not with every change of the lens, and from one
 // step to the next what is read passes from the maps before to the new ones over FADE frames: a blade comes or goes by
 // itself as the density it reads passes its own, its height and colour slide, nothing changes at once (intent 0033)
@@ -20,14 +22,15 @@ import { heightAt as heightCPU } from '../world/land.js';
 import { camDist, riverInfo, heightAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, biomesAt } from '../world/land.nodes.js';
 import { CLEARINGS } from '../../world/places.js';
 import { offWays, waysVersion } from '../world/ways.js';
-import { source } from '../core/settle.js';
-import { FADE_FRAMES } from '../core/budget.js';
+import { source, ready } from '../core/settle.js';
+import { FADE_FRAMES, FRAME_MS, FRAME_MS_BY_CLASS, SUBMIT_MS } from '../core/budget.js';
+import { ownGpuMs, pace } from '../core/pace.js';
 import { recipes } from '../core/registry.js';
 import { pxKMost, farMost } from '../detail/measure.js';
 import { GONE } from '../detail/error.js';
 import { most } from '../../assets/kinds.js';
 import { ringsOf, bandsOf } from './grass.js';
-import { SLOT } from '../terrain/pages.js';
+import { BLOCK } from './regions.js';
 
 const N = 512;   // texels a side of every level; level 0's texel is 0.5 m to the 68° lens and grows with a longer one, so it always covers what reads it
 /** How far round the camera level 0 surely reaches, metres as the 68° lens sees them: half its side, less the 32 texels
@@ -113,10 +116,9 @@ export function createGround(renderer, tex) {
   // what is to be drawn: a level of a set at a place ({ set, l, ox, oz, texel, base, dy, t: its pieces drawn, next: the
   // place asked for since it began }), nearest level first; a lens step's levels go into the set not read (`aim`), which
   // is read, faded to, once all of them are in; and the texel each set was drawn at (S)
-  // (a piece as large as a page of the land's (src/terrain/pages.js SLOT): every submission of the land's evaluation of
-  // one size, TILES a side, T texels each; and as many a frame as draw every level within the fade, a whole redraw as
-  // long as the step it hands over at, never more than a level a frame)
-  const T = SLOT, TILES = Math.ceil(N / T), PER_FRAME = Math.min(TILES * TILES, Math.ceil((LV * TILES * TILES) / FADE)), jobs = [], setS = [0, 0];
+  // (a window in blocks, BLOCK × BLOCK texels each (a workgroup's: src/scatter/regions.js), K a side, drawn in raster
+  // order: a piece is a rectangle of them, whole rows where as many fit, else the rest of a row)
+  const K = N / BLOCK, jobs = [], setS = [0, 0];
   let aim = -1;
   const ask = (set, l, ox, oz, texel, dy, again = false) => {
     const at = { ox, oz, texel, base: Math.round(heightCPU(ox + (N * texel) / 2, oz + (N * texel) / 2)), dy }, J = jobs.find((j) => j.set === set && j.l === l);
@@ -151,16 +153,25 @@ export function createGround(renderer, tex) {
     if (J.next) ask(J.set, J.l, J.next.ox, J.next.oz, J.next.texel, J.next.dy);
     if (J.set === aim && !jobs.some((j) => j.set === aim)) { cur = aim; aim = -1; fadeAt = 0; }
   }
-  // this frame's pieces: the first job's next, a piece a submission
+  // ---- the blocks a frame draws: held to what the GPU does in the ground's share of a frame (behind the veil, till the
+  // first view is shown, the whole frame's), by each piece's own time on the GPU (src/core/pace.js); and a piece never
+  // more blocks than one submission may take (SUBMIT_MS) at what a block cost last. From one block a frame ----
+  const PACE = pace(), per = { ms: 0 };   // (per: what a block cost the GPU, ms, as its last piece was measured)
+  let veiled = true; ready.then(() => { veiled = false; });
+  const timed = (n, draw) => ownGpuMs(renderer, draw)?.then((ms) => { per.ms = ms / n; PACE.measured(n, ms, veiled ? FRAME_MS : FRAME_MS_BY_CLASS.ground); }).catch(() => {});
+  // this frame's pieces: the first job's next blocks, a piece a submission, as many as the frame's pace leaves
   function pieces() {
+    PACE.tick();
     const before = renderer.getRenderTarget(), ac = renderer.autoClear;
     renderer.autoClear = false;   // (the pieces drawn before kept)
-    for (let k = 0; k < PER_FRAME && jobs.length; k++) {
-      const J = jobs[0], tx = J.t % TILES, ty = Math.floor(J.t / TILES);
+    while (PACE.left > 0 && jobs.length) {
+      const J = jobs[0], bx = J.t % K, by = Math.floor(J.t / K), cap = per.ms > 0 ? Math.max(1, Math.floor(SUBMIT_MS / per.ms)) : PACE.left, n0 = Math.min(PACE.left, cap);
+      const [w, h] = bx === 0 && n0 >= K ? [K, Math.min(Math.floor(n0 / K), K - by)] : [Math.min(n0, K - bx), 1], n = w * h;
       G.o.value.set(J.ox, J.oz); G.texel.value = J.texel; G.base.value = J.base;
-      stage.viewport.set(0, 0, N, N); stage.scissor.set(tx * T, ty * T, Math.min(T, N - tx * T), Math.min(T, N - ty * T));   // (the whole window's mapping, its piece's pixels only)
-      renderer.setRenderTarget(stage); renderer.render(quad, cam);
-      if (++J.t === TILES * TILES) land.call(this, J);
+      stage.viewport.set(0, 0, N, N); stage.scissor.set(bx * BLOCK, by * BLOCK, w * BLOCK, h * BLOCK);   // (the whole window's mapping, its piece's pixels only)
+      renderer.setRenderTarget(stage); timed(n, () => renderer.render(quad, cam));
+      PACE.left -= n;
+      if ((J.t += n) === K * K) land.call(this, J);
     }
     renderer.setRenderTarget(before); renderer.autoClear = ac;
   }

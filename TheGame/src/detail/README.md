@@ -32,7 +32,7 @@ drawn is never off by more than the dial.
 | a first share of a crowd's sprigs | its spread order's share error: the farthest a sprig left out lies from one drawn | `assets/kit/crowd.js` (`turnsOf`) |
 | a solid piece of a plant gone | its width | `assets/kit/crowd.js` |
 | a plant's clumps | where their three planes draw each chunk's leaves (each plane by its share of what is drawn), and their bake's texel (`TILE` of them over a chunk's largest side) | `assets/kit/crowd.js` (`clumpsErrorOf`) |
-| a plant's impostor, a made thing's card | its bake's texel (`CELL` of them over its sphere's width), and its views' spacing and its parallax, one displacement: its depth times `spacingOf(VIEWS)` | `atlas.js`, `assets/kit/crowd.js`, `index.js` |
+| a plant's impostor, a made thing's card | its bake's texel (`CELL` of them over its sphere's width), and its views' spacing: its sphere's radius times `spacingOf(VIEWS)` (each view read on its plane through the middle) | `atlas.js`, `assets/kit/crowd.js`, `index.js` |
 | a cluster's parent | the cluster's own error, from the simplifier and its lost vertices | `assets/kit/clusters.js` |
 | a ring of blades (the blade in its own cells, as it is) | how far its fewer straight pieces miss the blade's curve | `src/scatter/grass.js` `ringsOf` |
 | nothing (a thing gone) | how far it stands off what stays: a plant its height over the land (which wears its stand's colour or its floor), a rock or a made thing all of it (`GONE`); it is whole down to there and sinks away over the `BAND` under it | `assets/kit/plant.js` `goneOf`, `error.js` |

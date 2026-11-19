@@ -692,21 +692,26 @@ async function hourly(opt) {
     try {
       const set = (o) => stills(chrome, o).catch((e) => { console.log(`  stills ${o.tag}: ${e.message.slice(0, 300)}`); return o.tag; });   // (a view the GPU refused is marked in its gate.json; the hour goes on)
       s = await smoke(chrome, { views }); a = await set({ tag, views }); t = await set({ tag: `${tag}-truth`, truth: true, views });
-      b = await (await import('./gate/ceilings.js')).rule(() => bench(chrome, opt), { twice: true, ratchet: opt.ratchet }, tag);   // (twice: the hour's own noise) c = await compile(chrome, opt); w = await walks(chrome);
+      b = await (await import('./gate/ceilings.js')).rule(() => bench(chrome, opt), { twice: true, ratchet: opt.ratchet }, tag); c = await compile(chrome, opt); w = await walks(chrome);   // (the bench twice: the hour's own noise)
     } finally { await closeHard(chrome, chrome.gateDir); }
     const unsettled = (set) => Object.entries(JSON.parse(readFileSync(`${OUT}${set}/gate.json`, 'utf8')).views ?? {}).filter(([, r]) => r.notSettled).map(([k]) => k);
     return { tag, when: new Date().toISOString(), out: OUTPUT, device: dev, firstView: first, walks: w, start: s.start, smoke: s, stills: { lod: unsettled(a), truth: unsettled(t) }, flip: await diff(a, t, { ...opt, views }).catch((e) => ({ none: e.message })), bench: b, compile: c, paths: await paths({ ...opt, paths: opt.paths ?? 'walk,zoom' }) };
   }, (o) => ({ tag, when: new Date().toISOString(), ...o }))) }; });
+  run.submissions = (await import('./gate/device.js')).submitRule(run, lastMeasured(at, tag));   // (held against the last hour whose device was measured)
   mkdirSync(`${at}${tag}/`, { recursive: true }); save(`${at}${tag}/summary.json`, run);   // (its own folder, whatever else made one: a hour not measured made none, and left no board, 2026-11-19)
-  if (run.device?.pass === false || run.wgsl?.pass === false || run.bench?.ceilings?.pass === false) process.exitCode = 1;   // (a lost device fails the hour, a module the device will not compile, and a class or pass of a bench view past its ceiling)
+  if (run.device?.pass === false || run.wgsl?.pass === false || run.bench?.ceilings?.pass === false || run.submissions.pass === false) process.exitCode = 1;   // (a lost device fails the hour, a module the device will not compile, a class or pass of a bench view past its ceiling, and a submission the rule refuses)
   return board(tag, at);
 }
+/** The hours kept in `at` before `tag`, the newest first. */
+const hoursBefore = (at, tag) => (existsSync(at) ? readdirSync(at) : []).filter((d) => d !== tag && existsSync(`${at}${d}/summary.json`)).sort((x, y) => statSync(`${at}${y}/summary.json`).mtimeMs - statSync(`${at}${x}/summary.json`).mtimeMs);
+/** The last hour kept before `tag` whose device was measured (its submissions counted): its run, or null. */
+const lastMeasured = (at, tag) => { for (const d of hoursBefore(at, tag)) { const R = JSON.parse(readFileSync(`${at}${d}/summary.json`, 'utf8')); if (!R.notMeasured && R.device?.sure != null) return R; } return null; };
 /** The scoreboard of the hour `tag` (in `at`): every measure against the last hour kept before it (tools/gate/ten.js),
     and the frame by class and pass against its shares and ceilings (tools/gate/ceilings.js board); board.md beside its
     summary. */
 async function board(tag, at) {
   const { runOf, held } = await import('./gate/ten.js'), here = runOf(`${at}${tag}/summary.json`);
-  const before = readdirSync(at).filter((d) => d !== tag && existsSync(`${at}${d}/summary.json`)).sort((x, y) => statSync(`${at}${y}/summary.json`).mtimeMs - statSync(`${at}${x}/summary.json`).mtimeMs)[0];
+  const before = hoursBefore(at, tag)[0];
   const H = before ? held(here, runOf(`${at}${before}/summary.json`)) : null, R = JSON.parse(readFileSync(`${at}${tag}/summary.json`, 'utf8')), mem = memoryOn(R.smoke);
   const { wgslLines, costBlock } = await import('./gate/wgsl.js');
   const md = [`# The hour on main, ${tag} (${OUTPUT.width} × ${OUTPUT.height}), ${new Date().toISOString().slice(0, 16)}`, '',
@@ -723,7 +728,7 @@ async function measuresOf(R, H, mem) {
   const S = R.start;
   const out = [...(R.stills?.lod ?? []).map((v) => `${v} (stills)`), ...(R.stills?.truth ?? []).map((v) => `${v} (?truth)`), ...Object.keys(R.bench?.unsettled ?? {}).map((v) => `${v} (bench)`), ...['cold', 'warm'].flatMap((c) => Object.entries(R.paths?.[c]?.paths ?? {}).filter(([, r]) => r.notSettled).map(([k]) => `${k} (paths, ${c})`))];
   return [mem.line,
-    ...(await import('./gate/device.js')).lines(R.device), '',
+    ...(await import('./gate/device.js')).lines(R.device), ...(R.submissions ? [R.submissions.line] : []), '',
     S?.settled === false ? `**The start did not settle** in ${(S.ms / 1000).toFixed(0)} s: ${String(S.said).slice(0, 300)}` : `The start settled in ${((S?.ms ?? 0) / 1000).toFixed(1)} s.`,
     out.length ? `Not settled, so not measured: ${out.join(', ')}.` : 'Every view and path settled.', '',
     ...walkLines(R.walks, await import('./gate/device.js')), '', H ? H.text : `The first hour kept: nothing before it to hold it against.`, '',
