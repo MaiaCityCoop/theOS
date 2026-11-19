@@ -54,13 +54,18 @@ export async function buildOutlines(root) {
   for (const [id, { rooms, far, atlas, ...o }] of OUTLINES.made) out[`${id}@${manifest[id.split(':')[0]].version}`] = o;   // (its rooms by its atlases' key, every class's: atlases)
   const text = `{\n${Object.entries(out).map(([k, o]) => `${JSON.stringify(k)}: ${JSON.stringify(o)}`).join(',\n')}\n}\n`;
   writeIfChanged(path, text);
-  // (and read back as each class of device reads it: the page's rooms by its atlases' key (src/core/outlines.js
-  // shippedRooms), the workers' crowds (src/core/crowds.js, measureKey). What a class's device would not find there it
-  // reckons at its start, in its recipes' workers, 0.4 GB a worker: that fails the build, named, never left to the page)
-  const { shippedRooms } = await load('src/core/outlines.js'), M = unpackMeasures(new Uint8Array(readFileSync(at)).buffer), lacking = [];
-  // (every device's atlases, as the page sizes them by its share, the least to the whole of the Mac's: some class's)
-  const { atlasesFor } = await load('src/detail/impostor.js'), baked = new Set(classes.map((A) => A.key));
-  const unbaked = new Map();   // (an atlas none was reckoned for -> the shares of the devices that would size it, the least and the most)
+  await readBack(load, at, trees, classes);
+  return out;
+}
+
+/** The bake read back as each class of device reads it: the page's rooms by its atlases' key (src/core/outlines.js
+    shippedRooms), the workers' crowds (src/core/crowds.js, measureKey), and every device's atlases, every share swept
+    through the page's own sizing (src/detail/impostor.js atlasesFor), some class's. What a device would not find there
+    it reckons at its start, in its recipes' workers, 0.4 GB a worker: that fails the build, named, never left to the
+    page. load: a game module read afresh (after the bake is written); at: crowds.bin; trees: [asset, version]. */
+async function readBack(load, at, trees, classes) {
+  const { shippedRooms } = await load('src/core/outlines.js'), { atlasesFor } = await load('src/detail/impostor.js'), M = unpackMeasures(new Uint8Array(readFileSync(at)).buffer), lacking = [];
+  const baked = new Set(classes.map((A) => A.key)), unbaked = new Map();   // (an atlas none was reckoned for -> the shares of the devices that would size it, the least and the most)
   for (let s = 1; s <= 1024; s++) { let k; try { k = atlasesFor(s / 1024).key; } catch (e) { k = `none (${e.message})`; } if (!baked.has(k)) { const r = unbaked.get(k) ?? [s / 1024, 0]; r[1] = s / 1024; unbaked.set(k, r); } }
   for (const [k, [lo, hi]] of unbaked) lacking.push(`the atlases ${k} of a device of share ${lo}${hi > lo ? ` to ${hi}` : ''}`);
   for (const A of classes) for (const [a, v] of trees) {
@@ -68,7 +73,6 @@ export async function buildOutlines(root) {
     for (let i = 0; i < a.shapeCount; i++) if (!M?.has(measureKey(a, v, i, A))) lacking.push(`${a.name}'s shape ${i}'s crowd`);
   }
   if (lacking.length) throw new Error(`the bake as a device reads it lacks ${lacking.length}: ${[...new Set(lacking)].slice(0, 8).join(', ')}${lacking.length > 8 ? ', …' : ''} (for the atlases ${classes.map((A) => A.key).join(' and ')})`);
-  return out;
 }
 
 await runTool(import.meta.url, buildOutlines, (O) => `[outlines] ${Object.keys(O).length} plants`);
