@@ -15,7 +15,8 @@
 //   - how many views, how many texels, how many chunks: atlases(), from the share of memory the atlases are given and
 //     the limits every device grants (src/detail/atlas.js atlasesOf);
 //   - both are baked SS x SS samples a texel (what a texel covers is the share of its samples covered: the leaves' own
-//     cut-outs, read at their finest, not a blur of them), a row of pictures a frame, and their smaller pictures keep
+//     cut-outs, read at their finest, not a blur of them), as many pictures a frame as the GPU's pace says (a picture of
+//     a large tree is a whole crown drawn, a row of them hundreds of milliseconds), and their smaller pictures keep
 //     what they cover (Castaño 2010: each mip's alpha scaled, view by view, tile by tile, until as much of it is over the
 //     cut as the thing covers), made in a worker (impostor.worker.js), so a far crown neither thins away nor fills into
 //     a dome.
@@ -31,6 +32,8 @@ import { IN, PLANE } from '../../assets/kit/crowd.js';
 import { UV_TILES } from '../../assets/kit/plant.js';
 import { note, PORTABLE } from '../core/gpu.js';
 import { ownGpuMs, pace } from '../core/pace.js';
+import { shown } from '../core/settle.js';
+import { compileFor } from '../core/compile.js';
 import { FRAME_MS_BY_CLASS } from '../core/budget.js';
 import { SHARE_MB } from '../core/classes.js';
 import { FNV, fnv } from '../core/hash.js';
@@ -78,13 +81,18 @@ export const planeFrame = (a) => {
 };
 
 // ---- baking: where a point of the thing lands in a row's picture ----
+/** The first picture of its row a piece of a bake draws (createBaker): a row is drawn a few pictures at a time, a
+    draw's instances its pictures from this one on. */
+export const PIECE = uniform(0, 'uint');
+/** Which picture of its row (its view, its tile) an instance of a bake's draw is. */
+export const pictureOf = () => instanceIndex.add(PIECE);
 /** Where a point q of the thing (its frame: from its sphere's middle, in its radii) lands in view (i, row) of a row of
     `views` views (views x views of them), its depth towards that view's eye (z: -1 … 1): a vertex's clip, its depth,
-    the view's way and its frame (F: its right, its up, its way). instanceIndex: i. */
+    the view's way and its frame (F: its right, its up, its way). i: the instance's picture (pictureOf). */
 export const viewClip = (q, row, views) => {
-  const D = dirOf(float(instanceIndex).div(views - 1).mul(2).sub(1), float(row).div(views - 1).mul(2).sub(1)), B = basisOf(D);
+  const i = float(pictureOf()), D = dirOf(i.div(views - 1).mul(2).sub(1), float(row).div(views - 1).mul(2).sub(1)), B = basisOf(D);
   const x = q.dot(B.right), y = q.dot(B.up), z = q.dot(D);
-  return { clip: vec4(float(instanceIndex).add(0.5).add(x.mul(0.5)).div(views).mul(2).sub(1), y, float(0.5).sub(z.mul(0.5)), 1), z, D, F: { u: B.right, v: B.up, w: D } };
+  return { clip: vec4(i.add(0.5).add(x.mul(0.5)).div(views).mul(2).sub(1), y, float(0.5).sub(z.mul(0.5)), 1), z, D, F: { u: B.right, v: B.up, w: D } };
 };
 /** Where a point p of a plant (its own frame) lands in its tile, column `col` of a row of `per` tiles (as many as its
     baker draws a row): chunk c's plane across axis a (crowd.js PLANE), its box lo … hi; z: its depth along the axis,
@@ -133,14 +141,17 @@ const workers = () => (WORKERS ||= Array.from({ length: Math.max(1, Math.min(3, 
 const mipsOf = (colour, data, leaf, side, cell, least) => workers().reduce((a, b) => (b.out() < a.out() ? b : a))({ colour, data, leaf, side, cell, least }, [colour.buffer, data.buffer, leaf.buffer]);
 
 /** What bakes a family's pictures: rows of `per` pictures `px` texels a side, drawn by draw(row) (a mesh whose
-    instances are the row's pictures, its two materials' outputs: { colour, data }, a sample's light and leaf in one
-    number, litIn), reduced SS x SS into the atlas' three textures' texels (light and leaf apart, each a mean of its
-    own), a row a frame (no frame waits on a whole thing's pictures), read back and mipped. One a kind of picture
-    (views, tiles) per drawer: its targets are reused job after job, one job at a time. */
+    instances are the row's pictures, from PIECE's on: pictureOf; its two materials' outputs: { colour, data }, a
+    sample's light and leaf in one number, litIn), reduced SS x SS into the atlas' three textures' texels (light and leaf
+    apart, each a mean of its own), as many pictures a frame as fit the frame's share for geometry, read back and mipped.
+    One a kind of picture (views, tiles) per drawer: its targets are reused job after job, one job at a time. */
 const nextFrame = () => new Promise((res) => requestAnimationFrame(() => res()));
-// (the bakes' rows a frame, shared by every baker: one queue of them, src/core/pace.js)
-const ROWS = pace(1);
 export function createBaker(renderer, { per, px }) {
+  // (its pictures a frame, by their own time on the GPU (src/core/pace.js, as the land's pages and the tiers' packing
+  // are): a picture, not a row, the least of it. A row of a large tree's views is its whole crown drawn per times over,
+  // twice: 300 to 430 ms in one submission, in WebKit on the M2 at the first view (2026-11-19). Each baker its own, as
+  // a views baker's picture is a whole thing drawn and a tiles baker's a chunk's planes)
+  const P = pace(1);
   const W = per * px, opts = { depthBuffer: true, generateMipmaps: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, colorSpace: THREE.NoColorSpace };
   const ss = [new THREE.RenderTarget(W * SS, px * SS, opts), new THREE.RenderTarget(W * SS, px * SS, opts)], out = PICTURES.map((P) => new THREE.RenderTarget(W, W, { ...opts, depthBuffer: false, format: formatOf(P) }));
   // the reduce: a texel of the atlas from its SS x SS samples (cover: their share covered; the rest: the covered ones'
@@ -166,35 +177,56 @@ export function createBaker(renderer, { per, px }) {
   const tri = new THREE.BufferGeometry(); tri.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3));
   const tris = [0, 1, 2].map((which) => { const m = reduce(which); return Object.assign(new THREE.Mesh(tri, m), { frustumCulled: false, userData: { materials: [m] } }); });
   const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-  // (a row: its samples drawn, then reduced into the atlas' row; the renderer as it was, after)
-  const rowOf = (r, draw) => {
+  // (a piece of row r, its pictures a … a + n - 1: their samples drawn over what the row's pieces before it drew, then,
+  // the row's last piece in, reduced into the atlas' row; the renderer as it was, after)
+  const pieceOf = (r, a, n, draw) => {
     const prev = renderer.getRenderTarget(), pc = renderer.getClearColor(new THREE.Color()), pa = renderer.getClearAlpha(), ac = renderer.autoClear;
     renderer.setClearColor(0x000000, 0);
     try {
-      if (!r) for (const o of out) { renderer.setRenderTarget(o); renderer.clear(); }
-      const mesh = draw(r);
-      // the row's samples: colour and cover, then its data, each drawn whole (a target cleared to nothing)
-      [0, 1].forEach((w) => { mesh.material = mesh.userData.materials[w]; scene.add(mesh); renderer.setRenderTarget(ss[w]); renderer.autoClear = true; renderer.render(scene, cam); scene.remove(mesh); });
-      // reduced into the atlas' row
+      if (!r && !a) for (const o of out) { renderer.setRenderTarget(o); renderer.clear(); }
+      const mesh = draw(r); mesh.geometry.instanceCount = n; PIECE.value = a;
+      // the piece's samples: colour and cover, then its data, each over the row's pieces before it (its first a target
+      // cleared to nothing)
+      [0, 1].forEach((w) => { mesh.material = mesh.userData.materials[w]; scene.add(mesh); renderer.setRenderTarget(ss[w]); renderer.autoClear = !a; renderer.render(scene, cam); scene.remove(mesh); });
+      if (a + n < per) return;
+      // the row whole: reduced into the atlas' row
       row.value = r;
       [0, 1, 2].forEach((w) => { const o = out[w]; o.viewport.set(0, r * px, W, px); o.scissor.set(0, r * px, W, px); o.scissorTest = true; scene.add(tris[w]); renderer.setRenderTarget(o); renderer.autoClear = false; renderer.render(scene, cam); scene.remove(tris[w]); o.viewport.set(0, 0, W, W); o.scissor.set(0, 0, W, W); o.scissorTest = false; });
     } finally { renderer.setRenderTarget(prev); renderer.setClearColor(pc, pa); renderer.autoClear = ac; }
+  };
+  // (what it draws, made for its targets before its first piece draws it, aside and in turn (src/core/compile.js): a
+  // pipeline first used in a frame is made there, at once, on the page's thread. 2026-11-19, WebKit after the first
+  // view: a new baker's first row held the thread about 1.5 s, its reduce's three and its pictures' two made then)
+  const ahead = new WeakSet();
+  const makeFor = async (mesh) => {
+    const each = [...mesh.userData.materials.map((m, w) => [m, ss[w], mesh.geometry]), ...tris.map((t, w) => [t.material, out[w], t.geometry])];
+    for (const [m, target, geo] of each) {
+      if (ahead.has(m)) continue;
+      const o = Object.assign(new THREE.Mesh(geo, m), { frustumCulled: false });   // (its own stand-in: the pipeline made is the one any mesh of the same make draws with)
+      scene.add(o);
+      try { await compileFor(renderer, target, o, cam, scene); } finally { scene.remove(o); }
+      ahead.add(m);
+    }
   };
   let last = Promise.resolve();
   return {
     /** Its reduce's three meshes (its colour's, its data's, its leaf's), as the start compiles them (tools/smoke.js) */
     reduces: tris,
-    /** Bake `rows` rows of a thing's pictures into the atlas' layer, as many a frame as the GPU's pace says (ROWS): draw(r) its mesh for row r (its
-        instances the row's pictures, its materials [colour, data]); least: the smallest picture's side mipped to. A
+    /** Bake `rows` rows of a thing's pictures into the atlas' layer, as many pictures a frame as the GPU's pace says
+        (P): draw(r) its mesh for row r (its instances the row's pictures from PIECE's on: as many as each piece draws,
+        set here; its materials [colour, data]); least: the smallest picture's side mipped to. A
         promise of { done }, once its pictures are read back (the targets free for the next job, which waits for it):
         done, once its layer is in the atlas, with its levels (what the browser keeps of it: src/scatter/trees.js farOf). */
     bake(atlas, layer, count, draw, least = LEAST) {
       const job = last.then(async () => {
-        // (as many rows a frame as fit the frame's share for geometry, by each row's own time on the GPU: src/core/pace.js,
-        // as the land's pages and the tiers' packing are; at least one, on any GPU)
-        for (let r = 0; r < count; ) {
-          if (r) { await nextFrame(); ROWS.tick(); }
-          do { const at = r++; ownGpuMs(renderer, () => rowOf(at, draw))?.then((ms) => ROWS.measured(1, ms, FRAME_MS_BY_CLASS.geometry)).catch(() => {}); } while (r < count && --ROWS.left > 0);
+        await makeFor(draw(0));
+        // (as many pictures a frame as fit the frame's share for geometry, by each piece's own time on the GPU; at least one,
+        // on any GPU; a row's pictures in pieces, each as many of them as are left this frame. Before the first view is
+        // shown no frame is seen: a row whole, a frame, as fast as the GPU goes, its time still teaching the pace)
+        for (let r = 0; r < count; r++) for (let a = 0; a < per; ) {
+          if (P.left <= 0) { await nextFrame(); P.tick(); }
+          const at = a, n = shown() ? Math.min(per - a, P.left) : per - a; a += n; P.left -= n;
+          ownGpuMs(renderer, () => pieceOf(r, at, n, draw))?.then((ms) => P.measured(n, ms, FRAME_MS_BY_CLASS.geometry)).catch(() => {});
         }
         const [c, d, l] = await Promise.all(out.map((o) => renderer.readRenderTargetPixelsAsync(o, 0, 0, W, W)));
         // (of its pictures' levels, what the atlas keeps: from its own cell's on, a view's never-read finest not: atlasesOf STORED)
