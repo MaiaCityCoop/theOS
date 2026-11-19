@@ -114,7 +114,10 @@ for (const e of first) {
   const key = `${e.pass}\0${c}`; let w = ways.get(key); if (!w) ways.set(key, (w = { pass: e.pass, bytes: c.length, by: new Map() })); if (!w.by.has(st)) w.by.set(st, new Set()); w.by.get(st).add(familyOf(e));
 }
 // (a packing is a list of passes, a compute pipeline each: the first view's compute pipelines are its passes' distinct shaders)
-const passCodes = new Set(); for (const e of first.filter((x) => x.pass === 'run')) for (const n of [e.what].flat()) { try { passCodes.add(M.compute(n)); } catch { /* counted as its list's */ } }
+const passCodes = new Set(), passWho = new Map();
+for (const e of first.filter((x) => x.pass === 'run')) for (const n of [e.what].flat()) { let c; try { c = M.compute(n); } catch { continue; } passCodes.add(c); if (!passWho.has(c)) passWho.set(c, new Set()); passWho.get(c).add(e.name.replace(/: packing$/, '')); }
+// (each compute shader's size, the largest first: what a compiler reads of the packing)
+const shaders = [...passCodes].map((c) => ({ kb: +(c.length / 1024).toFixed(1), who: [...passWho.get(c)].slice(0, 3) })).sort((a, b) => b.kb - a.kb);
 pipes.run = passCodes;
 const programs = Object.fromEntries(Object.entries(codes).map(([k, s]) => [k, s.size])), pipelines = Object.fromEntries(Object.entries(pipes).map(([k, s]) => [k, s.size]));
 // (the programs drawn more than one way, and what differs between their ways)
@@ -125,7 +128,7 @@ const several = [...ways.values()].filter((w) => w.by.size > 1).map((w) => {
 // (the first view's programs by their size: what a compiler reads)
 const sizes = [...ways.values()].map((w) => ({ pass: w.pass, kb: Math.round(w.bytes / 1024), who: [...new Set([...w.by.values()].flatMap((x) => [...x]))].slice(0, 3) })).sort((a, b) => b.kb - a.kb);
 const result = {
-  first: { asks: first.length, programs: Object.values(programs).reduce((a, b) => a + b, 0), pipelines: Object.values(pipelines).reduce((a, b) => a + b, 0), byPass: count(first, (e) => e.pass), programsByPass: programs, pipelinesByPass: pipelines, several, sizes, byFamily: count(first, (e) => `${familyOf(e)} · ${e.pass}`) },
+  first: { asks: first.length, programs: Object.values(programs).reduce((a, b) => a + b, 0), pipelines: Object.values(pipelines).reduce((a, b) => a + b, 0), byPass: count(first, (e) => e.pass), programsByPass: programs, pipelinesByPass: pipelines, several, sizes, shaders, computeKb: Math.round(shaders.reduce((t, x) => t + x.kb, 0)), byFamily: count(first, (e) => `${familyOf(e)} · ${e.pass}`) },
   after: { asks: after.length, byPass: count(after, (e) => e.pass), byFamily: count(after, (e) => `${familyOf(e)} · ${e.pass}`) },
   camera: [p.x, p.y, p.z].map((v) => +v.toFixed(1)), reach: +cascades().half[0].toFixed(1),
 };
@@ -134,6 +137,7 @@ const result = {
   console.log(`  by pass: ${JSON.stringify(result.first.byPass)}; programs: ${JSON.stringify(result.first.programsByPass)}; pipelines: ${JSON.stringify(result.first.pipelinesByPass)}`);
   console.log(`  programs drawn more than one way (each way a pipeline): ${several.length}`); for (const w of several) console.log(`    ${w.ways}×  ${w.pass} ${w.kb} KB, ${w.differ.join(', ')} differ: ${w.who.join(' | ')}`);
   console.log('  the largest programs:'); for (const z of sizes.slice(0, 12)) console.log(`    ${String(z.kb).padStart(4)} KB  ${z.pass}: ${z.who.join(' | ')}`);
+  console.log(`  the packing's compute shaders: ${shaders.length}, ${result.first.computeKb} KB of WGSL; the largest:`); for (const z of shaders.slice(0, 14)) console.log(`    ${String(z.kb).padStart(5)} KB  ${z.who.join(' | ')}`);
   console.log('  by family and pass, the first view:'); for (const [k, n] of Object.entries(result.first.byFamily)) console.log(`    ${String(n).padStart(4)}  ${k}`);
   console.log(`  after it, by pass: ${JSON.stringify(result.after.byPass)}`); for (const [k, n] of Object.entries(result.after.byFamily).slice(0, 12)) console.log(`    ${String(n).padStart(4)}  ${k}`);
 }
