@@ -217,7 +217,14 @@ from `main`). `?hud` shows the frame, memory and settle readout on any device; t
    8bab8ee9: the rocks' meshes planned, the rest not, verified only by lint and smoke); stage 2, the heap's shapes into pages (heap.js,
    drawer.js feed); stage 4, the resident tiers into region pages with no swap (tier.js). Prove each with storecheck walks at
    share 1 and 0.375: memory flat, zero layouts, no frame drawn short.
-4. **Water missing on the phone,** and the tent appearing and disappearing: check after step 3 (both were memory-starved).
+4. **Water is missing on the Mac too** (the ground's look on 269288f: share 1 and 0.375, water on or off, a bare bed and no
+   page errors), so it is not only memory. Find why the river's water draws nothing. The tent appearing and disappearing on
+   the phone: check after step 3.
+   **Also from the ground's last look:** #394 (the land's level from the smooth surface, merged) may stop the start settling
+   ("settle() did not resolve in 300 s"; 269288f settled in 43 s). Unconfirmed: compare main with and without #394 first.
+   The diamonds and triangle patches remained with #374 at share 1. The drafts #255 and #256 bind 6 storage textures in the
+   page compute pass against WebGPU's default of 4 (fixed on their branches by asking maxStorageTexturesPerShaderStage and
+   laying the relief only where it fits; not yet passed on a GPU).
 5. **The page's own memory** (WebKit's pages held up to 3.26 GB; frames stalled 2.5 s outside the frame): measure
    WebContent while settling, workers against the main heap against GC, and cut the largest.
 6. Then 60 fps per-pass ceilings (`gate.js bench --ratchet`), and quality items (Todo).
