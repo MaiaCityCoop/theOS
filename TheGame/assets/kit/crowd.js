@@ -629,9 +629,7 @@ export function crowd(m, opts = {}) {
 
   // ---- its solid pieces: how wide each is, its go (widthsOf). Thick wood, what is still there where the crowd ends, is
   // never gone by itself (go 0): the impostor takes it; so is what was laid without a part ----
-  if (K.measured?.solids) solids.forEach((q, i) => { q.w = K.measured.solids[i * 2]; q.go = K.measured.solids[i * 2 + 1]; });   // (what the build measured: each piece's width and go)
-  else widthsOf(solids, P, m.normal, I);
-  const widths = Float64Array.from(solids.flatMap((q) => [q.w, q.go]));   // (what is kept of them: before the crowd's end keeps its thick wood)
+  const widths = widthsFor(solids, K, P, m.normal, I);   // (what is kept of them: before the crowd's end keeps its thick wood)
   const outlasts = (q) => win.hi > 0 && q.go > win.hi;   // (still there where the crowd ends)
   const there = N > 0 || solids.some(outlasts);   // (a thing of sticks only, all gone before: nothing stays)
   if (!there) win.hi = win.lo = 0;
@@ -693,6 +691,13 @@ export function crowd(m, opts = {}) {
     Leaving a piece out differs by its width, and by what goes with it where it meets another (togetherOf): it goes
     where that is within the dial (its go; what was laid without a part stays). N its corners' normals, I the mesh's
     corners. */
+/** Each solid piece's width and go: what the build measured (K.measured), else measured here (widthsOf). -> both, two
+    numbers a piece, as they are kept. */
+function widthsFor(solids, K, P, N, I) {
+  const B = K.measured?.solids;
+  if (B) solids.forEach((q, i) => { q.w = B[i * 2]; q.go = B[i * 2 + 1]; }); else widthsOf(solids, P, N, I);
+  return Float64Array.from(solids.flatMap((q) => [q.w, q.go]));
+}
 function widthsOf(solids, P, N, I) {
   for (const q of solids) {
     if (q.stays) { q.w = 0; q.go = 0; q.rings = null; continue; }
