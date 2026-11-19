@@ -122,15 +122,15 @@ export const hasFar = (a) => !!(a.far ?? kindRule(a, 'far'));
     off the relief through its middle, at the most). Where nothing covers (c = 0): its whole height over the ground, as a
     lone plant always was. top, depth, size: its crown's top over the ground, its crown's depth, its size on screen's
     measure (metres, alike scaled). Plain numbers: what reads it on the GPU works it out the same way. */
-export const goneShare = (top, depth, size, c = 0, T = 0) => Math.min(1, goneDev(top, depth, c, T) / Math.max(size, 1e-9));
+const goneShare = (top, depth, size, c = 0, T = 0) => Math.min(1, goneDev(top, depth, c, T) / Math.max(size, 1e-9));
 /** goneShare's metres, before they are a share of its size: max(top − c·T, (1 − c)·top, c·depth/3), the same as
     max(top − c·min(T, top), c·depth/3) (what the GPU reads: goneLines). */
-export const goneDev = (top, depth, c = 0, T = 0) => Math.max(top - c * Math.min(T, top), (c * depth) / 3);
+const goneDev = (top, depth, c = 0, T = 0) => Math.max(top - c * Math.min(T, top), (c * depth) / 3);
 /** How deep shape i's crown is (metres at scale 1): from where it begins (its kit's growth base, at its stage's age, to
     the shape's own height) to its top; a plant without growth is crown all through. top: the shape's top over the ground. */
 const crownDepth = (a, i, top) => { const G = a.growth, S = G?.stages?.find((x) => i >= x.offset && i < x.offset + x.variants); return S && G.base && S.h > 0 ? Math.max(0, Math.min(top, (top + FOOT) * (1 - G.base(S.year) / S.h))) : top; };
 /** goneShare for plant a, the most of its shapes', where its stand covers c of the ground and its relief top is T. */
-export const goneShareAt = (a, c = 0, T = 0) => {
+const goneShareAt = (a, c = 0, T = 0) => {
   let e = 0;
   for (let i = 0; i < (a.shapeCount ?? 1); i++) { const top = Math.max(0, (a.heights?.[i] ?? most(a.size.height)) - FOOT); e = Math.max(e, goneShare(top, crownDepth(a, i, top), shapeSize(a, i), c, T)); }
   return e;
