@@ -66,6 +66,10 @@ fn soil(x: f32, z: f32) -> Vec3 {
     floor.lerp(Vec3::new(0.06, 0.07, 0.03), 0.45) * grain
 }
 
+pub fn soil_colour(x: f32, z: f32) -> Vec3 {
+    soil(x, z)
+}
+
 /// The colour of the land seen from afar, where its grass is too small to draw: the sward's own average green,
 /// varying in large patches (lusher, sparser, drier) so a view from above has structure.
 fn sward(x: f32, z: f32) -> Vec3 {
@@ -225,7 +229,21 @@ fn patch(g: &mut Geo, x0: f32, z0: f32, size: f32, n: u32, h: &dyn Fn(f32, f32) 
 pub fn chunk(cx: i32, cz: i32, size: f32, share: f32) -> Mesh {
     let mut g = Geo::default();
     let n = if share >= 1.0 { 64 } else if share >= 0.35 { 32 } else if share >= 0.09 { 16 } else { 8 };
-    patch(&mut g, cx as f32 * size, cz as f32 * size, size, n, &height, &colour);
+    // near the eye the floor shows its own small mottle (litter, moss, soil, a few to 30 cm across) around the
+    // same average as the sward seen from afar, so it looks alike from a distance and alive from close by
+    let near = share >= 1.0;
+    let mottled = |x: f32, z: f32| {
+        let base = colour(x, z);
+        if !near {
+            return base;
+        }
+        let litter = (noise(x, z, 0.22, 30) - 0.5) * 2.0;
+        let moss = (noise(x, z, 0.09, 31) - 0.5) * 2.0;
+        let soil = ((noise(x, z, 0.35, 32) - 0.62) / 0.2).clamp(0.0, 1.0);
+        let tint = Vec3::new(1.0 + 0.35 * litter, 1.0 + 0.12 * moss, 1.0 + 0.2 * litter);
+        (base * tint * (0.8 + 0.4 * noise(x, z, 0.04, 33))).lerp(soil_colour(x, z), soil * 0.6)
+    };
+    patch(&mut g, cx as f32 * size, cz as f32 * size, size, n, &height, &mottled);
     if share >= 1.0 {
         // per square metre, near the eye only (where a few centimetres show): 9 clods of earth (2 to 6 cm), 5
         // pebbles (1 to 5 cm), and a stone (6 to 25 cm) in every few square metres

@@ -113,8 +113,9 @@ fn stream(
     if ((cx, cz) != field.far_at || high != field.far_high) && field.far_task.is_none() {
         field.far_at = (cx, cz);
         field.far_high = high;
-        let k = RINGS - 2;
-        let hole = (!high).then(|| [((cx - k) as f32) * CHUNK, ((cz - k) as f32) * CHUNK, ((cx + k + 1) as f32) * CHUNK, ((cz + k + 1) as f32) * CHUNK]);
+        // no hole for the near ground: the far land lies a little under it everywhere, so while chunks stream in
+        // (or lag behind a fast eye) the land is always there, never the sky through a gap
+        let hole: Option<[f32; 4]> = None;
         let (x, z) = (at.x, at.z);
         field.far_task = Some(AsyncComputeTaskPool::get().spawn(async move { crate::terrain::far(x, z, hole) }));
     }
@@ -152,7 +153,7 @@ fn stream(
     for &(key, c) in &wanted {
         let ok_shown = field.shown.get(&key).is_some_and(|s| s.1 == c);
         let ok_growing = field.growing.get(&key).is_some_and(|g| g.1 == c);
-        if !ok_shown && !ok_growing && started < 6 {
+        if !ok_shown && !ok_growing && started < 16 {
             let (x, z) = key;
             let s = share(c);
             field.growing.insert(

@@ -397,10 +397,10 @@ fn thatch(g: &mut Geo, cx: i32, cz: i32, share: f32) {
         let yaw = r(2) * std::f32::consts::TAU;
         let (dir, side) = (Vec3::new(yaw.cos(), 0.0, yaw.sin()), Vec3::new(-yaw.sin(), 0.0, yaw.cos()));
         let len = 0.10 + 0.25 * r(3);
-        let width = 0.003 + 0.003 * r(4);
+        let width = 0.0012 + 0.0016 * r(4); // dead blades are as narrow as living ones
         let lift = 0.004 + 0.02 * r(5); // how high it lies on the others
         // linear reflectance of dead grass: pale straw to grey-brown, darker where it is older and damper
-        let colour = Vec3::new(0.20, 0.16, 0.09).lerp(Vec3::new(0.09, 0.075, 0.05), r(6)) * (0.7 + 0.5 * r(7));
+        let colour = Vec3::new(0.17, 0.14, 0.08).lerp(Vec3::new(0.07, 0.06, 0.04), r(6)) * (0.6 + 0.5 * r(7));
         let start = g.pos.len() as u32;
         let segs = 3;
         for s in 0..=segs {
