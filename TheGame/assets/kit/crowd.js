@@ -82,7 +82,6 @@ const CROWD = {
   CLASSES: 4,     // the most classes by size a crowd is sorted into (each half the area of the one before)
   STOPS: 1 - sqrt(1 - 0.45),         // how much of the light one triangle of a card stops (a sprig of two crossed cards: 45 %), where cover is reckoned
   PIC: 64,         // … in pictures of this many pixels a side, from thirteen sides
-  SPAN: 5,         // points a side of a card where its leaves are measured from (its share error: turnsOf), its corners and edges among them
 };
 
 // ---- the rule, as the vertex stage is to reckon it: r, a rung's error over the dial (above) ----
@@ -142,103 +141,193 @@ export function topShareOf(m) {
 }
 
 // ---- the order: each next part the one farthest from all taken before, the classes one after another ----
-/** The parts in turn order. Each part is where its leaves are, L: points on them (`at`, x y z) in groups (a card's:
-    `gfrom`, where each part's groups begin, `pfrom`, where each group's points begin; GC, each group's middle and how far
-    its points reach from it, four numbers a group), what they lie on (`cards`, eleven numbers a group: a card, a
-    rectangle, its corner and its two sides and their lengths' inverse squares; none: a part is its points), its middle
-    (X, Y, Z) and how far its leaves reach from it (R).
-    The first turn is the part of the first class farthest from the crowd's middle `mid`, so the turns begin at the
+/** The parts in turn order, and its share error. Each part is where its leaves are, L: its cards (`cards`: rectangles,
+    eleven numbers a card, a corner, its two sides and their lengths' inverse squares; `gfrom`, where each part's begin;
+    `rounds`, each card's middle and how far its corners reach from it, four numbers; `sides`, its two sides' lengths)
+    or, without cards, its middle alone (a chunk: pointsOf), its middle (X, Y, Z) and how far its leaves reach from it
+    (R). The first turn is the part of the first class farthest from the crowd's middle `mid`, so the turns begin at the
     crown's rim and a first few of them are its outline; each next, of the class being taken (cls), the one whose leaves
-    lie farthest from all taken before. And its share error, `err` (metres): err[t], the farthest any leaf of a part
-    left out lies from a leaf drawn when the first t turns are drawn (err[0] none drawn, Infinity; err[n] 0), never
+    lie farthest from all taken before. And its share error, `err` (metres): err[t], how far the leaves of the parts left
+    out lie from a leaf drawn when the first t turns are drawn, at most (err[0] none drawn, Infinity; err[n] 0), never
     more as more are drawn. A left-out part's leaves are where the picture misses them, not its middle: a sprig of a
     shrub is a spray half a metre long, and the nearest drawn sprig's middle can lie a hand off while its leaves point
     another way (a mastic's first seven sprigs to go: their middles 34 mm from one drawn, their leaves up to 167 mm from
-    a drawn leaf). */
+    a drawn leaf).
+    How far a card's leaves lie from what is drawn is found in cells, not at so many points of it: each card begins as
+    one cell, measured at its middle, and no leaf of a cell lies farther from a drawn leaf than its middle does and its
+    half-diagonal more (a distance changes no faster than the point it is taken from moves), nor than its corners lie
+    from the card nearest its middle (a distance to one card is convex, so over a cell it is farthest at a corner; to all
+    that is drawn it is no more than to one). So a part lies no farther off than its cells' bounds, the lesser of those
+    two (its bound, what its error is taken as), and no nearer than the farthest of its middles; and a cell whose bound is over exp(FADE) times that is split in four, until none is (or it
+    is as small as numbers hold, a millionth of the part's reach). So the error is never under how far its leaves are
+    off, and over by what one hand-over spans at most (src/detail/error.js FADE: each part goes over that much under
+    its switch). A part is measured against each part taken since it last was (none whose leaves cannot be nearer than
+    its own farthest cell; those near it found in a grid of the taken parts' middles, where that is fewer to look at),
+    and a new cell against the taken cards near it, kept in a grid by their middles. */
 function turnsOf(L, cls, mid) {
-  const { X, Y, Z, R, at: P, gfrom, pfrom, GC, cards: C } = L, n = cls.length, out = new Uint32Array(n), err = new Float64Array(n + 1);
+  const { X, Y, Z, R, gfrom, cards: C, rounds: GC, sides: S } = L, n = cls.length, out = new Uint32Array(n), err = new Float64Array(n + 1);
   err[0] = Infinity; out.err = err;
   if (!n) return out;
-  // (each point's squared distance to the nearest leaf drawn, as far as its part is measured: against the first seen[r]
-  // turns; each part's farthest point's, D; whether it is taken)
-  const near = new Float64Array(P.length / 3).fill(Infinity), root = new Float64Array(P.length / 3).fill(Infinity), G = new Float64Array(GC.length / 4).fill(Infinity), D = new Float64Array(n).fill(Infinity), seen = new Uint32Array(n), taken = new Uint8Array(n);   // (root: near's square root; G: each group's farthest point's near)
-  /** The squared distance from (x, y, z) to part q's leaves (its cards, else its points), where it is under `best` (and
+  const KF = exp(FADE), taken = new Uint8Array(n), seen = new Uint32Array(n), LB = new Float64Array(n), UB = new Float64Array(n);
+  const OWNER = new Int32Array(C ? GC.length / 4 : 0); if (C) for (let r = 0; r < n; r++) for (let g = gfrom[r]; g < gfrom[r + 1]; g++) OWNER[g] = r;   // (each card's part)
+  // ---- the cells: a card's share (its middle u, v and half its sides' shares su, sv, of its card g; a part without cards
+  // is one cell, its middle, g -1), where its middle is (x, y, z), its half-diagonal (metres), its squared distance to the
+  // nearest leaf drawn and that distance, and which taken part that is ----
+  let cap = 64, nc = 0, CG = new Int32Array(cap), CU = new Float64Array(cap), CV = new Float64Array(cap), CS = new Float64Array(cap), CT = new Float64Array(cap), CX = new Float64Array(cap), CY = new Float64Array(cap), CZ = new Float64Array(cap), HD = new Float64Array(cap), NEAR = new Float64Array(cap), ROOT = new Float64Array(cap), NQ = new Int32Array(cap), DEAD = new Uint8Array(cap), NG = new Int32Array(cap), CB = new Float64Array(cap);
+  const grow = () => {
+    cap *= 2; const more = (A) => { const B = new A.constructor(cap); B.set(A); return B; };
+    CG = more(CG); CU = more(CU); CV = more(CV); CS = more(CS); CT = more(CT); CX = more(CX); CY = more(CY); CZ = more(CZ); HD = more(HD); NEAR = more(NEAR); ROOT = more(ROOT); NQ = more(NQ); DEAD = more(DEAD); NG = more(NG); CB = more(CB);
+  };
+  const cellsOf = Array.from({ length: n }, () => []), HC = Array.from({ length: n }, () => heapOf());   // (each part's cells, and they in a heap by their bounds: a split one is dead)
+  const cell = (r, g, u, v, su, sv) => {
+    if (nc === cap) grow();
+    const c = nc++; CG[c] = g; CU[c] = u; CV[c] = v; CS[c] = su; CT[c] = sv; NEAR[c] = ROOT[c] = CB[c] = Infinity; NQ[c] = NG[c] = -1;
+    if (g < 0) { CX[c] = X[r]; CY[c] = Y[r]; CZ[c] = Z[r]; HD[c] = 0; }
+    else { const o = g * 11; CX[c] = C[o] + u * C[o + 3] + v * C[o + 6]; CY[c] = C[o + 1] + u * C[o + 4] + v * C[o + 7]; CZ[c] = C[o + 2] + u * C[o + 5] + v * C[o + 8]; HD[c] = hypot(su * S[g * 2], sv * S[g * 2 + 1]); }
+    cellsOf[r].push(c);
+    return c;
+  };
+  /** The squared distance from (x, y, z) to part q's leaves (its cards, else its middle), where it is under `best` (and
       its square root, `rb`): a card's nearest point, its corner and its two sides' shares, each held to the card. */
+  let atCard = -1;   // (the card toPart found nearest, where it found one nearer than it was asked under)
+  const toCard = (x, y, z, g) => {
+    const o = g * 11, dx = x - C[o], dy = y - C[o + 1], dz = z - C[o + 2];
+    const u = min(1, max(0, (dx * C[o + 3] + dy * C[o + 4] + dz * C[o + 5]) * C[o + 9])), v = min(1, max(0, (dx * C[o + 6] + dy * C[o + 7] + dz * C[o + 8]) * C[o + 10]));
+    return (dx - u * C[o + 3] - v * C[o + 6]) ** 2 + (dy - u * C[o + 4] - v * C[o + 7]) ** 2 + (dz - u * C[o + 5] - v * C[o + 8]) ** 2;
+  };
   const toPart = (x, y, z, q, best, rb) => {
-    if (C) {
-      for (let g = gfrom[q], e = gfrom[q + 1]; g < e && best > 0; g++) {
-        const c = g * 4, lim = GC[c + 3] + rb;
-        if ((x - GC[c]) ** 2 + (y - GC[c + 1]) ** 2 + (z - GC[c + 2]) ** 2 >= lim * lim) continue;   // (it cannot be nearer)
-        const o = g * 11, dx = x - C[o], dy = y - C[o + 1], dz = z - C[o + 2];
-        const u = min(1, max(0, (dx * C[o + 3] + dy * C[o + 4] + dz * C[o + 5]) * C[o + 9])), v = min(1, max(0, (dx * C[o + 6] + dy * C[o + 7] + dz * C[o + 8]) * C[o + 10]));
-        const d = (dx - u * C[o + 3] - v * C[o + 6]) ** 2 + (dy - u * C[o + 4] - v * C[o + 7]) ** 2 + (dz - u * C[o + 5] - v * C[o + 8]) ** 2;
-        if (d < best) { best = d; rb = sqrt(d); }
-      }
-      return best;
+    atCard = -1;
+    if (!C) return min(best, (x - X[q]) ** 2 + (y - Y[q]) ** 2 + (z - Z[q]) ** 2);
+    for (let g = gfrom[q], e = gfrom[q + 1]; g < e && best > 0; g++) {
+      const c = g * 4, lim = GC[c + 3] + rb;
+      if ((x - GC[c]) ** 2 + (y - GC[c + 1]) ** 2 + (z - GC[c + 2]) ** 2 >= lim * lim) continue;   // (it cannot be nearer)
+      const d = toCard(x, y, z, g);
+      if (d < best) { best = d; rb = sqrt(d); atCard = g; }
     }
-    for (let i = pfrom[gfrom[q]] * 3, e = pfrom[gfrom[q + 1]] * 3; i < e; i += 3) best = min(best, (x - P[i]) ** 2 + (y - P[i + 1]) ** 2 + (z - P[i + 2]) ** 2);
     return best;
   };
-  const gapOf = (r, q) => sqrt((X[r] - X[q]) ** 2 + (Y[r] - Y[q]) ** 2 + (Z[r] - Z[q]) ** 2) - R[r] - R[q];   // (no leaf of r lies nearer one of q's than this)
-  /** Part q's leaves held against r's points: each one's nearest drawn, where q may be nearer it; r's farthest after. */
-  const against = (r, q, gap) => {
-    if (gap > 0 && gap * gap >= D[r]) return;   // (q is nearer none of them than what is drawn)
-    let most = 0;
-    for (let g = gfrom[r]; g < gfrom[r + 1]; g++) {
-      const c = g * 4, cg = sqrt((GC[c] - X[q]) ** 2 + (GC[c + 1] - Y[q]) ** 2 + (GC[c + 2] - Z[q]) ** 2) - GC[c + 3] - R[q];
-      if (!(cg > 0 && cg * cg >= G[g])) {   // (q may be nearer some point of this group)
-        let gm = 0;
-        for (let i = pfrom[g]; i < pfrom[g + 1]; i++) {
-          const x = P[i * 3], y = P[i * 3 + 1], z = P[i * 3 + 2], lim = R[q] + root[i];
-          if ((x - X[q]) ** 2 + (y - Y[q]) ** 2 + (z - Z[q]) ** 2 < lim * lim) { const d = toPart(x, y, z, q, near[i], root[i]); if (d < near[i]) { near[i] = d; root[i] = sqrt(d); } }   // (where q may be nearer it)
-          if (near[i] > gm) gm = near[i];
-        }
-        G[g] = gm;
-      }
-      if (G[g] > most) most = G[g];
+  /** How far cell c's corners lie from card g at the most: its leaves lie no farther from what is drawn, where g is. */
+  const cornersFrom = (c, g) => {
+    const o = CG[c] * 11; let most = 0;
+    for (const a of [-1, 1]) for (const b of [-1, 1]) { const u = CU[c] + a * CS[c], v = CV[c] + b * CT[c]; most = max(most, toCard(C[o] + u * C[o + 3] + v * C[o + 6], C[o + 1] + u * C[o + 4] + v * C[o + 7], C[o + 2] + u * C[o + 5] + v * C[o + 8], g)); }
+    return sqrt(most);
+  };
+  /** Cell c come nearer, to card g (none: a point): its bound by that card too, the least it knows. */
+  const nearer = (c, d, q, g) => { NEAR[c] = d; ROOT[c] = sqrt(d); NQ[c] = q; if (g >= 0 && CG[c] >= 0) { NG[c] = g; CB[c] = min(CB[c], cornersFrom(c, g)); } };
+  const boundOf = (c) => min(ROOT[c] + HD[c], CB[c]);
+  /** Part r's cells against part q, taken since r was last measured: none where q's leaves cannot be nearer than r's
+      farthest cell (its least: never more than it was), else each cell where they can be nearer than its own. */
+  const againstPart = (r, q) => {
+    const gap = sqrt((X[r] - X[q]) ** 2 + (Y[r] - Y[q]) ** 2 + (Z[r] - Z[q]) ** 2) - R[r] - R[q]; if (gap > 0 && gap >= LB[r]) return false;
+    let moved = false;
+    for (const c of cellsOf[r]) {
+      if (DEAD[c]) continue;
+      const g = sqrt((CX[c] - X[q]) ** 2 + (CY[c] - Y[q]) ** 2 + (CZ[c] - Z[q]) ** 2) - R[q]; if (g > 0 && g >= ROOT[c]) continue;
+      const d = toPart(CX[c], CY[c], CZ[c], q, NEAR[c], ROOT[c]); if (d < NEAR[c]) { nearer(c, d, q, atCard); moved = true; }
     }
-    D[r] = most;
+    return moved;
   };
-  /** Part r measured against the first s turns: the nearest of those it has not been by its middle first (what it finds
-      lets the rest be passed by), then the rest. -> its farthest point's squared distance from a leaf drawn */
-  const gaps = new Float64Array(n);   // (measure's: each turn's gap to the part measured, reckoned once)
-  const measure = (r, s) => {
-    let k0 = seen[r], best = -1, bd = Infinity;
-    for (let k = k0; k < s; k++) { const g = (gaps[k] = gapOf(r, out[k])); if (g < bd) { bd = g; best = k; } }
-    if (best >= 0) against(r, out[best], bd);
-    for (let k = k0; k < s; k++) if (k !== best) against(r, out[k], gaps[k]);
-    seen[r] = s;
-    return D[r];
+  // ---- the taken cards (a point part: its middle) in a grid by their middles, as wide as the widest card's reach: a
+  // new cell's nearest drawn leaf within d lies on a card whose middle is within d and that reach ----
+  let RC = 0; if (C) for (let g = 0; g < GC.length / 4; g++) RC = max(RC, GC[g * 4 + 3]);
+  const GS = max(2 * RC, 1e-6), GRID = new Map(), keyOf = (i, j, k) => (i * 4096 + j) * 4096 + k, place = (x, y, z, id) => { const k = keyOf(floor(x / GS), floor(y / GS), floor(z / GS)); let list = GRID.get(k); if (!list) GRID.set(k, (list = [])); list.push(id); };
+  const put = (q) => { if (C) for (let g = gfrom[q]; g < gfrom[q + 1]; g++) place(GC[g * 4], GC[g * 4 + 1], GC[g * 4 + 2], g); else place(X[q], Y[q], Z[q], q); };
+  // ---- and the taken parts by their middles, as wide as the widest part's reach, each with the turn it was taken at ----
+  let RM = 0; for (let r = 0; r < n; r++) RM = max(RM, R[r]);
+  const PS = max(2 * RM, 1e-6), PARTS = new Map(), atTurn = new Int32Array(n).fill(-1);
+  const putPart = (q, s) => { atTurn[q] = s; const k = keyOf(floor(X[q] / PS), floor(Y[q] / PS), floor(Z[q] / PS)); let list = PARTS.get(k); if (!list) PARTS.set(k, (list = [])); list.push(q); };
+  /** Part r against the parts taken from turn `from` to s: each in turn, or, where fewer to look at, those whose middles
+      lie within its reach in the grid (no leaf of a farther one can be nearer than its farthest cell). -> whether a cell
+      came nearer */
+  const sinceOf = (r, from, s) => {
+    let moved = false;
+    const reach = LB[r] + R[r] + RM, i0 = floor((X[r] - reach) / PS), i1 = floor((X[r] + reach) / PS), j0 = floor((Y[r] - reach) / PS), j1 = floor((Y[r] + reach) / PS), k0 = floor((Z[r] - reach) / PS), k1 = floor((Z[r] + reach) / PS);
+    if ((i1 - i0 + 1) * (j1 - j0 + 1) * (k1 - k0 + 1) >= s - from) { for (let k = from; k < s; k++) moved = againstPart(r, out[k]) || moved; return moved; }
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) for (let k = k0; k <= k1; k++) { const list = PARTS.get(keyOf(i, j, k)); if (list) for (const q of list) if (atTurn[q] >= from) moved = againstPart(r, q) || moved; }
+    return moved;
   };
-  /** The farthest part in heap H from the first s turns, its leaves', or -1. A part's key is what it was off by when it
-      was last measured (or a bound over it): never less than it is now, as more drawn only brings a leaf nearer. So the
-      top, measured again and found as far as its key, is the farthest of all, and only parts that might be are measured:
-      a crown of thousands is not measured against every turn (a lazy greedy). It stays in H. */
+  /** A new cell c measured against every taken card near it (a point part: every taken middle): its nearest, from the
+      one it starts at. */
+  const against = (c) => {
+    const x = CX[c], y = CY[c], z = CZ[c], reach = ROOT[c] + RC;
+    const i0 = floor((x - reach) / GS), i1 = floor((x + reach) / GS), j0 = floor((y - reach) / GS), j1 = floor((y + reach) / GS), k0 = floor((z - reach) / GS), k1 = floor((z + reach) / GS);
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) for (let k = k0; k <= k1; k++) {
+      const list = GRID.get(keyOf(i, j, k)); if (!list) continue;
+      for (const g of list) {
+        if (!C) { const d = (x - X[g]) ** 2 + (y - Y[g]) ** 2 + (z - Z[g]) ** 2; if (d < NEAR[c]) nearer(c, d, g, -1); continue; }
+        const m = g * 4, lim = GC[m + 3] + ROOT[c];
+        if ((x - GC[m]) ** 2 + (y - GC[m + 1]) ** 2 + (z - GC[m + 2]) ** 2 >= lim * lim) continue;   // (it cannot be nearer)
+        const d = toCard(x, y, z, g);
+        if (d < NEAR[c]) nearer(c, d, OWNER[g], g);
+      }
+    }
+  };
+  /** Part r's least: the farthest of its cells' middles (kept, and found again where it may have come nearer). */
+  const lbOf = (r) => { let lo = 0; for (const c of cellsOf[r]) if (!DEAD[c] && ROOT[c] > lo) lo = ROOT[c]; return lo; };
+  /** Part r's bound: its cells' farthest bound, the top of their heap made fresh (a key is what the cell was bound by,
+      never less than it is: a cell only comes nearer). */
+  const ubOf = (r) => {
+    const H = HC[r];
+    for (;;) { const c = H.topId(), k = H.top(); if (DEAD[c]) { H.pop(); continue; } const f = boundOf(c); if (f < k) { H.pop(); H.push(f, c); continue; } return f; }
+  };
+  /** Part r measured against the first s turns (its cells against those taken since it was last), and its cells split,
+      the one of the farthest bound first, each new one measured against every taken card near it (its parent's nearest
+      first): as far as it may be the farthest, its bound over `limit` (another part's), till its bound is within
+      exp(FADE) of its least (it is held, `sure`), or its cell is as small as numbers hold. -> its bound */
+  const sure = new Uint8Array(n);
+  const measure = (r, s, limit) => {
+    if (seen[r] < s) { const moved = sinceOf(r, seen[r], s); seen[r] = s; sure[r] = 0; if (moved) LB[r] = lbOf(r); }
+    const tiny = R[r] * 1e-6;
+    for (;;) {
+      const ub = ubOf(r);
+      if (ub <= limit) return (UB[r] = ub);   // (not the farthest: no finer than that asks)
+      if (ub <= LB[r] * KF) { LB[r] = lbOf(r); if (ub <= LB[r] * KF) { sure[r] = 1; return (UB[r] = ub); } }
+      const c = HC[r].topId(); if (HD[c] <= tiny || CG[c] < 0) { sure[r] = 1; return (UB[r] = ub); }
+      HC[r].pop(); DEAD[c] = 1;
+      for (const [a, b] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]) {
+        const k = cell(r, CG[c], CU[c] + a * CS[c], CV[c] + b * CT[c], CS[c] / 2, CT[c] / 2), q = NQ[c];
+        if (C && NG[c] >= 0) nearer(k, toCard(CX[k], CY[k], CZ[k], NG[c]), q, NG[c]); else if (q >= 0) nearer(k, toPart(CX[k], CY[k], CZ[k], q, Infinity, Infinity), q, -1);   // (from its parent's nearest)
+        against(k); HC[r].push(boundOf(k), k); if (ROOT[k] > LB[r]) LB[r] = ROOT[k];
+      }
+    }
+  };
+  /** The farthest part in heap H from the first s turns, its leaves' bound, or -1. A part's key is its bound when it was
+      last measured (or one over it): never less than it is now, as more drawn only brings a leaf nearer and a cell split
+      bounds its leaves no farther. So the top, measured again (as far as it may still be the farthest: over the next
+      key) and held, as far as every other key, is the farthest of all, and only parts that might be are measured: a
+      crown of thousands is not measured against every turn, nor split finer than its place in the order asks (a lazy
+      greedy). It stays in H. */
   const farthest = (H, s) => {
     while (H.size()) {
       const [key, r] = H.pop();
       if (taken[r]) continue;
-      const d = seen[r] === s ? D[r] : measure(r, s);
+      const next = H.size() ? H.top() : -Infinity, d = seen[r] === s && (sure[r] || UB[r] <= next) ? UB[r] : measure(r, s, next);
       H.push(d, r);
-      if (d >= key) return r;
+      if (d >= next && sure[r]) return r;
     }
     return -1;
   };
-  // the first: the part of the first class farthest from the crowd's middle; then the parts' bounds from it, each class
-  // in its own heap and all of them in one (what the share error is the farthest of)
+  const take = (q, s) => { taken[q] = 1; put(q); putPart(q, s); };
+  // the first: the part of the first class farthest from the crowd's middle; then every part's cells (a card each, or its
+  // middle) measured against it, each class in its own heap and all of them in one (what the share error is the farthest of)
   const classes = [...new Set(cls)].sort((x, y) => x - y), ofClass = classes.map((k) => { const o = []; for (let r = 0; r < n; r++) if (cls[r] === k) o.push(r); return o; });
   let p = -1, far = -1;
   for (const r of ofClass[0]) { const q = (X[r] - mid[0]) ** 2 + (Y[r] - mid[1]) ** 2 + (Z[r] - mid[2]) ** 2; if (q > far) { far = q; p = r; } }
-  out[0] = p; taken[p] = 1;
-  const bound = Float64Array.from({ length: n }, (_, r) => (sqrt((X[r] - X[p]) ** 2 + (Y[r] - Y[p]) ** 2 + (Z[r] - Z[p]) ** 2) + R[r] + R[p]) ** 2);   // (no leaf of r lies farther from p's)
-  const all = heapOf(); for (let r = 0; r < n; r++) if (!taken[r]) all.push(bound[r], r);
-  let c = 0, mine = heapOf(); for (const r of ofClass[0]) if (!taken[r]) mine.push(bound[r], r);
+  out[0] = p; take(p, 0);
+  for (let r = 0; r < n; r++) {
+    if (r === p) continue;
+    if (C) for (let g = gfrom[r]; g < gfrom[r + 1]; g++) cell(r, g, 0.5, 0.5, 0.5, 0.5); else cell(r, -1, 0, 0, 0, 0);
+    for (const c of cellsOf[r]) { const d = toPart(CX[c], CY[c], CZ[c], p, Infinity, Infinity); nearer(c, d, p, atCard); HC[r].push(boundOf(c), c); }
+    seen[r] = 1; LB[r] = lbOf(r); UB[r] = ubOf(r);
+  }
+  const all = heapOf(); for (let r = 0; r < n; r++) if (!taken[r]) all.push(UB[r], r);
+  let c = 0, mine = heapOf(); for (const r of ofClass[0]) if (!taken[r]) mine.push(UB[r], r);
   for (let s = 1; s <= n; s++) {
-    const f = farthest(all, s); err[s] = f < 0 ? 0 : sqrt(D[f]);   // (of every part not yet taken, whatever its class: the farthest of its leaves from all that are)
+    const f = farthest(all, s); err[s] = f < 0 ? 0 : UB[f];   // (of every part not yet taken, whatever its class: how far its leaves may lie from all that are)
     if (s === n) break;
     let q = farthest(mine, s);
-    while (q < 0) { mine = heapOf(); for (const r of ofClass[++c]) if (!taken[r]) mine.push(seen[r] ? D[r] : bound[r], r); q = farthest(mine, s); }   // (a class is through: the next)
-    out[s] = q; taken[q] = 1;
+    while (q < 0) { mine = heapOf(); for (const r of ofClass[++c]) if (!taken[r]) mine.push(UB[r], r); q = farthest(mine, s); }   // (a class is through: the next)
+    out[s] = q; take(q, s);
   }
   return out;
 }
@@ -246,7 +335,7 @@ function turnsOf(L, cls, mid) {
 function heapOf() {
   const K = [], V = [], swap = (i, j) => { const k = K[i], v = V[i]; K[i] = K[j]; V[i] = V[j]; K[j] = k; V[j] = v; };
   return {
-    size: () => K.length,
+    size: () => K.length, top: () => K[0], topId: () => V[0],
     push(key, id) { let i = K.push(key) - 1; V.push(id); while (i > 0) { const u = (i - 1) >> 1; if (K[u] >= K[i]) break; swap(u, i); i = u; } },
     pop() {
       const top = [K[0], V[0]], k = K.pop(), v = V.pop();
@@ -256,7 +345,7 @@ function heapOf() {
   };
 }
 /** Parts that are points (a chunk each: clumpsOf) as turnsOf takes them: each its middle, and nothing round it. */
-const pointsOf = (X, Y, Z) => { const n = X.length, at = new Float64Array(n * 3), GC = new Float64Array(n * 4), one = Uint32Array.from({ length: n + 1 }, (_, i) => i); for (let i = 0; i < n; i++) { at.set([X[i], Y[i], Z[i]], i * 3); GC.set([X[i], Y[i], Z[i], 0], i * 4); } return { X, Y, Z, R: new Float64Array(n), at, gfrom: one, pfrom: one, GC, cards: null }; };
+const pointsOf = (X, Y, Z) => ({ X, Y, Z, R: new Float64Array(X.length), gfrom: null, cards: null, rounds: null, sides: null });
 
 /** What every reckoning of a shape begins with: its parts as the recipe laid them (assets/kit/tree.js: m.parts), the
     sprigs (each its cards, four vertices a card) and the solid pieces (a tube; and whatever was laid without a part, as
@@ -387,32 +476,28 @@ function orderOf(sprigs, P, K) {
   for (let a = 0; a < 3; a++) sd[a] = sqrt(sd[a] / max(1, nC)) || 1e-9;
   let amax = 0; for (const q of sprigs) amax = max(amax, q.area);
   const cls = Uint8Array.from(sprigs, (q) => (K.order === 'alike' ? 0 : min(K.CLASSES - 1, floor(log2(amax / q.area) + 1e-6))));
-  return { mid, sd, order: turnsOf(leavesOf(sprigs, P, X, Y, Z, K.SPAN), cls, mid) };
+  return { mid, sd, order: turnsOf(leavesOf(sprigs, P, X, Y, Z), cls, mid) };
 }
 /** Where a crowd's sprigs' leaves are, as turnsOf takes them: each card (four vertices, as the kit lays it: a rectangle,
-    its corner 0 and its sides to corners 1 and 3, at right angles; a card that is none is an error of the kit's), points
-    on it (SPAN x SPAN, its corners and its edges among them), its middle and how far its corners reach from it; each
-    sprig's middle and how far its corners reach from it. */
-function leavesOf(sprigs, P, X, Y, Z, SPAN) {
+    its corner 0 and its sides to corners 1 and 3, at right angles; a card that is none is an error of the kit's), its
+    middle and how far its corners reach from it, and its sides' lengths; each sprig's middle and how far its corners
+    reach from it. */
+function leavesOf(sprigs, P, X, Y, Z) {
   const N = sprigs.length, gfrom = new Uint32Array(N + 1), R = new Float64Array(N);
   for (let p = 0; p < N; p++) gfrom[p + 1] = gfrom[p] + sprigs[p].cards;
-  const nG = gfrom[N], pfrom = Uint32Array.from({ length: nG + 1 }, (_, g) => g * SPAN * SPAN), at = new Float64Array(pfrom[nG] * 3), GC = new Float64Array(nG * 4), cards = new Float64Array(nG * 11);
+  const nG = gfrom[N], rounds = new Float64Array(nG * 4), cards = new Float64Array(nG * 11), sides = new Float64Array(nG * 2);
   sprigs.forEach((q, p) => {
     for (const v of q.verts) R[p] = max(R[p], hypot(P[v * 3] - X[p], P[v * 3 + 1] - Y[p], P[v * 3 + 2] - Z[p]));
     for (let c = 0; c < q.cards; c++) {
       const g = gfrom[p] + c, v = q.verts[c * 4], K = [0, 1, 2, 3].map((k) => [0, 1, 2].map((a) => P[(v + k) * 3 + a])), m = [0, 1, 2].map((a) => (K[0][a] + K[1][a] + K[2][a] + K[3][a]) / 4);
       const e1 = [0, 1, 2].map((a) => K[1][a] - K[0][a]), e2 = [0, 1, 2].map((a) => K[3][a] - K[0][a]), l1 = hypot(...e1), l2 = hypot(...e2), off = hypot(...[0, 1, 2].map((a) => K[2][a] - K[1][a] - e2[a]));
       if (abs(e1[0] * e2[0] + e1[1] * e2[1] + e1[2] * e2[2]) > 1e-6 * l1 * l2 || off > 1e-6 * (l1 + l2)) throw new Error('crowd: a card is laid as a rectangle (assets/kit/tree.js lay), its corners 0 1 2 3 round it, and this one is none');
-      GC.set([...m, max(...K.map((k) => hypot(k[0] - m[0], k[1] - m[1], k[2] - m[2])))], g * 4);
+      rounds.set([...m, max(...K.map((k) => hypot(k[0] - m[0], k[1] - m[1], k[2] - m[2])))], g * 4);
       cards.set([...K[0], ...e1, ...e2, 1 / max(l1 * l1, 1e-24), 1 / max(l2 * l2, 1e-24)], g * 11);
-      let o = pfrom[g] * 3;
-      for (let i = 0; i < SPAN; i++) for (let j = 0; j < SPAN; j++) {
-        const u = i / (SPAN - 1), w = j / (SPAN - 1);
-        for (let a = 0; a < 3; a++) at[o++] = K[0][a] + u * e1[a] + w * e2[a];
-      }
+      sides.set([l1, l2], g * 2);
     }
   });
-  return { X, Y, Z, R, at, gfrom, pfrom, GC, cards };
+  return { X, Y, Z, R, gfrom, cards, rounds, sides };
 }
 // the ways the eye can see a chunk's planes from: each plane's error and share depend on |v.x|, |v.y|, |v.z| alone, so
 // one eighth of the sphere is all of them (a triangle's grid of 325), each as its three planes' weights: plane a draws a
