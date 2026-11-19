@@ -15,6 +15,12 @@ export const FPS = 60;
     4.2 s, the device lost 38 s in). tools/gate/device.js watch keeps every one over it with what it held, in the
     device's run and the walks. unit: ms. source: the master, 2026-11-19 ("no GPU submission over 50 ms") */
 export const SUBMIT_MS = 50;
+/** A submission's own GPU time within the reach of the system's GPU watchdog, which ends the page's device for one so
+    long: one surely this long (however late its done was heard) fails the hour whatever came before it, a lost device
+    waiting to happen (tools/gate/device.js submitRule). unit: ms. source: the master, 2026-11-19 (deployed next at 62 %
+    free: the ledger flat at 1.10 GB while single submissions of the ground's piece pass took 4-7.4 s, and the device was
+    lost; iOS's watchdog is stricter: "any single submission over the watchdog's reach, 1 s or more, surely") */
+export const WATCHDOG_MS = 1000;
 /** The longest one piece of the page's own work may hold its thread: a frame, from its begin to the next one's, with
     what runs between the two (a worker's message, what an await resumes, a timer). Longer, the picture stops, and what
     the GPU has done is heard late (2026-11-19, WebKit, the master's check of 969339e: submissions done 315-403 ms late

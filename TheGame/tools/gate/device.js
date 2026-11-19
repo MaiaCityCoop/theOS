@@ -31,7 +31,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mark } from './wgsl.js';
-import { MACHINE, BUDGET_MB, FRAME_MS, SUBMIT_MS, TASK_MS } from '../../src/core/budget.js';
+import { MACHINE, BUDGET_MB, FRAME_MS, SUBMIT_MS, TASK_MS, WATCHDOG_MS } from '../../src/core/budget.js';
 
 /** In the page, before anything of it runs: the device as the gate sees it. The buffers it makes (net of destroy); what
     each command buffer holds (its passes, where in the page's code each began, each pipeline they used with its draws
@@ -276,6 +276,25 @@ export const submission = (h) => `${h.ms} ms${h.late ? ` (its done heard up to $
 /** The submissions as the board says them (r: the device's run, or a world's walk: what watch kept): the longest with what
     it held, how many were over SUBMIT_MS (how many surely, however late heard), and the next worst with what each held. */
 export const submissions = (r) => `the longest ${r.long ? submission(r.long) : `${r.longest ?? 0} ms`}${r.slow == null ? '' : r.slowN ? `; **${r.slowN} over ${SUBMIT_MS} ms** (budget.js SUBMIT_MS; ${r.sure} surely, however late heard)${r.slow.length > 1 ? `, the next worst: ${r.slow.slice(1, 3).map(submission).join(' | ')}` : ''}` : `; none over ${SUBMIT_MS} ms`}`;
+/** The hour's rule on its submissions (R: the hour's run; was: the last measured hour's run, or null), the device's run
+    and each world's walk alike: it fails where a submission was surely (however late its done was heard) within the
+    watchdog's reach (WATCHDOG_MS: a lost device waiting to happen), or where more were surely over SUBMIT_MS than in the
+    last measured hour (a ratchet, down to none). A part not measured, or measured before the count was kept, holds
+    nothing. { pass, fails, line (the board's) }. */
+export function submitRule(R, was = null) {
+  const parts = (X) => ({ 'the device': X?.device, ...Object.fromEntries(Object.entries(X?.walks ?? {}).map(([w, r]) => [`the walk, ${w}`, r])) });
+  const now = parts(R), then = parts(was), fails = [], counts = [];
+  for (const [k, r] of Object.entries(now)) {
+    if (r?.sure == null) continue;
+    for (const h of (r.slow ?? []).filter((x) => x.ms - x.late >= WATCHDOG_MS)) fails.push(`${k}: a submission surely within the watchdog's reach (${WATCHDOG_MS} ms): ${submission(h)}`);
+    const b = then[k]?.sure;
+    if (b != null && r.sure > b) fails.push(`${k}: ${r.sure} submissions surely over ${SUBMIT_MS} ms, more than the last measured hour's ${b}`);
+    counts.push(`${k} ${r.sure}${b != null ? ` (${b})` : ''}`);
+  }
+  const line = !counts.length ? `The submissions' rule: nothing measured to hold.`
+    : `The submissions' rule (budget.js: none surely within the watchdog's reach, ${WATCHDOG_MS} ms; no more surely over ${SUBMIT_MS} ms than the hour before): ${fails.length ? '**not met**' : 'met'}. Surely over ${SUBMIT_MS} ms: ${counts.join(', ')}${was ? ` (in brackets: the last measured hour, ${was.tag})` : ' (no measured hour before it to hold it against)'}${fails.length ? `. ${fails.join('; ')}` : ''}.`;
+  return { pass: !fails.length, fails, line };
+}
 /** The frames as the board says them (F: window.__game.frames(), src/core/frames.js; since: from when): how many, how
     many longer than TASK_MS, and the slowest with where its time went on the page's thread: its parts, largest first,
     and what lay outside it till the next began (the page's other work: a worker's message, what an await resumes; or
