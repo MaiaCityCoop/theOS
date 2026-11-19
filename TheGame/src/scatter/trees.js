@@ -148,20 +148,27 @@ export { FOOT };   // how deep a plant's foot is set into the ground (assets/kit
 //   G: the group (groupsOf): its layer (the cells, rule.js), the growth map it reads (G.M) and its kinds, each one of
 //      the layer's things (Kd.e: its entry); how tall it stands and which of its shapes, the rule's (rule.js grownIn: a
 //      kind's stages by age, the age its stand's or a sapling's, the plant its stage scaled to its own height)
+// (a kind's numbers in a stand's packing: its entry in its layer, its first shape among the group's, its size on screen
+// to its height; uniforms, as grownIn's (rule.js numbersOf): the stands whose kinds differ only in them pack by one
+// pipeline, each a compile of its own while they were literals)
+const kindNumbers = (Kd) => (Kd.numbers ||= { e: uniform(Kd.e.i, 'int'), offset: uniform(Kd.offset), wide: uniform(Kd.wide) });
+/** Each of a group's shapes' base, a share of its height, in the group's order of shapes (offsets); as long as the
+    largest group's (groupsOf: most), the rest nought, so every group's packing declares it alike. */
+const basesOf = (G) => uniformArray([...G.kinds.flatMap((Kd) => Kd.bases), ...Array(Math.max(0, (G.most ?? 0) - G.kinds.reduce((n, Kd) => n + Kd.bases.length, 0))).fill(0)], 'float');
 function plantIn(c, G, band, all, seen, found) {
   const { L, kinds } = G, cx = c.x, cy = c.y, h0 = (k) => uint(k + L.seed - 300);   // (the layer's seed moves every hash: each layer its own cells)
   const pos = posIn(c, L).toVar(), dist = camDist(pos);
   const range = all ? length(pos.sub(band.at ?? U.uCam.xz)) : dist;   // the shadow's stand-in: metres round the camera, whatever the lens (what is solid: round where it is asked for, band.at)
   const there = range.lessThan(band.far).and(range.greaterThanEqual(band.near));
   If(seen ? there.and(inView(pos, seen.r, seen.high)) : there, () => {   // (seen.r: a uniform, its level's)   // (and in the eye's view: not the shadow's stand-in, whose shade may fall into it)
-    const R = placeIn(c, L, G.M, pos), I = R.I, d = abs(I.x), w = I.y, BASES = (G.bases ||= uniformArray(G.kinds.flatMap((Kd) => Kd.bases), 'float'));   // (each shape's base, a share of its height, in the group's order of shapes: offsets)
+    const R = placeIn(c, L, G.M, pos), I = R.I, d = abs(I.x), w = I.y, BASES = (G.bases ||= basesOf(G));
     const which = float(0).toVar(), h = float(1).toVar(), across = float(1).toVar(), base = float(0).toVar(), hit = float(0).toVar();
     // the kind's own: how large this one is, and which of its shapes (the rule's: rule.js grownIn, as the growth map
     // reckons its crown)
-    kinds.forEach((Kd) => { If(R.k.equal(Kd.e.i), () => {
+    kinds.forEach((Kd) => { const K = kindNumbers(Kd); If(R.k.equal(K.e), () => {
       const T = grownIn(c, L, Kd.e, pos);
-      h.assign(T.h); which.assign(T.shape.add(Kd.offset));
-      across.assign(h.mul(Kd.wide));   // (its size on screen by what its kind measures it by, src/detail sizeOf: a bush is low and wide, its largest side counts. `wide`: that to its height)
+      h.assign(T.h); which.assign(T.shape.add(K.offset));
+      across.assign(h.mul(K.wide));   // (its size on screen by what its kind measures it by, src/detail sizeOf: a bush is low and wide, its largest side counts. `wide`: that to its height)
       base.assign(h.mul(BASES.element(int(which))));   // (how far round its middle what of it covers the ground reaches, its own shape's: assets/kinds.js baseOf)
       hit.assign(1);
     }); });
@@ -779,7 +786,8 @@ export function groupsOf(rows) {
     const lo = (GR ? GR.stages[0].hFrom * P.scale[0] : H * P.scale[0]) * wide, hi = (GR ? Math.max(...a.heights.slice(0, n)) * (last.hTo / last.h) * P.scale[1] : H * P.scale[1]) * wide;
     by.get(key).kinds.push({ row, asset: a, e, shapes: n, wide, bases: Array.from({ length: n }, (_, i) => baseShare(a, i)), age: e.ages, ageScale: grovesOf(e.biome, L).clumps * 2.5, lo, hi, round: (a.size.length / 2) * P.scale[1] * (hi / (H * P.scale[1] * wide)) });
   }
-  return [...by.values()].map((G) => offsets(cutOf({ ...G, kinds: G.kinds.sort((x, y) => x.e.i - y.e.i) })));
+  const groups = [...by.values()].map((G) => offsets(cutOf({ ...G, kinds: G.kinds.sort((x, y) => x.e.i - y.e.i) }))), most = Math.max(0, ...groups.map((G) => G.meshes));
+  return groups.map((G) => ({ ...G, most }));   // (most: the shapes the largest group has: basesOf)
 }
 const offsets = (G) => { let at = 0; return { ...G, kinds: G.kinds.map((Kd) => { const k = { ...Kd, offset: at }; at += Kd.shapes; return k; }), meshes: at }; };
 /** A group's levels cut as one: its kinds' own (everything's levels, src/detail/error.js rungPx), each run of them in
@@ -910,7 +918,7 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     // compiled once (the drawer's kind of tier: one place for them all, the shadow's stand-in another), each telling
     // its own numbers before it packs (table)
     // (seen.r: a crown's reach, and how far the camera may move before the packing is made again: a level's)
-    const seen = { r: uniform(0), high: sHi }, places = new Map();
+    const seen = { r: uniform(0), high: uniform(sHi) }, places = new Map();   // (high: a uniform, so the stands differing only in it pack by one pipeline)
     const placeOf = (g, shadow) => { if (!places.has(g)) places.set(g, (c, { band }, found) => plantIn(c, g, band, shadow, shadow ? null : seen, found)); return places.get(g); };
     const tier = (i, g, shadow = false) => {
       // (P: its level's patch, which says how far the camera may move before it packs again: a sixteenth of it. What it

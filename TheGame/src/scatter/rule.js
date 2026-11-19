@@ -27,7 +27,7 @@
 // and young (its placement's `young`: how much of the ground its saplings cover), in the class of its saplings. Each
 // layer whose cells are as large as the growth map's texels writes what it leaves there for the layers after it.
 import * as THREE from 'three/webgpu';
-import { Fn, If, Loop, float, int, uint, vec2, vec4, ivec2, uniformArray, smoothstep, clamp, mix, max, min, abs, floor, length, dot, pow, log, exp, sqrt, cos, sin, packHalf2x16, unpackHalf2x16 } from 'three/tsl';
+import { Fn, If, Loop, float, int, uint, vec2, vec4, ivec2, uniform, uniformArray, smoothstep, clamp, mix, max, min, abs, floor, length, dot, pow, log, exp, sqrt, cos, sin, packHalf2x16, unpackHalf2x16 } from 'three/tsl';
 import { rnd, vnoise, groveAt, leadAt, riverInfo, shareOf, nearLake } from '../world/land.nodes.js';
 import { U } from '../core/uniforms.js';
 import { scatterRow } from '../../assets/index.js';
@@ -119,8 +119,8 @@ export const posIn = (c, L) => { const h0 = (k) => uint(k + L.seed - 300); retur
     does not grow, its asset's height and a shape at random. pos: where it stands (posIn). Nodes, worked out where the
     thing is known to be e's. */
 export function grownIn(c, L, e, pos) {
-  const a = e.asset, P = a.placement, GR = a.growth, AG = e.ages, n = e.shapes[1], h0 = (k) => uint(k + L.seed - 300), r = rnd(c.x, c.y, h0(312));
-  const own = mix(P.scale[0], P.scale[1], GR && AG ? rnd(c.x, c.y, h0(304)) : pow(rnd(c.x, c.y, h0(304)), 1.3)), h = float(1).toVar(), shape = float(0).toVar();
+  const a = e.asset, GR = a.growth, AG = e.ages, n = e.shapes[1], N = numbersOf(e), h0 = (k) => uint(k + L.seed - 300), r = rnd(c.x, c.y, h0(312));
+  const own = mix(N.lo, N.hi, GR && AG ? rnd(c.x, c.y, h0(304)) : pow(rnd(c.x, c.y, h0(304)), 1.3)), h = float(1).toVar(), shape = float(0).toVar();
   if (GR && AG) {
     const age = (e.young ? mix(AG[0], AG[1], r.mul(r)) : mix(AG[0], AG[1], vnoise(pos.div(grovesOf(e.biome, L).clumps * 2.5), h0(311))).mul(mix(AGED[0], AGED[1], r))).toVar();
     GR.stages.forEach((S, j) => {
@@ -133,9 +133,13 @@ export function grownIn(c, L, e, pos) {
         shape.assign(floor(rnd(c.x, c.y, h0(309)).mul(S.variants)).add(S.offset));
       });
     });
-  } else { h.assign(own.mul(a.size.height)); shape.assign(floor(rnd(c.x, c.y, h0(309)).mul(n)).min(n - 1)); }
+  } else { h.assign(own.mul(N.height)); shape.assign(floor(rnd(c.x, c.y, h0(309)).mul(N.n)).min(N.n.sub(1))); }
   return { h, shape };
 }
+/** Entry e's own numbers as grownIn reads them (its scale's two ends, its asset's height, its shapes), uniforms kept with
+    it: what sizes a thing of it is then code alike for every entry of its sort, and the stands whose kinds differ only in
+    them pack by one pipeline (they were literals: each stand's pass a compile of its own). */
+const numbersOf = (e) => (e.numbers ||= { lo: uniform(e.asset.placement.scale[0]), hi: uniform(e.asset.placement.scale[1]), height: uniform(e.asset.size.height), n: uniform(e.shapes[1]) });
 
 // ---- the light under the crowns: what the growth map's shade is ----
 // The light that comes down to the ground through what stands over it: each crown as large as it is drawn (grownIn,
