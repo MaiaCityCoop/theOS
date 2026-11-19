@@ -170,8 +170,5 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
     compile: () => pages.compile(),
     /** Every page laid again (the land under them changed: the lakes). */
     refresh: () => pages.refresh(),
-    all() { // every node slot filled once, so the first real frame uploads nothing new
-      land.g.instanceCount = 1; water.g.instanceCount = 1; waterMesh.visible = true;
-    },
   };
 }

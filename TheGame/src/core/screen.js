@@ -20,12 +20,20 @@
 // Two of each by turns: the frame before's depth says what has changed place.
 import * as THREE from 'three/webgpu';
 import { note, mark } from './gpu.js';
-import { compileFor } from './compile.js';
+import { compileFor, compileList, made, ask, labelled } from './compile.js';
 import { twinOf } from './pass.js';
 import { U } from './uniforms.js';
 import { ERROR_PX } from '../detail/error.js';
 import { occlusion } from './occlusion.js';
 import { outputRatio } from './output.js';
+
+/** The prepass's target, w × h pixels on `depth`: its motion (rgba16f, `output`), and what drew each pixel (`id`: two
+    numbers of 32 bits: src/core/pass.js drawnId, written by every material's prepass twin, twinOf). */
+export const prepassTarget = (w, h, depth) => {
+  const t = new THREE.RenderTarget(w, h, { samples: 0, type: THREE.HalfFloatType, generateMipmaps: false, depthTexture: depth, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, count: 2 });
+  t.textures[0].name = 'output'; Object.assign(t.textures[1], { name: 'id', type: THREE.UnsignedIntType, format: THREE.RGIntegerFormat });
+  return t;
+};
 
 export function createScreen(renderer, { temporal, lens = null }) {
   let OUT = outputRatio(), inside = OUT, turn = 0;   // (OUT: the canvas's pixel ratio, the output's for this window)
@@ -44,16 +52,34 @@ export function createScreen(renderer, { temporal, lens = null }) {
     if (T?.w !== size.x || T?.h !== size.y) {
       if (T) for (const t of T.turns) { t.pre.dispose(); t.main.dispose(); t.depth.dispose(); }
       const w = size.x, h = size.y, made = (o, depth) => new THREE.RenderTarget(w, h, { samples: 0, type: THREE.HalfFloatType, generateMipmaps: false, depthTexture: depth, ...o });
-      const turns = [0, 1].map(() => { const depth = new THREE.DepthTexture(w, h); return { depth, pre: made({ minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter }, depth), main: made({ minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter }, depth) }; });
+      const turns = [0, 1].map(() => { const depth = new THREE.DepthTexture(w, h); return { depth, pre: prepassTarget(w, h, depth), main: made({ minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter }, depth) }; });
       T = { w, h, turns };
-      note('the picture inside (its colour, motion and depth, two of each)', 2 * w * h * (8 + 8 + 4), 0, 'geometry');   // (what the prepass and the colour draw into)
+      note('the picture inside (its colour, motion, id and depth, two of each)', 2 * w * h * (8 + 8 + 8 + 4), 0, 'geometry');   // (what the prepass and the colour draw into)
     }
     return T.turns[turn];
   };
-  // what each pass draws of an object: its twin for the pass (src/core/pass.js); in the prepass only what takes part
-  const drawObject = renderer.renderObject;
-  const pre = (object, scene, camera, geometry, material, group, lights, clipping, passId) => { const m = material.isNodeMaterial ? twinOf(material).pre : null; if (m) drawObject.call(renderer, object, scene, camera, geometry, m, group, lights, clipping, passId); };
-  const main = (object, scene, camera, geometry, material, group, lights, clipping, passId) => drawObject.call(renderer, object, scene, camera, geometry, material.isNodeMaterial ? twinOf(material).main : material, group, lights, clipping, passId);
+  // what each pass draws of an object: its twin for the pass (src/core/pass.js); in the prepass only what takes part. A
+  // frame draws it once it is made for that pass; until then it is made aside, and left out (src/core/compile.js)
+  const drawObject = renderer.renderObject, twin = { pre: (m) => (m.isNodeMaterial ? twinOf(m).pre : null), main: (m) => (m.isNodeMaterial ? twinOf(m).main : m) };
+  const as = (pass) => (object, scene, camera, geometry, material, ...rest) => { const m = twin[pass](material); if (m) drawObject.call(renderer, object, scene, camera, geometry, m, ...rest); };
+  const route = { pre: as('pre'), main: as('main') };
+  // (what a pass asks for in a frame is made in one compile, for its own target: one maker a pass, camera and scene)
+  const makers = new Map(), makerOf = (pass, camera, scene) => {
+    const k = `${pass} ${camera.id} ${scene.id}`;
+    if (!makers.has(k)) makers.set(k, (list) => compileList(renderer, () => targetsNow()[pass], list, camera, scene, route[pass]));
+    return makers.get(k);
+  };
+  // (drawn in either pass once made for both it takes part in: made for the prepass and not for the colour, its depth
+  // with no colour on it would be a hole the sky shows through)
+  const both = (object, material, camera, scene) => {
+    const pre = twin.pre(material);
+    if ((!pre || made(object, 'pre')) && made(object, 'main')) return true;   // (a frame's own way: two looks)
+    if (pre) ask(object, 'pre', makerOf('pre', camera, scene), labelled(pre, object, 'pre'));
+    ask(object, 'main', makerOf('main', camera, scene), labelled(twin.main(material), object, 'main'));
+    return false;
+  };
+  const drawn = (pass) => (object, scene, camera, geometry, material, ...rest) => { const m = twin[pass](material); if (m && both(object, material, camera, scene)) drawObject.call(renderer, object, scene, camera, geometry, m, ...rest); };
+  const pre = drawn('pre'), main = drawn('main');
   const clear = new THREE.Color(), sky = new THREE.Color(), prepassed = [];
   return {
     get out() { return OUT; }, size: sizeOf,
@@ -69,7 +95,10 @@ export function createScreen(renderer, { temporal, lens = null }) {
         for its own target: the pipelines a frame draws with, compiled side by side, in turn (src/core/compile.js; a
         promise). Compiled for the canvas instead, as the start did until 2026-11-15, every material was compiled twice:
         the canvas's pipelines are not the target's, and the target's were compiled as the first frames drew. */
-    compile(object, camera, scene = null) { return Promise.all([compileFor(renderer, () => targetsNow().pre, object, camera, scene, pre), compileFor(renderer, () => targetsNow().main, object, camera, scene, main)]); },
+    compile(object, camera, scene = null) { return Promise.all(['pre', 'main'].map((pass) => compileFor(renderer, () => targetsNow()[pass], object, camera, scene, route[pass], pass))); },
+    /** What making `object` ahead of need asks (src/core/compile.js ahead): its pipelines for both passes, as `camera`
+        sees it, whether it is drawn now or not. */
+    ahead(object, camera, scene) { const m = [object.material].flat()[0]; for (const pass of ['pre', 'main']) if (m && twin[pass](m)) ask(object, pass, makerOf(pass, camera, scene), labelled(twin[pass](m), object, pass), false); },
     /** What the last frame was laid on the screen from (temporal.resolve's: a tool's timing of the upscale alone). */
     last: null,
     /** fn({ depth, motion, camera, w, h }) after every prepass, before the colour: what reads what the prepass drew, with
@@ -79,6 +108,7 @@ export function createScreen(renderer, { temporal, lens = null }) {
     /** Draw the world as this camera sees it, onto the canvas. */
     render(scene, camera) {
       const t = targetsNow(), was = T.turns[1 - turn], alpha = renderer.getClearAlpha(), clearDepth = renderer.autoClearDepth;
+      U.uFrame.value = (U.uFrame.value + 1) % 4096;   // (the blue noise steps on: src/world/light/noise.js)
       temporal.begin(camera, size.x, size.y);
       // (each part's passes marked as whose they are, for a tool's timing: src/core/gpu.js)
       mark('occlusion'); const culls = occlusion.early(renderer, camera, size.x, size.y, scene);   // (pass one, against the last frame's depth)

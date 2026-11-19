@@ -9,6 +9,7 @@ import CLOUDS from '../../../world/clouds.js';
 import { U } from '../../core/uniforms.js';
 import { uPxK } from '../../detail/measure.js';
 import { tile } from '../tile.js';
+import { drawMade } from '../../core/compile.js';
 
 const nameOf = (c) => CLOUDS.names.filter(([at]) => c >= at).at(-1)[1];
 const billows = (at) => tile('billows', at);   // the baked field they are painted from
@@ -28,16 +29,9 @@ const cloudUV = (xz) => {
 };
 // (the painted field, two takes mixed, is soft: stretched to the full range)
 const cover = (n, soft) => { const th = mix(0.8, 0, U.uClouds); return smoothstep(th.sub(soft[0]), th.add(soft[1]), n.sub(0.5).mul(2.9).add(0.5)); };
-/** The field at a point of the layer, 0 clear … 1 cloud. detail: its finer octaves, for the sky up close; a shadow needs none. */
-export const cloudField = (xz, detail = false) => {
-  const C = cloudUV(xz);
-  let n = mix(billows(C.a).r, billows(C.b).r, 0.45).add(C.region);
-  if (detail) n = n.add(billows(C.a.mul(3.7).add(0.31)).g.sub(0.5).mul(0.12));   // close up, the billows fray the edge (a little: more breaks a cloud into flecks)
-  return cover(n, [0.14, 0.26]);
-};
 /** the clouds' shadow at a point q of their layer (1: none): the field from a small mip of the tile, a shadow being soft and
     wide; what the shadow map below is drawn from */
-export const cloudLayerShade = (q) => {
+const cloudLayerShade = (q) => {
   const C = cloudUV(q), n = mix(billows(C.a).level(4).r, billows(C.b).level(4).r, 0.45).add(C.region);
   return float(1).sub(cover(n, [0.14, 0.24]).mul(0.9));
 };
@@ -73,7 +67,7 @@ function shadowMap(renderer) {
       const s = U.uSunDir.value, k = (CLOUD_H - groundY) / Math.max(s.y, 0.08);
       const cx = Math.round((camera.position.x + s.x * k) / TEXEL) * TEXEL, cz = Math.round((camera.position.z + s.z * k) / TEXEL) * TEXEL;
       U.uCloudMap.value.set(cx - SIZE / 2, cz - SIZE / 2, SIZE);
-      const was = renderer.getRenderTarget(); renderer.setRenderTarget(rt); renderer.render(quad, cam); renderer.setRenderTarget(was);
+      const was = renderer.getRenderTarget(); renderer.setRenderTarget(rt); drawMade(renderer, quad, cam, "the clouds' map"); renderer.setRenderTarget(was);   // (once its pass is made: src/core/compile.js drawMade)
     },
   };
 }

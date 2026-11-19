@@ -272,3 +272,13 @@ html.os-loaded::before, html.os-loaded::after, html.os-loaded body::before, html
 @keyframes os-rise { from { transform: translateY(4px) scale(.96); } to { transform: translateY(-4px) scale(1.04); } }
 @keyframes os-turn { to { rotate: 360deg; } }
 @media (prefers-reduced-motion: reduce) { html.os-loading::after { animation: none; } }
+/* what holds the start up, or stopped the page (brand/loading.js: os:stuck, os:lost): a line under the step, what may
+   help, and a button that reloads; shown only with the veil */
+#os-stuck { display: none; }
+html.os-loading:not(.os-loaded) #os-stuck { display: block; position: fixed; z-index: 99991; left: 50%; top: calc(27% + 150px); width: min(420px, calc(100vw - 32px)); transform: translateX(-50%);
+  text-align: center; font: 400 14px/1.45 var(--sans); color: #fbf6ea; text-shadow: 0 1px 12px rgba(10, 20, 35, .6); }
+#os-stuck p { margin: 0 0 6px; }
+#os-stuck p + p { font-size: 13px; color: rgba(251, 246, 234, .72); }
+#os-stuck button { margin-top: 10px; padding: 9px 20px; border: 1px solid rgba(251, 246, 234, .5); border-radius: 999px; background: rgba(251, 246, 234, .12);
+  font: 500 11px/1 var(--mono); letter-spacing: .18em; text-transform: uppercase; color: #fbf6ea; cursor: pointer; }
+#os-stuck button:hover, #os-stuck button:focus-visible { background: rgba(251, 246, 234, .24); }

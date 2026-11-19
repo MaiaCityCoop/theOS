@@ -6,7 +6,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, int, uint, bool, vec2, vec3, vec4, If, min, uniform, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor, uintBitsToFloat, floatBitsToUint } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { hashI, camDist, BASE } from '../world/land.nodes.js';
-import { finish, skyLight, weathered, cloudAtOne, windAt, windStrength, snowDepth, SNOW } from '../world/light.js';
+import { lit, weathered, windAt, windStrength, snowDepth, SNOW } from '../world/light.js';
 import { passOf, motion, vWas } from '../core/pass.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 import { scatterRow } from '../../assets/index.js';
@@ -44,14 +44,14 @@ export const endOf = (dist) => float(1).sub(smoothstep(U.uMeadowEnd.div(BAND), U
     (bladeIn: 0.2, and 0.55 r and 0.35 c more: their means a half) as bladeMaterial bows it there (0.42 of its bend). What
     the meadow is past its blades: the land raised by it (src/terrain/material.js), its tufts over it (pages.js). */
 export const meanTop = (height) => height * (0.5 + 0.55 / 3 + 0.8 / 3) * (1 - 0.42 * (0.2 + 0.55 / 2 + 0.35 / 2));
-/** How a blade is lit, its colour col (node code): the sun wrapped round it (n: its normal, rounded and softened to the
-    meadow's whole), through it where the eye looks into the sun, and its sheen, the more of each the higher up it the
-    point is (t, 0 at its foot, 1 at its tip); the sky's light on it. sun: the sun's light that reaches it, V the way to
-    the eye. The meadow past its blades is lit by it as they are at their tips, its top (src/terrain/material.js). */
-export const bladeLit = (col, n, V, t, sun) => {
-  const ndl = n.dot(U.uSunDir).mul(0.5).add(0.5), thru = pow(max(V.negate().dot(U.uSunDir), 0), 2).mul(t);   // (light through the blade: the bright yellow-green of a lit meadow)
-  const sheen = pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 20).mul(0.16).mul(t);
-  return col.mul(skyLight(n).mul(t.mul(0.45).add(0.55)).add(sun.mul(ndl.mul(ndl).mul(1.1).add(vec3(0.5, 1, 0.22).mul(thru))))).add(sun.mul(sheen));
+/** How a blade is lit, as the one light takes it (src/world/light.js lit: these are its numbers): the sun wrapped round it
+    (n: its normal, rounded and softened to the meadow's whole: half Lambert, squared), through it where the eye looks
+    into the sun (the bright yellow-green of a lit meadow), and its sheen, the more of each the higher up it the point is
+    (t, 0 at its foot, 1 at its tip); the sky's light on it the more, too. The meadow past its blades is lit by it as they
+    are at their tips, its top (src/terrain/material.js). */
+export const bladeLight = (n, t) => {
+  const hl = n.dot(U.uSunDir).mul(0.5).add(0.5);
+  return { ndl: hl.mul(hl).mul(1.1), through: t, lobe: 2, tint: vec3(0.5, 1, 0.22), sky: t.mul(0.45).add(0.55), gloss: t.mul(0.16), sharp: 20 };
 };
 
 /** The meadow's rings, made from its blade alone (assets/grass.js `blade`), near to far: { segs, cell, P, w, e }. Every
@@ -162,12 +162,14 @@ function bladeMaterial(T) {
       if (passOf(builder) === 'pre') return motion(vWas, 1);   // (the prepass: where it lay a frame ago; a blade is thin)
       const vT = vTS.x, n0 = normalize(vN.add(vSide.mul(vTS.y).mul(0.6)));   // a blade is a little rounded
       const n = normalize(frontFacing.select(n0, n0.negate()).add(vec3(0, 1.4, 0)));   // and a meadow lights as a soft whole
-      const V = normalize(U.uCam.sub(vWorld));
-      const sun = U.uSun.mul(cloudAtOne(vWorld));   // one sample of the shadow map: a blade is too thin for a soft edge to show
-      const onIt = max(clamp(snowDepth.mul(4), 0, 0.4).mul(float(1).sub(smoothstep(0.05, 0.5, vT))), clamp(snowDepth.mul(2.5), 0, 0.6).mul(smoothstep(0.3, 0.8, n0.y.abs())).mul(smoothstep(0.3, 0.8, vT)));   // snow at the foot, and lying on what bows over
-      const col0 = bladeLit(weathered(mix(vCol, SNOW, onIt), n, 9), n, V, vT, sun);
-      const col = vTS.z.greaterThan(0.5).and(vT.greaterThan(0.86)).select(vec3(0.92, 0.92, 0.86).mul(skyLight(n).add(U.uSun.mul(0.7))), col0);
-      return finish(col, vWorld);
+      // a meadow takes the light as a blade does (bladeLight: softly round, the sun through its blades the bright
+      // yellow-green of a lit meadow, a sheen along them); one sample of the shadow map: a blade is too thin for a soft
+      // edge to show. A flower's head (pale, at a blade's tip) takes it plainly
+      const B = bladeLight(n, vT), head = vTS.z.greaterThan(0.5).and(vT.greaterThan(0.86));
+      const onIt = max(clamp(snowDepth.mul(4), 0, 0.4).mul(float(1).sub(smoothstep(0.05, 0.5, vT))), clamp(snowDepth.mul(2.5), 0, 0.6).mul(smoothstep(0.3, 0.8, n0.y.abs())).mul(smoothstep(0.3, 0.8, vT)));   // snow at the foot, and lying on
+      return lit({ colour: head.select(vec3(0.92, 0.92, 0.86), weathered(mix(vCol, SNOW, onIt), n, 9)), n, w: vWorld, how: 'one',
+        ndl: head.select(float(0.7), B.ndl), through: head.select(float(0), B.through), lobe: B.lobe, tint: B.tint,
+        sky: head.select(float(1), B.sky), gloss: head.select(float(0), B.gloss), sharp: B.sharp });
     });
     const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)
     return { m, shape };
@@ -201,13 +203,13 @@ export function createGrass(scene, tex, ground, asset, gpu = false) {
     // leans its tip its height a unit of the wind's push (bladeMaterial: never more than 1.25 of it)
     const wide = R.w * 1.25;
     const bounds = (A, B) => { const h = A.w, reach = h.mul(B.y.add(0.6).mul(1.15)).add(wide + 0.02); return { c: vec3(A.x, A.z.add(h.mul(0.5)), A.y), h: vec3(reach, h.mul(0.5).add(0.02), reach), w: h.mul(1.1) }; };
-    const t = new Tier(scene, blade(R.segs), material, { cell: R.cell, P: R.P, near: 0, far: 0, order: 0, found, select, kind, table: () => { for (const key in P) P[key].value = T[key].value; }, metres: true, gpu, slots: 3, bounds, cls: 'ground' });
+    const t = new Tier(scene, blade(R.segs), material, { cell: R.cell, P: R.P, near: 0, far: 0, order: 0, found, select, kind, table: () => { for (const key in P) P[key].value = T[key].value; }, metres: true, gpu, slots: 3, bounds, cls: 'ground', label: 'the meadow' });   // (its rings one kind: one store, the meadow's)
     t.band = () => {   // (its band as the measure is now: tier.js reckons every tier's again when it changes)
       const N = now(), b = N.bands[k];
       for (const key of ['near', 'nearFade', 'far', 'farFade']) T[key].value = b[key];
       U.uMeadowEnd.value = N.end; t.near = Math.max(0, b.near - b.nearFade); t.far = b.far;
     };
-    t.band();
+    t.band(); t.label(`grass, ring ${k}`);
     if (growthMap()) t.reads = growthMap().version;   // (packed again when what grows over it changes)
     return t;
   });

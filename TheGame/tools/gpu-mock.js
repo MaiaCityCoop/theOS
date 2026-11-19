@@ -17,7 +17,8 @@
 //                             throws
 //     M.compute(node)          -> its code, a compute pass's
 //     M.calls                  with `record`: 'target <id>' and 'render <id>', in order (M.id(o): an object's id there);
-//                             M.drawn: every material or mesh rendered
+//                             M.drawn: every material or mesh rendered, or a mesh compiled on its own (a pass a frame
+//                             draws once it is made: src/core/compile.js drawMade)
 //     M.computed               every compute node the game asked to compile or run
 //     M.tiles                  the world's baked tiles, stood in by one small array texture (src/world/tile.js), and set
 //     lean: the page's GPU for src/core/gpu.js (useGPU): what only the GPU reads made on the device, as the game makes it
@@ -47,18 +48,19 @@ export async function mock({ webgl = false, dpr = 1, record = false, lean = fals
   const backend = { isWebGPUBackend: !webgl, isWebGLBackend: webgl, compatibilityMode: false, parameters: {}, get: () => ({}), device: webgl ? null : device,
     capabilities: { getUniformBufferLimit: () => 65536 }, utils: { getTextureSampleData: () => ({ primarySamples: 1, samples: 1, isMSAA: false }) },
     extensions: { has: () => true, get: () => ({}) }, createNodeBuilder: (o, r) => new Builder(o, r) };
-  let target = null;
+  let target = null, mrt = null;
   const renderer = {
     backend, library: new THREE.StandardNodeLibrary(), nodes: { getCacheKey: () => 0, library: null }, contextNode: TSL.context(), _bindings: undefined,
     debug: { diagnostics: { keywords: false }, onNodeBuilderCreated: null }, info: { render: {}, compute: {}, memory: {}, autoReset: true, reset() {} },
     xr: { enabled: false }, shadowMap: { enabled: false }, lighting: { getNode: () => null }, isOutputTarget: false, highPrecision: false, autoClear: true,
     currentColorSpace: THREE.LinearSRGBColorSpace, outputColorSpace: THREE.LinearSRGBColorSpace, toneMapping: THREE.NoToneMapping,
-    hasFeature: () => true, hasCompatibility: () => false,   // (every feature: every path of the node code is built) getColorBufferType: () => THREE.HalfFloatType, getMRT: () => null, getOutputRenderTarget: () => null, getPixelRatio: () => dpr,
+    hasFeature: () => true, hasCompatibility: () => false,   // (every feature: every path of the node code is built)
+    getColorBufferType: () => THREE.HalfFloatType, getMRT: () => mrt, setMRT: (m) => { mrt = m; }, getOutputRenderTarget: () => null, getPixelRatio: () => dpr,   // (mrt: what a pass writes, src/core/pass.js PRE_OUT)
     size: { W: size[0] * dpr, H: size[1] * dpr }, getDrawingBufferSize: (v) => v.set(renderer.size.W, renderer.size.H), getSize: (v) => v.set(renderer.size.W / dpr, renderer.size.H / dpr), setSize() {}, setPixelRatio() {},
     getRenderTarget: () => target, setRenderTarget: (t) => { target = t; if (record) calls.push(`target ${id(t)}`); },
     render: (o) => { drawn.add(o); if (record) calls.push(`render ${id(o)}`); }, clear() {}, setRenderObjectFunction() {}, getRenderObjectFunction: () => null, setViewport() {}, setScissor() {}, setScissorTest() {}, copyTextureToTexture() {}, copyFramebufferToTexture() {}, setAnimationLoop() {}, dispose() {}, setClearColor() {}, getClearColor: (c) => c, getClearAlpha: () => 1, initRenderTarget() {},
     compileComputeAsync: (passes) => { for (const p of [passes].flat()) computed.add(p); return Promise.resolve(); }, compute: (p) => { for (const n of [p].flat()) computed.add(n); }, computeAsync: (p) => { for (const n of [p].flat()) computed.add(n); return Promise.resolve(); },
-    compileAsync: () => Promise.resolve(), getArrayBufferAsync: () => Promise.resolve(new ArrayBuffer(64)), readRenderTargetPixelsAsync: (t, x, y, w, h) => Promise.resolve(new Uint8Array(Math.max(4, w * h * 4))),
+    compileAsync: (root) => { if (root?.isMesh) drawn.add(root); return Promise.resolve(); },   // (a pass of its own compiled: what a frame draws once it is made, src/core/compile.js drawMade) getArrayBufferAsync: () => Promise.resolve(new ArrayBuffer(64)), readRenderTargetPixelsAsync: (t, x, y, w, h) => Promise.resolve(new Uint8Array(Math.max(4, w * h * 4))),
   };
   renderer.nodes.library = renderer.library;
   const build = (object, material = object.material, { context = null, camera = new THREE.PerspectiveCamera() } = {}) => {
