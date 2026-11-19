@@ -52,7 +52,7 @@ import { recipe, recipes, versionOf } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
 import { kindOf, sizeOf, most } from '../../assets/kinds.js';
 import { levelOf, handOver, sinkInto } from '../detail/handover.js';
-import { createAtlas, bakers, viewClip, tileClip, impostorRead, clumpRead, octEnc, litIn, atlases } from '../detail/impostor.js';
+import { createAtlas, bakers, viewClip, tileClip, impostorRead, clumpRead, facingOf, facingEnc, planeFrame, litIn, atlases } from '../detail/impostor.js';
 import { levelsUnder } from '../detail/atlas.js';
 import { offScreen, clipOf, Tier } from './tier.js';
 import { createDrawer } from './drawer.js';
@@ -379,10 +379,11 @@ function plantMaterial(tex, D) {
           if (pass === 'pre' || pass === 'shadow') return;
           If(shadow.not(), () => {
             // lit as its leaves are, pixel by pixel, their way there turned with the plant and pulled a little towards
-            // the eye (three planes show the leaves that face them edge-on more than the leaves do: HPG 2026's bias)
+            // the eye (three planes show the leaves that face them edge-on more than the leaves do: HPG 2026's bias);
+            // the sun through them as through its cards (lightOn's: no lobe of its own, so it hands over unseen)
             const n = normalize(turnOf(vLit.w).turn(C.normal).add(vEye.mul(0.35))), wrapT = vLit.z, aoT = C.light;
             const ndlT = n.dot(U.uSunDir).add(wrapT).div(wrapT.add(1)).max(0);
-            const LT0 = lightOn({ n, sun: lit ? lit.share : vLit.x, ndl: ndlT.add(lit ? lit.through : vLit.y), ao: aoT }), LT = LT0.sky.add(LT0.sun);
+            const LT0 = lit ? lightOn({ n, w: vW, V: vEye, sun: lit.share, ndl: ndlT, through: vK.z, ao: aoT }) : lightOn({ n, sun: vLit.x, ndl: ndlT.add(vLit.y), ao: aoT }), LT = LT0.sky.add(LT0.sun);
             T.assign(vec4(C.colour.mul(sqrt(LT)), 1));
           });
         }).Else(cards);
@@ -411,7 +412,7 @@ function plantMaterial(tex, D) {
 function impostorMaterial(G, D, Lv, src) {
   const LU = levelOf(Lv, G.fade), LC = { lo: uniform(Lv.lo), hi: uniform(Number.isFinite(Lv.hi) ? Lv.hi : 1e9) }, slot = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.slot ?? 0);
   const vP = varyingProperty('vec3', 'iP'), vE = varyingProperty('vec3', 'iE'), vS = varyingProperty('float', 'iS');
-  const vK = varyingProperty('vec4', 'iK'), vT = varyingProperty('vec3', 'iT'), vAir = varyingProperty('vec4', 'iAir'), vLit = varyingProperty('vec4', 'iLit');
+  const vK = varyingProperty('vec4', 'iK'), vT = varyingProperty('vec3', 'iT'), vX = varyingProperty('vec3', 'iX'), vLit = varyingProperty('vec4', 'iLit');
   const m = new THREE.NodeMaterial();
   m.vertexNode = Fn((builder) => {
     const A = src.readAt(0, slot), B = src.readAt(1, slot), clip = offScreen().toVar(), kind = uint(B.y.add(0.5));
@@ -435,16 +436,17 @@ function impostorMaterial(G, D, Lv, src) {
       vP.assign(unturn(w.sub(c)).div(Rw)); vE.assign(unturn(U.uCam.sub(c)).div(Rw)); vS.assign(share);
       const CELL = atlases().CELL;
       vK.assign(vec4(B.y, clamp(log2(r3.y.mul(CELL).div(r4.w.mul(2).mul(own).max(1e-3))), 0, levelsUnder(CELL)), B.x, Rw));
-      // its light, once for the plant (a few pixels): the sun as it reaches its middle and through its leaves, the air
-      // before it; its own green (as its cards': plantMaterial)
-      const air = airOf(c);
+      // what it is lit by, as its mesh is (standLight): the sun as it reaches its middle, once for the plant (a few
+      // pixels), and its kind's numbers its mesh's corners carry (its leaves' wrap and how much the sun shines through
+      // them, its snow's clumps: numbersOf); its own green (as its cards': plantMaterial)
       vT.assign(mix(vec3(1.07, 1.0, 0.78), vec3(0.86, 0.98, 1.1), B.z.mul(1.1631).fract()).mul(seedOf(B).mul(0.3).add(0.84)).mul(r0.yzw));
-      if (passOf(builder) !== 'shadow') vAir.assign(vec4(air.col, air.k)), vLit.assign(vec4(sunAt(c, 'vertex'), pow(max(d.negate().dot(U.uSunDir), 0), 3).mul(r2.y), r2.x, 0));
+      if (passOf(builder) !== 'shadow') vLit.assign(vec4(sunAt(c, 'vertex'), r2.y, r2.x, D().numOf(kind, 1).w));
       // it sways in the one wind as its mesh does (swayOf), each corner as far as its height up the plant: what it
       // shows is read where it stood still (vP), so its picture leans with the wind as the crown does; and for the
       // prepass, where it was a frame ago
       const up1 = clamp(w.y.sub(A.z).div(s.mul(r0.x)), 0, 1), sway = D().numOf(kind, 1).x, swayed = (time) => { const kk = swayOf(A, B, up1, sway, s, time); return w.add(vec3(kk.x, 0, kk.y)); };
-      clip.assign(clipOf(swayed(U.uTime), swayed(U.uTimeWas)));
+      const now = swayed(U.uTime).toVar(); vX.assign(now);   // (its pixel's point in the world: where it is lit, as its mesh's pixel is)
+      clip.assign(clipOf(now, swayed(U.uTimeWas)));
     });
     return clip;
   })();
@@ -455,12 +457,12 @@ function impostorMaterial(G, D, Lv, src) {
     cut(builder, R.cover.lessThan(0.5).or(handing(float(1).sub(vS))));
     if (passOf(builder) === 'pre') return motion(vWas, R.leaf);   // (a leaf's texel is thin)
     if (passOf(builder) === 'shadow') return out;   // (into a shadow map: its outline)
+    // lit as its mesh is, pixel by pixel (standLight: its leaves' wrap, the sun through them, the sky, the weather, the
+    // air before it; the contact shadows on the sun's part), at its pixel's point, its way as its pictures keep it, the
+    // light that reaches into it as baked: nothing of its own, so it hands over from its mesh unseen
     If(unlit().not(), () => {
-      const col = R.colour, n = turnOf(vK.z).turn(R.normal), ao = R.light, leaf = R.leaf, sd = n.dot(U.uSunDir);
-      const ndl = mix(sd, sd.add(vLit.z).div(vLit.z.add(1)), leaf).max(0);
-      const Lo = lightOn({ n, sun: vLit.x, ndl: ndl.add(vLit.y.mul(leaf)), ao }), L = Lo.sky.add(Lo.sun);
-      const W = weatherOn(n), c = col.mul(col).mul(mix(vec3(1), vT, leaf)).mul(L).mul(W.keep).add(W.add.mul(L));
-      out.assign(vec4(toScreen(c.mul(vAir.w).add(vAir.xyz.mul(float(1).sub(vAir.w)))).rgb, 1));
+      const S = standLight({ w: vX, n0: turnOf(vK.z).turn(R.normal), Ve: normalize(U.uCam.sub(vX)), part: R.leaf, ao: R.light, wrap: vLit.z, shines: vLit.y, clumps: vLit.w, tint: mix(vec3(1), vT, R.leaf), share: vLit.x });
+      out.assign(vec4(toScreen(R.colour.mul(R.colour).mul(S.sky.add(S.sun.mul(contactShade()))).add(S.add)).rgb, 1));
     });
     return out;
   })();
@@ -471,8 +473,7 @@ function impostorMaterial(G, D, Lv, src) {
 // ---- the far ends baked: each shape's impostor and its clumps, each picture from the level of the heap the measure picks
 // at its own size ----
 let BAKING = false;   // (one shape at a time, of every stand: the bakers' targets are one set)
-const BAKED = 2;   // the bake's own version, in what the browser keeps of it (farOf): one more whenever how a far end is baked changes
-const DEEP = 0.5;   // how much darker what an impostor's view shows at the far side of its plant's sphere than at the near
+const BAKED = 3;   // the bake's own version, in what the browser keeps of it (farOf): one more whenever how a far end is baked changes
 /** A stand's far ends (G: its group; D(): its drawer, once made): its two atlases (the impostors' views, a layer a shape,
     VIEWS x VIEWS views of CELL texels a side; its chunks' planes, a layer a shape that has clumps, G.clumpLayer, G.tiles
     tiles of TILE texels a row: the atlases' numbers, src/detail/impostor.js atlases), and what bakes them. Each shape
@@ -541,14 +542,15 @@ function farOf(renderer, tex, G, D) {
     const cap = Math.max(4, ...H.pools.map((p) => (p.io ? Math.max(...Array.from({ length: p.n }, (_, k) => p.io[k + 1] - p.io[k])) : p.idx))), CL = gpuStorage('uint', cap, `plants, ${G.name}: the clumps' corners`, 'geometry');
     const vUv = varyingProperty('vec2', 'bUv'), vPart = varyingProperty('float', 'bPart'), vTwig = varyingProperty('float', 'bTwig'), vN = varyingProperty('vec3', 'bN'), vZ = varyingProperty('float', 'bZ'), vAo = varyingProperty('float', 'bAo');
     const vertexAt = (id) => { const R = heapRow(H, kindU, levelU), e = R.y.add(id.mul(uint(2))), e0 = H.elems.element(e).toVar(), e1 = H.elems.element(e.add(uint(1))).toVar(); return { ...plantOf(e0, e1), tip: crowdOfElems(e0, e1, null).tip }; }, vertex = () => vertexAt(vertexIndex);
-    const pass = (V, z, facing) => { vUv.assign(V.uv); vPart.assign(V.part); vTwig.assign(V.twig); vZ.assign(z); vAo.assign(V.ao); vN.assign(V.normal.dot(facing).lessThan(0).select(V.normal.negate(), V.normal)); };
-    const viewV = Fn(() => { const V = vertex(), P = viewClip(V.position.sub(sphereU.xyz).div(sphereU.w), rowU, A.VIEWS); pass(V, P.z, P.D); return V.part.greaterThan(1.5).select(vec4(0, 0, 2, 1), P.clip); })();   // (a chunk's plane, where its level has them, is no part of a view: behind the far plane)
+    // (its way as its picture keeps it: facing the picture, in the picture's own frame, F: src/detail/impostor.js facingOf)
+    const pass = (V, z, F) => { vUv.assign(V.uv); vPart.assign(V.part); vTwig.assign(V.twig); vZ.assign(z); vAo.assign(V.ao); vN.assign(facingOf(V.normal, F)); };
+    const viewV = Fn(() => { const V = vertex(), P = viewClip(V.position.sub(sphereU.xyz).div(sphereU.w), rowU, A.VIEWS); pass(V, P.z, P.F); return V.part.greaterThan(1.5).select(vec4(0, 0, 2, 1), P.clip); })();   // (a chunk's plane, where its level has them, is no part of a view: behind the far plane)
     const tileV = Fn(() => {
       // (a chunk's plane over its own corners only: its range of the chunks' list, CL, as many corners drawn as its row's
       // largest chunk has, those past its own behind the far plane, not drawn)
       const tile = rowU.mul(G.tiles).add(int(instanceIndex)), c = tile.div(3), a = tile.sub(c.mul(3)), clip = vec4(0, 0, 2, 1).toVar();
       const from = cellsU.element(c.mul(4)).w, many = cellsU.element(c.mul(4).add(1)).w, blo = cellsU.element(c.mul(4).add(2)).xyz, bhi = cellsU.element(c.mul(4).add(3)).xyz;
-      If(c.lessThan(nU).and(vertexIndex.lessThan(uint(many))), () => { const V = vertexAt(CL.node.element(uint(from).add(vertexIndex))), P = tileClip(V.position, blo, bhi, a, float(instanceIndex), G.tiles); pass(V, P.z.mul(2).sub(1), a.equal(0).select(vec3(1, 0, 0), a.equal(1).select(vec3(0, 1, 0), vec3(0, 0, 1)))); clip.assign(P.clip); });
+      If(c.lessThan(nU).and(vertexIndex.lessThan(uint(many))), () => { const V = vertexAt(CL.node.element(uint(from).add(vertexIndex))), P = tileClip(V.position, blo, bhi, a, float(instanceIndex), G.tiles); pass(V, P.z.mul(2).sub(1), planeFrame(a)); clip.assign(P.clip); });
       return clip;
     })();
     const N = (j) => D().numOf(kindU, j), leafA = () => tex.a(floor(vTwig.greaterThan(0.5).select(N(3).x, N(2).z).add(0.5)), vUv).bias(-2);
@@ -558,12 +560,12 @@ function farOf(renderer, tex, G, D) {
         .Else(() => { const W = tex.a(floor(N(2).w.add(0.5)), vUv); out.assign(vec4(W.rgb.mul(mix(0.74, 1, W.a)), 1)); });
       return out;
     })();
-    // (its light, the leaves' own ao; in a view, darker as what shows lies deeper in the plant seen from there, DEEP: far
-    // off no shadow map reaches it, and the hollows between its clusters are what makes a crown read as one)
-    const dataF = (deep) => Fn(() => { If(vPart.greaterThan(0.5), () => { If(leafA().a.lessThan(0.45), () => { Discard(); }); }); return vec4(octEnc(normalize(vN)), vZ.mul(0.5).add(0.5), litIn(vAo.mul(float(1).sub(clamp(float(1).sub(vZ).mul(0.5), 0, 1).mul(deep))), step(0.5, vPart))); })();
+    // (its light: the light that reaches into it, as its mesh has it, the kit's ao; nothing laid on top, so its picture
+    // is lit as its mesh is where it hands over)
+    const dataF = Fn(() => { If(vPart.greaterThan(0.5), () => { If(leafA().a.lessThan(0.45), () => { Discard(); }); }); return vec4(facingEnc(vN), vZ.mul(0.5).add(0.5), litIn(vAo, step(0.5, vPart))); })();
     const mat = (v, f) => { const m = new THREE.NodeMaterial(); m.vertexNode = v; m.fragmentNode = f; m.side = THREE.DoubleSide; return m; };
-    const geo = new THREE.InstancedBufferGeometry(), tgeo = new THREE.InstancedBufferGeometry(), mesh = (g, v, deep) => Object.assign(new THREE.Mesh(g, null), { frustumCulled: false, userData: { materials: [mat(v, colourF), mat(v, dataF(deep))] } });   // (tgeo: no corners of its own, its vertex stage reads them)
-    return (M = { kindU, levelU, rowU, sphereU, nU, cells, CL, geo, tgeo, view: mesh(geo, viewV, DEEP), tile: mesh(tgeo, tileV, 0) });
+    const geo = new THREE.InstancedBufferGeometry(), tgeo = new THREE.InstancedBufferGeometry(), mesh = (g, v) => Object.assign(new THREE.Mesh(g, null), { frustumCulled: false, userData: { materials: [mat(v, colourF), mat(v, dataF)] } });   // (tgeo: no corners of its own, its vertex stage reads them)
+    return (M = { kindU, levelU, rowU, sphereU, nU, cells, CL, geo, tgeo, view: mesh(geo, viewV), tile: mesh(tgeo, tileV) });
   };
   // its numbers, once its pictures are in: its sphere; T, its impostor's error (metres, at scale 1: its views' texel and
   // what their spacing and its parallax misplace, as the crowd kit measured it for these atlases: its far data's sixth

@@ -4,11 +4,12 @@
 // the rest (colour, way, depth, light) as the covered ones are, by how much each covers. Every level's alpha is scaled
 // picture by picture until as much of it is over the cut (0.5) as the picture covers (Castaño 2010): read at any
 // distance and alpha tested, a crown covers what its leaves cover, neither thinning away nor filling in. A texel nothing
-// covers takes its covered neighbours' rest, a few rings out, so nothing wrong is read beside an edge.
+// covers takes its covered neighbours' rest, a few rings out, so nothing wrong is read beside an edge. A texel's way is
+// its picture's own (src/detail/impostor.js facingOf: facing the picture, in its frame, every texel of a picture in the
+// one frame), so the mean of a few is a mean of ways.
 // Plain JS: { id, colour, data, side, cell, least } is answered { id, levels: [{ colour, data, n }] }.
+import { facingCode as enc, facingWay as dec } from './atlas.js';   // (a texel's way and its two numbers: impostor.js facingEnc's twins)
 const N3 = [0, 0, 0], E2 = [0, 0];
-const dec = (u, v, out) => { const x = u * 2 - 1, y = v * 2 - 1, z = 1 - Math.abs(x) - Math.abs(y), k = Math.max(-z, 0), a = x + (x >= 0 ? -k : k), b = y + (y >= 0 ? -k : k), l = Math.hypot(a, b, z) || 1; out[0] = a / l; out[1] = b / l; out[2] = z / l; };   // (octahedral, 0 … 1: src/scatter/unpack.js octDir)
-const enc = (x, y, z, out) => { const l = Math.abs(x) + Math.abs(y) + Math.abs(z) || 1; let u = x / l, v = y / l; if (z < 0) { const u0 = u; u = (1 - Math.abs(v)) * (u0 >= 0 ? 1 : -1); v = (1 - Math.abs(u0)) * (v >= 0 ? 1 : -1); } out[0] = u * 0.5 + 0.5; out[1] = v * 0.5 + 0.5; };
 /** A level as floats a texel: a (cover), c (rgb), m (its way), d (depth), w (light). */
 const level = (n) => ({ n, a: new Float32Array(n * n), c: new Float32Array(n * n * 3), m: new Float32Array(n * n * 3), d: new Float32Array(n * n), w: new Float32Array(n * n) });
 function floatsOf(colour, data, n) {
