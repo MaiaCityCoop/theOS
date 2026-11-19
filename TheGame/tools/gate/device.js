@@ -65,15 +65,40 @@ export function watch(frameMs) {
       q.onSubmittedWorkDone().then(() => { const now = performance.now(), ms = now - Math.max(t, last); last = now; if (ms > frameMs) W.over++; if (ms > W.longest) { W.longest = ms; W.long = held(list, ms, t); } }, () => {});
     };
   };
+  // (every program the device is asked to make, with when, kept apart from W, which every look reads: the first view's,
+  // those made before its first frame showed, are compiled again cold in a blank page, tools/gate/wgsl.js firstView)
+  const CODE = new WeakMap(), MADE = (window.__programs = []);
+  const programs = (dev) => {
+    const mod = dev.createShaderModule.bind(dev);
+    dev.createShaderModule = (d) => { const m = mod(d); CODE.set(m, d?.code); return m; };
+    for (const [fn, kind] of [['createRenderPipelineAsync', 'render'], ['createRenderPipeline', 'render'], ['createComputePipelineAsync', 'compute'], ['createComputePipeline', 'compute']]) {
+      const make = dev[fn].bind(dev);
+      dev[fn] = (d) => { MADE.push({ kind, at: performance.now(), label: d?.label ?? '', codes: kind === 'render' ? [CODE.get(d?.vertex?.module), CODE.get(d?.fragment?.module)] : [CODE.get(d?.compute?.module)] }); return make(d); };
+    }
+  };
   const ask = GPUAdapter.prototype.requestDevice;
   GPUAdapter.prototype.requestDevice = async function (desc) {
     const dev = await ask.call(this, desc);
     dev.lost.then((i) => { W.lost = { at: Math.round(performance.now()), reason: i.reason, message: i.message }; });
     dev.addEventListener?.('uncapturederror', (e) => { if (W.errors.length < 8) W.errors.push(String(e.error?.message).slice(0, 300)); });
-    buffers(dev); encoders(dev); timed(dev);
+    buffers(dev); encoders(dev); timed(dev); programs(dev);
     return dev;
   };
 }
+/** In the page: the programs made before the first frame showed (all, where it never did), each once: { render: [{ label,
+    vertex, fragment }], compute: [{ label, code }], shown (whether it did), made (the pipelines asked before it) }. */
+const firstMade = () => {
+  const end = performance.getEntriesByName('game:first-frame')[0]?.startTime ?? Infinity, seen = new Set(), out = { render: [], compute: [], shown: end < Infinity, made: 0 };
+  for (const p of window.__programs ?? []) {
+    if (p.at > end) continue;
+    out.made++;
+    const k = p.codes.join('\0');
+    if (p.codes.some((c) => c == null) || seen.has(k)) continue;
+    seen.add(k);
+    if (p.kind === 'render') out.render.push({ label: p.label, vertex: p.codes[0], fragment: p.codes[1] }); else out.compute.push({ label: p.label, code: p.codes[0] });
+  }
+  return out;
+};
 /** In the page: the ledger now (src/core/gpu.js), with the gate's own count and the device's state. */
 const look = () => {
   let out = null; try { out = window.__game?.waiting?.() ?? null; } catch (e) { out = { [`waiting() threw: ${e.message}`]: 1 }; }   // (a source that cannot say: said, by name)
@@ -88,7 +113,7 @@ function gpuProcess() {
 /** The device on MACHINE: { ready (s), peak and settled (MB, the ledger's), classes at the peak against BUDGET_MB, the
     largest pools, unnoted, buffers (the gate's own count, at the peak), process (MB, its most), longest submission (ms),
     over (how many took more than FRAME_MS), lost, errors, pass }. url: the game's. */
-export async function device(url, { secs = 60 } = {}) {
+export async function device(url, { secs = 60, programs = false } = {}) {
   const browser = await webkit.launch({ headless: true, ...webkitAt() });
   try {
     const page = await (await browser.newContext({ viewport: { width: MACHINE.width, height: MACHINE.height }, deviceScaleFactor: MACHINE.dpr })).newPage();
@@ -101,6 +126,7 @@ export async function device(url, { secs = 60 } = {}) {
     out.honest = out.buffers == null || out.peak >= out.buffers;   // (the ledger holds at least the buffers the device made)
     out.pass = !out.lost && out.ready != null;
     say(out);
+    if (programs) Object.defineProperty(out, 'programs', { value: await page.evaluate(firstMade).catch(() => null) });   // (programs: the first view's own, handed over, never kept with the run: megabytes of WGSL)
     return out;
   } finally { await browser.close(); }
 }
