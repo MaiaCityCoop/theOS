@@ -56,3 +56,10 @@ export const WATER_RED_ABSORPTION = 0.34;
     (src/terrain/water.js). unit: none. source: Morel & Prieur 1977, "Analysis of variations in ocean color", Limnology
     and Oceanography 22(4): f = 0.33 (after Gordon, Brown & Jacobs 1975), for the sun not low. */
 export const WATER_REFLECTANCE_F = 0.33;
+
+/** How much slower light runs in a leaf's waxy cuticle than in the air: its index of refraction over the visible. What
+    a leaf, a needle, and the litter they make reflect of the light at their surface (src/terrain/material.js: the
+    ground's sheen; soil's minerals stand as near it, quartz 1.54). unit: none (a ratio). source: Feret et al. 2008,
+    "PROSPECT-4 and 5: Advances in the leaf optical properties model separating photosynthetic pigments", Remote Sensing
+    of Environment 112(6): the leaf material's refractive index, about 1.4 to 1.5 across the visible. */
+export const LEAF_CUTICLE_IOR = 1.5;

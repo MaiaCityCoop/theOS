@@ -129,35 +129,34 @@ function pagesNeeded() {
 }
 
 // ---- the stands' relief: a channel of its own (src/terrain/layers.js RELIEF_MOST; none where no stand has one) ----
-/** The bytes a slot's relief takes (with its second mip): half a byte a texel in blocks (BC4), four elsewhere. */
-const reliefBytes = (packed) => (RELIEF_MOST > 0 ? SLOT * SLOT * 1.25 * (packed ? 0.5 : 4) : 0);
+/** The bytes a slot's relief and roughness take (with its second mip): a byte a texel in blocks (BC5), four elsewhere. */
+const reliefBytes = (packed) => SLOT * SLOT * 1.25 * (packed ? 1 : 4);
 /** No stand has a relief: nothing laid, nothing read. */
-const noRelief = () => ({ textures: null, staging: 0, lay() {}, pack() {}, copy() {} });
-/** The relief's channel: its atlas (as the pages', in arrays of PER layers: BC4 where the GPU has blocks, else laid
+/** The relief and roughness channel: its atlas (as the pages', in arrays of PER layers: BC5 where the GPU has blocks, else laid
     straight into it), the layer a batch is laid into, how a texel of it is laid (the stands' relief as a share of the
     highest), and a batch's blocks packed (each mip's rows as long as the first's: a row of either is the 256 bytes a
     copy into a texture asks for) and copied into its slots. */
 function reliefChannel(renderer, { PACKED, SLOTS, PER, laidInto, arrays }) {
-  const RR = PACKED ? arrays(THREE.RED_RGTC1_Format, 8) : [laidInto(SLOTS)], SR = PACKED ? laidInto(BATCH) : RR[0];
+  const RR = PACKED ? arrays(THREE.RED_GREEN_RGTC2_Format, 16) : [laidInto(SLOTS)], SR = PACKED ? laidInto(BATCH) : RR[0];
   const ROW = SLOT / 4, BLOCKS = ROW * ROW + (SLOT / 8) ** 2, RBLOCKS = ROW * ROW + (SLOT / 8) * ROW;
-  const BLR = PACKED ? gpuStorage('uvec2', BATCH * RBLOCKS, "the land's pages: the batch's relief blocks", 'ground') : null, tSR = texture(SR), uB = uniform(0, 'uint');
+  const BLR = PACKED ? gpuStorage('uvec4', BATCH * RBLOCKS, "the land's pages: the batch's relief and roughness blocks", 'ground') : null, tSR = texture(SR), uB = uniform(0, 'uint');
   const kernel = PACKED ? Fn(() => {
     const id = globalId.x, b = id.div(uint(BLOCKS)), k = id.sub(b.mul(uint(BLOCKS)));
     If(b.lessThan(uB), () => {
       const two = k.greaterThanEqual(uint(ROW * ROW)), kk = two.select(k.sub(uint(ROW * ROW)), k), side = two.select(uint(SLOT / 8), uint(ROW)), bx = kk.mod(side), by = kk.div(side), lv = two.select(int(1), int(0));
-      const v = []; for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) v.push(tSR.load(ivec2(int(bx.mul(uint(4)).add(uint(i))), int(by.mul(uint(4)).add(uint(j))))).depth(int(b)).level(lv).x.toVar());
-      const h = steps(v);
-      BLR.node.element(b.mul(uint(RBLOCKS)).add(two.select(uint(ROW * ROW), uint(0))).add(by.mul(uint(ROW))).add(bx)).assign(uvec2(h[0], h[1]));
+      const v = []; for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) v.push(tSR.load(ivec2(int(bx.mul(uint(4)).add(uint(i))), int(by.mul(uint(4)).add(uint(j))))).depth(int(b)).level(lv).toVar());
+      const h = steps(v.map((t) => t.x)), g = steps(v.map((t) => t.y));
+      BLR.node.element(b.mul(uint(RBLOCKS)).add(two.select(uint(ROW * ROW), uint(0))).add(by.mul(uint(ROW))).add(bx)).assign(uvec4(h[0], h[1], g[0], g[1]));
     });
   })().computeKernel([64, 1, 1]) : null;
   return {
     textures: RR.map((t) => texture(t)), staging: PACKED ? BATCH * SLOT * SLOT * 1.25 * 4 : 0,
-    lay(store, mip, at, layer, r) { store(SR, mip, at, layer, vec4(clamp(r.div(RELIEF_MOST), 0, 1), 0, 0, 1)); },
+    lay(store, mip, at, layer, r, rough) { store(SR, mip, at, layer, vec4(clamp(r.div(Math.max(RELIEF_MOST, 1e-3)), 0, 1), clamp(rough, 0, 1), 0, 1)); },
     pack(n) { if (kernel) { uB.value = n; renderer.compute(kernel, [Math.ceil((n * BLOCKS) / 64), 1, 1]); } },
     copy(list, e, gpu) {
       if (!BLR) return;
       const rb = gpu(BLR.attr).buffer;
-      list.forEach((q, b) => [0, 1].forEach((l) => e.copyBufferToTexture({ buffer: rb, offset: (b * RBLOCKS + (l ? ROW * ROW : 0)) * 8, bytesPerRow: ROW * 8, rowsPerImage: ROW >> l }, { texture: gpu(RR[Math.floor(q.slot / PER)]).texture, mipLevel: l, origin: { x: 0, y: 0, z: q.slot % PER } }, { width: SLOT >> l, height: SLOT >> l, depthOrArrayLayers: 1 })));
+      list.forEach((q, b) => [0, 1].forEach((l) => e.copyBufferToTexture({ buffer: rb, offset: (b * RBLOCKS + (l ? ROW * ROW : 0)) * 16, bytesPerRow: ROW * 16, rowsPerImage: ROW >> l }, { texture: gpu(RR[Math.floor(q.slot / PER)]).texture, mipLevel: l, origin: { x: 0, y: 0, z: q.slot % PER } }, { width: SLOT >> l, height: SLOT >> l, depthOrArrayLayers: 1 })));
     },
   };
 }
@@ -176,7 +175,8 @@ export function createPages(renderer, tex) {
   // batch first, and packed into blocks from there. Elsewhere A and N are four bytes a texel each (N with the carpet and
   // the shade in it), 640 pages at the most, laid straight into the atlas. Where the pages asked for do not fit, every
   // pixel asks a little coarser (the bias). And where any stand has a relief (src/terrain/layers.js RELIEF_MOST), a page
-  // holds it too: R (BC4, half a byte a texel; elsewhere four), the stands' relief there as a share of the highest ----
+  // holds it too, and every page its ground's roughness (what its sheen is lit by: material.js): R (BC5, a byte a texel;
+  // elsewhere four), the stands' relief there as a share of the highest, and the roughness ----
   const dev = renderer.backend.device, PACKED = !!dev?.features?.has('texture-compression-bc'), LAYERS_MOST = dev?.limits?.maxTextureArrayLayers ?? 256;
   const SLOT_BYTES = SLOT * SLOT * 1.25 * (PACKED ? 3 : 8) + reliefBytes(PACKED);   // (a page's texels, with its second mip, in its formats: what the note below counts a slot)
   const SLOTS = Math.min(PACKED ? Math.min(2 * LAYERS_MOST, VALID, pagesNeeded()) : Math.min(LAYERS_MOST, 640), Math.floor(roomOf('ground') / SLOT_BYTES)), PER = Math.min(SLOTS, LAYERS_MOST);   // (PER: layers an array; and never more than the ground's class has room for: src/core/budget.js)
@@ -191,7 +191,7 @@ export function createPages(renderer, tex) {
   const arrays = (format, bytes) => Array.from({ length: Math.ceil(SLOTS / PER) }, (_, k) => blocks(format, Math.min(PER, SLOTS - k * PER), bytes));
   const A = PACKED ? arrays(THREE.RGBA_S3TC_DXT5_Format) : [laidInto(SLOTS)], N = PACKED ? arrays(THREE.RED_GREEN_RGTC2_Format) : [laidInto(SLOTS)], X = PACKED ? arrays(THREE.RED_GREEN_RGTC2_Format) : null;
   const SA = PACKED ? laidInto(BATCH) : A[0], SN = PACKED ? laidInto(BATCH) : N[0];   // (where a batch is laid: its own layers, or the atlas's)
-  const RC = (RELIEF_MOST > 0 ? reliefChannel : noRelief)(renderer, { PACKED, SLOTS, PER, laidInto, arrays });   // (the stands' relief: its own channel)
+  const RC = reliefChannel(renderer, { PACKED, SLOTS, PER, laidInto, arrays });   // (the stands' relief: its own channel)
   note("the land's pages", SLOTS * SLOT_BYTES + (PACKED ? BATCH * SLOT * SLOT * 1.25 * 8 : 0) + RC.staging, 0, 'ground');
   const tA = A.map((t) => texture(t)), tN = N.map((t) => texture(t)), tX = X ? X.map((t) => texture(t)) : null, tR = RC.textures;
   // ---- the page table: for each level, its window's pages ----
@@ -277,7 +277,7 @@ export function createPages(renderer, tex) {
       M.c.mulAssign(cavityOf(M.h, M.cv));   // (the depth of its own relief, in its colour: material.js cavityOf)
       const a = vec4(sqrt(clamp(M.c, 0, 1)), clamp(M.h, 0, 1)), n = vec4(clamp(M.n.mul(0.5).add(0.5), 0, 1), clamp(M.cv, 0, 1), clamp(M.shade, 0, 1));
       const layer = PACKED ? int(b) : int(P.w), at = uvec2(x, y);   // (packed: the batch's own layer; else its slot in the atlas)
-      If(two, () => { store(SA, 1, at, layer, a); store(SN, 1, at, layer, n); RC.lay(store, 1, at, layer, M.r); }).Else(() => { store(SA, 0, at, layer, a); store(SN, 0, at, layer, n); RC.lay(store, 0, at, layer, M.r); });
+      If(two, () => { store(SA, 1, at, layer, a); store(SN, 1, at, layer, n); RC.lay(store, 1, at, layer, M.r, M.rough); }).Else(() => { store(SA, 0, at, layer, a); store(SN, 0, at, layer, n); RC.lay(store, 0, at, layer, M.r, M.rough); });
     });
   })().computeKernel([8, 8, 1]);
   // the batch packed into blocks (src/materials/bake.js steps, colours), a block of 4 × 4 texels a thread: of each page,
@@ -698,7 +698,6 @@ export function createPages(renderer, tex) {
         pass: one measure v2 measures a plant against it there). Every level coarser than the one asked at p is in
         (a page's parents come first). 0 where no stand has one. Node code. */
     relief(p, dx, dy, d) {
-      if (!tR) return float(0);
       const F = this.found(p, dx, dy, d, { lod: true }), r = float(0).toVar();
       If(F.s1.greaterThanEqual(0), () => {
         F.inArray(F.s1, (j, layer) => { r.assign(F.at(tR[j], F.inPage(p, F.l1), layer).x); });
@@ -736,16 +735,16 @@ export function createPages(renderer, tex) {
         });
       }
       const texel = (slot, lv) => {
-        const P = inPage(q, lv), ra = vec4(0).toVar(), rn = vec4(0).toVar();
-        inArray(slot, (j, layer) => { const n = at(tN[j], P, layer); ra.assign(at(tA[j], P, layer)); rn.assign(tX ? vec4(n.xy, at(tX[j], P, layer).xy) : n); });
-        return { a: ra, n: rn };
+        const P = inPage(q, lv), ra = vec4(0).toVar(), rn = vec4(0).toVar(), rr = float(1).toVar();
+        inArray(slot, (j, layer) => { const n = at(tN[j], P, layer); ra.assign(at(tA[j], P, layer)); rn.assign(tX ? vec4(n.xy, at(tX[j], P, layer).xy) : n); rr.assign(at(tR[j], P, layer).y); });
+        return { a: ra, n: rn, r: rr };
       };
-      const a = vec4(0.3, 0.3, 0.27, 0.5).toVar(), n = vec4(0.5, 0.5, 0, 0).toVar();   // (nothing in yet: a plain ground)
+      const a = vec4(0.3, 0.3, 0.27, 0.5).toVar(), n = vec4(0.5, 0.5, 0, 0).toVar(), rough = float(1).toVar();   // (nothing in yet: a plain ground)
       If(s1.greaterThanEqual(0), () => {
-        const R = texel(s1, l1); a.assign(R.a); n.assign(R.n);
-        If(w1.lessThan(1).and(s2.greaterThanEqual(0)), () => { const Q = texel(s2, l2); a.assign(mix(Q.a, a, w1)); n.assign(mix(Q.n, n, w1)); });
+        const R = texel(s1, l1); a.assign(R.a); n.assign(R.n); rough.assign(R.r);
+        If(w1.lessThan(1).and(s2.greaterThanEqual(0)), () => { const Q = texel(s2, l2); a.assign(mix(Q.a, a, w1)); n.assign(mix(Q.n, n, w1)); rough.assign(mix(Q.r, rough, w1)); });
       });
-      return { c: a.rgb.mul(a.rgb), h: a.a, n: n.xy.mul(2).sub(1), cv: n.z, shade: n.w };
+      return { c: a.rgb.mul(a.rgb), h: a.a, n: n.xy.mul(2).sub(1), cv: n.z, shade: n.w, rough };
     },
   });
 }

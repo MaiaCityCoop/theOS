@@ -105,7 +105,7 @@ export function wear(p, s, M, read) {
     // its height: trodden down in the middle (its own grain kept, flatter), a lip of soil pushed up along each edge
     const lip = smoothstep(0.55, 0.95, c).mul(float(1).sub(smoothstep(1.0, 1.35, c))).mul(0.22);
     const h = mix(B.h.mul(0.8), A.h.mul(0.6).add(0.08), dirt).add(lip);
-    M.c.assign(mix(M.c, col, worn)); M.n.assign(mix(M.n, nrm, worn)); M.h.assign(mix(M.h, h, worn));
+    M.c.assign(mix(M.c, col, worn)); M.n.assign(mix(M.n, nrm, worn)); M.h.assign(mix(M.h, h, worn)); if (M.rough) M.rough.assign(mix(M.rough, mix(B.r, A.r, dirt), worn));   // (and its roughness, the dirt's and the crumbs')
     // no carpet on it, and a thinner one along its edge (trampled)
     M.cv.assign(M.cv.mul(float(1).sub(worn)).mul(mix(0.55, 1, smoothstep(0.1, 0.9, e))));
   });

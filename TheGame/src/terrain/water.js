@@ -22,17 +22,15 @@
 //     src/core/temporal.js; a frame late, which does not show on water), marched on that frame's screen; where it meets
 //     nothing there, the sky along it.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec2, vec3, vec4, varying, attribute, abs, max, min, clamp, mix, smoothstep, length, normalize, pow, fract, sqrt, exp, refract, reflect, If, Discard, Loop, Break, int, ivec2, uniform, texture, screenCoordinate, cameraProjectionMatrix, cameraFar, ceil, log2, dFdx, dFdy } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, varying, attribute, abs, max, min, clamp, mix, smoothstep, length, normalize, pow, fract, sqrt, exp, refract, reflect, If, Discard, Loop, Break, int, ivec2, uniform, texture, screenCoordinate, cameraProjectionMatrix, cameraFar, ceil, log2 } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { riverInfo, riverRaw, riverCarve, riverBank, baseB, WATER_DROP_N, lakeAt } from '../world/land.nodes.js';
-import { toScreen, airOf, lightOn, sunAt, windDir, windStrength } from '../world/light.js';
+import { toScreen, airOf, lightOn, sunAt, windDir, windStrength, fresnel, sunGlint } from '../world/light.js';
 import { skyAlong } from '../world/sky/dome.js';
 import { blueAt } from '../world/light/noise.js';
 import { gridPoint, GRID } from './material.js';
 import { WATER } from '../world/biomes.js';
 import { WATER_IOR, WATER_RED_ABSORPTION, WATER_REFLECTANCE_F } from '../world/physics.js';
-import { SUN_DIAMETER } from '../world/light/physics.js';
-import { NDF_FILTER_VARIANCE, NDF_FILTER_MOST } from '../core/method.js';
 import { FRAME_MS_BY_CLASS } from '../core/budget.js';
 import { ownGpuMs, pace, spentSince } from '../core/pace.js';
 import { CLASSES } from '../core/classes.js';
@@ -42,7 +40,7 @@ const water = WATER;
 /** What a water surface reflects of light meeting it at cos θ = c from the air (Fresnel's equations, unpolarized; n its
     index of refraction): numbers in JS, nodes in node code. */
 const reflectsJS = (c, n) => { const t = Math.sqrt(Math.max(0, 1 - (1 - c * c) / (n * n))), s = (c - n * t) / (c + n * t), p = (t - n * c) / (t + n * c); return (s * s + p * p) / 2; };
-const reflects = (c, n) => { const t = sqrt(max(float(1).sub(float(1).sub(c.mul(c)).div(n * n)), 0)), s = c.sub(t.mul(n)).div(c.add(t.mul(n))), p = t.sub(c.mul(n)).div(t.add(c.mul(n))); return s.mul(s).add(p.mul(p)).mul(0.5); };
+const reflects = fresnel;
 /** What it reflects of the sky's light, which comes from every way over it (cosine-weighted over the half-sphere). */
 const SKY_REFLECTED = (() => { let r = 0; const N = 256; for (let i = 0; i < N; i++) { const th = ((i + 0.5) / N) * (Math.PI / 2); r += reflectsJS(Math.cos(th), WATER_IOR) * 2 * Math.cos(th) * Math.sin(th) * (Math.PI / 2 / N); } return r; })();
 /** What the water takes away of each colour along a metre of it (m⁻¹): from its own colour, R∞ (what an endless depth of
@@ -145,13 +143,9 @@ export function waterMaterials(tex) {
     // ---- at the surface: what it reflects (Fresnel's, from water's index of refraction) ----
     const F = reflects(max(n.dot(V), 1e-3), WATER_IOR).toVar();
     const R = reflect(V.negate(), n), sky = skyAlong(normalize(vec3(R.x, abs(R.y), R.z)));   // (a ray a wave turns down is the sky's, as it is turned back up off the next)
-    // the sun's glint: GGX (Smith's shadowing) over the pixel's own normal, its roughness the sun's disc (its half-way
-    // way within a quarter of its width) and what of the ripples the pixel cannot show; Fresnel at the half-way way; the
-    // sun's light as the one light's (U.uSun times π, a Lambert surface's convention: the π of GGX's normalization out)
-    const H = normalize(V.add(U.uSunDir)), nh = max(n.dot(H), 0), nv = max(n.dot(V), 1e-3), nl = max(n.dot(U.uSunDir), 0);
-    const dn = dFdx(n), dm = dFdy(n), a2 = min(float((SUN_DIAMETER / 4) ** 2).add(min(dn.dot(dn).add(dm.dot(dm)).mul(2 * NDF_FILTER_VARIANCE), NDF_FILTER_MOST)), 1);
-    const g1 = (x) => x.mul(2).div(x.add(sqrt(a2.add(float(1).sub(a2).mul(x.mul(x)))))), lobe = nh.mul(nh).mul(a2.sub(1)).add(1);
-    const glint = U.uSun.mul(sunAt(vWorld)).mul(reflects(max(V.dot(H), 1e-3), WATER_IOR)).mul(a2.div(lobe.mul(lobe))).mul(g1(nv).mul(g1(nl))).div(nv.mul(4));
+    // the sun's glint: a microfacet mirror's (src/world/light.js sunGlint: the sun's disc, what of the ripples the pixel
+    // cannot show), at water's index
+    const glint = U.uSun.mul(sunAt(vWorld)).mul(sunGlint(n, V, float(0), WATER_IOR));
 
     // ---- under it: the bed as the picture has it, through the water ----
     // the light's way down to the bed (the sun's, refracted) and the eye's way back up (the refracted view's): what the

@@ -12,11 +12,11 @@ import { BAND } from '../detail/error.js';
 import { camDist, riverInfo, riverNear, heightAt, baseB, roofAt, hashI, BASE } from '../world/land.nodes.js';
 import { OCT_LAM, OCT_AMP } from '../world/land.js';
 import { layerOf, standOf, standFade, canopyShownAt, CARPET, SLOPES, NO_STAND, SHADE_REACH, CROWNS, RELIEF_MOST } from './layers.js';
-import { lit, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
+import { lit, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW, sunGlint, glintOf } from '../world/light.js';
 import { passOf, motion } from '../core/pass.js';
 import { endOf, bladeLight, tuftShade, underShade, meadowSeen } from '../scatter/grass.js';
 import { reliefShares, reliefOverSnow } from './relief.js';
-import { SOIL_RELIEF } from '../world/physics.js';
+import { SOIL_RELIEF, LEAF_CUTICLE_IOR } from '../world/physics.js';
 
 export const GRID = 16, NODE = 8;   // quads per node side; a level-0 node's side, metres (its reach is the measure's: U.uLandR0, src/terrain/terrain.js)
 /** How many times as far every level of the land reaches but the last (whose reach is where the land ends): 1, and under
@@ -58,7 +58,7 @@ const CELL = 2;   // a hexagon's size in tiles
     other blur more than one: the ground near the eye kept as sharp as a read of the material itself). */
 const mipOf = (s, tile) => log2(max(s.mul(1024).div(tile), 1e-6)).sub(0.5);
 export function groundRead(tex, m, p, s, tile) {
-  const q = p.div(tile), lv = mipOf(s, tile).toVar(), c = vec3(0).toVar(), h = float(0).toVar(), n = vec2(0).toVar();
+  const q = p.div(tile), lv = mipOf(s, tile).toVar(), c = vec3(0).toVar(), h = float(0).toVar(), n = vec2(0).toVar(), r = float(0).toVar();
   const hx = q.mul((2 * Math.sqrt(3)) / CELL), sk = vec2(hx.x.sub(hx.y.mul(0.57735027)), hx.y.mul(1.15470054)), base = floor(sk), f = sk.sub(base);
   const z = float(1).sub(f.x).sub(f.y), up = z.lessThan(0).select(float(1), float(0)), sg = up.mul(2).sub(1);
   const w = vec3(z.negate().mul(sg), up.sub(f.y.mul(sg)), up.sub(f.x.mul(sg))).toVar(), w2 = w.mul(w), b0 = w2.mul(w2).mul(w2).mul(w);   // (each hexagon's nearness to the 7th: a sharp blend)
@@ -68,11 +68,11 @@ export function groundRead(tex, m, p, s, tile) {
     If(bi.greaterThan(0.02), () => {   // (a hexagon all but out of the blend: not read)
       const v = base.add(corners[i]), r = hashI(int(v.x), int(v.y), uint(91)), uv = q.add(vec2(float(r.bitAnd(uint(0xffff))), float(r.shiftRight(uint(16)))).mul(1 / 65536));
       const a = tex.a(m, uv).level(lv), k = bi.mul(a.a.mul(0.6).add(0.4));   // (the higher texel weighs more: Mikkelsen's contrast, by height)
-      c.addAssign(a.rgb.mul(a.rgb).mul(k)); h.addAssign(a.a.mul(k)); n.addAssign(tex.n(m, uv).level(lv).xy.mul(2).sub(1).mul(k)); sum.addAssign(k);
+      c.addAssign(a.rgb.mul(a.rgb).mul(k)); h.addAssign(a.a.mul(k)); n.addAssign(tex.n(m, uv).level(lv).xy.mul(2).sub(1).mul(k)); r.addAssign(tex.r(m, uv, null, null, lv).mul(k)); sum.addAssign(k);
     });
   }
-  const inv = float(1).div(max(sum, 1e-5)); c.mulAssign(inv); h.mulAssign(inv); n.mulAssign(inv);
-  return { c, h, n };
+  const inv = float(1).div(max(sum, 1e-5)); c.mulAssign(inv); h.mulAssign(inv); n.mulAssign(inv); r.mulAssign(inv);
+  return { c, h, n, r };
 }
 
 /** How steep the land is at p, its normal's y, as the ground's mesh has it seen from D metres off (its vertex stage:
@@ -96,7 +96,7 @@ export function laid(tex, p, s, D, X) {
   // the higher material wins at the seam: B laid over M, t of it (and what showed of the carpet is covered as much)
   const blend = (M, B, t) => {
     const k0 = clamp(t.sub(0.5).mul(3).add(0.5).add(B.h.sub(M.h).mul(0.8)), 0, 1), k = k0.mul(k0).mul(float(3).sub(k0.mul(2)));
-    M.c.assign(mix(M.c, B.c, k)); M.h.assign(mix(M.h, B.h, k)); M.n.assign(mix(M.n, B.n, k)); M.g.assign(M.g.mul(float(1).sub(k)));
+    M.c.assign(mix(M.c, B.c, k)); M.h.assign(mix(M.h, B.h, k)); M.n.assign(mix(M.n, B.n, k)); M.r.assign(mix(M.r, B.r, k)); M.g.assign(M.g.mul(float(1).sub(k)));
   };
   // the grass as a carpet, at three sizes: blades near, tufts further, drifts of them from high up (each read only where
   // it shows: the blades' within 110 m, the drifts' past 300); its cover the map's: where the meadow's blades stand,
@@ -108,8 +108,8 @@ export function laid(tex, p, s, D, X) {
   const cv = cover.mul(mix(1, 0.82, blades)).toVar();
   const pr = rot(p), prr = rotB(p);
   const gk = smoothstep(25, 110, D), gk2 = smoothstep(300, 1400, D), grows = cv.greaterThan(0.002);
-  const ga2 = float(0.5).toVar(), gn2 = vec2(0.5).toVar(), g1a = float(0).toVar(), gn1 = vec2(0).toVar(), g3a = float(0).toVar();
-  If(grows, () => { const lv = mipOf(s, 9.6); ga2.assign(tex.a(carpet, pr.div(9.6)).level(lv).a); gn2.assign(tex.n(carpet, pr.div(9.6)).level(lv).xy); });
+  const gr2 = float(1).toVar(), ga2 = float(0.5).toVar(), gn2 = vec2(0.5).toVar(), g1a = float(0).toVar(), gn1 = vec2(0).toVar(), g3a = float(0).toVar();
+  If(grows, () => { const lv = mipOf(s, 9.6); ga2.assign(tex.a(carpet, pr.div(9.6)).level(lv).a); gn2.assign(tex.n(carpet, pr.div(9.6)).level(lv).xy); gr2.assign(tex.r(carpet, pr.div(9.6), null, null, lv)); });
   If(grows.and(gk.lessThan(1)), () => { const lv = mipOf(s, 1.6); g1a.assign(tex.a(carpet, p.div(1.6)).level(lv).a); gn1.assign(tex.n(carpet, p.div(1.6)).level(lv).xy.mul(2).sub(1)); });
   If(grows.and(gk2.greaterThan(0)), () => { g3a.assign(groundRead(tex, carpet, prr, s, 57).h); });
   const glum = mix(mix(g1a, ga2, gk), mix(ga2, g3a, 0.6), gk2).toVar();
@@ -120,12 +120,12 @@ export function laid(tex, p, s, D, X) {
   // own as a texel holds one, the mean as it holds many: its spread as a mean of (s / 0.6)² tufts'); its texture its
   // relief alone, the height and the normal the blades stand in)
   const tuft = float(0.5).add(tuftShade(p).sub(0.5).mul(float(0.6).div(s.max(0.6))));
-  const grass = (M) => { M.c.assign(mix(M.c, X.tint.mul(float(0.875).add(tuft.mul(0.35)).div(1.05)), cv)); M.n.assign(mix(M.n, gnrm.mul(1.4), cv)); M.h.assign(mix(M.h, glum, cv)); M.g.assign(cv); };
+  const grass = (M) => { M.r.assign(mix(M.r, gr2, cv)); M.c.assign(mix(M.c, X.tint.mul(float(0.875).add(tuft.mul(0.35)).div(1.05)), cv)); M.n.assign(mix(M.n, gnrm.mul(1.4), cv)); M.h.assign(mix(M.h, glum, cv)); M.g.assign(cv); };
 
   // the layers, in the order they are laid: each its share of what lies under it (its share over the shares so far),
   // let go with distance where it says (not the lowest: nothing lies under it); the slope's rock as much as the texel's
   // slope says; the grass's carpet before the first layer laid over it
-  const M = { c: vec3(0.25).toVar(), h: float(0.5).toVar(), n: vec2(0).toVar(), g: float(0).toVar() }, under = float(0).toVar(), carpeted = int(0).toVar();
+  const M = { c: vec3(0.25).toVar(), h: float(0.5).toVar(), n: vec2(0).toVar(), g: float(0).toVar(), r: float(1).toVar() }, under = float(0).toVar(), carpeted = int(0).toVar();
   const pick = (i, key) => X.slots.slice(1).reduce((v, sl, j) => i.equal(j + 1).select(sl[key], v), X.slots[0][key]);
   Loop(X.slots.length, ({ i }) => {
     const id = pick(i, 'id'), sw = pick(i, 'w');
@@ -161,7 +161,7 @@ export function laid(tex, p, s, D, X) {
     });
   });
   M.c.mulAssign(X.macro.add(1));   // the land's colour variation, from the baked cloudy noise
-  return { c: M.c, h: M.h, n: M.n, cv: M.g, shade, r: relief };
+  return { c: M.c, h: M.h, n: M.n, cv: M.g, shade, r: relief, rough: M.r };
 }
 /** How much of the light reaches a texel of the ground for its own relief, h its height: what lies low (the gaps
     between stones, a crack) sits in its neighbours' shade; the grass's carpet less (its blades are drawn over it, cv its
@@ -281,7 +281,12 @@ export function terrainMaterial(vt) {
     // (under a cloud the sky is dimmer too: the clouds' shade read once, for both; wet, it shines)
     const colour = weathered(mix(c.mul(mix(1, 0.5, wet)), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9).toVar();
     const sun = cs.mul(sunDim()).mul(shadowAt(vWorld)).mul(float(1).sub(shade)).toVar();
-    const ground = lit({ colour, n, w: vWorld, sun, ndl: sunl, sky: cs.mul(0.3).add(0.7).mul(float(1).sub(shade.mul(0.35))), gloss: wet.mul(0.3), sharp: 48 });
+    // its sheen: the sun off its surface as a microfacet surface reflects it (src/world/light.js sunGlint), at a leaf's
+    // cuticle's index (its needles' and leaves' wax; soil's minerals stand as near it), its roughness its materials' as
+    // the page laid them (α = roughness², GGX's); and wet, the water's film on it as before
+    const Vg = normalize(U.uCam.sub(vWorld)), ra = G.rough.mul(G.rough);
+    const glint = sunGlint(n, Vg, ra.mul(ra), LEAF_CUTICLE_IOR).add(glintOf(n, Vg, wet.mul(0.3), 48));
+    const ground = lit({ colour, n, w: vWorld, sun, ndl: sunl, sky: cs.mul(0.3).add(0.7).mul(float(1).sub(shade.mul(0.35))), glint });
     // (past the meadow's blades the carpet is their aggregate, lit as they are where the eye meets them (meadowSeen: at
     // their tips along the ground): src/scatter/grass.js bladeLight; the ground's own light where it is bare, under snow
     // or under the blades)

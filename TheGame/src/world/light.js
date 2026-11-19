@@ -6,8 +6,9 @@
 // to the shared lanes (wet, fog, dim), and what each does to a surface (`surface`: the snow lying on it). What is one
 // condition's own (the snow's depth, the wind's push, the clouds' shade) is that condition's code, handed on from here,
 // so a material asks the contract and no file but the condition's holds it.
-import { Fn, float, int, vec2, vec3, vec4, ivec2, If, Loop, Break, mix, exp, pow, smoothstep, fract, floor, dot, max, min, clamp, length, normalize, cos, sin, screenCoordinate } from 'three/tsl';
+import { Fn, float, int, vec2, vec3, vec4, ivec2, If, Loop, Break, sqrt, dFdx, dFdy, mix, exp, pow, smoothstep, fract, floor, dot, max, min, clamp, length, normalize, cos, sin, screenCoordinate } from 'three/tsl';
 import { U } from '../core/uniforms.js';
+import { NDF_FILTER_VARIANCE, NDF_FILTER_MOST } from '../core/method.js';
 import { passOf } from '../core/pass.js';
 import { lane } from './weather/lanes.js';
 import { surfaceHooks, airHooks } from './weather/index.js';
@@ -262,6 +263,20 @@ export const lightOn = (s) => {
     ndl: how its reflecting side faces the sun (the highlight goes with it). */
 /** A highlight's own share of the sun's light where it is (lightOn's spec less that light): off ns (the way it is
     reflected from), seen from V, as bright and as tight as gloss and sharp. */
+/** What a smooth dielectric surface reflects of light meeting it at cos θ = c from the air (Fresnel's equations,
+    unpolarized; n its index of refraction): node code. */
+export const fresnel = (c, n) => { const t = sqrt(max(float(1).sub(float(1).sub(c.mul(c)).div(n * n)), 0)), s = c.sub(t.mul(n)).div(c.add(t.mul(n))), p = t.sub(c.mul(n)).div(t.add(c.mul(n))); return s.mul(s).add(p.mul(p)).mul(0.5); };
+/** The sun's glint off a microfacet surface of index n (GGX, Smith's shadowing) at the pixel's own way ns, seen from
+    V: its roughness α² (a2) and the sun's disc (its half-way way within a quarter of its width: the sun is no point)
+    and what of the surface's slopes the pixel cannot show (the way's change across it: Tokuyoshi & Kaplanyan 2019,
+    src/core/method.js), Fresnel at the half-way way. The share of the sun's light it sends to the eye (lightOn's
+    glint: times the sun's light there; the π of GGX's normalization out, a Lambert surface's convention). */
+export const sunGlint = (ns, V, a2, n) => {
+  const H = normalize(V.add(U.uSunDir)), nh = max(ns.dot(H), 0), nv = max(ns.dot(V), 1e-3), nl = max(ns.dot(U.uSunDir), 0);
+  const dn = dFdx(ns), dm = dFdy(ns), A = min(float(a2).add((SUN_DIAMETER / 4) ** 2).add(min(dn.dot(dn).add(dm.dot(dm)).mul(2 * NDF_FILTER_VARIANCE), NDF_FILTER_MOST)), 1).toVar();
+  const g1 = (x) => x.mul(2).div(x.add(sqrt(A.add(float(1).sub(A).mul(x.mul(x)))))), lobe = nh.mul(nh).mul(A.sub(1)).add(1);
+  return fresnel(max(V.dot(H), 1e-3), n).mul(A.div(lobe.mul(lobe))).mul(g1(nv).mul(g1(nl))).div(nv.mul(4));
+};
 export const glintOf = (ns, V, gloss, sharp = 40) => pow(max(ns.dot(normalize(V.add(U.uSunDir))), 0), sharp).mul(gloss);
 export const shineOf = (rough, ndl) => ({ gloss: float(1).sub(rough).mul(0.5).mul(ndl), sharp: mix(60, 6, rough) });
 /** A surface lit and seen through the air, for the screen: { colour (its own, linear), extra (light of another kind on
