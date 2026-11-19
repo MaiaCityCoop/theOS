@@ -705,7 +705,7 @@ export function createPages(renderer, tex) {
       });
       return r.mul(RELIEF_MOST);
     },
-    read(p, dx, dy, d, { eye = null, lod = false, level = null } = {}) {
+    read(p, dx, dy, d, { eye = null, lod = false, level = null, withRough = false } = {}) {
       const { s1, l1, w1, s2, l2, inPage, at, inArray } = this.found(p, dx, dy, d, { lod, level });
       // ---- parallax (as much as reliefShares says: from where the relief near the eye lets go until the flat ground is
       // within the one error): the ground's own height (h, 0 … 1, the land's at 0.5, SOIL_RELIEF from lowest to highest),
@@ -736,7 +736,7 @@ export function createPages(renderer, tex) {
       }
       const texel = (slot, lv) => {
         const P = inPage(q, lv), ra = vec4(0).toVar(), rn = vec4(0).toVar(), rr = float(1).toVar();
-        inArray(slot, (j, layer) => { const n = at(tN[j], P, layer); ra.assign(at(tA[j], P, layer)); rn.assign(tX ? vec4(n.xy, at(tX[j], P, layer).xy) : n); rr.assign(at(tR[j], P, layer).y); });
+        inArray(slot, (j, layer) => { const n = at(tN[j], P, layer); ra.assign(at(tA[j], P, layer)); rn.assign(tX ? vec4(n.xy, at(tX[j], P, layer).xy) : n); if (withRough) rr.assign(at(tR[j], P, layer).y); });   // (its roughness where it is asked for: the land's light alone)
         return { a: ra, n: rn, r: rr };
       };
       const a = vec4(0.3, 0.3, 0.27, 0.5).toVar(), n = vec4(0.5, 0.5, 0, 0).toVar(), rough = float(1).toVar();   // (nothing in yet: a plain ground)

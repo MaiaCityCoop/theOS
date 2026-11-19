@@ -249,7 +249,7 @@ export function terrainMaterial(vt) {
     const p = vWorld.xz, [dx, dy] = steps(p);
     const rdist = length(vWorld.sub(U.uCam)), dist2 = rdist.mul(U.uLodInv);   // the true distance (for the air), and the lens's (for detail)
     const d = abs(vI.x), w = vI.y;
-    const G = vt.read(p, dx, dy, rdist, { eye: normalize(U.uCam.sub(vWorld)), level: by(vWorld, [dx, dy]) });   // (along the eye's ray through the ground's relief: parallax)
+    const G = vt.read(p, dx, dy, rdist, { eye: normalize(U.uCam.sub(vWorld)), level: by(vWorld, [dx, dy]), withRough: true });   // (along the eye's ray through the ground's relief: parallax)
     // where the meadow's blades stand, what shows between them is their lower halves, as dark to their tips as a blade
     // is (src/scatter/grass.js underShade), drawn over it; as they thin out towards its end it comes out of it (their own
     // share at the pixel's distance: endOf), what a field of them shows from where the eye is then: their tips along
