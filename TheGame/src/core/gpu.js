@@ -122,6 +122,37 @@ export function byDial(name, cls, bytes, again = true) {
   if (V > 0 && raiseRest(was * Math.sqrt((BAND * (V + W)) / (B - F)))) { const k = (was / restDial()) ** 2; for (const t of BY_DIAL.values()) t.bytes *= k; }   // (each store's need at the new dial, by the same rule, till it says its own there: none counted at the old one)
   return restDial();
 }
+// ---- the start's plan: what is made once, its need said before any of it is made ----
+// What is made once at the start and sized by the dial at rest (the growth map, the land's lists, the ground's maps, the
+// rocks' meshes, a fixed pool: src/core/pool.js) says its need as a function of that dial before anything of it is made
+// (plan); then the plan is solved once (planDial, src/boot.js: after the measure is kept, before the first of them is
+// made): the finest dial at rest at which every class holds what is planned for it, a BAND to spare (what follows the
+// dial as the camera moves, the tiers and the land's lists, grows into it), beside what it holds already. One solve, not
+// one a make: made one after another, the first saw only itself and took its class (2026-11-19, ?truth at 0: the growth
+// map 832 of geometry's 1024 MB). A need need not go as one over the dial squared: the dial is found by halving.
+const PLANS = new Map();   // (name -> its class, its need at a dial, the pool it lies in if it is one)
+/** `name` (class cls) needs need(d) bytes at the dial at rest d (a number: the same at any); pool: the pool it lies in
+    ('shapes' | 'rows', src/core/pool.js), if it is a pool's. Said before anything of it is made. */
+export const plan = (name, cls, need, pool = null) => void PLANS.set(name, { cls, need: typeof need === 'function' ? need : () => need, pool });
+/** The plan solved, once: the dial at rest raised to the finest at which every class holds what is planned for it, a
+    BAND to spare, beside what it holds already (where nothing planned follows the dial, none: said, counted). -> the
+    pools' sizes at it, bytes (`${cls}|${pool}`: what is planned into each, a BAND of it). */
+export function planDial() {
+  const needs = (d) => { const by = {}; for (const P of PLANS.values()) by[P.cls] = (by[P.cls] ?? 0) + P.need(d); return by; };
+  const fits = (d) => Object.entries(needs(d)).every(([cls, v]) => BAND * v + Math.max(heldBy(cls), MADE[cls] ?? 0) <= budgetOf(cls) * MB);
+  if (PLANS.size && !fits(restDial())) {
+    let lo = restDial(), hi = Math.max(lo, 1e-3);
+    while (!fits(hi) && hi < 1e6) hi *= 2;   // (a dial that holds it: twice as coarse till one does)
+    if (!fits(hi)) for (const [cls, v] of Object.entries(needs(hi))) past(cls, 'what is planned at the start, at any dial', BAND * v + Math.max(heldBy(cls), MADE[cls] ?? 0), budgetOf(cls), true);
+    else { if (!(lo > 0)) lo = hi / 2 ** 20; while (hi / lo > 1 + 1e-4) { const m = Math.sqrt(lo * hi); if (fits(m)) hi = m; else lo = m; } raiseRest(hi); }
+  }
+  const sizes = new Map();
+  for (const P of PLANS.values()) if (P.pool) { const k = `${P.cls}|${P.pool}`; sizes.set(k, (sizes.get(k) ?? 0) + BAND * P.need(restDial())); }
+  return sizes;
+}
+/** A promise: all the GPU was handed before now done (none without a device: at once). What lets a page of a pool go
+    to another (src/core/pool.js), as retire lets a buffer go. */
+export const gpuDone = () => R?.backend?.device?.queue?.onSubmittedWorkDone?.() ?? Promise.resolve();
 /** A make that took `who` (a class, or the whole GPU) past its budget (MB), `by` (the pool, or what the device was asked
     to make) holding `bytes` there then: said once a class and maker (once: once a class, whatever made it first; the
     one tally's check, held and counted below, says it so), loudly, and counted; what was made is kept, so nothing

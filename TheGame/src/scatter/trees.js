@@ -53,7 +53,8 @@ import { recipe, recipes, versionOf } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
 import { kindOf, sizeOf, most } from '../../assets/kinds.js';
 import { levelOf, levelOfMesh, handOver, sinkInto } from '../detail/handover.js';
-import { createAtlas, bakers, viewClip, tileClip, impostorRead, clumpRead, facingOf, facingEnc, planeFrame, litIn, atlases, pictureOf } from '../detail/impostor.js';
+import { createAtlas, bakers, viewClip, tileClip, impostorRead, clumpRead, facingOf, facingEnc, planeFrame, litIn, atlases, atlasesAt, ATLAS_SHARES, pictureOf } from '../detail/impostor.js';
+import { shippedRooms } from '../core/outlines.js';
 import { levelsUnder, PICTURES } from '../detail/atlas.js';
 import { offScreen, clipOf, Tier } from './tier.js';
 import { createDrawer, pool } from './drawer.js';
@@ -68,6 +69,7 @@ import { wayAt, waysVersion } from '../world/ways.js';
 import { pxOf, turnOf, seedOf } from './row.js';
 import { levelOf as crowdLevelOf, RULE } from '../../assets/kit/crowd.js';
 import { crowdOf, bandsOf, baseShare, goneOf, GRID, GOQ, GO0, FOOT } from '../../assets/kit/plant.js';
+import { jobDone } from '../../assets/kit/job.js';
 import { ringsOf, bandsOf as ringBands } from './grass.js';
 import { lo16, hi16 } from './unpack.js';
 import { farMost, pxKMost, measureVersion, dialPxAt } from '../detail/measure.js';
@@ -863,6 +865,10 @@ const patchOf = (cell, reach) => Math.min(256, Math.max(4, 2 ** Math.ceil(Math.l
 export function outlinesAhead(world = true) {
   const A = world ? atlases() : null, kinds = world ? recipes('asset').filter((a) => a.outlineFor && !a.roomsKnown(A)) : [];
   if (!kinds.length) return Promise.resolve();
+  // (the build reckons every tree kind's rooms for each class's atlases, tools/outlines.js: one it has not is a recipe
+  // changed since the build, or atlases no class of device has, and its start reckons them in the workers, 0.4 GB a
+  // worker: said loudly, never measured in silence. Safari reloaded the page for it, 2026-11-19)
+  (import.meta.env?.PROD ? console.error : console.warn)(`plants: the build's outlines.json has no rooms of ${kinds.length} tree kind${kinds.length > 1 ? 's' : ''} for this device's atlases (${A.key}): ${kinds.map((a) => `${a.name} (${shippedRooms(a, atlasesAt(ATLAS_SHARES.at(-1))) ? 'baked for other atlases' : 'not baked: changed since the build'})`).join(', ')}: reckoned now in the recipes' workers`);
   const ask = pool(), plain = { ...A };
   return Promise.all(kinds.map((a) => ask([['outline', a.uid, plain]]).then(([o]) => a.takeOutline(A, o), (e) => console.warn(`plants: the workers could not reckon '${a.name}': reckoned here`, e))));
 }
@@ -1064,6 +1070,7 @@ function standBodies(G, KINDS, ground, renderer) {
 export function treeSample(tex, row, x = 0, y = 0, z = 0, s = 1, form = 0, px = null) {
   // (its whole crowd as one mesh, its last parts kept: it wears no clumps and has no impostor, it is seen near)
   const a = row.asset, S = crowdOf(a, form, atlases()), M = crowdLevelOf(S, 0, Infinity, { keep: true, clumps: false }), g = new THREE.BufferGeometry();
+  jobDone();   // (what the kit built for it let go: M is its own, assets/kit/job.js)
   const four = (f) => { const a = new Float32Array(M.count * 4); for (let v = 0; v < M.count; v++) a.set(f(v), v * 4); return new THREE.BufferAttribute(a, 4); };
   for (const [k, w] of [['position', 3], ['normal', 3], ['uv', 2], ['cn', 3], ['root', 3]]) g.setAttribute(k, new THREE.BufferAttribute(M[k], w));
   g.setAttribute('partAo', four((v) => [M.part[v], M.ao[v], M.twig[v], 0]));

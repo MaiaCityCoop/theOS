@@ -24,5 +24,5 @@ const sizeMost = () => (SIZE ||= Math.max(1, ...recipes('asset').filter((a) => a
     68° lens sees them. */
 export const farthest = () => farFor(GONE, sizeMost());
 /** The most farthest() can be on this screen (its most pixels, the dial at rest: measure.js farMost): what is made once
-    is made for it. */
-export const farthestMost = () => farMost(GONE, sizeMost());
+    is made for it. dial: another than the page's least (what holds its own: the land, src/terrain/terrain.js). */
+export const farthestMost = (dial) => farMost(GONE, sizeMost(), dial);

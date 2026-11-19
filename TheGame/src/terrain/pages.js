@@ -61,7 +61,7 @@ const ANISO = 4, FADE = 10, BATCH = 16;   // the filter's steps along a slope; f
 // a block of SWEEP × SWEEP pixels asks once a frame, the finest of `takes` of them: no wider than a page's border on
 // either side, so at the finest's level (a pixel there about a texel) every pixel of it lies within the finest's page and
 // its border, or the page across the edge it is asked with
-const SWEEP = 2 * BORDER;
+export const SWEEP = 2 * BORDER;
 const G0 = SLOT / MAPN + 2, G1 = SLOT / 2 / MAPN + 2, POINTS = G0 * G0 + G1 * G1;   // the layer map's points a page has a side, for its first mip and its second; all of them
 // (the bias, in quarter levels over the whole pyramid: chosen where what is asked for fits the slots, chosen again where
 // what is kept does not; between the two, its own step: a quarter level coarser, √2 fewer pages)
@@ -74,9 +74,12 @@ const sideOf = (m) => PAGE * S0 * 2 ** m;   // a page's side at level m, metres
 // spread out
 const BITS = Math.log2(SWEEP), SEQ = []; for (let y = 0; y < SWEEP; y++) for (let x = 0; x < SWEEP; x++) { let v = 0; for (let k = 0; k < BITS; k++) v |= ((((x ^ y) >> k) & 1) << (2 * BITS - 1 - 2 * k)) | (((y >> k) & 1) << (2 * BITS - 2 - 2 * k)); SEQ[v] = [x, y]; }
 const stampOf = (f) => (f % 31) + 1;   // (what a pixel's ask is marked with: its frame, 1 … 31)
+/** A pixel's own level (its footprint's, unbiased, fractional), its steps to its neighbours' points lx and ly metres
+    long (as footprint, in JS). */
+export const rawOf = (lx, ly) => Math.log2(Math.max(Math.max(lx, ly) / ANISO, Math.min(lx, ly)) / S0);
 /** The level a pixel reads whose own level is `raw` (its footprint's, unbiased), at bias b: half a level finer than its
     footprint, and the bias (as biasAt, in JS). */
-const levelOf = (raw, b) => Math.min(TOP, Math.max(0, Math.floor(raw + b - 0.5)));
+export const levelOf = (raw, b) => Math.min(TOP, Math.max(0, Math.floor(raw + b - 0.5)));
 
 // ---- how many pages the land needs: what the pixels ask for, by the asks' own rule, at the most pixels a canvas has ----
 // Over open flat land (nothing on it hides any of it), at the most pixels a canvas has on this device (src/core/output.js
@@ -110,7 +113,7 @@ function pagesNeeded() {
     for (let by = 0; by < H; by += SWEEP) for (let b = 0; b < W + across - SWEEP; b += across) {
       const px = Math.min(b, W - SWEEP) + SWEEP / 2, py = Math.min(H - 1, by + SWEEP - 0.5);   // (its finest pixel: its nearest row's)
       if (!ground(px, py, p) || !ground(px + 1, py, qx) || !ground(px, py + 1, qy)) continue;
-      const lx = Math.hypot(qx[0] - p[0], qx[1] - p[1]), ly = Math.hypot(qy[0] - p[0], qy[1] - p[1]), raw = Math.log2(Math.max(Math.max(lx, ly) / ANISO, Math.min(lx, ly)) / S0), L = levelOf(raw, 0);
+      const lx = Math.hypot(qx[0] - p[0], qx[1] - p[1]), ly = Math.hypot(qy[0] - p[0], qy[1] - p[1]), raw = rawOf(lx, ly), L = levelOf(raw, 0);
       finest = Math.min(finest, L);
       const s = sideOf(L), i = Math.floor(p[0] / s), j = Math.floor(p[1] / s), e = (2 ** (raw - L) * 0.5 * ANISO) / PAGE, fx = p[0] / s - i, fz = p[1] / s - j;
       for (const a of [0, fx < e ? -1 : fx > 1 - e ? 1 : 0]) for (const d of [0, fz < e ? -1 : fz > 1 - e ? 1 : 0]) {
@@ -682,14 +685,14 @@ export function createPages(renderer, tex) {
         level the pixel wants, or the finest in over it; while a page fades in, the one under it with it. eye: the way
         to the eye from p (normalized): the ground's own height is then seen along it (parallax: below). lod: read where
         there are no steps to read by (the land's vertex stage, raising it near the eye: src/terrain/material.js), at the
-        mip they call for. level: the steps its level goes by, where not dx, dy (the raised ground's: material.js). ->
+        mip they call for. ->
         { c: its colour (linear), h: its height, n: its relief (the normal's x, z), cv: the carpet's share, shade: the
         stands' } */
     /** The page at p for those steps (as read: the level they want, or the finest in over it; while it fades in, the one
         under it): { s1, l1, w1 (how far it has faded in), s2, l2, inPage (where a point lies in a page of a level, and
         the steps there), at (a read of a texture with them; lod: at the mip they call for), inArray }. Node code. */
-    found(p, dx, dy, d, { lod = false, level = null } = {}) {
-      const u = { WIN, uFrame }, m0 = (level ? this.level(level[0], level[1], d) : this.level(dx, dy, d)).toVar(), bias = this.biasAt(d).toVar();
+    found(p, dx, dy, d, { lod = false } = {}) {
+      const u = { WIN, uFrame }, m0 = this.level(dx, dy, d).toVar(), bias = this.biasAt(d).toVar();
       const sideAt = (lv) => exp2(float(lv)).mul(PAGE * S0), pageAt = (lv) => ivec2(floor(p.div(sideAt(lv))));
       // the finest page in for that level or over it, and while it fades in, the one under it
       const s1 = int(-1).toVar(), l1 = int(0).toVar(), w1 = float(1).toVar(), s2 = int(-1).toVar(), l2 = int(0).toVar();
@@ -729,8 +732,8 @@ export function createPages(renderer, tex) {
       });
       return r.mul(RELIEF_MOST);
     },
-    read(p, dx, dy, d, { eye = null, lod = false, level = null } = {}) {
-      const { s1, l1, w1, s2, l2, inPage, at, inArray } = this.found(p, dx, dy, d, { lod, level });
+    read(p, dx, dy, d, { eye = null, lod = false } = {}) {
+      const { s1, l1, w1, s2, l2, inPage, at, inArray } = this.found(p, dx, dy, d, { lod });
       // ---- parallax (as much as reliefShares says: from where the relief near the eye lets go until the flat ground is
       // within the one error): the ground's own height (h, 0 … 1, the land's at 0.5, SOIL_RELIEF from lowest to highest),
       // the soil's (not the grass's carpet: its blades stand over it), what of it stands out of the snow, seen along

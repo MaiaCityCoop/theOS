@@ -181,7 +181,125 @@ numbers are written below.
 
 **Out of scope:** new assets, the body's look (0036, waiting on Samuel's pick), the Bible (0037), and the story pipeline.
 
-## Where we left off (2026-11-18): read this first to take over
+## Handover for a fresh agent (2026-11-19 12:45): start here, no other context needed
+
+**Stopped on purpose:** Samuel's usage ran out, so every worker session was told to stop. Nothing is running except the
+merge watcher. Pick up from here with no other background.
+
+**What the game is:** TheGame (this repo's `TheGame/`) is a WebGPU open world (land, forests, grass, water, a tent camp)
+on three.js, running in Safari and Chrome on Macs and iPhones. Live build: https://play.next.maia.city (next deploys itself
+from `main`). `?hud` shows the frame, memory and settle readout on any device; the build id is at the top right.
+
+**The target architecture (one clean design):**
+1. **One error dial** (ERROR_PX, measured at the drawn rows) decides every level of detail. `?truth` is the same pipeline
+   at dial 0, not a mode.
+2. **One budget from the device** (src/core/budget.js, the only home of numbers): GPU memory by class (geometry, ground,
+   light, upscale/post, other). The Mac case is 2048 MB. An iPhone tab may hold 1.5 GB in all (WebKit's documented
+   WebContent limit, with WebGPU billed to it), so the phone gets 768 MB today.
+3. **Fixed pools, not stores sized from read-backs:** one pool per class, sized once at boot by a plan step (every
+   made-once part registers need(dial); one solve; then make). Plants and rocks live in 64 KB pages, streamed by priority
+   (dial pixels of error removed per byte), the least important evicted first, coarse roots always resident. Nothing
+   vanishes; it only coarsens. Memory is flat from frame 1. Full design: `research_notes/0038-fixed-pools.md`.
+4. **One pacing rule** (src/core/pace.js): every job that spreads over frames is held to its class's share of the 12 ms
+   frame by the GPU's own timestamps, never under one whole unit a frame, and no submission over 50 ms.
+5. **Data lives once:** workers hand results over and let them go; nothing is kept on the page that is on the GPU.
+
+**Next steps, in order (each a small PR, merged on green CPU CI, then checked on next):**
+1. **Mac reload and phone memory:** PR #398 (ready; check it on a device after merge): bake
+   outlines.json and crowds.bin for every device class's atlases, and fail the build if one is missing. Without it, next
+   measures outlines at runtime and Safari reloads the page for memory.
+2. **Trees missing at the phone's share** even after #385 (the rest dial is sane at 2.27): bisect main 48c7e58 → 289c988
+   → current at share 0.375 (force it with a 1 GiB adapter stand-in), logging the rest dial, each tree level's band, and
+   draws. Things must coarsen with the dial, never vanish. Lead (draw path, 12:50): the trees' bands are sane on the CPU and
+   nothing is out, so suspect the stand tiers holding 0 regions after the rest dial rises (#373's store turn in tier.js).
+3. **Fixed pools:** stage 1 is PR #396 (pool.js, plan/planDial). Then, in parallel and in separate files: the made-once
+   stores plan themselves (growth map, land lists, ground maps, rocks; started on draft branch aven/0038-made-once-plan
+   8bab8ee9: the rocks' meshes planned, the rest not, verified only by lint and smoke); stage 2, the heap's shapes into pages (heap.js,
+   drawer.js feed); stage 4, the resident tiers into region pages with no swap (tier.js). Prove each with storecheck walks at
+   share 1 and 0.375: memory flat, zero layouts, no frame drawn short.
+4. **Water missing on the phone,** and the tent appearing and disappearing: check after step 3 (both were memory-starved).
+5. **The page's own memory** (WebKit's pages held up to 3.26 GB; frames stalled 2.5 s outside the frame): measure
+   WebContent while settling, workers against the main heap against GC, and cut the largest.
+6. Then 60 fps per-pass ceilings (`gate.js bench --ratchet`), and quality items (Todo).
+
+**Open PRs:** #379 and #382 (the start waits only for wanted far ends; bakes kept by shape). Both are **red in CI**: the far
+tier's gather binds 10 storage buffers against the limit of 8 (#379's T0 and WANT buffers). The fix is to read the wanted
+shapes from the far tiers' own bucket counts (a Tier.found), drop the T0/WANT buffers and want(), and set T.farEnd in
+drawer.js, applying the same change to far.js on #382. It was written but left uncommitted on the MacBook (worktree
+0038-cold-start-6e5ccd, branch aven/0038-far-wanted): commit and push it there, or redo it.
+Also: #392 (the pool
+design doc); #394 (the ground's level per smooth surface); #396 (pool stage 1). Drafts #255, #256, #265, #275 need a GPU
+look.
+
+**How to work here:** branch `aven/0038-*`; one PR a change; a root cause, not a patch; no reverts (fix forward);
+`bun tools/gate.js` and the CPU proofs in `TheGame/tools/` before pushing; GPU runs only under `tools/gpu/lock.js`
+(the Mac mini has 8 GB and swaps: numbers are valid only with the game's footprint free).
+
+## Where we stand (2026-11-19 12:30): read this first to take over
+
+The master is `0038 master · avenMAIA MacMini`; it alone edits this file. Workers ship PRs on `aven/0038-*`; a watcher merges every
+ready PR on green CPU CI; next deploys itself; the GPU judges main once an hour (`gate.js hourly`, first in the lock queue since #390).
+About 120 PRs merged on 2026-11-19 (#285–#394). This section is the state; Build below keeps the history.
+
+### Decisions in force
+- **Fix forward into the new architecture, no reverts** (Samuel). Root causes only; each fix says its root in the PR.
+- **Storage moves to fixed pools with priority streaming** (`research_notes/0038-fixed-pools.md`, #392). The root of the day's
+  bugs is a store sized from what the GPU found and read back: blink loops, first-come squeeze, re-lay loops while walking,
+  memory spikes. One pool per class, sized once from the device budget by a plan step (plan/planDial); 64 KB pages, scattered,
+  behind a table; priority = dial pixels of error removed per byte; coarse roots pinned, so nothing vanishes, it only coarsens.
+  Six stages, each shippable: 1 pools and plan (9a); 2 heap shapes into pages (draw path); 3 own-patch tiers; 4 resident tiers
+  without the swap (9a); 5 the dial as the threshold; 6 the ground pool and the rocks' meshes.
+- **The budget comes from the device** (#340, #347): WebKit's maxBufferSize marks the class; the Mac case stays 2048 MB.
+  iPhone: PHONE_SHARE 0.375 (768 MB), sourced to Samuel's iPhone dying at 1.07 GB with a 1.00 GiB adapter. The documented
+  limit is the Safari tab's WebContent process, 1.5 GB soft / 2 GB hard, with WebGPU memory billed to it (WebKit 322890@main,
+  d9844889, 298851@main); the phone budget is to become that limit minus the page's own, once the page's own is measured.
+- **The one dial is also the memory knob** (#361, #373, #378): stores take their need at the rest dial; when a class would
+  overflow the dial rises (with a BAND to spare). Superseded by the pools' plan step as stage 1 lands.
+- **The measure counts the drawn rows** (#370, reversing the earlier "output rows"), held by BAND so small governor steps
+  move no switch. The governor judges the GPU's own time only (#311).
+- **Characters are out of scope** except where the stress world needs them (Samuel).
+- **Every number in budget.js** (Define's table, #300) is read, never copied: FRAME_MS_BY_CLASS, SUBMIT_MS 50, WATCHDOG_MS,
+  TASK_MS, GPU_MB, BUDGET_MB, MAC_BUFFER, PHONE_BUFFER, PHONE_SHARE, JOURNAL_MB.
+
+### Where it stands (measured)
+- **Mac mini, WebKit Retina** (hourly on ba6bea3, 10:15): ready 6.9 s by the game's own mark (#384; the gate's poll had said 10.1);
+  device lived; GPU peak 1.33 GB; but 166 of 294 frames after ready over 50 ms, the slowest 2.7 s mostly outside the frame,
+  with WebKit's pages up to 3.26 GB.
+- **The page's own memory is the main lever now.** A recipes worker costs ~90 MB to exist and peaks ~0.4 GB more on a tree job;
+  #386 lets a job's caches go. On Samuel's MacBook (4663909) Safari still reloaded the page for memory, its journal showing the
+  workers measuring outlines at runtime: the build's bake is not reaching next (one measure v2, open).
+- **iPhone** (Samuel, 2026-11-19): no reload loop since #358; tent back, then missing again; grass partial; water missing; the
+  world empty of trees at the phone's share even after #385 (draw path bisecting, with the rest dial's bands as the lead).
+- **The GPU clock** reads real time since #387 (an empty pass writes no timestamps on Apple GPUs); #383 had stopped zero stamps
+  doubling every paced job each frame in WebKit.
+
+### Open, with owners
+| What | Owner |
+| --- | --- |
+| Outlines measured at runtime on next (the bake not used); make a missing bake loud in CI | one measure v2 |
+| CI must catch an empty world (workers given the game's preload; every first-view drawer asks and puts) | one measure v2 |
+| Trees absent at the phone's share (bisect 48c7e58 → 289c988, rest-dial bands) | draw path |
+| Fixed pools stage 1 (pool.js, plan/planDial, storecheck, tier.js kindPx) | 9a |
+| Fixed pools stage 2 (heap shapes into pages) after stage 1 | draw path |
+| The page's own memory on the device (what WebContent holds; GC stalls) | gate |
+| The phone's start: #379 (wait only for wanted far ends), #382 (bakes kept by shape); GPU check queued | cold start / draw path |
+| Per-pass GPU ms in ?hud (#393), then the largest fixed per-frame pass by need | cold start |
+| One shared page-level read for the land and the GROUND drawers (after #394) | ground |
+| The ground drafts #255/#256/#265 (canopy, river ripples): one GPU look queued | ground |
+| `?truth` as dial 0: stage 1 merged (#388); stage 2 waits for the plan step | 9a |
+| Open quality items (Todo): the crowns' sub-pixel wood coverage; the sheen's roughness source (#275) | parked |
+
+### Tools to take over with
+- `?hud` on any device: fps, draws, made of budget, waiting on memory, settled or what is out, GPU ms per pass (#380, #393).
+- The last-start note on the veil: after a kill, what the last run held and its last three steps (#338, #362), plus the build
+  id at the top right (#354).
+- `tools/gpu/lock.js` (one GPU at a time; `--first` for the hour), `tools/gate.js` (hourly, device, walks, wgsl, bench),
+  `tools/census.js` (first view), storecheck / pagecheck / mergecheck / levelcheck (CPU proofs), `fresh.js` (stale generated
+  files fail CI), `tools/gate/limits.json` (binding limits).
+- The Mac mini (8 GB) swaps under its many sessions: GPU numbers are only valid with ≥ the game's measured footprint free
+  (#317); the MacBook's GPU is Samuel's, one run at a time and never while he works.
+
+## Where we left off (2026-11-18), superseded by the section above
 
 ### Tasks: the live board (master: `0038 master · avenMAIA MacMini`; updated 2026-11-18 21:10)
 
