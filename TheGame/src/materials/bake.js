@@ -23,11 +23,12 @@
 import * as THREE from 'three/webgpu';
 import { Fn, If, vec2, vec3, vec4, uv, float, uint, uvec2, uvec4, ivec2, uniform, sqrt, clamp, normalize, texture, textureLoad, property, outputStruct, instancedArray, instanceIndex, min, max, dot, round, select, uniformArray, int, renderGroup } from 'three/tsl';
 import { recipes } from '../core/registry.js';
-import { note } from '../core/gpu.js';
+import { note, makeOwned } from '../core/gpu.js';
 import { compileFor, inTurn } from '../core/compile.js';
 import { source } from '../core/settle.js';
 
 const SIZE = 1024, LEVELS = Math.log2(SIZE) + 1;
+const PAINTER = "the world's textures: their painter's tiles";   // (what a material is painted through, while there is something to paint: painter, below)
 
 // one material's tile, painted once, into two targets: its albedo (gamma 2) and height as the tile keeps them, and the
 // height as it was worked out with the roughness (32-bit floats), which the relief is taken from (below). The writer
@@ -159,7 +160,7 @@ export function bakeTextures(renderer, { spare = 6, first = null } = {}) {
   const array = (aniso, depth) => {
     const rt = new THREE.RenderTarget(SIZE, SIZE, { depth, depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace });
     Object.assign(rt.texture, { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping, anisotropy: aniso });
-    renderer.initRenderTarget(rt); return rt.texture;
+    return rt.texture;   // (made on the GPU once owned, below)
   };
   // (compressed: an array of blocks, `bytes` a block, its finest level the tile's level `from`; every level there
   // from the start, empty, filled as materials are painted)
@@ -167,26 +168,25 @@ export function bakeTextures(renderer, { spare = 6, first = null } = {}) {
     const sides = SIDES.slice(from), size = SIZE >> from, zero = new Uint8Array(CAP * sides[0] * sides[0] * bytes), mips = sides.map((b, l) => ({ data: zero.subarray(0, CAP * b * b * bytes), width: size >> l, height: size >> l }));
     const t = new THREE.CompressedArrayTexture(mips, size, size, CAP, format, THREE.UnsignedByteType);
     Object.assign(t, { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, anisotropy: aniso, colorSpace: THREE.NoColorSpace, generateMipmaps: false, needsUpdate: true });
-    renderer.initTexture(t); for (const m of mips) m.data = new Uint8Array(0);   // (sent once, empty; the page keeps none of it)
-    return t;
+    return t;   // (made once owned, below: sent once, empty, the page keeping none of it)
   };
   const A = PACKED ? blocksArray(THREE.RGBA_S3TC_DXT5_Format, 16, 4) : array(4, CAP), Nn = PACKED ? blocksArray(THREE.RED_GREEN_RGTC2_Format, 16, 2) : array(2, CAP);
   const Rr = PACKED ? blocksArray(THREE.RED_RGTC1_Format, 8, 2, 1) : null, Dd = DATA.length ? array(4, DATA.length) : null;
-  note("the world's textures (a pool of layers, and the numbers' own)", Math.round((PACKED ? (2 + 1 / 8) * CAP : 8 * CAP) * SIZE * SIZE * 4 / 3 + DATA.length * SIZE * SIZE * 16 / 3), 0, 'ground', A, Nn, Rr, Dd);   // (ground: what the land's pages are laid from; the rocks and made things wear them too)
+  makeOwned(renderer, "the world's textures (a pool of layers, and the numbers' own)", Math.round((PACKED ? (2 + 1 / 8) * CAP : 8 * CAP) * SIZE * SIZE * 4 / 3 + DATA.length * SIZE * SIZE * 16 / 3), 0, 'ground', A, Nn, Rr, Dd);   // (ground: what the land's pages are laid from; the rocks and made things wear them too)
 
   // the painter: a target the tile is painted into, and (compressed) the pass that packs it and its buffers; made when
   // there is something to paint, let go half a minute after the last (made again, its packing pass, 53 KB, is compiled
   // again: the library's pictures, which come once its first view is complete, find it still there)
   let P = null, idle = 0, busy = 0;   // busy: the start's materials are being compiled for this painter's tile (paintAll)
   const painter = () => {
-    clearTimeout(idle); idle = setTimeout(() => { if (!P || busy) return; P.tmp.dispose(); P.raw.dispose(); P.relief.mat.dispose(); P.quad.geometry.dispose(); if (P.enc) { P.enc.pass.dispose(); for (const x of [P.blocks, P.blocksR]) renderer._attributes?.delete(x.value); } P = null; }, 30000);
+    clearTimeout(idle); idle = setTimeout(() => { if (!P || busy) return; P.tmp.dispose(); P.raw.dispose(); note(PAINTER, 0, 0, 'ground'); P.relief.mat.dispose(); P.quad.geometry.dispose(); if (P.enc) { P.enc.pass.dispose(); for (const x of [P.blocks, P.blocksR]) renderer._attributes?.delete(x.value); } P = null; }, 30000);
     if (P) return P;
     const tmp = new THREE.RenderTarget(SIZE, SIZE, { depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace });
     Object.assign(tmp.texture, { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping });
     // what a material is painted into: its tile (as `tmp` keeps it, without mipmaps), and its heights and roughness
     const raw = new THREE.RenderTarget(SIZE, SIZE, { count: 2, depthBuffer: false, generateMipmaps: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, colorSpace: THREE.NoColorSpace });
     Object.assign(raw.textures[1], { type: THREE.FloatType, format: THREE.RGFormat });
-    renderer.initRenderTarget(tmp); renderer.initRenderTarget(raw);   // (made as targets now: `tmp` is copied into before anything is drawn into it)
+    makeOwned(renderer, PAINTER, SIZE * SIZE * (4 * 4 / 3 + 4 + 8), 0, 'ground', tmp, raw);   // (made as targets now, named first: `tmp` is copied into before anything is drawn into it; its tile with mipmaps, and the raw tile and its heights)
     const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); quad.frustumCulled = false;
     const relief = reliefProgram(raw.textures[1]), reliefQuad = new THREE.Mesh(quad.geometry, relief.mat); reliefQuad.frustumCulled = false;
     const blocks = PACKED ? instancedArray(ROOM + 2048, 'uvec4') : null, blocksR = PACKED ? instancedArray(ROOM + 2048, 'uvec2') : null;

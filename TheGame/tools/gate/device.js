@@ -14,7 +14,8 @@
 //   BUDGET_MB, the pools largest first, what no pool notes), sampled each second: its peak and where it settles;
 // - that ledger checked by a count of the gate's own, every buffer the device makes net of its destroy(): the ledger
 //   holds at least those (textures are the ledger's alone: one count of them, not two);
-// - WebKit's own processes' resident memory beside it (every process of the browser Playwright runs);
+// - what WebKit's own processes hold of the machine beside it (every process of the browser Playwright runs: their
+//   physical footprint, which counts what Metal holds for the GPU);
 // - every submission's own GPU time (the queue runs in order: done less the later of its submit and the one before's
 //   done), the longest and every one over budget.js SUBMIT_MS with what it held (each pipeline with its draws and
 //   instances or its dispatches and workgroups, where its pass began, what was written before it), and how many took
@@ -25,7 +26,7 @@
 // A lost device fails; the rest is shown.
 import { webkit } from 'playwright-core';
 import { webkitAt } from '../browsers.js';
-import { execFileSync } from 'node:child_process';
+import { processes, withChildren, heldBy, WEBKIT } from './machine.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -158,10 +159,10 @@ const look = () => {
   let out = null; try { out = window.__game?.waiting?.() ?? null; } catch (e) { out = { [`waiting() threw: ${e.message}`]: 1 }; }   // (a source that cannot say: said, by name)
   return { ready: window.__game?.loadMs ?? null, shown: performance.getEntriesByName('game:first-frame')[0]?.startTime ?? null, ledger: window.__game?.memory?.() ?? null, out, stage: Object.entries(window.__game?.boot ?? {}).at(-1) ?? null, step: document.body?.dataset.step ?? null, ...window.__device };
 };
-/** The resident memory of every process of the WebKit Playwright runs (its pages', its GPU's, its own), MB (0 where it
-    cannot be read). */
-function gpuProcess() {
-  try { return execFileSync('ps', ['-axo', 'rss=,command='], { encoding: 'utf8' }).split('\n').filter((l) => /ms-playwright\/webkit/i.test(l)).reduce((s, l) => s + +l.trim().split(/\s+/)[0] / 1024, 0); } catch { return 0; }
+/** What every process of the WebKit Playwright runs holds of the machine (its pages', its GPU's, its own: their physical
+    footprint on a Mac, tools/gate/machine.js heldBy), MB (0 where it cannot be read). */
+async function gpuProcess() {
+  try { const ours = withChildren(await processes(), WEBKIT), H = await heldBy(ours); return [...ours.values()].reduce((s, p) => s + H.of(p), 0) / 1048576; } catch { return 0; }
 }
 
 /** The device on MACHINE: { ready (s), peak and settled (MB, the ledger's), classes at the peak against BUDGET_MB, the
@@ -226,7 +227,7 @@ function hold(out, s, t) {
     browser's resident memory at its most. */
 async function sample(page, out) {
   const s = await page.evaluate(look), T = s.top;
-  out.samples.push(s.ledger?.gpu ?? 0); out.process = Math.max(out.process, gpuProcess());
+  out.samples.push(s.ledger?.gpu ?? 0); out.process = Math.max(out.process, await gpuProcess());
   if (T) Object.assign(out, { peak: T.device, classes: T.classes, rows: T.rows, makers: T.makers, past: T.over, unnoted: T.unnoted, buffers: +(T.buffers / 1048576).toFixed(1) });
   return s;
 }
@@ -257,7 +258,7 @@ export function lines(d) {
   const mb = (n) => (n == null ? '–' : `${(n / 1024).toFixed(2)} GB`);
   return [
     d.lost ? `**The device was lost** ${(d.lost.at / 1e3).toFixed(0)} s in (${d.lost.reason}: ${d.lost.message}), on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}×.` : 'The device lived.',   // (whether the game came, and when, is readyLine's to say)
-    `GPU memory (the game's ledger): peak ${mb(d.peak)}, settled ${mb(d.settled)}, against the budget's ${mb(d.budget)}; unnoted by any pool ${mb(d.unnoted)}; WebKit's processes at most ${mb(d.process)} resident${d.honest ? '' : `; **the ledger is short**: the device made ${mb(d.buffers)} of buffers alone`}.`,
+    `GPU memory (the game's ledger): peak ${mb(d.peak)}, settled ${mb(d.settled)}, against the budget's ${mb(d.budget)}; unnoted by any pool ${mb(d.unnoted)}; WebKit's processes at most ${mb(d.process)} of the machine (their physical footprint)${d.honest ? '' : `; **the ledger is short**: the device made ${mb(d.buffers)} of buffers alone`}.`,
     `By class at the peak: ${Object.entries(d.classes ?? {}).map(([c, x]) => `${c} ${x.gpu} MB of ${x.budget}${x.gpu > x.budget ? ' (over)' : ''}`).join(', ') || '–'}.`,
     `The largest pools: ${(d.rows ?? []).map(([n, g]) => `${n} ${g} MB`).join('; ') || '–'}.`,
     `The largest makes, by class and what they were (the ledger's makers): ${(d.makers ?? []).map(([c, w, m, n]) => `${c}: ${w} ${m} MB (${n})`).join('; ') || '–'}.`,

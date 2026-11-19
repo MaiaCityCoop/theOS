@@ -24,13 +24,13 @@
 // What is baked, and how it is lit, is its drawer's (src/scatter/trees.js: a plant's leaves and bark from the heap):
 // here only what every impostor shares, so plants, rocks and made things can have one.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec2, vec3, vec4, ivec2, uniform, texture, normalize, cross, abs, max, clamp, floor, ceil, sqrt, inverseSqrt, log2, mat3, If, Discard, screenCoordinate, instanceIndex, positionGeometry, varyingProperty, attribute, modelWorldMatrix, cameraProjectionMatrix, cameraViewMatrix } from 'three/tsl';
+import { Fn, mrt, float, vec2, vec3, vec4, ivec2, uniform, texture, normalize, cross, abs, max, clamp, floor, ceil, sqrt, inverseSqrt, log2, mat3, If, Discard, screenCoordinate, instanceIndex, positionGeometry, varyingProperty, attribute, modelWorldMatrix, cameraProjectionMatrix, cameraViewMatrix } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { lit, weathered, snowLift, unlit } from '../world/light.js';
 import { passOf } from '../core/pass.js';
 import { IN, PLANE } from '../../assets/kit/crowd.js';
 import { UV_TILES } from '../../assets/kit/plant.js';
-import { note, PORTABLE } from '../core/gpu.js';
+import { makeOwned, PORTABLE } from '../core/gpu.js';
 import { ownGpuMs, pace } from '../core/pace.js';
 import { shown } from '../core/settle.js';
 import { compileFor } from '../core/compile.js';
@@ -115,10 +115,10 @@ const formatOf = (P) => (P.channels === 'r' ? THREE.RedFormat : THREE.RGBAFormat
 export function createAtlas(renderer, { name, side, layers, cell = side, views = 0 }) {
   const make = (P) => {
     const rt = new THREE.RenderTarget(side, side, { depth: Math.max(2, layers), depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace, format: formatOf(P) });   // (two layers at least: an array, however few shapes)
-    renderer.initRenderTarget(rt); return rt;
+    return rt;
   };
   const [C, D, L] = PICTURES.map(make), mips = Math.floor(Math.log2(side)) + 1;
-  note(`${name}`, Math.round(atlasBytes(side, Math.max(2, layers))), 0, 'geometry', C, D, L);   // (src/core/classes.js: its share, SHARE_MB)
+  makeOwned(renderer, `${name}`, Math.round(atlasBytes(side, Math.max(2, layers))), 0, 'geometry', C, D, L);   // (src/core/classes.js: its share, SHARE_MB; named its owner's, then made: src/core/gpu.js makeOwned)
   return {
     colour: C.texture, data: D.texture, leaf: L.texture, side, cell, views, targets: [C, D, L],   // (targets: to read a layer back, renderer.readRenderTargetPixelsAsync)
     tiles: uniform(side / cell),   // (its pictures a side, as data: an atlas sized to its stand's largest clumps reads with the same code as any)
@@ -141,24 +141,27 @@ const workers = () => (WORKERS ||= Array.from({ length: Math.max(1, Math.min(3, 
 const mipsOf = (colour, data, leaf, side, cell, least) => workers().reduce((a, b) => (b.out() < a.out() ? b : a))({ colour, data, leaf, side, cell, least }, [colour.buffer, data.buffer, leaf.buffer]);
 
 /** What bakes a family's pictures: rows of `per` pictures `px` texels a side, drawn by draw(row) (a mesh whose
-    instances are the row's pictures, from PIECE's on: pictureOf; its two materials' outputs: { colour, data }, a
-    sample's light and leaf in one number, litIn), reduced SS x SS into the atlas' three textures' texels (light and leaf
+    instances are the row's pictures, from PIECE's on: pictureOf; its one material's two outputs, mrt's `output` its
+    colour and cover and `data` its way, depth, and its light and leaf in one number, litIn: both drawn at once, the
+    thing's corners worked out once for them), reduced SS x SS into the atlas' three textures' texels (light and leaf
     apart, each a mean of its own), as many pictures a frame as fit the frame's share for geometry, read back and mipped.
     One a kind of picture (views, tiles) per drawer: its targets are reused job after job, one job at a time. */
 const nextFrame = () => new Promise((res) => requestAnimationFrame(() => res()));
 export function createBaker(renderer, { per, px }) {
   // (its pictures a frame, by their own time on the GPU (src/core/pace.js, as the land's pages and the tiers' packing
   // are): a picture, not a row, the least of it. A row of a large tree's views is its whole crown drawn per times over,
-  // twice: 300 to 430 ms in one submission, in WebKit on the M2 at the first view (2026-11-19). Each baker its own, as
+  // twice (its colour, then its data: since drawn at once, mrt): 300 to 430 ms in one submission, in WebKit on the M2 at the first view (2026-11-19). Each baker its own, as
   // a views baker's picture is a whole thing drawn and a tiles baker's a chunk's planes)
   const P = pace(1);
   const W = per * px, opts = { depthBuffer: true, generateMipmaps: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, colorSpace: THREE.NoColorSpace };
-  const ss = [new THREE.RenderTarget(W * SS, px * SS, opts), new THREE.RenderTarget(W * SS, px * SS, opts)], out = PICTURES.map((P) => new THREE.RenderTarget(W, W, { ...opts, depthBuffer: false, format: formatOf(P) }));
+  // (its samples: one target of two, its colour and its data, drawn at once by a picture's material: mrt, by name)
+  const ss = new THREE.RenderTarget(W * SS, px * SS, { ...opts, count: 2 }), out = PICTURES.map((P) => new THREE.RenderTarget(W, W, { ...opts, depthBuffer: false, format: formatOf(P) }));
+  ss.textures[0].name = 'output'; ss.textures[1].name = 'data';
   // the reduce: a texel of the atlas from its SS x SS samples (cover: their share covered; the rest: the covered ones'
   // mean, its way the mean way, its light and how much of it is leaf each a mean of its own: a sample is one or the
   // other, so its one number, litIn, says both exactly), into row `row` of the atlas: which 0 its colour, 1 its data,
   // 2 its leaf
-  const row = uniform(0, 'int'), tc = texture(ss[0].texture), td = texture(ss[1].texture);
+  const row = uniform(0, 'int'), tc = texture(ss.textures[0]), td = texture(ss.textures[1]);
   const reduce = (which) => {
     const m = new THREE.NodeMaterial(); m.depthTest = false; m.depthWrite = false;
     m.vertexNode = vec4(positionGeometry.xy, 0, 1);   // (a triangle over the whole target, its corners straight in clip space)
@@ -185,9 +188,9 @@ export function createBaker(renderer, { per, px }) {
     try {
       if (!r && !a) for (const o of out) { renderer.setRenderTarget(o); renderer.clear(); }
       const mesh = draw(r); mesh.geometry.instanceCount = n; PIECE.value = a;
-      // the piece's samples: colour and cover, then its data, each over the row's pieces before it (its first a target
-      // cleared to nothing)
-      [0, 1].forEach((w) => { mesh.material = mesh.userData.materials[w]; scene.add(mesh); renderer.setRenderTarget(ss[w]); renderer.autoClear = !a; renderer.render(scene, cam); scene.remove(mesh); });
+      // the piece's samples, its colour and cover and its data at once, over the row's pieces before it (its first a
+      // target cleared to nothing)
+      mesh.material = mesh.userData.materials[0]; scene.add(mesh); renderer.setRenderTarget(ss); renderer.autoClear = !a; renderer.render(scene, cam); scene.remove(mesh);
       if (a + n < per) return;
       // the row whole: reduced into the atlas' row
       row.value = r;
@@ -199,7 +202,7 @@ export function createBaker(renderer, { per, px }) {
   // view: a new baker's first row held the thread about 1.5 s, its reduce's three and its pictures' two made then)
   const ahead = new WeakSet();
   const makeFor = async (mesh) => {
-    const each = [...mesh.userData.materials.map((m, w) => [m, ss[w], mesh.geometry]), ...tris.map((t, w) => [t.material, out[w], t.geometry])];
+    const each = [[mesh.userData.materials[0], ss, mesh.geometry], ...tris.map((t, w) => [t.material, out[w], t.geometry])];
     for (const [m, target, geo] of each) {
       if (ahead.has(m)) continue;
       const o = Object.assign(new THREE.Mesh(geo, m), { frustumCulled: false });   // (its own stand-in: the pipeline made is the one any mesh of the same make draws with)
@@ -212,6 +215,9 @@ export function createBaker(renderer, { per, px }) {
   return {
     /** Its reduce's three meshes (its colour's, its data's, its leaf's), as the start compiles them (tools/smoke.js) */
     reduces: tris,
+    /** What its pictures' samples are drawn into (two textures, `output` and `data`: a picture's material writes both,
+        mrt): a mesh it draws says it (userData.target), for what builds that material as it is drawn (tools/smoke.js) */
+    samples: ss,
     /** Bake `rows` rows of a thing's pictures into the atlas' layer, as many pictures a frame as the GPU's pace says
         (P): draw(r) its mesh for row r (its instances the row's pictures from PIECE's on: as many as each piece draws,
         set here; its materials [colour, data]); least: the smallest picture's side mipped to. A
@@ -304,7 +310,7 @@ function viewsOf(geo, c, r, name) {
   const vC = varyingProperty('vec3', 'mC'), vN = varyingProperty('vec3', 'mN'), vZ = varyingProperty('float', 'mZ');
   const vert = Fn(() => { const P = viewClip(positionGeometry.sub(c).div(r), row, VIEWS); vC.assign(attribute('color', 'vec3')); vN.assign(facingOf(attribute('normal', 'vec3'), P.F)); vZ.assign(P.z); return P.clip; })();
   const mat = (f) => Object.assign(new THREE.NodeMaterial(), { vertexNode: vert, fragmentNode: f, side: THREE.DoubleSide });
-  const bm = Object.assign(new THREE.Mesh(g, null), { frustumCulled: false, userData: { materials: [mat(vec4(sqrt(max(vC, 0)), 1)), mat(Fn(() => vec4(facingEnc(vN), vZ.mul(0.5).add(0.5), litIn(float(1), float(0))))())] } });
+  const bm = Object.assign(new THREE.Mesh(g, null), { frustumCulled: false, userData: { target: bakers().views().samples, materials: [mat(mrt({ output: vec4(sqrt(max(vC, 0)), 1), data: Fn(() => vec4(facingEnc(vN), vZ.mul(0.5).add(0.5), litIn(float(1), float(0))))() }))] } });
   bakers().views().bake(A, 0, VIEWS, (j) => { row.value = j; g.instanceCount = VIEWS; return bm; }).then(({ done }) => done).then(() => (ready.value = 1));
   return { A, ready };
 }
