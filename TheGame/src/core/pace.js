@@ -7,10 +7,11 @@
 //                                (null where there is no queue to ask: the CPU's stand-in, tools/gpu-mock.js)
 //   frameShare(cls)              the ms a frame what is paced in class cls may take now: the whole frame (FRAME_MS)
 //                                behind the veil, its class's share (FRAME_MS_BY_CLASS) once the first view shows
-//   pace(least)                  how many of something a frame: { n, left, tick(), measured(count, ms, budget) }: a frame
-//                                begins with tick() (left = n); a piece of `count` of them took `ms` of a `budget` (ms a
-//                                frame): fewer at once where they took longer, at most twice as many, once a frame, where
-//                                they took less; never fewer than `least`
+//   pace(least, floor)           how many of something a frame: { n, left, floor, tick(), measured(count, ms, budget),
+//                                most() }: a frame begins with tick() (left = n); a piece of `count` of them took `ms` of
+//                                a `budget` (ms a frame): fewer at once where they took longer, at most twice as many,
+//                                once a frame, where they took less; never fewer than `least`, nor than `floor` by these
+//                                measures (below); most(): as many as one submission may hold (SUBMIT_MS) by the last
 //   passBegins(name)             a pass named `name` begins (src/core/gpu.js mark; null: none): the one before ends, and
 //                                its own time on the GPU is added to its name's, as ownGpuMs takes it (from when it
 //                                began, or the GPU was done with all handed before, to when it is done)
@@ -21,7 +22,7 @@
 //                                own time on the GPU, its passes' together, once they are done (null where there is no
 //                                queue to ask): what the governor judges (src/core/governor.js)
 
-import { FRAME_MS, FRAME_MS_BY_CLASS } from './budget.js';
+import { FRAME_MS, FRAME_MS_BY_CLASS, SUBMIT_MS } from './budget.js';
 import { ready } from './settle.js';
 
 // ---- a class's share of the frame ----
@@ -73,18 +74,26 @@ export function spentSince(reader, names) {
   return first ? 0 : ms;
 }
 
-/** How many of something a frame, following their measured time to a budget (above). From `least` a frame. */
-export function pace(least = 1) {
+/** How many of something a frame, following their measured time to a budget (above). From `least` a frame, and never
+    fewer than `floor` (P.floor: what it may grow to as its owner learns it, a whole window of what it paces) by these
+    measures: a submission's done is heard only once the page's thread is free (ownGpuMs), so what the thread did
+    meanwhile is charged to it (2026-11-19, the ground: pairs of 231 and 0 ms, 461 and 0), and a pace that took that for
+    the GPU's would starve what it paces, and what waits for it (the world's Ready). Each submission is still held to
+    SUBMIT_MS by the same measures (most): a stall makes its pieces smaller, not fewer. */
+export function pace(least = 1, floor = least) {
   const P = {
-    n: least, left: least, frame: 0, grew: -1,
+    n: Math.max(least, floor), left: Math.max(least, floor), floor, frame: 0, grew: -1, each: 0,   // (each: what one of them took, ms, as last measured)
     /** A frame begins: as many as the pace says. */
     tick() { P.frame++; P.left = P.n; },
     /** `count` of them took `ms` on the GPU, of `budget` ms a frame: as many a frame as fit it. */
     measured(count, ms, budget) {
-      const fit = Math.max(least, Math.floor((budget * count) / ms));
+      const fit = Math.max(least, P.floor, Math.floor((budget * count) / ms));
+      P.each = ms / Math.max(1, count);
       if (fit < P.n) P.n = fit;
       else if (P.grew !== P.frame) { P.n = Math.min(fit, 2 * P.n); P.grew = P.frame; }   // (more at most once a frame, twice as many at most)
     },
+    /** As many as one submission may hold: its own time no more than SUBMIT_MS, by the last measure (none yet: all). */
+    most: () => (P.each > 0 ? Math.max(least, Math.floor(SUBMIT_MS / P.each)) : Infinity),
   };
   return P;
 }
