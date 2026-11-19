@@ -56,6 +56,7 @@ import { createAtlas, bakers, viewClip, tileClip, impostorRead, clumpRead, facin
 import { levelsUnder } from '../detail/atlas.js';
 import { offScreen, clipOf, Tier } from './tier.js';
 import { createDrawer } from './drawer.js';
+import { castsInto } from '../world/shadow.js';
 import { heapRow } from './heap.js';
 import { plantOf } from './plantvert.js';
 import { placedBy, bodyOf } from '../../assets/zoo/index.js';
@@ -299,7 +300,9 @@ function plantMaterial(tex, D) {
           clip.assign(stand(A, B, { ...V, position: R.pos, root: R.pos }, H.sunk, pass, swing));
         });
       };
-      drawn();
+      // (in the shadow pass only what can cast into the map being drawn: a plant wholly outside its box along the light,
+      // its sphere its size round its middle, is let go before any of its work: src/world/shadow.js castsInto)
+      if (pass === 'shadow') If(castsInto(vec3(A.x, A.z.add(A.w.mul(0.5)), A.y), A.w), drawn); else drawn();
       return clip;
     };
     const stand = (A, B, V, sunk, pass, swing = float(1)) => {

@@ -81,7 +81,8 @@ const buildAll = (where) => {
     if (built.has(m)) continue; built.add(m);
     part = `${where}: ${object.name || object.type || 'a thing'} (${m.name || m.type})`;
     const twins = (() => { try { return twinOf(m); } catch { return { pre: null, main: null }; } })();
-    for (const [pass, mat] of [['own', m], ['pre', twins.pre], ['main', twins.main]]) {
+    // (and what a caster draws into the shadow cascades and the canopy map: its shadow twin, src/world/shadow.js)
+    for (const [pass, mat] of [['own', m], ['pre', twins.pre], ['main', twins.main], ['shadow', object.layers?.isEnabled?.(1) ? twins.shadow : null]]) {
       if (!mat) continue;
       if (pass === 'pre') renderer.setRenderTarget(PRE_TARGET);
       try { const s = M.build(object.isMesh || object.isPoints || object.isLine || object.isSprite ? object : { isMesh: true, geometry: new THREE.BufferGeometry(), material: mat }, mat); shaders.render.add(`${s.vertex}\0${s.fragment}`); made.push(pass); }
