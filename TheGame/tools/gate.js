@@ -666,6 +666,7 @@ async function board(tag, at) {
   const out = [...(R.stills?.lod ?? []).map((v) => `${v} (stills)`), ...(R.stills?.truth ?? []).map((v) => `${v} (?truth)`), ...Object.keys(R.bench?.unsettled ?? {}).map((v) => `${v} (bench)`), ...['cold', 'warm'].flatMap((c) => Object.entries(R.paths?.[c]?.paths ?? {}).filter(([, r]) => r.notSettled).map(([k]) => `${k} (paths, ${c})`))];
   const mem = memoryOn(R.smoke);
   const md = [`# The hour on main, ${tag} (${OUTPUT.width} × ${OUTPUT.height}), ${new Date().toISOString().slice(0, 16)}`, '',
+    (await import('./gate/device.js')).readyLine(R.device),   // (first: did the game come at all)
     mem.line,
     ...(await import('./gate/device.js')).lines(R.device), '',
     S?.settled === false ? `**The start did not settle** in ${(S.ms / 1000).toFixed(0)} s: ${String(S.said).slice(0, 300)}` : `The start settled in ${((S?.ms ?? 0) / 1000).toFixed(1)} s.`,
