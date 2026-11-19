@@ -712,7 +712,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // (what of a thing a level's tier packs, and into which of its draws: by its numbers N (its level, the one under it,
   // whether it stands in for the finer ones, whether it is the shadow's, its band) and the draws its level has (drawsOf))
   const levelCode = (N, { byKind, classed, perSlot, leafy, KS, FAR, KF, K0, cLo, cHi }) => {
-    const whole = N.all.greaterThan(0.5);
+    const whole = N.all.greaterThan(0.5), uKF = FAR ? uniform(KF) : null;   // (uKF: its far end's draw, a uniform: the levels of stands of other counts of kinds gather by one pipeline)
     // of this level, a thing of `kind`, `size` metres, `dist` metres off (pad: how far past its band): it is there
     // (heap.js), and it is the size on screen the level is drawn at, or larger while its next finer level has not come
     const ofLevel = (kind, size, dist, pad) => {
@@ -734,7 +734,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       if (FAR) {   // (its kind's draw, its far end's, or both)
         const w = FAR.wants(kind, rows);
         If(w.mesh.not(), () => { out.bucket.assign(-1); });
-        If(w.far, () => { out.also.assign(KF); });
+        If(w.far, () => { out.also.assign(uKF); });
         If(w.mesh.or(w.far), () => { out.alive.assign(1); });
       } else out.alive.assign(1);
     };

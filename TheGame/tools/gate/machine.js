@@ -22,10 +22,12 @@ const unfit = (before, after = null) => (before.free < GPU_MB ? `the machine is 
     swap grew while it ran. */
 export async function onMachine(fn, short = (o) => o) {
   const before = machine(), why = unfit(before);
-  if (why) return short({ notMeasured: why, host: { before } });
-  const r = (await fn()) ?? {}, after = machine();
-  return Object.assign(r, { host: { before, after }, notMeasured: unfit(before, after) });
+  return why ? short({ notMeasured: why, host: { before } }) : ran(before, await fn());
 }
+/** fn run whatever the machine (a part whose check holds either way, its timing only where the machine had the memory):
+    what it gave, with host and notMeasured as onMachine gives them. */
+export const watched = async (fn) => { const before = machine(); return ran(before, await fn()); };
+const ran = (before, r) => { const after = machine(); return Object.assign(r ?? {}, { host: { before, after }, notMeasured: unfit(before, after) }); };
 /** The machine's line on a board: its free memory and swap, before and after. */
 export const machineLine = (before, after = null) => `The machine: ${before.free} MB free (${Math.round(before.share * 100)} %)${after ? ` → ${after.free} MB (${Math.round(after.share * 100)} %)` : ''}, swap ${before.swap}${after ? ` → ${after.swap}` : ''} MB in use.`;
 /** A board's first lines (the hour's run R): not measured and why, else whether the game came (ready: its line, from

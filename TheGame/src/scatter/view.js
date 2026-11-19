@@ -17,8 +17,9 @@ export function setView(camera) {
 }
 
 /** True where a thing standing at pos (x, z), r metres round and up to `high` tall, can be in the eye's view (to the sides:
-    the land's rise and its own height are allowed for above and below, more the more the view is tilted). */
+    the land's rise and its own height are allowed for above and below, more the more the view is tilted). high: a
+    number, or a node (a uniform: the engines that differ only in it then share one pipeline). */
 export const inView = (pos, r, high = 0) => {
   const v = U.uView.mul(vec4(pos.x, U.uCam.y.sub(U.uAirH), pos.y, 1)), far = length(pos.sub(U.uCam.xz));
-  return abs(v.x).mul(U.uViewK.x).add(v.z).lessThan(far.mul(0.32).add(6 + high).mul(U.uViewK.y).add(r).mul(U.uViewK.z));
+  return abs(v.x).mul(U.uViewK.x).add(v.z).lessThan(far.mul(0.32).add(typeof high === 'number' ? 6 + high : high.add(6)).mul(U.uViewK.y).add(r).mul(U.uViewK.z));
 };
