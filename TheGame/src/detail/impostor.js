@@ -30,6 +30,8 @@ import { passOf } from '../core/pass.js';
 import { IN, PLANE } from '../../assets/kit/crowd.js';
 import { UV_TILES } from '../../assets/kit/plant.js';
 import { note, PORTABLE } from '../core/gpu.js';
+import { ownGpuMs, pace } from '../core/pace.js';
+import { FRAME_MS_BY_CLASS } from '../core/budget.js';
 import { SHARE_MB } from '../core/classes.js';
 import { FNV, fnv } from '../core/hash.js';
 import { asking } from '../core/workers.js';
@@ -136,6 +138,8 @@ const mipsOf = (colour, data, leaf, side, cell, least) => workers().reduce((a, b
     own), a row a frame (no frame waits on a whole thing's pictures), read back and mipped. One a kind of picture
     (views, tiles) per drawer: its targets are reused job after job, one job at a time. */
 const nextFrame = () => new Promise((res) => requestAnimationFrame(() => res()));
+// (the bakes' rows a frame, shared by every baker: one queue of them, src/core/pace.js)
+const ROWS = pace(1);
 export function createBaker(renderer, { per, px }) {
   const W = per * px, opts = { depthBuffer: true, generateMipmaps: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, colorSpace: THREE.NoColorSpace };
   const ss = [new THREE.RenderTarget(W * SS, px * SS, opts), new THREE.RenderTarget(W * SS, px * SS, opts)], out = PICTURES.map((P) => new THREE.RenderTarget(W, W, { ...opts, depthBuffer: false, format: formatOf(P) }));
@@ -180,13 +184,18 @@ export function createBaker(renderer, { per, px }) {
   return {
     /** Its reduce's three meshes (its colour's, its data's, its leaf's), as the start compiles them (tools/smoke.js) */
     reduces: tris,
-    /** Bake `rows` rows of a thing's pictures into the atlas' layer, a row a frame: draw(r) its mesh for row r (its
+    /** Bake `rows` rows of a thing's pictures into the atlas' layer, as many a frame as the GPU's pace says (ROWS): draw(r) its mesh for row r (its
         instances the row's pictures, its materials [colour, data]); least: the smallest picture's side mipped to. A
         promise of { done }, once its pictures are read back (the targets free for the next job, which waits for it):
         done, once its layer is in the atlas, with its levels (what the browser keeps of it: src/scatter/trees.js farOf). */
     bake(atlas, layer, count, draw, least = LEAST) {
       const job = last.then(async () => {
-        for (let r = 0; r < count; r++) { if (r) await nextFrame(); rowOf(r, draw); }
+        // (as many rows a frame as fit the frame's share for geometry, by each row's own time on the GPU: src/core/pace.js,
+        // as the land's pages and the tiers' packing are; at least one, on any GPU)
+        for (let r = 0; r < count; ) {
+          if (r) { await nextFrame(); ROWS.tick(); }
+          do { const at = r++; ownGpuMs(renderer, () => rowOf(at, draw))?.then((ms) => ROWS.measured(1, ms, FRAME_MS_BY_CLASS.geometry)).catch(() => {}); } while (r < count && --ROWS.left > 0);
+        }
         const [c, d, l] = await Promise.all(out.map((o) => renderer.readRenderTargetPixelsAsync(o, 0, 0, W, W)));
         return { done: mipsOf(new Uint8Array(c), new Uint8Array(d), new Uint8Array(l), W, px, least).then(({ levels }) => { atlas.put(layer, levels); return levels; }) };
       });

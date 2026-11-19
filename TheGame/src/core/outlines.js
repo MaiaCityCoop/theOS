@@ -25,8 +25,11 @@ export function keepOutlines() {
   if (!OUTLINES.made.size) return 0;
   try {
     const all = {}; let n = 0;
-    for (const [id, o] of OUTLINES.kept) { const k = keyOf(id); if (k) all[k] = o; }
-    for (const [id, o] of OUTLINES.made) { const k = keyOf(id); if (k) { all[k] = o; n++; } }
+    // (each shape's far data stays on the page: its far end keeps it with its pictures, src/scatter/trees.js farOf; here
+    // only its chunks: a few numbers a plant)
+    const slim = (o) => (o.far ? { ...o, far: o.far.map(({ chunks }) => ({ chunks })) } : o);
+    for (const [id, o] of OUTLINES.kept) { const k = keyOf(id); if (k) all[k] = slim(o); }
+    for (const [id, o] of OUTLINES.made) { const k = keyOf(id); if (k) { all[k] = slim(o); n++; } }
     OUTLINES.made.clear(); localStorage.setItem(KEY, JSON.stringify(all));
     return n;
   } catch { return 0; }
