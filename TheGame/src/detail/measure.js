@@ -62,9 +62,10 @@ const listeners = new Set(); let version = 0;
 const outputHeight = () => (globalThis.innerHeight || 1080) * output();
 /** Both numbers to error.js, the uniforms and whoever listens, where either changed: the live pixel only once it lies a
     BAND off the one kept (a window drawn a little larger or smaller moves no switch, and none goes back and forth: every
-    hand-over spans a BAND, src/detail/error.js), the dial at once. */
-function keep(dial = ERROR_PX()) {
-  const now = pxKAt(outputHeight()), was = pxK(), k = was > 0 && now < was * BAND && now > was / BAND ? was : now;
+    hand-over spans a BAND, src/detail/error.js), the dial at once; fresh: the live pixel as it is now, outright (the
+    canvas's first: what was kept before it stood in for it, and is no measure a BAND should hold). */
+function keep(dial = ERROR_PX(), fresh = false) {
+  const now = pxKAt(outputHeight()), was = pxK(), k = !fresh && was > 0 && now < was * BAND && now > was / BAND ? was : now;
   if (k === was && dial === ERROR_PX()) return false;
   keepNumbers({ k, dial }); U.uPxK.value = k; U.uErrorPx.value = dial; version++;
   for (const f of listeners) f();
@@ -72,11 +73,13 @@ function keep(dial = ERROR_PX()) {
 }
 keep();   // (from the start, before the screen says its ratio: the window's own pixels)
 /** Keep the measure current: out, the canvas's ratio (src/core/output.js: read as it is now, a resize changes it); the
-    window's size is followed, and each frame asks again (measureNow). */
+    window's size is followed, and each frame asks again (measureNow). The canvas's rows are taken outright the first
+    time: held to the window's own points by the BAND, as they were till 2026-11-19, a start's detail hung on its order
+    (WebKit at 1512 × 945 at 2 kept 945 rows of a canvas of 1138; a window opened at another size kept that one's). */
 export function keepMeasure(out = () => 1) {
   output = out;
   most = () => Math.max(1, out());
-  keep(); addEventListener('resize', () => keep());
+  keep(ERROR_PX(), true); addEventListener('resize', () => keep());
 }
 /** The live pixel in the dial's pixels: dial pixels a metre covers one metre from the eye (error.js). */
 export const dialK = () => pxK() / ERROR_PX();
