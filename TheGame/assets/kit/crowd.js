@@ -169,7 +169,7 @@ function turnsOf(L, cls, mid) {
   err[0] = Infinity; out.err = err;
   if (!n) return out;
   const KF = exp(FADE), taken = new Uint8Array(n), seen = new Uint32Array(n), LB = new Float64Array(n), UB = new Float64Array(n);
-  const OWNER = new Int32Array(C ? GC.length / 4 : 0); if (C) for (let r = 0; r < n; r++) for (let g = gfrom[r]; g < gfrom[r + 1]; g++) OWNER[g] = r;   // (each card's part)
+  const OWNER = ownersOf(gfrom, n);   // (each card's part)
   // ---- the cells: a card's share (its middle u, v and half its sides' shares su, sv, of its card g; a part without cards
   // is one cell, its middle, g -1), where its middle is (x, y, z), its half-diagonal (metres), its squared distance to the
   // nearest leaf drawn and that distance, and which taken part that is ----
@@ -229,11 +229,11 @@ function turnsOf(L, cls, mid) {
   };
   // ---- the taken cards (a point part: its middle) in a grid by their middles, as wide as the widest card's reach: a
   // new cell's nearest drawn leaf within d lies on a card whose middle is within d and that reach ----
-  let RC = 0; if (C) for (let g = 0; g < GC.length / 4; g++) RC = max(RC, GC[g * 4 + 3]);
+  const RC = C ? mostOf(GC, 4, 3) : 0;
   const GS = max(2 * RC, 1e-6), GRID = new Map(), keyOf = (i, j, k) => (i * 4096 + j) * 4096 + k, place = (x, y, z, id) => { const k = keyOf(floor(x / GS), floor(y / GS), floor(z / GS)); let list = GRID.get(k); if (!list) GRID.set(k, (list = [])); list.push(id); };
   const put = (q) => { if (C) for (let g = gfrom[q]; g < gfrom[q + 1]; g++) place(GC[g * 4], GC[g * 4 + 1], GC[g * 4 + 2], g); else place(X[q], Y[q], Z[q], q); };
   // ---- and the taken parts by their middles, as wide as the widest part's reach, each with the turn it was taken at ----
-  let RM = 0; for (let r = 0; r < n; r++) RM = max(RM, R[r]);
+  const RM = mostOf(R, 1, 0);
   const PS = max(2 * RM, 1e-6), PARTS = new Map(), atTurn = new Int32Array(n).fill(-1);
   const putPart = (q, s) => { atTurn[q] = s; const k = keyOf(floor(X[q] / PS), floor(Y[q] / PS), floor(Z[q] / PS)); let list = PARTS.get(k); if (!list) PARTS.set(k, (list = [])); list.push(q); };
   /** Part r against the parts taken from turn `from` to s: each in turn, or, where fewer to look at, those whose middles
@@ -310,27 +310,35 @@ function turnsOf(L, cls, mid) {
   const take = (q, s) => { taken[q] = 1; put(q); putPart(q, s); };
   // the first: the part of the first class farthest from the crowd's middle; then every part's cells (a card each, or its
   // middle) measured against it, each class in its own heap and all of them in one (what the share error is the farthest of)
-  const classes = [...new Set(cls)].sort((x, y) => x - y), ofClass = classes.map((k) => { const o = []; for (let r = 0; r < n; r++) if (cls[r] === k) o.push(r); return o; });
-  let p = -1, far = -1;
-  for (const r of ofClass[0]) { const q = (X[r] - mid[0]) ** 2 + (Y[r] - mid[1]) ** 2 + (Z[r] - mid[2]) ** 2; if (q > far) { far = q; p = r; } }
+  const ofClass = classesOf(cls), p = farthestFrom(ofClass[0], X, Y, Z, mid);
   out[0] = p; take(p, 0);
-  for (let r = 0; r < n; r++) {
-    if (r === p) continue;
+  /** Part r's cells (a card each, or its middle) measured against the first turn, p. */
+  const begin = (r) => {
     if (C) for (let g = gfrom[r]; g < gfrom[r + 1]; g++) cell(r, g, 0.5, 0.5, 0.5, 0.5); else cell(r, -1, 0, 0, 0, 0);
     for (const c of cellsOf[r]) { const d = toPart(CX[c], CY[c], CZ[c], p, Infinity, Infinity); nearer(c, d, p, atCard); HC[r].push(boundOf(c), c); }
     seen[r] = 1; LB[r] = lbOf(r); UB[r] = ubOf(r);
-  }
-  const all = heapOf(); for (let r = 0; r < n; r++) if (!taken[r]) all.push(UB[r], r);
-  let c = 0, mine = heapOf(); for (const r of ofClass[0]) if (!taken[r]) mine.push(UB[r], r);
+  };
+  const heapIn = (parts) => { const H = heapOf(); for (const r of parts) if (!taken[r]) H.push(UB[r], r); return H; };
+  for (let r = 0; r < n; r++) if (r !== p) begin(r);
+  const all = heapIn(Array.from({ length: n }, (_, r) => r));
+  let c = 0, mine = heapIn(ofClass[0]);
   for (let s = 1; s <= n; s++) {
     const f = farthest(all, s); err[s] = f < 0 ? 0 : UB[f];   // (of every part not yet taken, whatever its class: how far its leaves may lie from all that are)
     if (s === n) break;
     let q = farthest(mine, s);
-    while (q < 0) { mine = heapOf(); for (const r of ofClass[++c]) if (!taken[r]) mine.push(UB[r], r); q = farthest(mine, s); }   // (a class is through: the next)
+    while (q < 0) { mine = heapIn(ofClass[++c]); q = farthest(mine, s); }   // (a class is through: the next)
     out[s] = q; take(q, s);
   }
   return out;
 }
+/** Each card's part (gfrom: where each part's cards begin; none without cards). */
+const ownersOf = (gfrom, n) => { const O = new Int32Array(gfrom ? gfrom[n] : 0); if (gfrom) for (let r = 0; r < n; r++) O.fill(r, gfrom[r], gfrom[r + 1]); return O; };
+/** The most of every `step`-th number of A from `at`. */
+const mostOf = (A, step, at) => { let m = 0; for (let i = at; i < A.length; i += step) m = max(m, A[i]); return m; };
+/** The parts of each class (cls: each part's), the classes in turn. */
+const classesOf = (cls) => [...new Set(cls)].sort((x, y) => x - y).map((k) => { const o = []; for (let r = 0; r < cls.length; r++) if (cls[r] === k) o.push(r); return o; });
+/** Of the parts `of`, the one whose middle lies farthest from `mid`. */
+const farthestFrom = (of, X, Y, Z, mid) => { let p = -1, far = -1; for (const r of of) { const q = (X[r] - mid[0]) ** 2 + (Y[r] - mid[1]) ** 2 + (Z[r] - mid[2]) ** 2; if (q > far) { far = q; p = r; } } return p; };
 /** A heap of numbers, the largest on top, each with what it is of (turnsOf). */
 function heapOf() {
   const K = [], V = [], swap = (i, j) => { const k = K[i], v = V[i]; K[i] = K[j]; V[i] = V[j]; K[j] = k; V[j] = v; };
