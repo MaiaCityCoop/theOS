@@ -135,3 +135,4 @@ _One entry per request cycle, newest last._
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-19 | `3f1d174` | the Bevy app: dashboard, Game, Studio, the camera and its tests, five first shots, the still |
