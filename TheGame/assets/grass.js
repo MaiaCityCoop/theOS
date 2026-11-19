@@ -17,13 +17,6 @@ export default {
   name: 'Grass',
   kind: 'grass',
   about: 'The blades of the meadow: each bends and flutters in the wind on its own, in tufts of a common height and lean; a white flower head now and then. Every biome says how much of it grows, how high, and in which greens.',
-  // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
-  measure: {
-    real: 'the grasses of a hay meadow, leaf and flowering stem',
-    typical: [0.3, 1.2],
-    most: 1.5,
-    source: ['false oat-grass (Arrhenatherum elatius), a hay meadow\'s tallest: 0.5 to 1.2 m, now and then 1.5 m (Flora Helvetica); 0.6 to 1.5 m (Bayer crop science)'],
-  },
   size: { length: 0.03, width: 0.03, height: 0.58 },   // one blade, full grown
   height: 0.58,
   tiers: [

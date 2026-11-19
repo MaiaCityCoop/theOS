@@ -4,14 +4,12 @@
 //   ['skin', k, size]          its own texture, `size` pixels a side
 //   ['bones', k0, n]           the skeletons of kinds k0 … k0 + n, end to end (three rows of four a bone; none: all nought)
 //   ['rooms']                  how much room each herd's movers take as they move (the zoo's herdRooms)
-//   ['lod', LOD]               how the plants' levels are made (assets/kit/crowd.js LOD: `?lod=new`), sent first
 //   ['own', k0, n, [[l, idx, elems], …]]   levels every kind has its own of, of kinds k0 … k0 + n (or k0 a list of
 //                              kinds, where a drawer's are not one after another), each level as one block as the
 //                              heap takes it (src/scatter/heap.js: putBlock): { corners, verts, counts } (counts: a
 //                              mesh's corners, or what its family says it counts by: a plant's vertices)
 import { meshOf, skinOf, bonesOf, herdRooms } from '../../assets/zoo/index.js';
 import { BONES } from '../../assets/kit/solid.js';
-import { LOD } from '../../assets/kit/crowd.js';
 
 self.onmessage = ({ data: { id, jobs } }) => {
   const out = [], move = [];
@@ -19,7 +17,6 @@ self.onmessage = ({ data: { id, jobs } }) => {
     if (j[0] === 'mesh') { const m = meshOf(j[1], j[2]); out.push(m); move.push(m.index.buffer, m.verts.buffer); }
     else if (j[0] === 'skin') { const S = skinOf(j[1], j[2]); out.push(S); for (const l of S.levels) move.push(l.buffer); }
     else if (j[0] === 'rooms') out.push(herdRooms());
-    else if (j[0] === 'lod') { Object.assign(LOD, j[1]); out.push(null); }
     else if (j[0] === 'bones') { const [, k0, n] = j, rows = new Float32Array(n * BONES * 12); for (let i = 0; i < n; i++) { const B = bonesOf(k0 + i); if (B) rows.set(B, i * BONES * 12); } out.push(rows); move.push(rows.buffer); }
     else {
       const [, k0, n, levels] = j, kindOf = (i) => (Array.isArray(k0) ? k0[i] : k0 + i);

@@ -58,8 +58,7 @@ export function createScreen(renderer, { temporal, lens = null }) {
       renderer.setRenderTarget(now); renderer.render(scene, camera); renderer.setRenderTarget(null);
       temporal.end(camera);
       const dof = camera.userData.dof;   // the virtual camera brings a lens with it: its picture is drawn through it
-      const glass = camera.userData.glass;   // the walker's glass, without the film's depth of field (src/camera/rig.js)
-      temporal.resolve(now, was, lens && dof && dof.on ? lens.blur(now, camera, dof) : glass ? { colour: now.texture, glass } : null);
+      temporal.resolve(now, was, lens && dof && dof.on ? lens.blur(now, camera, dof) : null);
       turn = 1 - turn;
     },
   };

@@ -30,8 +30,6 @@
 // its file is read (a worker reads this file too: plain JS, nothing of the page in it).
 
 import { kindRule } from '../kinds.js';
-import { LOD, CROWD, budgetOf } from './crowd.js';
-import { bandsOf, shapeSize, crowdLevel, ownTop } from './plant.js';
 import { add, sub, mul, dot, len, norm, cross, lerp, bez } from './math.js';
 import { rng } from '../../src/core/hash.js';
 
@@ -287,18 +285,10 @@ function stagesOf(G, seed) {
   });
   /** a tree of this age: which of the shapes (variant v of its stage) and its scale */
   const at = (age, v = 0) => {
-    const S = stages.find((x) => age < x.to) ?? stages[n - 1];
-    return { shape: S.offset + (v % S.variants), s: heightIn(S, age) / S.h, height: G.height(age) };
+    const S = stages.find((x) => age < x.to) ?? stages[n - 1], t = Math.log(Math.max(age, S.from) / S.from) / Math.log(S.to / S.from);
+    return { shape: S.offset + (v % S.variants), s: (S.hFrom + (S.hTo - S.hFrom) * Math.min(1, t)) / S.h, height: G.height(age) };
   };
   return { shapes, stages, at };
-}
-/** How tall a tree of this age stands in stage S: its height by age where the stage begins, at its own year and where it
-    ends (hFrom, h, hTo), and between them straight in the logarithms of age and height, as a power of its age (as a
-    young tree grows): within a few hundredths of its height by age (intent 0035; tools/scale.js measures it). The
-    trees' engine works out the same on the graphics card (src/scatter/trees.js). */
-export function heightIn(S, age) {
-  const a = Math.min(Math.max(age, S.from), S.to), low = a < S.year, [a0, a1, h0, h1] = low ? [S.from, S.year, S.hFrom, S.h] : [S.year, S.to, S.h, S.hTo];
-  return a1 > a0 ? Math.exp(Math.log(h0) + (Math.log(h1) - Math.log(h0)) * (Math.log(a / a0) / Math.log(a1 / a0))) : h0;
 }
 
 /** What the page must know of a tree at once, before any of its meshes is made (its size, each shape's height and
@@ -329,33 +319,6 @@ export function tree(recipe) {
   // themselves (its kind's sizes are for the levels its file draws and the kit's farthest: one more in front must not shift them)
   const f = fine ? 1 : 0, kpx = fine ? rest.detail?.px ?? kindRule(rest, 'px') : null, pxAt = (i) => (kpx ? { px: kpx[Math.min(i, kpx.length - 1)] } : {});
   const specs = [...(fine ? [{ P: fine.P ?? 2, px: fine.px, most: fine.most, fine: true }] : []), ...levels.map((L, i) => ({ ...L, ...pxAt(i) })), ...fars.map((o, j) => ({ P: far.P ?? 64, far: true, most: farMost(o), ...pxAt(levels.length + j) }))];
-  // under `?lod=new` with LOD.SPLIT (assets/kit/crowd.js): every level the crowd kit makes, but its finest where it has
-  // no splay before it, is cut into levels no wider than SPLIT times on screen. A crowd level holds all its band may
-  // show at its widest: the narrower its band, the nearer what it submits to what it shows (more draws). Reckoned when
-  // asked, not when the file is read: the flag is set after (the page's, the workers')
-  // Under `?lod=new` it has no splay as a level of its own: the crowd kit's first level stands from the top, every size
-  // above its band, its cards turning in one by one as they come near, so nothing is handed over sprig by sprig there,
-  // nor comes later and swaps in (intent 0033: the pops close to medium). That first level is the splay itself: the crowd
-  // is built from it, so close up it is as fine as the splay was, every twig there, and its finest detail is the first
-  // share of the one build, not another level. Its levels are then counted from the crowd's first (`at0`: a level as
-  // counted then, as the file's: its first the splay where it has one, the others one on)
-  let cut = null, cutKey = null, bare = null;
-  const at0 = (l) => (LOD.on && l ? l + f : l);
-  const specsOf = () => {
-    if (!LOD.on) return specs;
-    const base = (bare ??= fine ? specs.slice(1) : specs);
-    if (!(LOD.SPLIT > 1)) return base;
-    if (cutKey === LOD.SPLIT) return cut;
-    const kp = rest.detail?.px ?? kindRule(rest, 'px'), at = base.map((L, i) => ({ ...L, px: L.px ?? kp[Math.min(i + f, kp.length - 1)] }));
-    cut = []; cutKey = LOD.SPLIT;
-    at.forEach((L, i) => {
-      const hi = i ? at[i - 1].px : Infinity;
-      if (L.fine || !Number.isFinite(hi) || hi <= LOD.FAR) { cut.push(L); return; }   // (a band under FAR holds a far body only: cut, it would only pack its plants twice where two meet)
-      const n = Math.max(1, Math.ceil(Math.log(hi / L.px) / Math.log(LOD.SPLIT) - 1e-9));
-      for (let k = 1; k <= n; k++) cut.push({ ...L, px: k === n ? L.px : hi * Math.pow(L.px / hi, k / n) });
-    });
-    return cut;
-  };
   // (the last few made are kept as the builder left them: a far level is made from its shape's nearest)
   const memo = new Map(), once = (key, make) => { let m = memo.get(key); if (!m) { if (memo.size >= 6) memo.delete(memo.keys().next().value); memo.set(key, (m = make())); } return m; };
   /** Shape `shape` at level `level`, as the builder made it (its attributes lists of numbers). */
@@ -375,27 +338,14 @@ export function tree(recipe) {
   const out = {
     ...rest,
     ...(fine ? { fine: { px: fine.px, twig: fine.twig } } : {}),   // (what its finest level wears: the plants' material reads it, the textures find it)
-    // (at: a tree of an age, which shape and its scale; the scale over the shape as built, so it stands exactly as tall
-    // as its height by age says, as the trees' engine draws it: src/scatter/trees.js sizeAtOne)
-    ...(G ? { growth: { years: growth.years, stages: G.stages, height: growth.height, at: (age, v) => { const r = G.at(age, v), S = G.stages.find((x) => r.shape >= x.offset && r.shape < x.offset + x.variants), b = measured().heights[r.shape]; return { ...r, s: b > 0 ? (r.s * S.h) / b : r.s }; } } } : {}),
+    ...(G ? { growth: { years: growth.years, stages: G.stages, at: G.at, height: growth.height } } : {}),
     /** how many shapes it has, and how many levels (its file's and the kit's two farthest) */
-    shapeCount: shapes.length,
-    rawAt: (level, shape) => rawAt(at0(level), shape),   // (as its levels are counted: under `?lod=new` its splay the crowd's first, no level of its own)
+    shapeCount: shapes.length, levelCount: specs.length,
+    rawAt,
     /** its shade's mesh for a shape (what the shadow map is drawn from), as the builder made it; none: it has no shade of its own */
     shadeRaw: shade ? (shape) => shade(shapes[shape], shape) : null,
-    /** Under `?lod=new` (assets/kit/crowd.js): the room each shape's levels need in the heap, [shape][level] { verts,
-        tris }, reckoned from its finest (its splay, where it has one) without building it, and kept with its outline */
-    crowdRooms() {
-      const o = measured(), key = `${LOD.CARD}:${LOD.KMAX}:${LOD.SPLIT}:${LOD.BAKE}:${LOD.FAR}:${LOD.STANDS?.[out.uid] ?? ''}`;
-      if (o.crowd?.key !== key) {
-        const B = bandsOf(out), his = B.map(([, hi], l) => (l === (LOD.on ? 0 : f) ? Infinity : hi));
-        o.crowd = { key, rooms: shapes.map((s, i) => { const R = budgetOf(rawAt(LOD.on ? 0 : f, i), { size: shapeSize(out, i), CARD: LOD.CARD, KMAX: LOD.KMAX, FAR: LOD.FAR, baked: LOD.BAKE }, his.map((hi) => ownTop(out, i, hi))); return R.map((r, l) => (crowdLevel(out, l) ? [r.verts, r.tris] : null)); }) };
-        OUTLINES.made.set(id, o);
-      }
-      return o.crowd.rooms;
-    },
     /** shape `shape` at level `level` as typed arrays (a plain geometry's: the library's stage) */
-    meshAt: (level, shape = 0) => packed(rawAt(Math.min(level, specs.length - 1), Math.min(shape, shapes.length - 1))),   // (its file's levels: the crowd kit's are made by assets/kit/plant.js)
+    meshAt: (level, shape = 0) => packed(rawAt(Math.min(level, specs.length - 1), Math.min(shape, shapes.length - 1))),
     /** the same kind of tree grown from another seed: other shapes, other places (the library's Random). A shape of its
         file's that carries a seed of its own (a bush's mound, a branch: no growth to grow it from the placement's seed)
         is grown from that seed moved as far as the placement's was, so a bush is another bush too; its own seed gives
@@ -409,8 +359,6 @@ export function tree(recipe) {
     // tris(): counted when asked); shadow: it is drawn into the shadow map by its shade, for every tree within `far`
     // metres (from high up, up to `wide` times that) whose shade can reach the view (`reach`: how far a crown's shadow
     // falls); past them the land dims its floor under the stand by itself (src/terrain/material.js)
-    detail: lazy(() => (detail?.of === specsOf() ? detail.d : (detail = { of: specsOf(), d: { ...(rest.detail || {}), levels: specsOf().map((L, i) => ({ ...L, tris: () => rawAt(at0(i), 0).index.length / 3 })), ...(shade ? { shadow: { far: 80, wide: 2.4, reach: 22, ...shadow } } : {}) } }).d)),
-    /** how many levels it has (its file's and the kit's two farthest; under `?lod=new` as LOD.SPLIT cuts them) */
-    levelCount: lazy(() => specsOf().length),
+    detail: lazy(() => (detail ??= { ...(rest.detail || {}), levels: specs.map((L, i) => ({ ...L, tris: () => rawAt(i, 0).index.length / 3 })), ...(shade ? { shadow: { far: 80, wide: 2.4, reach: 22, ...shadow } } : {}) })),
   });
 }
