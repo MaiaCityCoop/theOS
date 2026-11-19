@@ -57,12 +57,14 @@
 //                                                                stress world (src/scatter/stress.js)
 //   bun tools/gate.js all [--tag t] [--views a,b]                stills of this code and of ?truth, their diff, the
 //                                                                bench, the compile and the paths, in one table
-//   bun tools/gate.js wgsl [--ratchet]                           every shader module the smoke builds, compiled on this
+//   bun tools/gate.js wgsl [--ratchet] [--cpu --from f]           every shader module the smoke builds, compiled on this
 //                                                                machine's GPU in a blank page of Chrome and of WebKit,
 //                                                                no game loaded: each module's errors and every
 //                                                                pipeline made of them, exit 1 on any; and what each
 //                                                                costs, cold, the worst and the world's total against
-//                                                                tools/gate/shaders.json (--ratchet: lowered to them)
+//                                                                tools/gate/shaders.json (--ratchet: lowered to them);
+//                                                                --cpu --from f: the modules in f (smoke --wgsl f) in
+//                                                                Chrome on its CPU adapter, compiled only (CI's)
 //   bun tools/gate.js device [--secs s]                          the device on the machine the 8 GB gate is for
 //                                                                (budget.js MACHINE, in WebKit): GPU memory by the
 //                                                                game's ledger, its peak and where it settles, the
@@ -750,7 +752,7 @@ async function all(opt) {
 }
 
 // ---- the command line ----
-const FLAGS = new Set(['truth', 'headed', 'fresh', 'verbose', 'no-clip', 'jpeg', 'floor', 'twice', 'ratchet', 'swaps', 'stress']);   // (options without a value)
+const FLAGS = new Set(['truth', 'headed', 'fresh', 'verbose', 'no-clip', 'jpeg', 'floor', 'twice', 'ratchet', 'swaps', 'stress', 'cpu']);   // (options without a value)
 const [cmd, ...args] = process.argv.slice(2), pos = [], opt = {};
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -769,7 +771,7 @@ try {
   else if (cmd === 'real') { const real = async () => (await import('./gate/real.js')).real(pos[0], opt); r = await ((opt.device ?? 'cpu') === 'cpu' ? real() : locked('real', real)); }   // (on a GPU, mps: in its turn)
   else if (cmd === 'all') r = await onMachine(() => all(opt));   // (its parts take their turns one by one: the machine read over the whole)
   else if (cmd === 'hourly') { r = await hourly(opt); if (r?.fails?.length) process.exitCode = 1; }   // (the hour fails where the GPU's memory went past a budget)
-  else if (cmd === 'wgsl') { r = await locked('wgsl', async () => (await import('./gate/wgsl.js')).wgsl(opt)); if (!r.pass) process.exitCode = 1; }   // (no game, no measure: on any machine)
+  else if (cmd === 'wgsl') { const run = async () => (await import('./gate/wgsl.js')).wgsl(opt); r = await (opt.cpu ? run() : locked('wgsl', run)); if (!r.pass) process.exitCode = 1; }   // (no game, no measure: on any machine; --cpu, no GPU at all: no turn to take)
   else if (cmd === 'device') r = await measured('device', async () => (await import('./gate/device.js')).device(BASE, opt.secs ? { secs: +opt.secs } : {}));
   else if (WITH[cmd]) { const chrome = await launch(opt); try { r = await WITH[cmd](chrome); } finally { await closeHard(chrome, chrome.gateDir); } }
   else { console.log('bun tools/gate.js wgsl | device | walks | smoke | stills | diff | noise | bench | compile | paths | motion | real | all | hourly: see the top of tools/gate.js'); process.exitCode = cmd ? 1 : 0; }

@@ -46,7 +46,7 @@ function built() {
 /** In the page: every module compiled on the adapter's device (all its features and limits asked, as the game asks
     them), its errors said with where; every pipeline made. { adapter, modules, pipelines, errors }. */
 async function compileAll(S) {
-  const adapter = await navigator.gpu?.requestAdapter();
+  const adapter = (await navigator.gpu?.requestAdapter()) ?? (await navigator.gpu?.requestAdapter({ forceFallbackAdapter: true }));   // (a CPU's where there is no GPU: CI's, SwiftShader)
   if (!adapter) return { error: 'no WebGPU adapter' };
   const requiredLimits = {}; for (const k in adapter.limits) requiredLimits[k] = adapter.limits[k];
   const device = await adapter.requestDevice({ requiredFeatures: [...adapter.features], requiredLimits });
@@ -97,18 +97,20 @@ async function compileAll(S) {
     }
     return device.createPipelineLayout({ bindGroupLayouts: Array.from(groups, (G) => device.createBindGroupLayout({ entries: [...(G ?? new Map()).values()] })) });
   };
-  for (const s of S.compute) { const m = await mod(s.code, s.label, 'compute'); cost(m ? await made(s.label, 'compute pipeline', () => device.createComputePipelineAsync({ layout: layoutOf([[s.code, 'compute']]), compute: { module: m, entryPoint: 'main' } })) : null); }
-  for (const s of S.render) {
-    const vm = await mod(s.vertex, s.label, 'vertex'), fm = await mod(s.fragment, s.label, 'fragment');
-    if (!vm || !fm) { cost(null); continue; }
+  const pipes = S.pipelines !== false;   // (pipelines: false, the modules only: a CPU adapter's limits are not the game's devices')
+  // (a render pipeline: its vertex buffers, one an input its vertex stage declares, and its colour targets, one an output
+  // its fragment stage declares, made with its modules)
+  const renderPipeline = (s, vm, fm) => {
     const inputs = fields(s.vertex.match(/@vertex\s*fn main\(([\s\S]*?)\)\s*->/)?.[1] ?? '').map(([, at, t]) => [+at, vertexFormat(t)]).filter(([, f]) => f);
     const buffers = inputs.map(([at, format]) => ({ arrayStride: bytes(format), attributes: [{ shaderLocation: at, offset: 0, format }] }));
     const ret = s.fragment.match(/@fragment\s*fn main\([\s\S]*?\)\s*->\s*(@location\(\s*0\s*\)\s*)?([\w<>]+)/), outs = [];
     if (ret?.[1]) outs[0] = ret[2];
     else if (ret) for (const [, at, t] of fields(s.fragment.match(new RegExp(`struct ${ret[2]}\\s*\\{([\\s\\S]*?)\\}`))?.[1] ?? '')) outs[+at] = t;
-    cost(await made(s.label, 'render pipeline', () => device.createRenderPipelineAsync({ layout: layoutOf([[s.vertex, 'vertex'], [s.fragment, 'fragment']]), vertex: { module: vm, entryPoint: 'main', buffers },
-      fragment: { module: fm, entryPoint: 'main', targets: Array.from(outs, (t) => (t ? { format: target(t) } : null)) }, depthStencil: { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'less' } })));
-  }
+    return made(s.label, 'render pipeline', () => device.createRenderPipelineAsync({ layout: layoutOf([[s.vertex, 'vertex'], [s.fragment, 'fragment']]), vertex: { module: vm, entryPoint: 'main', buffers },
+      fragment: { module: fm, entryPoint: 'main', targets: Array.from(outs, (t) => (t ? { format: target(t) } : null)) }, depthStencil: { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'less' } }));
+  };
+  for (const s of S.compute) { const m = await mod(s.code, s.label, 'compute'); if (pipes) cost(m ? await made(s.label, 'compute pipeline', () => device.createComputePipelineAsync({ layout: layoutOf([[s.code, 'compute']]), compute: { module: m, entryPoint: 'main' } })) : null); }
+  for (const s of S.render) { const vm = await mod(s.vertex, s.label, 'vertex'), fm = await mod(s.fragment, s.label, 'fragment'); if (pipes) cost(vm && fm ? await renderPipeline(s, vm, fm) : null); }
   device.destroy();
   return out;
 }
@@ -122,6 +124,15 @@ const markedOf = (S, n) => {
   return { compute: S.compute.map((c) => ({ ...c, code: m(c.code) })), render: S.render.map((r) => ({ ...r, vertex: m(r.vertex), fragment: m(r.fragment) })) };
 };
 const hashOf = (...x) => createHash('sha1').update(x.join('\0')).digest('hex');
+/** One engine's run on a CPU adapter (--cpu: CI's, SwiftShader): the modules compiled, nothing timed nor kept. */
+async function plain(name, launch, S) {
+  let b = null;
+  try { b = await launch(); const page = await opened(b); return await page.evaluate(compileAll, { ...S, pipelines: false }); }
+  catch (e) { return { error: String(e?.message ?? e).split('\n')[0] }; }
+  finally { await b?.close(); }
+}
+/** A blank page of a secure origin (WebGPU's) in browser b, a context of its own (WebKit's default one has no adapter). */
+const opened = async (b) => { const page = await (await b.newContext()).newPage(); await page.route('https://wgsl.gate/**', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>wgsl</title>' })); await page.goto('https://wgsl.gate/'); return page; };
 /** One engine's run: its result kept for this set and this browser where measured; else the set marked anew (its
     attempt), compiled and timed (compileAll), the machine watched. */
 async function engine(name, launch, S, set) {
@@ -131,10 +142,7 @@ async function engine(name, launch, S, set) {
     const file = `${KEPT}${set.slice(0, 16)}-${name}-${b.version()}.json`, kept = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null;
     if (kept?.result && !kept.result.notMeasured && !kept.result.error) return { ...kept.result, kept: true };   // (a run that did not come to the shaders is never kept as the set's)
     const attempt = (kept?.attempt ?? 0) + 1, mark = parseInt(hashOf(set, attempt).slice(0, 8), 16);
-    const page = await (await b.newContext()).newPage();   // (a context of its own: WebKit's default one has no adapter)
-    await page.route('https://wgsl.gate/**', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>wgsl</title>' }));   // (a blank page of a secure origin: WebGPU's)
-    await page.goto('https://wgsl.gate/');
-    const result = await watched(() => page.evaluate(compileAll, markedOf(S, mark)));
+    const page = await opened(b), result = await watched(() => page.evaluate(compileAll, markedOf(S, mark)));
     mkdirSync(KEPT, { recursive: true }); writeFileSync(file, JSON.stringify({ attempt, result }));
     return result;
   } catch (e) { return { error: String(e?.message ?? e).split('\n')[0] }; }
@@ -149,18 +157,26 @@ const codesOf = (S) => [...S.compute.map((c) => c.code), ...S.render.flatMap((r)
     ceiling, and the whole), errors, pass }; and, not kept with it, names (each program's code: the smoke's name for it,
     firstView's). opt.ratchet: the ceiling lowered to what was measured (main's run). */
 export async function wgsl(opt = {}) {
-  const S = built();
+  const W = ON[opt.cpu ? 'cpu' : 'gpu'], S = W.modules(opt);
   if (S.error) { const out = { error: S.error, pass: false }; say(out); return out; }
   const out = { modules: { render: S.render.length, compute: S.compute.length }, engines: {}, list: rowsOf(S) }, set = hashOf(...codesOf(S));
-  for (const [name, launch] of Object.entries(ENGINES)) out.engines[name] = await engine(name, launch, S, set);
+  for (const [name, launch] of Object.entries(W.engines)) out.engines[name] = await W.run(name, launch, S, set);
   out.errors = Object.entries(out.engines).flatMap(([n, e]) => (e.errors ?? []).map((x) => `${n}: ${x}`));   // (what the shaders got wrong: it fails)
   out.unchecked = Object.entries(out.engines).filter(([, e]) => e.error).map(([n, e]) => `${n}: ${e.error}`);   // (an engine that did not come to them, no adapter, say: said, it fails nothing)
   out.pass = !out.errors.length;
-  out.cost = held('worst', costs(out.list, out.engines), (c) => c.worst?.ms, opt.ratchet);
+  out.cost = W.cost(out, opt);
   Object.defineProperty(out, 'names', { value: new Map([...S.compute.map((c) => [c.code, c.label]), ...S.render.map((r) => [`${r.vertex}\0${r.fragment}`, r.label])]) });
   say(out);
   return out;
 }
+/** Where the modules come from and how they are compiled: on this machine's GPU, the smoke run --full, each engine,
+    timed cold (marked, kept); or, --cpu, CI's, in Chrome on its CPU adapter (SwiftShader), the modules CI's smoke kept
+    (--from), compiled only: what Chrome's compiler, Tint, refuses fails a pull request, not the hour (2026-11-19: a
+    float level on a depth texture), and nothing timed, a CPU's times not being a GPU's. */
+const ON = {
+  gpu: { modules: () => built(), engines: ENGINES, run: engine, cost: (out, opt) => held('worst', costs(out.list, out.engines), (c) => c.worst?.ms, opt.ratchet) },
+  cpu: { modules: (opt) => JSON.parse(readFileSync(opt.from, 'utf8')), engines: { chrome: () => chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-vulkan=swiftshader', '--use-webgpu-adapter=swiftshader', '--disable-vulkan-surface'] }) }, run: plain, cost: () => ({}) },
+};
 /** The first view's own programs (P: as the game made them before its first frame showed, tools/gate/device.js
     programs), compiled and timed cold in each engine as the smoke's are, each named as the smoke names it where its code
     is the smoke's (W.names). { shown, made (pipelines asked before the first frame), programs, smoke's (of them, the

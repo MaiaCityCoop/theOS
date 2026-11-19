@@ -56,7 +56,10 @@ jobs:
         run: bun tools/lint.js
       - name: Every material and pass built, on the GPU's stand-in
         working-directory: TheGame
-        run: bun tools/smoke.js
+        run: bun tools/smoke.js --wgsl "$RUNNER_TEMP/wgsl.json"
+      - name: Every shader the smoke built, compiled as Chrome compiles it (Tint, on its CPU adapter, SwiftShader)
+        working-directory: TheGame
+        run: bun tools/gate.js wgsl --cpu --from "$RUNNER_TEMP/wgsl.json"
       - name: What smoke counted, kept for main's commit
         if: github.event_name == 'push'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
