@@ -72,14 +72,15 @@ fn sward(x: f32, z: f32) -> Vec3 {
     let lush = noise(x, z, 60.0, 8) * 0.6 + noise(x, z, 600.0, 12) * 0.4;
     let dry = noise(x, z, 170.0, 9) * 0.5 + noise(x, z, 1900.0, 13) * 0.5;
     let fine = 0.85 + 0.3 * noise(x, z, 9.0, 10);
-    Vec3::new(0.026, 0.062, 0.012).lerp(Vec3::new(0.055, 0.10, 0.020), lush).lerp(Vec3::new(0.12, 0.10, 0.05), dry * dry * 0.8) * fine
+    // a lush green under and between the blades, as a dense sward looks; only the driest parts lean to straw
+    Vec3::new(0.040, 0.095, 0.018).lerp(Vec3::new(0.070, 0.150, 0.028), lush).lerp(Vec3::new(0.11, 0.12, 0.05), dry * dry * 0.4) * fine
 }
 
 /// How bare the ground is at (x, z), 0 under a full sward to 1 in a bare patch: irregular patches of earth and gravel,
 /// a few metres across, as a grazed or trodden meadow has them. The grass leaves them out.
 pub fn bare(x: f32, z: f32) -> f32 {
     let n = noise(x, z, 16.0, 20) * 0.65 + noise(x, z, 5.0, 21) * 0.25 + noise(x, z, 1.5, 22) * 0.10;
-    let t = ((n - 0.66) / 0.08).clamp(0.0, 1.0);
+    let t = ((n - 0.76) / 0.06).clamp(0.0, 1.0); // rarer: a few patches, not a mottled field
     t * t * (3.0 - 2.0 * t)
 }
 

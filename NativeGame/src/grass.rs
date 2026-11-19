@@ -13,9 +13,9 @@ use crate::terrain;
 pub const CHUNK: f32 = 8.0;
 pub const RINGS: i32 = 9;
 /// Blades per square metre at full detail.
-const DENSITY: f32 = 230.0;
+const DENSITY: f32 = 520.0;
 /// Segments up a blade.
-const SEGS: usize = 5;
+const SEGS: usize = 4;
 
 /// A deterministic hash to a number in [0, 1).
 fn h(a: u32, b: u32, c: u32) -> f32 {
@@ -200,10 +200,10 @@ fn blades(cx: i32, cz: i32, share: f32, fine: bool) -> Mesh {
     let widen = (1.0 / share).sqrt().min(3.5); // fewer blades are wider, to keep the cover
     let full = (DENSITY * CHUNK * CHUNK) as u32;
     let count = (full as f32 * share) as u32;
-    let segs = if share >= 1.0 { SEGS } else if share >= 0.35 { SEGS - 1 } else { SEGS - 2 };
+    let segs = if share >= 1.0 { SEGS } else { SEGS - 1 };
     let detail = share >= 0.35 && !fine; // seed heads only where they can be seen
     let fold = fine; // the close blades fold along the midrib, as real ones do (only near the eye, where it shows)
-    let count = if fine { count * 6 / 10 } else { count };
+    let count = if fine { count * 3 / 2 } else { count };
 
     let mut g = Geo::default();
     let (sx, sz) = if fine { (cx as u32 ^ 0x5151_5151, cz as u32 ^ 0xA7A7_A7A7) } else { (cx as u32, cz as u32) };
@@ -240,7 +240,7 @@ fn blades(cx: i32, cz: i32, share: f32, fine: bool) -> Mesh {
         let (dir, side) = (Vec3::new(yaw.cos(), 0.0, yaw.sin()), Vec3::new(-yaw.sin(), 0.0, yaw.cos()));
         // colour: each blade its own green, from deep to light yellow-green; drier where the field is dry.
         // Linear reflectance of real grass: about 5 to 20 % in green, little red and blue.
-        let green = Vec3::new(0.030, 0.085, 0.012).lerp(Vec3::new(0.085, 0.200, 0.030), r(7));
+        let green = Vec3::new(0.045, 0.120, 0.018).lerp(Vec3::new(0.100, 0.230, 0.035), r(7));
         let straw = Vec3::new(0.30, 0.24, 0.10);
         // fresh green, with only a little straw where the field is dry
         let tip = green.lerp(straw, (dry * dry * 0.35 * r(9)).min(0.2)) * (0.95 + 0.3 * r(10));

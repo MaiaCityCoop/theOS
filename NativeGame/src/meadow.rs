@@ -182,7 +182,9 @@ fn stream(
     for (k, c, (grass, close, ground)) in ready {
         field.growing.remove(&k);
         let mut parts = vec![
-            commands.spawn((GrassWorld, MEADOW, Mesh3d(meshes.add(grass)), MeshMaterial3d(field.material.clone()))).id(),
+            // the blades stay out of the sun's shadow maps: they would draw every blade twice more each frame; the
+            // shade among them comes from their dark roots and the ambient occlusion instead
+            commands.spawn((GrassWorld, MEADOW, Mesh3d(meshes.add(grass)), MeshMaterial3d(field.material.clone()), bevy::light::NotShadowCaster)).id(),
             commands.spawn((GrassWorld, MEADOW, Mesh3d(meshes.add(ground)), MeshMaterial3d(field.ground.clone()))).id(),
         ];
         if let Some(close) = close {
