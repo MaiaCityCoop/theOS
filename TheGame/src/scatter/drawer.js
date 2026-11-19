@@ -73,7 +73,7 @@ import { bandOf, padOf } from '../detail/handover.js';
 import { dialK, pxKMost, pxOn, farFor, farMost, spanAt, pxAt, dialPxAt, DIAL_LEAST } from '../detail/measure.js';
 import { source } from '../core/settle.js';
 import { asking } from '../core/workers.js';
-import { note } from '../core/gpu.js';
+import { note, gpuIndex } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
 import { ready, computeMaker } from '../core/compile.js';
 import { did } from '../core/work.js';
@@ -95,6 +95,15 @@ const measured = (SOLID, MAKE) => SOLID || !!MAKE.boxOf;
 /** How much a kind's box is grown, of its size, for what may move a thing past it (createDrawer GROWN): a solid's little,
     a box said or measured of a make's kinds more, one taken from a kind's height most. */
 const grownOf = (SOLID, MAKE) => (SOLID ? 0.02 : MAKE?.box || MAKE?.boxOf ? 0.05 : 0.3);
+/** The messages a drawer's coarse levels come in, [first kind, how many] each (src/scatter/drawer.js fill): a hundred
+    kinds a message; of fewer kinds, a third of them a message, one to each worker (a kind whose levels are reduced
+    from its full mesh takes a second or two, intent 0033); a make of a few small kinds that makes them itself
+    (make.here), one message of them all. Each is kept in the browser as it came, and read back so. */
+const keptChunksOf = (all, make) => {
+  if (make?.here) return [[0, all]];
+  const step = Math.max(1, Math.min(100, Math.ceil(all / 3)));
+  return Array.from({ length: Math.ceil(all / step) }, (_, c) => [c * step, Math.min(step, all - c * step)]);
+};
 const classOf = (n) => { const t = Math.ceil(n / 3); return t <= 1 ? 0 : 32 - Math.clz32(t - 1); }, classN = (n) => uint(32).sub(countLeadingZeros(n.add(uint(2)).div(uint(3)).sub(uint(1))));
 const CLASSIX = []; const classIndex = (c) => (CLASSIX[c] ||= new THREE.BufferAttribute(Uint32Array.from({ length: 3 * 2 ** c }, (_, j) => j), 1));
 // the recipes' workers (recipes.worker.js, watched: src/core/workers.js): one set for every drawer, made when the first
@@ -438,8 +447,13 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   const OWN = []; for (let l = STREAMED; l < L - (DOT ? 1 : 0); l++) OWN.push(ownOf(l));   // (a make without a dot: its last level is every kind's own too; a solid's level says its delta: its kinds' boxes are measured where they are made; a level of plants the sizes it is drawn between, as their stand cut it: src/scatter/trees.js)
   let bonesOut = MOVING ? 1 : 0;   // (its movers' skeletons, until they have come)
   if (MOVING) ask([['bones', first + STAND, MOVING]]).then(([rows]) => { boneRows.array.set(rows); boneRows.needsUpdate = true; bonesOut = 0; });
-  const FP = fingerprint(), KEPT = name === 'stand' ? 'own' : `own: ${name}`; let coarse = -1, keptOwn = null, loadedAt = 0;   // (every drawer's coarse levels read back or built as soon as the browser has answered: what the first view draws of them is there in its first frame, src/boot.js)
-  keptGet(FP, KEPT).then((rec) => { keptOwn = Array.isArray(rec) && rec.length === OWN.length && rec.every((b, n) => b.l === OWN[n][0] && b.counts?.length === ALL && b.draws?.length === ALL && b.corners?.length === ALL * OWN[n][1] && (!MEASURED || b.boxes?.length === ALL * 6)) ? rec : false; start(); });
+  const FP = fingerprint(), KEPT = name === 'stand' ? 'own' : `own: ${name}`; let coarse = -1, keptOwn = null, loadedAt = 0;
+  // (kept a message at a time, as the workers send them: a record each, under its first kind (keptKey), read back so,
+  // never put together on the page into one copy of every kind's levels (one was 245 MB of the start's: intent 0038))
+  const keptChunks = keptChunksOf(ALL, MAKE);
+  const keptKey = (k) => `${KEPT}: ${k}`;
+  const keptChunk = (rec, n) => (Array.isArray(rec) && rec.length === OWN.length && rec.every((b, j) => b.l === OWN[j][0] && b.counts?.length === n && b.draws?.length === n && b.corners?.length === n * OWN[j][1] && (!MEASURED || b.boxes?.length === n * 6)) ? rec : false);   // (every drawer's coarse levels read back or built as soon as the browser has answered: what the first view draws of them is there in its first frame, src/boot.js)
+  Promise.all(keptChunks.map(([k, n]) => keptGet(FP, keptKey(k)).then((rec) => keptChunk(rec, n)))).then((recs) => { keptOwn = recs; start(); });
   // a block of a level every kind has its own of (kinds k0 … k0 + n, each `idx` corners' room), come from the workers
   // or read back: into the heap. A make that keeps its corners itself: each mesh's list is the index of its kind's
   // draw at that level, in every tier of it
@@ -458,25 +472,26 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     if (RANGE[b.l]) for (let j = 0; j < n; j++) if (b.draws[j]) classesIn[b.l].add(clampClass(b.l, classOf(b.draws[j])));
     if (MAKE && !RANGE[b.l]) for (let j = 0; j < n; j++) {
       const list = b.corners.slice(j * idx, j * idx + b.draws[j]);
-      for (const T of made) if (T.level === b.l) { T.geometries[k0 + j].setIndex(new THREE.BufferAttribute(list, 1)); T.setLength(k0 + j, list.length); }
+      for (const T of made) if (T.level === b.l) { T.geometries[k0 + j].setIndex(gpuIndex(list, T.geometries[k0 + j].index)); T.setLength(k0 + j, list.length); }   // (made on the GPU, src/core/gpu.js)
     }
   };
-  const fill = () => {
-    coarse = 0;
-    // (a make of a few small kinds may make its coarse levels itself, here, as the workers would (MAKE.here(OWN): the
-    // blocks): they are there for the first picture, not behind the workers' queue of everything else the start asks)
-    if (MAKE?.here) { const blocks = MAKE.here(OWN); blocks.forEach((b, j) => blockIn(b, 0, ALL, OWN[j][1], OWN[j][2])); coarse = ALL; stats.coarseMs = Math.round(performance.now() - t0); keptPut(FP, KEPT, blocks); return; }
-    const all = OWN.map(([l, idx, elems]) => ({ l, corners: new Uint32Array(ALL * idx), verts: new Uint32Array(ALL * elems * 4), counts: new Uint32Array(ALL), draws: new Uint32Array(ALL), ...(MEASURED ? { boxes: new Float32Array(ALL * 6) } : {}) }));
-    // (a hundred kinds a message, sent to the GPU as one piece a level; of fewer kinds, a third of them a message, one to
-    // each worker: a kind whose levels are reduced from its full mesh takes a second or two, intent 0033)
-    const STEP = Math.max(1, Math.min(100, Math.ceil(ALL / 3)));
-    for (let k = 0; k < ALL; k += STEP) {
-      const n = Math.min(STEP, ALL - k);
-      ask([['own', KINDS ? KINDS.slice(k, k + n) : first + k, n, OWN]]).then(([blocks]) => {
-        blocks.forEach((b, j) => { blockIn(b, k, n, OWN[j][1], OWN[j][2]); all[j].corners.set(b.corners, k * OWN[j][1]); all[j].verts.set(b.verts, k * OWN[j][2] * 4); all[j].counts.set(b.counts, k); all[j].draws.set(b.draws, k); if (b.boxes && all[j].boxes) all[j].boxes.set(b.boxes, k * 6); });
-        coarse += n; if (coarse >= ALL) { stats.coarseMs = Math.round(performance.now() - t0); keptPut(FP, KEPT, all); }
-      });
-    }
+  // the coarse levels, a message at a time (keptChunksOf), each sent to the GPU as one piece a level: what the browser
+  // kept of a message read back (recs: a chunk's blocks, or false), else made (by the workers; or here, a make of a few
+  // small kinds (MAKE.here(OWN): the blocks), there for the first picture, not behind the workers' queue of everything
+  // else the start asks) and kept as it came
+  const fill = (recs = null) => {
+    coarse = 0; let kept = 0;
+    const came = (blocks, k, n, read) => {
+      blocks.forEach((b, j) => blockIn(b, k, n, OWN[j][1], OWN[j][2]));
+      if (read) kept += n; else keptPut(FP, keptKey(k), blocks);
+      coarse += n; if (coarse >= ALL) { stats.coarseMs = Math.round(performance.now() - t0); stats.kept = kept >= ALL; }
+    };
+    keptPut(FP, KEPT, null);   // (what was kept of them all in one record, before: let go)
+    keptChunks.forEach(([k, n], c) => {
+      if (recs?.[c]) came(recs[c], k, n, true);
+      else if (MAKE?.here) came(MAKE.here(OWN), k, n, false);
+      else ask([['own', KINDS ? KINDS.slice(k, k + n) : first + k, n, OWN]]).then(([blocks]) => came(blocks, k, n, false));
+    });
   };
   const putAt = new Float64Array(ALL * L).fill(-1e9);   // when a kind's level was put in (the page's clock, ms)
   const skinAt = new Int32Array(ALL);   // the round a kind's own texture was last wanted in
@@ -535,15 +550,15 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       if (d.mesh.box) kindBox(d.k, boxIn(d.k, d.mesh.box));   // (before it is drawn: its box as large as it)
       if (H.put(d.k, d.l, d.mesh, round, round, U.uTime.value)) {
         stats.put++; putAt[id] = now; grewAt = U.uTime.value; did('meshes'); did('kB', Math.round((d.mesh.index.byteLength + d.mesh.verts.byteLength) / 1024));
-        if (!d.l) for (const T0 of fulls) { for (const at of T0.slotArgs(H.pools[0].slot[d.k])) T0.setLength(at / 5, d.mesh.draw ?? d.mesh.index.length); if (MAKE) T0.geometries[H.pools[0].slot[d.k]].setIndex(new THREE.BufferAttribute(d.mesh.index, 1)); }   // (another make's: its corners are the slot's draw's own list)   // (its slot's draw: as long as it)
+        if (!d.l) for (const T0 of fulls) { for (const at of T0.slotArgs(H.pools[0].slot[d.k])) T0.setLength(at / 5, d.mesh.draw ?? d.mesh.index.length); if (MAKE) { const g = T0.geometries[H.pools[0].slot[d.k]]; g.setIndex(gpuIndex(d.mesh.index, g.index)); } }   // (another make's: its corners are the slot's draw's own list)   // (its slot's draw: as long as it)
       }
     }
   };
   // each frame until every kind's coarse levels are in
   const start = () => {
     if (coarse < 0) {
-      if (keptOwn) { keptOwn.forEach((b, j) => blockIn(b, 0, ALL, OWN[j][1], OWN[j][2])); coarse = ALL; keptOwn = false; stats.kept = true; stats.coarseMs = Math.round(performance.now() - t0); }
-      else { loadedAt ||= performance.now(); if (keptOwn === false || performance.now() - loadedAt > 1500) fill(); }   // (the browser's answer is waited for a moment into the first frames: a busy start holds it back)
+      if (keptOwn) { const recs = keptOwn; keptOwn = false; fill(recs); }   // (the browser's answers: what it kept read back, the rest made)
+      else { loadedAt ||= performance.now(); if (performance.now() - loadedAt > 1500) fill(); }   // (the browser's answers are waited for a moment into the first frames: a busy start holds them back)
     }
   };
   // each frame: a few of the textures that have come, into their layers
