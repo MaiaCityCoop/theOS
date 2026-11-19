@@ -29,7 +29,7 @@ import { Fn, If, Loop, Break, float, int, uint, vec2, vec4, ivec2, uvec2, uvec4,
 import { U } from '../core/uniforms.js';
 import { boxIn } from '../core/frustum.js';
 import { HMIN, HMAX } from '../world/land.js';
-import { makeOwned, gpuStorage, roomOf } from '../core/gpu.js';
+import { makeOwned, gpuStorage, roomOf, bytesOf } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { source } from '../core/settle.js';
 import { OUTPUT } from '../core/budget.js';
@@ -145,7 +145,11 @@ export function createPages(renderer, tex) {
   // pixel asks a little coarser (the bias) ----
   const dev = renderer.backend.device, PACKED = !!dev?.features?.has('texture-compression-bc'), LAYERS_MOST = dev?.limits?.maxTextureArrayLayers ?? 256;
   const SLOT_BYTES = SLOT * SLOT * 1.25 * (PACKED ? 3 : 8);   // (a page's texels, with its second mip, in its formats: what the note below counts a slot)
-  const SLOTS = Math.min(PACKED ? Math.min(2 * LAYERS_MOST, VALID, pagesNeeded()) : Math.min(LAYERS_MOST, 640), Math.floor(roomOf('ground') / SLOT_BYTES)), PER = Math.min(SLOTS, LAYERS_MOST);   // (PER: layers an array; and never more than the ground's class has room for: src/core/budget.js)
+  // (what the pages hold besides their slots, made after them: the batch laid at once (packed: its texels, then its
+  // blocks), its layer map and its numbers, the page table, what the pixels ask for. Out of the ground's room first, so
+  // the slots take what is left of it and the class ends within its budget on any device)
+  const OWN = (PACKED ? BATCH * SLOT * SLOT * 1.25 * 8 + BATCH * 3 * ((SLOT / 4) ** 2 + (SLOT / 8) ** 2) * bytesOf('uvec4') : 0) + BATCH * POINTS * 2 * bytesOf('uvec4') + BATCH * 3 * bytesOf('vec4') + LEVELS * K * K * bytesOf('uint') + BLOCKS_MOST * 2 * bytesOf('uint');
+  const SLOTS = Math.min(PACKED ? Math.min(2 * LAYERS_MOST, VALID, pagesNeeded()) : Math.min(LAYERS_MOST, 640), Math.floor((roomOf('ground') - OWN) / SLOT_BYTES)), PER = Math.min(SLOTS, LAYERS_MOST);   // (PER: layers an array; and never more than the ground's class has room for: src/core/budget.js)
   const look = { minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, anisotropy: ANISO, colorSpace: THREE.NoColorSpace, generateMipmaps: false };
   const laidInto = (n) => Object.assign(new THREE.StorageArrayTexture(SLOT, SLOT, n), look, { mipmaps: [{ width: SLOT, height: SLOT }, { width: SLOT / 2, height: SLOT / 2 }] });
   const blocks = (format, n) => {   // (every layer there from the start, empty, filled as pages are laid; made on the GPU once owned, below)
