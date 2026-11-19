@@ -1,29 +1,17 @@
 {
-  "about": "Places in the game's code that make shaders (a node material, a compute pass) the smoke does not build, by file and function, with how many places in each (tools/smoke.js unbuilt, tools/sites.js). The gate never compiles them (tools/gate/wgsl.js). The smoke fails on one not here; each here is to be made by the smoke and taken out. 2026-11-19: the canopy's passes were found so, and made.",
+  "about": "Places in the game's code that make shaders (a node material, a compute pass) the smoke does not build, by file and function, with how many places in each (tools/smoke.js unbuilt, tools/sites.js), and why. The gate never compiles them (tools/gate/wgsl.js). The smoke fails on one not here; each here is to be made by the smoke and taken out. 2026-11-19: the canopy's passes were found so, and made; then everything the start and the library make, the stress stand and the WebGL 2 fallback.",
   "sites": {
-    "characters/kit/bones.js materialOf": 1,
     "characters/kit/figure.js materialOf": 1,
-    "characters/kit/human.js materialOf": 1,
     "characters/kit/muscles/flesh.js eyesOf": 1,
     "characters/kit/muscles/flesh.js behind": 1,
     "characters/kit/muscles/flesh.js lit": 1,
     "characters/kit/muscles/flesh.js lashesOf": 1,
     "characters/kit/muscles/flesh.js materialOf": 1,
-    "characters/kit/skin/light.js skinMaterial": 1,
-    "src/camera/post.js quadOf": 1,
-    "src/city/index.js material": 1,
-    "src/detail/impostor.js mat": 1,
-    "src/materials/bake.js blocksOf": 1,
-    "src/materials/preview.js materialPreview": 1,
-    "src/scatter/cut.js createCut": 3,
-    "src/scatter/stress.js createStress": 1,
-    "src/scatter/tier.js argsPass": 1,
-    "src/scatter/tier.js patchPass": 1,
-    "src/scatter/trees.js standBodies": 1,
-    "src/world/weather/clouds.js shadowMap": 1,
-    "src/core/temporal.js createTemporal": 2
+    "characters/kit/skin/light.js skinMaterial": 1
   },
   "why": {
-    "src/core/temporal.js createTemporal": "the picture built over time without storage textures (STORE false: its two-target pass and its copy): the stand-in has every feature, so only the storage path is built"
+    "characters/kit/figure.js materialOf": "made once the figure's file is read (fetch, then three's loader) and it stands: a man's and a woman's figure are made here, their materials only after that",
+    "characters/kit/muscles/flesh.js": "made once the bones are grown in their worker (characters/kit/skeleton/grow.worker.js): the smoke makes the body and its skeleton, waited for it (20 s), and three's frames and the recipes' worker do not run under Bun",
+    "characters/kit/skin/light.js skinMaterial": "made with the flesh, once the bones are grown (above)"
   }
 }

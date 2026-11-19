@@ -26,23 +26,33 @@ export function framesHere(root) {
 }
 /** Every place in `files` (from root) that makes a node material (`new …NodeMaterial(`) or a compute pass (a node's
     `.compute(`, TSL's: called on what a call gave, `Fn(…)().compute(n)`), each 'file fn' as framesHere names its frame,
-    with its line and column (from 1, as a stack gives it). */
+    with where a stack can say it was (at: { line, column } from 1): itself, and, where it is its function's tail call
+    (`return Fn(…)().compute(n)`), where that function is called in its file too: a tail call leaves no frame of its own
+    (JavaScriptCore, strict code: src/scatter/tier.js patchPass was seen at its call in packedOf). */
 export function sitesIn(root, files) {
   const linter = new Linter(), out = [];
   for (const file of files) {
     linter.verify(readFileSync(root + file, 'utf8'), [{ languageOptions: { ecmaVersion: 'latest', sourceType: 'module' } }]);
-    const ast = linter.getSourceCode()?.ast;
-    if (ast) walk(ast, null, [], (node, fns) => { if (makes(node)) { const at = (node.type === 'CallExpression' ? node.callee.property : node).loc.start; out.push({ file, fn: fns.findLast(Boolean) ?? '(module)', line: at.line, column: at.column + 1 }); } });   // (a call, where a stack says it is: at its method's name; a new, at itself)
+    const ast = linter.getSourceCode()?.ast, mine = [], calls = {};
+    if (!ast) continue;
+    walk(ast, null, [], (node, fns, parent) => {
+      if (node.type === 'CallExpression' && node.callee.type === 'Identifier') (calls[node.callee.name] ??= []).push(node.callee.loc.start);
+      if (!makes(node)) return;
+      const at = (node.type === 'CallExpression' ? node.callee.property : node).loc.start, fn = fns.findLast(Boolean) ?? '(module)';   // (a call, where a stack says it is: at its method's name; a new, at itself)
+      const tail = node.type === 'CallExpression' && (parent?.type === 'ReturnStatement' || (parent?.type === 'ArrowFunctionExpression' && parent.body === node)) ? fns.at(-1) : '';
+      mine.push({ file, fn, line: at.line, column: at.column + 1, tail });
+    });
+    for (const m of mine) out.push({ ...m, at: [{ line: m.line, column: m.column }, ...(m.tail ? calls[m.tail] ?? [] : []).map((c) => ({ line: c.line, column: c.column + 1 }))] });
   }
   return out;
 }
-/** The place (of sites, sitesIn) a frame (framesHere) was at, where it can be told: its function's only place; of its
-    function's places, the nearest at its column; where its function has none (named in the stack by what it was called
-    as), the nearest of its file's at its column; else null. */
+/** The place (of sites, sitesIn) a frame (framesHere) was at, where it can be told: of its file's places where a stack
+    could say it was at its column (its function's first), the nearest to its line; else its function's only place;
+    else null. */
 export function placeAt(sites, frame) {
-  const here = sites.filter((s) => s.file === frame.file), named = here.filter((s) => s.fn === frame.fn);
-  const nearest = (L) => L.filter((s) => s.column === frame.column).reduce((a, s) => (!a || Math.abs(s.line - frame.line) < Math.abs(a.line - frame.line) ? s : a), null);
-  return named.length === 1 ? named[0] : named.length ? nearest(named) : nearest(here);
+  const here = sites.filter((s) => s.file === frame.file), named = here.filter((s) => s.fn === frame.fn), off = (s) => Math.min(...s.at.filter((a) => a.column === frame.column).map((a) => Math.abs(a.line - frame.line)));
+  const nearest = (L) => L.filter((s) => off(s) < Infinity).reduce((a, s) => (!a || off(s) < off(a) ? s : a), null);
+  return nearest(named) ?? nearest(here) ?? (named.length === 1 ? named[0] : null);
 }
 /** The places (of sites) the frames were at, each frame's (placeAt): where one cannot be told, none (a place is built
     only where a frame was surely at it: a gap is never hidden by a guess). */
@@ -58,7 +68,7 @@ function nameOf(n, parent) {
 /** The tree walked, each node seen with the names of the functions about it (a nameless one ''). */
 function walk(n, parent, fns, see) {
   const inner = FN.has(n.type) ? [...fns, nameOf(n, parent)] : fns;
-  see(n, inner);
+  see(n, inner, parent);
   for (const k in n) {
     if (k === 'parent' || k === 'loc' || k === 'range') continue;
     const v = n[k];
