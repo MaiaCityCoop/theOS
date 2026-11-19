@@ -4,6 +4,7 @@
 // are first shares of it. An asset in the one recipe (assets/index.js), of kind `shrub` (assets/kinds.js), scattered by
 // the trees' engine in the pine forest's understory (biomes/pineforest.js `shrubs`), of which it takes its share.
 import { tree, builder, bush } from './kit/tree.js';
+import FAN from '../materials/holmoakleaf.twigs.js';
 
 const woodCol = [0.2, 0.17, 0.14], leafCol = [0.08, 0.11, 0.07];   // (for a picture without the textures)
 // the bush: its stems and branches, its branch ends; S its shape. As many cards as the mound it was (42 places, two
@@ -30,6 +31,9 @@ export default tree({
   colours: { wood: woodCol, leaves: leafCol },
   materials: { wood: 'fb5ce908-7437-45b6-879f-154de32d12b9' /* holm oak bark */, leaves: '4cdde33c-5114-41e7-badf-e9f69fcf42f5' /* rockrose sprig */ },
   foliage: { wrap: 0.45, through: 0.25, flutter: 0.6 },
+  // its finest laid out as its sprigs' twigs, each a card of one twig (assets/kit/tree.js splayOf), as a holm oak's is:
+  // seen close, a cluster with depth, not two crossed pictures (its sprig's fan the holm oak sprig's: rockroseleaf.js)
+  fine: { sprig: FAN, twig: '82945b8b-cc3f-48e4-8843-01708f2ecf82' /* rockrose twig */ },
   shapes: [{ r: 1.05, h: 0.9, lobes: 3, seed: 621 }, { r: 0.8, h: 0.65, lobes: 2, seed: 622 }],
   grow,
   // where it grows (src/scatter/rule.js): the pine forest, where the sun reaches the ground (light: how thick in deep

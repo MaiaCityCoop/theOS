@@ -10,8 +10,10 @@
 //   cracks(uv, per, seed, amt)  cells bent by a warp: (the edge's closeness: 0 on the crack, the cell's hash)
 //   pebbles(uv, per, seed, share, wob)  domes, bent out of round by wob: (height, the pebble's hash, the ground's
 //                               shade round it: 1 where it touches)
+//   ovalLeaf(uv, mid, ax, len, wide, there)  a leaf of a foliage card's grid of cells, a pointed oval: (along it, across
+//                               it, how much of uv it covers)
 // p, q are vec2 nodes; per a number or [x, y]; seed a whole number.
-import { Fn, float, int, uint, vec2, vec3, floor, fract, length, smoothstep, clamp, sqrt, If } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, floor, fract, length, smoothstep, clamp, sqrt, abs, pow, sin, If } from 'three/tsl';
 import { hashI } from '../core/hash.nodes.js';
 
 const per2 = (per) => (Array.isArray(per) ? vec2(per[0], per[1]) : vec2(per, per));
@@ -63,3 +65,11 @@ export function pebbles(uv, per, s, share, wob = 0) {
   const shade = r.greaterThan(0).select(smoothstep(r.mul(1.7), r.mul(0.9), v.x), float(0));
   return vec3(r.greaterThan(0).select(sqrt(t.mul(float(2).sub(t))), float(0)), v.z, shade);
 }
+/** A leaf of a foliage card (its leaves a grid of cells, a leaf to a cell: materials/holmoakleaf.js), at uv: a pointed
+    oval, rounder at its foot, `len` long along `ax` and `wide` across at its widest, its middle at `mid`, there as much
+    as `there` says: { u (along it, 0 … 1 from its foot), w (across it), leaf (how much of uv it covers) }. */
+export const ovalLeaf = (uv, mid, ax, len, wide, there) => {
+  const e = uv.sub(mid.sub(ax.mul(len.mul(0.5)))), u = e.dot(ax).div(len).toVar(), w = e.dot(vec2(ax.y, ax.x.negate())).toVar();
+  const half = pow(sin(pow(clamp(u, 0, 1), 0.8).mul(Math.PI)), 0.85).mul(wide);
+  return { u, w, leaf: float(1).sub(smoothstep(half.mul(0.7), half, abs(w))).mul(smoothstep(0, 0.05, u)).mul(float(1).sub(smoothstep(0.96, 1, u))).mul(there).toVar() };
+};
