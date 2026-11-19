@@ -204,7 +204,19 @@ const wear = (mesh, tex, row, shape = 0) => {
 // each plant its own green (its leaves'): lighter or darker by its seed, warmer (yellower) or cooler (bluer) by its turn,
 // each even over its plants; and their mean, what a stand of them shows on the whole (farOf: src/detail/seen.js)
 const WARM = [1.07, 1.0, 0.78], COOL = [0.86, 0.98, 1.1], LIGHTER = [0.84, 0.3];
-const ownGreen = (turn, seed) => mix(vec3(...WARM), vec3(...COOL), turn.mul(1.1631).fract()).mul(seed.mul(LIGHTER[1]).add(LIGHTER[0]));
+// how a leaf's colour varies among the leaves of one plant and among the plants of one kind, each a share of all its
+// variation (Hunter L, a and b alike, over nine kinds of tree and shrub). source: Kwolek 1982, "Variations in leaf
+// coloration using a reflectance colorimeter", Journal of Arboriculture 8(6): 157-159 (leaves 35%, trees 45%)
+const LEAF_VARIES = { leaves: 0.35, plants: 0.45 };
+// ... so each card (a branch's end, as each of Kwolek's leaves was one) strays from its plant's warmth by its own dice as a
+// leaf strays from its plant's colour: its variance that share of the plants' (both even, so the spreads go as the square
+// root). Round its plant's own and not cut at the plants' ends: a plant's cards on the whole are its own green, as its far
+// end is (src/detail/impostor.js) and as the stand's mean is (GREEN)
+const CARD_STRAYS = Math.sqrt(LEAF_VARIES.leaves / LEAF_VARIES.plants);
+const ownGreen = (turn, seed, dice = null) => {
+  const h = turn.mul(1.1631).fract(), hue = dice ? h.add(dice.sub(0.5).mul(CARD_STRAYS)) : h;
+  return mix(vec3(...WARM), vec3(...COOL), hue).mul(seed.mul(LIGHTER[1]).add(LIGHTER[0]));
+};
 const GREEN = WARM.map((w, c) => ((w + COOL[c]) / 2) * (LIGHTER[0] + LIGHTER[1] / 2));
 const CH = Object.fromEntries(PICTURES.map((P) => [P.name, P.channels.length]));   // (a far end's pictures' numbers a texel, by name)
 const ofMesh = (key, start, type) => uniform(start, type).onObjectUpdate(({ object }) => object?.userData?.[key]);
@@ -354,10 +366,10 @@ function plantMaterial(tex, D) {
       // plane, cn: one phase a card; uv.y: 0 at its foot), quicker and wider the harder it blows. In a calm all of it is
       // still: a sway of millimetres is no motion to the eye, only leaves' edges creeping by parts of a pixel (a shimmer).
       // Where it is at a time: the clock's, and for the prepass the clock's a frame ago (where it was: its motion)
-      const ws = windStrength, cardN = V.cn;
+      const ws = windStrength, cardN = V.cn, phase = cardN.dot(vec3(12.9, 78.2, 37.7)).add(B.z);   // (a card's own phase: its card's way, and its plant's)
       const at = (time) => {
         const kk = swayOf(A, B, up, sway, s, time);
-        const flutter = sin(time.mul(ws.mul(5).add(1.6)).add(cardN.dot(vec3(12.9, 78.2, 37.7))).add(B.z)).mul(ws.mul(0.14)).mul(card).mul(V.uv.y.min(1)).mul(flutters).mul(swing);
+        const flutter = sin(time.mul(ws.mul(5).add(1.6)).add(phase)).mul(ws.mul(0.14)).mul(card).mul(V.uv.y.min(1)).mul(flutters).mul(swing);
         return vec3(A.x, A.z, A.y).add(turn(lp.mul(s))).add(vec3(kk.x.add(windDir.x.mul(flutter)), flutter.mul(0.4), kk.y.add(windDir.y.mul(flutter))));
       };
       const w = at(U.uTime).toVar();
@@ -368,9 +380,11 @@ function plantMaterial(tex, D) {
       // a card seen edge-on is a flat sliver, not a brush: it fades as it turns away
       // … and foliage right at the eye is let go (walking through a low crown, no card fills the picture)
       vCut.assign(vec2(mix(0.45, 0.16, smoothstep(15, 220, far)), max(smoothstep(0.06, 0.42, abs(normalize(turn(cardN)).dot(Ve))), body).mul(smoothstep(0.35, 1.3, far))));
-      // each plant its own green: lighter or darker, and warmer (yellower) or cooler (bluer)
+      // each plant its own green: lighter or darker, and warmer (yellower) or cooler (bluer); each card its own warmth round
+      // its plant's (CARD_STRAYS), by its own dice
       const leaf = part.greaterThan(0.5), n0 = normalize(turn(V.normal));
-      const tint = leaf.select(ownGreen(B.z, V.shade).mul(Tn), vec3(1));
+      const dice = fract(sin(phase).mul(43758.5453));   // (a card's own dice, from its phase)
+      const tint = leaf.select(ownGreen(B.z, V.shade, dice).mul(Tn), vec3(1));
       if (pass === 'pre' && DEFER) {   // (deferred: what its pixels' light needs, written in its prepass; a chunk's plane's wrap and turn)
         vW.assign(w); vN.assign(n0); vTint.assign(tint); vK.assign(vec4(ao, wrap, shines, clumps)); vCn.assign(normalize(turn(cardN).add(vec3(0, 1e-6, 0))));
         if (vLit) vLit.assign(vec4(0, 0, wrap, B.x));
@@ -592,7 +606,7 @@ function farOf(renderer, tex, G, D) {
   // near (a leaf's cut-out read at its finest: SS x SS samples a texel say how much of it is covered)
   const materials = () => {
     if (M) return M;
-    const H = D().H, kindU = uniform(0, 'uint'), levelU = uniform(0, 'uint'), rowU = uniform(0, 'int'), sphereU = uniform(new THREE.Vector4(0, 0, 0, 1)), nU = uniform(0, 'int');
+    const H = D().H, kindU = uniform(0, 'uint'), levelU = uniform(0, 'uint'), rowU = uniform(0, 'int'), sphereU = uniform(new THREE.Vector4(0, 0, 0, 1)), nU = uniform(0, 'int'), tilesU = uniform(G.tiles, 'int');   // (tilesU: its tiles a row, a uniform: every stand's bakers one pipeline)
     const cells = Array.from({ length: A.CLUMPS * 4 }, () => new THREE.Vector4()), cellsU = uniformArray(cells, 'vec4');
     // (the tile level's card corners, a chunk's after another (chunkOrder): a chunk's planes draw their own range of
     // them, its start and count in its cell's first two rows, never the rest of the level. As large as what is written
@@ -607,9 +621,9 @@ function farOf(renderer, tex, G, D) {
     const tileV = Fn(() => {
       // (a chunk's plane over its own corners only: its range of the chunks' list, CL, as many corners drawn as its row's
       // largest chunk has, those past its own behind the far plane, not drawn)
-      const tile = rowU.mul(G.tiles).add(int(instanceIndex)), c = tile.div(3), a = tile.sub(c.mul(3)), clip = vec4(0, 0, 2, 1).toVar();
+      const tile = rowU.mul(tilesU).add(int(instanceIndex)), c = tile.div(3), a = tile.sub(c.mul(3)), clip = vec4(0, 0, 2, 1).toVar();
       const from = cellsU.element(c.mul(4)).w, many = cellsU.element(c.mul(4).add(1)).w, blo = cellsU.element(c.mul(4).add(2)).xyz, bhi = cellsU.element(c.mul(4).add(3)).xyz;
-      If(c.lessThan(nU).and(vertexIndex.lessThan(uint(many))), () => { const V = vertexAt(CL.node.element(uint(from).add(vertexIndex))), P = tileClip(V.position, blo, bhi, a, float(instanceIndex), G.tiles); pass(V, P.z.mul(2).sub(1), planeFrame(a)); clip.assign(P.clip); });
+      If(c.lessThan(nU).and(vertexIndex.lessThan(uint(many))), () => { const V = vertexAt(CL.node.element(uint(from).add(vertexIndex))), P = tileClip(V.position, blo, bhi, a, float(instanceIndex), float(tilesU)); pass(V, P.z.mul(2).sub(1), planeFrame(a)); clip.assign(P.clip); });
       return clip;
     })();
     const N = (j) => D().numOf(kindU, j), leafA = () => tex.a(floor(vTwig.greaterThan(0.5).select(N(3).x, N(2).z).add(0.5)), vUv).bias(-2);

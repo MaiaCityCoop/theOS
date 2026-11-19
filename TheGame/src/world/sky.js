@@ -6,12 +6,12 @@
 // the clouds: the weather's). The weather panel
 // (src/ui/weather.js) steers it by hand or lets it run.
 import * as THREE from 'three/webgpu';
-import { Fn, varying, positionGeometry, normalize, max, mix, pow, vec4, cameraProjectionMatrix, cameraViewMatrix, modelWorldMatrix } from 'three/tsl';
+import { Fn, varying, positionGeometry, normalize, max, pow, vec4, cameraProjectionMatrix, cameraViewMatrix, modelWorldMatrix } from 'three/tsl';
 import SKY from '../../world/sky.js';
 import CLOCK from '../../world/clock.js';   // the date, the hour the game opens at, how fast a day runs: set there, nowhere else
 import { U } from '../core/uniforms.js';
 import { toScreen } from './light.js';
-import { D } from './sky/dome.js';
+import { D, skyAlong } from './sky/dome.js';
 import { skyHooks } from './weather/index.js';
 import { weatherRow } from '../ui/weather.js';
 import { load, save } from '../core/store.js';
@@ -60,7 +60,7 @@ function dome(camera) {
   mat.fragmentNode = Fn(() => {
     const v = normalize(vDir), y = v.y;
     // the sky from the horizon up: the hour's own colours
-    const col = mix(D.horizon, D.zenith, pow(max(y, 0), 0.55)).toVar();
+    const col = skyAlong(v).toVar();
     // (below the horizon the horizon's own colour: the far land melts into it (light.js: airOf), so from high up, where
     // the land ends below the horizon, there is no band of another colour between them)
     const s = max(v.dot(D.sunD), 0);
@@ -88,7 +88,6 @@ export function createSky(scene, camera, renderer) {
     U.uSunDir.value.copy(dir);
     U.uSun.value.set(L.sun[0] * ws + SKY.moon.light[0] * moonUp * (1 - ws), L.sun[1] * ws + SKY.moon.light[1] * moonUp * (1 - ws), L.sun[2] * ws + SKY.moon.light[2] * moonUp * (1 - ws));
     v3(U.uAmb, L.amb);
-    U.uSky.value.set((L.horizon[0] + L.zenith[0]) / 2, (L.horizon[1] + L.zenith[1]) / 2, (L.horizon[2] + L.zenith[2]) / 2);   // the sky as the water mirrors it
     v3(U.uHazeCol, L.horizon);   // the far land melts into the sky's horizon of this hour
     U.uExposure.value = L.exposure;
     v3(D.zenith, L.zenith); v3(D.horizon, L.horizon); v3(D.glow, L.glow); v3(D.sunL, L.sun); D.sunD.value.copy(sun.dir); D.moonD.value.copy(moon.dir);

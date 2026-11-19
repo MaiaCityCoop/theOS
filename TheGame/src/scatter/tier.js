@@ -22,7 +22,7 @@ import { gpuStorageLater, more, note, hasFeature, limitOf, roomOf, bytesOf } fro
 import { cullOf, cullable, MANY, wgOf, sizeTo, useLimits, CULL_BYTES } from '../core/occlusion.js';
 import { did } from '../core/work.js';
 import { FNV, fnv } from '../core/hash.js';
-import { passOf, vWas, placesFor } from '../core/pass.js';
+import { passOf, vWas } from '../core/pass.js';
 import { ask, made, computeMaker } from '../core/compile.js';
 import { source } from '../core/settle.js';
 import { onMeasure, dialK } from '../detail/measure.js';
@@ -246,7 +246,7 @@ function packedOf(T, geos, material, { live, cap = 0, slots = 0, spans = null, b
   const OFF = new THREE.StorageBufferAttribute(Uint32Array.from(offs), 1), OFr = storage(OFF, 'uint', K).toReadOnly();
   // (a thing's rows side by side in one buffer, `slots` of them: one buffer to bind, not one a row; what it packs lives
   // on the GPU only: the GPU writes it and the GPU reads it, src/core/gpu.js)
-  const packed = gpuStorageLater('vec4', 'tiers: what stands, packed', 'geometry'); packed.make(total * slots); placesFor(total, `tier ${T.asset ?? ''} ${T.level ?? ''}`.trim());   // (each of its things a place in an id: src/core/pass.js)
+  const packed = gpuStorageLater('vec4', 'tiers: what stands, packed', 'geometry'); packed.make(total * slots);
   const data = packed.node, count = instancedArray(K, 'uint').toAtomic(), { args, argsNode } = argsOf(geos);
   const culled = !!bounds && hasFeature('indirect-first-instance') && cullable(total);   // (?truth too: what this frame's depth hides adds nothing to any pixel)
   Object.assign(T, { slots, data, args, count, offsets: OFF, room: (k) => caps[k] });
@@ -471,7 +471,7 @@ function relayout(s) {
     const C = me.T.culler; if (C) { C.from(me.dbase); C.resize(P(me), false); arenas.add(C.arena); }
     if (again) { me.T.n = 0; for (const m of me.T.meshes) m.visible = false; }   // (what it packed is gone: drawn again once it is packed again)
   }
-  s.stores.make(sb * s.slots); s.leaves.make(sb); s.packed.make(db * s.slots); placesFor(db, `tiers ${s.tiers.map((me) => `${me.T.asset ?? ''} ${me.T.level ?? ''}`.trim()).join(', ')}`);   // (each of what they packed a place in an id: src/core/pass.js)
+  s.stores.make(sb * s.slots); s.leaves.make(sb); s.packed.make(db * s.slots);
   for (const A of arenas) A.relayout();
 }
 /** Before any resident tier packs (each run, and the scatter's compile, src/scatter/index.js): the shared rows made as
