@@ -12,7 +12,8 @@
 //               its sky its crowns leave it, as a surface facing up takes the sky (cosine-weighted, Lambert's): nine ways
 //               up, a Vogel disc (Vogel 1979) lifted onto the sky as Malley's method lifts it (a way's sine its point's
 //               radius on the disc), each an equal share. Each lets through as much as the slab it crosses is thin along
-//               it (Beer–Lambert: physics.js CROWN_EXTINCTION; the slab over the probe's height there, over the way's
+//               it (Beer–Lambert, as much a metre as the stands' crowns over the probe take, each stand's measured from
+//               its kinds' own: src/terrain/layers.js crownsAt; the slab over the probe's height there, over the way's
 //               cosine), read where the way crosses its crowns' middle: where it crosses, from the floor, the middle of
 //               the slab over the probe (else halfway between the lowest crown's base and the tallest top), then again
 //               where it crosses the middle of the slab it met there (that read the one taken; the first shared by the
@@ -34,9 +35,8 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, ivec2, uniform, texture, screenCoordinate, clamp, mix, smoothstep, exp, max } from 'three/tsl';
 import { castRoute, arrived, CASTS, cascades } from '../shadow.js';
 import { drawMade } from '../../core/compile.js';
-import { shown } from '../../core/settle.js';
+import { shown, arriving } from '../../core/settle.js';
 import { note, mark } from '../../core/gpu.js';
-import { CROWN_EXTINCTION } from './physics.js';
 import { HMIN, HMAX } from '../land.js';
 import { WALKER } from '../../../world/scale.js';
 
@@ -60,7 +60,7 @@ const black = Object.assign(new THREE.DataTexture(new Uint16Array([0, 0, 0, 0]),
     it is there. */
 const CANOPY = {
   probes: texture(black), at: uniform(new THREE.Vector4(0, 0, 1, 0)), ground: texture(black),   // (ground: none until it is read, no colour of its own)
-  map: texture(new THREE.DepthTexture(1, 1)), mapAt: uniform(new THREE.Vector4(0, 0, 1, 0)), cams: uniform(new THREE.Vector3()), on: uniform(0),
+  map: texture(new THREE.DepthTexture(1, 1)), mapAt: uniform(new THREE.Vector4(0, 0, 1, 0)), cams: uniform(new THREE.Vector3()), on: uniform(0), groundOn: uniform(0),   // (on, groundOn: how much of the probes and of the ground's colour is read: none until made, then faded in, createCanopy)
 };
 
 const uvIn = (w, at) => w.xz.sub(at.xy).div(at.z).add(0.5);
@@ -84,11 +84,12 @@ export const canopyAt = (w) => {
 };
 /** The ground's own colour round the eye (linear; black until it has been read: then no light comes off it). In any
     stage. */
-export const groundColour = () => CANOPY.ground.sample(vec2(0.5)).level(0).rgb;
+export const groundColour = () => CANOPY.ground.sample(vec2(0.5)).level(0).rgb.mul(CANOPY.groundOn);
 /** groundAt: the ground's height at a point, as a node (src/world/land.nodes.js); land: the land's pages
-    (src/terrain/pages.js), whose colour the ground round the eye is read off. Both handed in, so this file, which the
-    one light imports, does not pull in the land's. */
-export function createCanopy(renderer, { groundAt, land }) {
+    (src/terrain/pages.js), whose colour the ground round the eye is read off; crowns: { at(p), version() }, how much of
+    the light a metre of crown takes at p, and how many times that has changed (src/terrain/layers.js crownsAt,
+    crownsVersion). All handed in, so this file, which the one light imports, does not pull in the land's. */
+export function createCanopy(renderer, { groundAt, land, crowns }) {
   if (!renderer.backend?.isWebGPUBackend) return null;   // (the WebGL 2 fallback: no canopy, all the sky)
   const { side, P, S, ways, heights, mid, spacing } = layout();
   // how far above (and below) the ground under the eye the cameras stand: clear of any ground the land has and of the
@@ -102,7 +103,10 @@ export function createCanopy(renderer, { groundAt, land }) {
   const cam = (down) => { const c = new THREE.OrthographicCamera(-side / 2, side / 2, side / 2, -side / 2, 0, 2 * UP); c.layers.set(CASTS); c.up.set(0, 0, down ? -1 : 1); c.userData.shadow = true; return c; };   // (shadow: what is drawn keeps the levels the eye chose, src/detail/index.js)
   // (a caster drawn once it is made, and the map made again, all at once, once what it left out has come: made by need,
   // src/world/shadow.js castRoute)
-  const cams = [cam(true), cam(false)], missing = new Set(), route = castRoute(renderer, () => maps[front], () => cams[0], (o) => missing.add(o));
+  // (the map, its probes and the ground round the eye are made after what the first view waits for, as near as the near
+  // cascade's edge, src/core/compile.js ask; and each fades in as it comes, src/core/settle.js arriving)
+  const AFTER = cascades().half[0], probesIn = arriving((v) => { CANOPY.on.value = v; }), groundIn = arriving((v) => { CANOPY.groundOn.value = v; });
+  const cams = [cam(true), cam(false)], missing = new Set(), route = castRoute(renderer, () => maps[front], () => cams[0], (o) => missing.add(o), () => AFTER);
   // the probes: at each of its heights over the ground, along each of its ways up, the slab where the way crosses its
   // crowns' middle, each an equal share
   const probeMat = new THREE.NodeMaterial();
@@ -110,10 +114,10 @@ export function createCanopy(renderer, { groundAt, land }) {
     const uv = screenCoordinate.xy.div(P), xz = CANOPY.mapAt.xy.add(uv.sub(0.5).mul(CANOPY.mapAt.z)), g = groundAt(xz, float(0));
     const at = (o, rise) => { const q = xz.add(vec2(o[0], o[1]).mul(rise)), u = uvIn(vec3(q.x, 0, q.y), CANOPY.mapAt); return { s: slabAt(u), inMap: u.x.greaterThanEqual(0).and(u.y.greaterThanEqual(0)).and(u.x.lessThan(1)).and(u.y.lessThan(1)) }; };
     const middleOf = (s, or) => s.top.greaterThan(s.under).select(s.top.add(s.under).mul(0.5), or);   // (where nothing was drawn its top lies under its underside: no slab)
-    const middle = middleOf(at([0, 0], 0).s, g.add(mid)), met = ways.map((o) => middleOf(at(o, max(middle.sub(g), 0)).s, middle));
+    const middle = middleOf(at([0, 0], 0).s, g.add(mid)), met = ways.map((o) => middleOf(at(o, max(middle.sub(g), 0)).s, middle)), K = crowns.at(xz).toVar();   // (K: what a metre of the crowns here takes)
     const seen = heights.map((h) => {
       const y = g.add(h), sum = float(0).toVar();
-      ways.forEach((o, i) => { const A = at(o, max(met[i].sub(y), 0)); sum.addAssign(A.inMap.select(exp(max(A.s.top.sub(max(y, A.s.under)), 0).mul(-o[2] * CROWN_EXTINCTION)), float(1))); });
+      ways.forEach((o, i) => { const A = at(o, max(met[i].sub(y), 0)); sum.addAssign(A.inMap.select(exp(max(A.s.top.sub(max(y, A.s.under)), 0).mul(K.mul(-o[2]))), float(1))); });
       return sum.div(ways.length);
     });
     return vec4(seen[0], seen[1], seen[2], g.sub(CANOPY.mapAt.w));
@@ -130,14 +134,21 @@ export function createCanopy(renderer, { groundAt, land }) {
   const drawGround = () => {
     const prev = renderer.getRenderTarget(), ac = renderer.autoClear, route0 = renderer.getRenderObjectFunction();
     mark('probes'); renderer.setRenderObjectFunction(null); renderer.autoClear = false; renderer.setRenderTarget(groundTo);
-    const read = drawMade(renderer, groundQuad, groundQuad.camera, 'the ground round the eye');
-    if (read) CANOPY.ground.value = groundTo.texture;
+    const read = drawMade(renderer, groundQuad, groundQuad.camera, 'the ground round the eye', AFTER);
+    if (read) { CANOPY.ground.value = groundTo.texture; groundIn.arrive(); }
     mark(null); renderer.setRenderObjectFunction(route0); renderer.autoClear = ac; renderer.setRenderTarget(prev);
     return read;
   };
   const ground = () => { if (groundDue || land.changing) groundDue = !drawGround(); };   // (with the probes, and while what the pages hold changes)
+  // what is due, while nothing is being made: the map and the probes again round (gx, gz) once the eye has crossed a
+  // probe's spacing; else the probes alone, the map as it is, once the stands' crowns were measured since they were made
+  const due = (gx, gz, groundY) => {
+    if (piece !== PIECES) return;
+    if (gx !== was.x || gz !== was.y) { piece = 0; at.set(gx, gz, side, groundY); was.set(gx, gz); }
+    else if (crowns.version() !== crownsMade) piece = 2;
+  };
   const PIECES = cams.length + 1;   // (the view from above, from below, the probes)
-  let piece = PIECES, front = 0;   // (the piece to be made next, PIECES: none; which of each pair the materials read)
+  let piece = PIECES, front = 0, everProbed = false, crownsMade = -1;   // (the piece to be made next, PIECES: none; which of each pair the materials read; whether its probes were ever drawn; the stands' crowns they were made with: crowns.version)
   // the map's views, from above and from below (which: the ones drawn now), into its atlas rt; whole: both are in, what
   // the probes are made from
   const drawViews = (scene, rt, which, whole) => {
@@ -157,8 +168,8 @@ export function createCanopy(renderer, { groundAt, land }) {
     mark('probes'); renderer.setRenderObjectFunction(null); renderer.autoClear = false;   // (every probe written: nothing cleared)
     const to = probes[back];
     renderer.setRenderTarget(to);
-    if (!drawMade(renderer, quad, quad.camera, 'the sky probes')) return false;
-    front = back; CANOPY.at.value.copy(CANOPY.mapAt.value); CANOPY.probes.value = to.texture; CANOPY.on.value = 1; groundDue = true;
+    if (!drawMade(renderer, quad, quad.camera, 'the sky probes', AFTER)) return false;
+    front = back; CANOPY.at.value.copy(CANOPY.mapAt.value); CANOPY.probes.value = to.texture; everProbed = true; probesIn.arrive(); groundDue = true; crownsMade = crowns.version();
     return true;
   };
   return {
@@ -166,11 +177,12 @@ export function createCanopy(renderer, { groundAt, land }) {
         where it stands, a piece a frame (its view from above, from below, then its probes), then both pairs turned.
         The first time, all at once. */
     render(scene, camera, groundY) {
+      probesIn.step(); groundIn.step();
       if (shown()) missing.clear();   // (after the first frame what it left out comes with the eye's next probe)
       const came = piece === PIECES && !shown() && arrived(missing);
       if (came) piece = 0;
-      const first = !CANOPY.on.value || came, gx = Math.round(camera.position.x / spacing) * spacing, gz = Math.round(camera.position.z / spacing) * spacing;
-      if (piece === PIECES && (gx !== was.x || gz !== was.y)) { piece = 0; at.set(gx, gz, side, groundY); was.set(gx, gz); }
+      const first = !everProbed || came, gx = Math.round(camera.position.x / spacing) * spacing, gz = Math.round(camera.position.z / spacing) * spacing;
+      due(gx, gz, groundY);
       if (piece === PIECES) { ground(); return; }
       const prev = renderer.getRenderTarget(), ac = renderer.autoClear, route0 = renderer.getRenderObjectFunction(), back = first ? front : 1 - front;
       if (first || piece < 2) drawViews(scene, maps[back], first ? [0, 1] : [piece], first || piece === 1);

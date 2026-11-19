@@ -257,6 +257,22 @@ const ownGreen = (turn, seed, dice = null) => {
 };
 const GREEN = WARM.map((w, c) => ((w + COOL[c]) / 2) * (LIGHTER[0] + LIGHTER[1] / 2));
 const CH = Object.fromEntries(PICTURES.map((P) => [P.name, P.channels.length]));   // (a far end's pictures' numbers a texel, by name)
+/** How much of its own round a crown's leaves and wood cover seen from straight above (0 … 1; null: none seen), from its
+    far end's finest kept pictures (L: a level, { colour, n }; views a side): the views round the middle of the square
+    (src/detail/impostor.js squareOf: straight down), each the texels of its picture over the cut (as many as the
+    picture covers: Castaño's, src/detail/impostor.worker.js), its round a disc's from where they lie (π r², r² twice
+    their mean square distance from their middle), at most all but half a texel of it; their mean. */
+const crownCover = (L, views) => {
+  const n = L.n, cell = n / views, mid = Math.floor(views / 2), at = views % 2 ? [mid] : [mid - 1, mid];
+  let sum = 0, of = 0;
+  for (const py of at) for (const px of at) {
+    let N = 0, sx = 0, sy = 0, sq = 0;
+    for (let y = 0; y < cell; y++) for (let x = 0; x < cell; x++) { if (L.colour[((py * cell + y) * n + px * cell + x) * CH.colour + 3] < 128) continue; N++; sx += x; sy += y; sq += x * x + y * y; }
+    const area = 2 * Math.PI * (sq / Math.max(N, 1) - ((sx / Math.max(N, 1)) ** 2 + (sy / Math.max(N, 1)) ** 2));
+    if (area > 1) { sum += Math.min(N / area, 1 - 0.5 / area); of++; }
+  }
+  return of ? sum / of : null;
+};
 const ofMesh = (key, start, type) => uniform(start, type).onObjectUpdate(({ object }) => object?.userData?.[key]);
 
 /** A stand's light at w, the one light's (src/world/light.js lightOn): the sky's and the sun's on the dome its crown makes
@@ -704,7 +720,7 @@ function farOf(renderer, tex, G, D) {
       }
       if (w > 0) { for (let c = 0; c < 3; c++) sum[c] += P[c] / w; pics++; }
     }
-    if (pics) shows(Kd.asset, k - Kd.offset, Kd.shapes, sum.map((v) => v / pics));
+    if (pics) shows(Kd.asset, k - Kd.offset, Kd.shapes, sum.map((v) => v / pics), crownCover(levels[0], A.VIEWS));   // (and how much of its round its crown covers: crownCover)
   };
   // its numbers, once its pictures are in: its sphere; T, its impostor's error (metres, at scale 1: its views' texel and
   // what their spacing and its parallax misplace, as the crowd kit measured it for these atlases: its far data's sixth
