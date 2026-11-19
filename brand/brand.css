@@ -251,7 +251,9 @@ body.embed #cap.title { top: 20%; }              /* and the title in the upper t
 
 /* ---- the world, loading (every page that draws the world: <html class="os-loading">, src/ui/loading.js steps it) ----
    the land before dawn: night above, the glow of a sun not yet up along the horizon, the mark turning slowly where it
-   will rise, the city's name, and what is being made with a thin line of how far. Pure CSS on html and body, so it is
+   will rise, the city's name, and what is being made: its phase, how many of its parts are made (data-count: "306 / 395",
+   a line kept for it whether it is said or not, by a space that does not break: nothing jumps), a thin line of how far, and under it, quietly, what
+   is being made now (#os-detail: one line, cut short, never wrapping). Pure CSS on html and body, so it is
    there from the first paint, before any script; it fades into the world's own sky when the first frame is drawn.
    Behind it, a still of the world with the tent (brand/loading.js, brand/loading/*.jpg), seen through the dusk. */
 html.os-loading::before, html.os-loading::after, html.os-loading body::before, html.os-loading body::after { position: fixed; z-index: 99990; pointer-events: none; transition: opacity .9s ease; }
@@ -264,18 +266,22 @@ html.os-loading::before { content: ''; inset: 0;
 html.os-loading::after { content: ''; left: 50%; top: 27%; width: 64px; height: 64px; margin: -32px 0 0 -32px; background: var(--sunmark) center/contain no-repeat;
   filter: drop-shadow(0 0 18px rgba(255, 210, 120, .55)); animation: os-rise 2.6s ease-in-out infinite alternate, os-turn 24s linear infinite; }
 html.os-loading body::before { content: 'Maia City'; left: 0; right: 0; top: calc(27% + 52px); text-align: center; font: 400 36px/1.1 var(--serif); letter-spacing: -.01em; color: #fbf6ea; text-shadow: 0 2px 24px rgba(10, 20, 35, .5); }
-html.os-loading body::after { content: attr(data-step); left: 50%; top: calc(27% + 112px); width: 220px; margin-left: -110px; padding-bottom: 14px; text-align: center;
-  font: 500 11px/1 var(--mono); letter-spacing: .18em; text-transform: uppercase; color: rgba(251, 246, 234, .72);
+html.os-loading body::after { content: attr(data-step) '\A' attr(data-count) '\A0'; left: 50%; top: calc(27% + 112px); width: 220px; margin-left: -110px; padding-bottom: 14px; text-align: center;
+  font: 500 11px/1.6 var(--mono); letter-spacing: .18em; text-transform: uppercase; color: rgba(251, 246, 234, .72); white-space: pre; overflow: hidden; text-overflow: ellipsis;
   background: linear-gradient(90deg, #f2b544, #ffe2a0) left bottom / var(--os-load, 4%) 2px no-repeat, linear-gradient(rgba(251, 246, 234, .16), rgba(251, 246, 234, .16)) left bottom / 100% 2px no-repeat;
   transition: opacity .9s ease; }   /* the line jumps: while the world is being made the page has no time to animate it */
 html.os-loaded::before, html.os-loaded::after, html.os-loaded body::before, html.os-loaded body::after { opacity: 0; }
 @keyframes os-rise { from { transform: translateY(4px) scale(.96); } to { transform: translateY(-4px) scale(1.04); } }
 @keyframes os-turn { to { rotate: 360deg; } }
 @media (prefers-reduced-motion: reduce) { html.os-loading::after { animation: none; } }
+/* what is being made now, under the line of how far (src/ui/loading.js): one quiet line, cut short where it is long */
+#os-detail { display: none; }
+html.os-loading:not(.os-loaded) #os-detail { display: block; position: fixed; z-index: 99991; left: 50%; top: calc(27% + 168px); width: min(300px, calc(100vw - 48px)); transform: translateX(-50%); pointer-events: none;
+  text-align: center; font: 400 12px/1.3 var(--sans); color: rgba(251, 246, 234, .5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* what holds the start up, or stopped the page (brand/loading.js: os:stuck, os:lost): a line under the step, what may
    help, and a button that reloads; shown only with the veil */
 #os-stuck { display: none; }
-html.os-loading:not(.os-loaded) #os-stuck { display: block; position: fixed; z-index: 99991; left: 50%; top: calc(27% + 150px); width: min(420px, calc(100vw - 32px)); transform: translateX(-50%);
+html.os-loading:not(.os-loaded) #os-stuck { display: block; position: fixed; z-index: 99991; left: 50%; top: calc(27% + 198px); width: min(420px, calc(100vw - 32px)); transform: translateX(-50%);
   text-align: center; font: 400 14px/1.45 var(--sans); color: #fbf6ea; text-shadow: 0 1px 12px rgba(10, 20, 35, .6); }
 #os-stuck p { margin: 0 0 6px; }
 #os-stuck p + p { font-size: 13px; color: rgba(251, 246, 234, .72); }

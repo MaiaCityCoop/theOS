@@ -29,7 +29,7 @@ import { setPlanes } from './core/frustum.js';
 import { createGovernor } from './core/governor.js';
 import { frameDone } from './core/pace.js';   // (each frame's own time on the GPU, what the governor judges)
 import { createHud } from './core/hud.js';
-import { useGPU, askedLimits, ledger } from './core/gpu.js';
+import { useGPU, askedLimits, adapterOf, ledger } from './core/gpu.js';
 import { taken, busy, changed } from './core/work.js';
 import { part as framePart, begin as frameBegins, enter as frameIn, end as frameEnds, now as frameSoFar, take as framesTaken } from './core/frames.js';   // where each frame's time went on the page's thread: __game.frames()
 import { settle, ready as firstView, drawn, waiting, watch, tick, partOf, leave } from './core/settle.js';
@@ -117,7 +117,7 @@ export async function boot({ profile = 'world' } = {}) {
   // the picture built over time come to rest on it; ready: the same for the page's first view; waiting(): what is still
   // out. What the gate waits on, never a timer: src/core/settle.js)
   let shown = null; const first = new Promise((res) => (shown = res));   // (the stage's first subject in: its first view is complete once it has settled)
-  const game = (window.__game = { profile, renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 }, settle, ready: world ? firstView : first.then(() => settle()), waiting, compiles, memory: ledger, frames: framesTaken });   // memory(): the GPU's memory, the one ledger (src/core/gpu.js); frames(): the slowest frames since it was last asked, part by part (src/core/frames.js)
+  const game = (window.__game = { profile, renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 }, settle, ready: world ? firstView : first.then(() => settle()), waiting, compiles, memory: ledger, frames: framesTaken, adapter: adapterOf() });   // memory(): the GPU's memory, the one ledger (src/core/gpu.js); frames(): the slowest frames since it was last asked, part by part (src/core/frames.js)
   const bounds = world && flag('bounds') ? showBodies(scene) : null;   // ?bounds: what is solid round the walker drawn as lines, in every world (src/world/bodies.js)
   const U = createUniforms(camera);
   setImpostorRenderer(renderer);
@@ -339,7 +339,7 @@ export async function boot({ profile = 'world' } = {}) {
   // (the veil says what the start waits on: what is being compiled, n of m; once nothing is, what is still out)
   const tell = () => {
     const M = making(), out = M.done < M.asked ? '' : Object.entries(waiting()).map(([k, n]) => `${k} ${n}`).join(', ');
-    loadingSay(`Lighting the world: ${M.done} of ${M.asked}${M.now ? ` (${M.now})` : out ? `; waiting on ${out}` : ''}`, 0.55 + 0.4 * (M.asked ? M.done / M.asked : 0));
+    loadingSay('Lighting the world', 0.55 + 0.4 * (M.asked ? M.done / M.asked : 0), { count: `${M.done} / ${M.asked}`, detail: M.now || (out ? `waiting on ${out}` : '') });   // (its phase, how many are made, and which now: three lines, brand.css)
   };
   const makeAhead = () => {   // (a material at a time: what draws with it, for every pass; and each tier's packing)
     const groups = grown?.scatter ? grown.scatter.ahead() : [], by = new Map();

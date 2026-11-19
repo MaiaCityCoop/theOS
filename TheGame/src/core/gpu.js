@@ -26,6 +26,23 @@ import { MiB } from './physics.js';
 import { passBegins, timesOn } from './pace.js';
 import { pass as framePass } from './frames.js';
 
+// ---- a compute pass called by its maker ----
+// three calls a compute pipeline by its node's name (computePipeline_compute_<name>); one made without a name is just
+// "computePipeline_compute", and a trace of the GPU's own time names none of them (2026-11-19: a submission of 2 s in
+// WebKit after the first view, one dispatch of 256 workgroups, called so). So every compute node is called, as it is
+// made, by where it was made (its file and line, the first frame of the game's own: the ledger calls a buffer by its
+// maker so), and one given a name of its own keeps that. (Node's constructor sets the name: the setter sees it made.)
+const MAKER = new WeakMap(), AT = /(?:TheGame\/|\/\/[^/]+\/)(src\/[^?:)\s]+)(?:\?[^:)\s]*)?:(\d+)/;   // (a file of the game's own: from its address's root, or its path's TheGame/)
+const makerOf = () => {
+  const was = Error.stackTraceLimit; Error.stackTraceLimit = 64;   // (three's own frames before the maker's: its constructors, its kernel, its chaining)
+  try { for (const l of (new Error().stack ?? '').split('\n').slice(2)) { const m = !l.includes('node_modules') && l.match(AT); if (m && m[1] !== 'src/core/gpu.js') return `${m[1]}:${m[2]}`; } return ''; } finally { Error.stackTraceLimit = was; }
+};
+Object.defineProperty(THREE.ComputeNode.prototype, 'name', {
+  configurable: true,
+  get() { const M = MAKER.get(this); return M ? M.own || M.at : ''; },
+  set(v) { const M = MAKER.get(this); if (M) M.own = v; else MAKER.set(this, { at: makerOf(), own: v }); },
+});
+
 const HELD = new Map(), MB = MiB, PEAK = Object.fromEntries(CLASS_NAMES.map((c) => [c, 0])), OVER = new Map(), WHOLE = 'the whole GPU';
 let peakAll = 0;
 if (Object.values(BUDGET_MB).reduce((s, b) => s + b, 0) !== GPU_MB) throw new Error(`src/core/budget.js: the classes' budgets (BUDGET_MB) share out the GPU's whole (GPU_MB, ${GPU_MB} MB), so they add up to it`);
@@ -225,8 +242,22 @@ export const hasFeature = (name) => !!R?.backend?.device?.features?.has(name);
 export const SIZED = ['maxBufferSize', 'maxStorageBufferBindingSize', 'maxUniformBufferBindingSize', 'maxComputeWorkgroupsPerDimension', 'maxTextureArrayLayers'];
 /** What to ask a device for, of its adapter's limits A: each of SIZED as A has it. */
 const limitsFrom = (A) => Object.fromEntries(SIZED.filter((k) => A?.[k] != null).map((k) => [k, A[k]]));
-/** What the device is asked for (src/boot.js): each of SIZED as this machine's adapter has it (none without WebGPU). */
-export const askedLimits = async () => limitsFrom((await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null))?.limits);
+/** What the device is asked for (src/boot.js): each of SIZED as this machine's adapter has it (none without WebGPU); and
+    what the adapter says of itself kept (adapterOf). */
+export const askedLimits = async () => {
+  const a = await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null);
+  if (a) {
+    const A = (ADAPTER = { maxBufferSize: a.limits.maxBufferSize, maxStorageBufferBindingSize: a.limits.maxStorageBufferBindingSize, vendor: a.info?.vendor ?? '', architecture: a.info?.architecture ?? '' }), gib = (b) => `${(b / 2 ** 30).toFixed(2)} GiB`;
+    console.info(`the device: ${A.vendor} ${A.architecture}, its largest buffer ${gib(A.maxBufferSize)}, its largest storage binding ${gib(A.maxStorageBufferBindingSize)} (window.__game.adapter)`);   // (once, where any inspector reads it: a phone's tab too, tethered, before the page is ready)
+  }
+  return limitsFrom(a?.limits);
+};
+let ADAPTER = null;
+/** The class of the device the game runs on, as its adapter said it at boot (askedLimits): its largest buffer and its
+    largest storage binding (bytes: each engine sizes them from the device, WebKit at most 1 GiB on an iPhone, between 1
+    and 2 GiB on a Mac; Chrome in tiers up to 4 GiB) and who made it (vendor, architecture). Null before, and without
+    WebGPU. A measure for a person and a tool to read (window.__game.adapter, the HUD's line): nothing is sized by it. */
+export const adapterOf = () => ADAPTER;
 /** One of the renderer's GPU's limits, one of SIZED (none without WebGPU: nothing then asks). */
 export const limitOf = (name) => { if (!SIZED.includes(name)) throw new Error(`gpu: ${name} is not a limit the device is asked for (SIZED)`); return R?.backend?.device?.limits?.[name] ?? 0; };
 /** Every buffer made here within the device's limits: one larger is an error of whoever sized it, said by name. */
