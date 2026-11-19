@@ -33,6 +33,7 @@ import { taken, busy, changed } from './core/work.js';
 import { settle, ready as firstView, drawn, waiting, watch, tick, partOf, leave } from './core/settle.js';
 import { bakeTextures } from './materials/bake.js';
 import { createTerrain, landMaterials } from './terrain/terrain.js';
+import { waterReads } from './terrain/water.js';
 import { createGround } from './scatter/ground.js';
 import { createScatter } from './scatter/index.js';
 import { outlinesAhead } from './scatter/trees.js';   // (what the stands need of each tree kind, reckoned in the recipes' workers)
@@ -144,6 +145,7 @@ export async function boot({ profile = 'world' } = {}) {
   const terrain = (game.terrain = createTerrain(scene, tex, renderer, world ? {} : { reach: REACH }));
   const layerPass = terrain.compile();   // the land's pages' passes, beside the others (they read no target)
   screen.afterPrepass(terrain.pages.ask, 'pages');   // (which pages the land's pixels read: src/terrain/pages.js)
+  screen.afterPrepass((f) => waterReads(f, temporal.history(), temporal.K.most), 'water');   // (what the water reflects of the world: the frame before, src/terrain/water.js)
   mark('terrain');
   const scatterOf = (g) => {
     g.scatter = createScatter(g.into, tex, g.ground, renderer, camera);

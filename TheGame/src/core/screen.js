@@ -105,9 +105,11 @@ export function createScreen(renderer, { temporal, lens = null }) {
     ahead(object, camera, scene) { const m = [object.material].flat()[0]; for (const pass of ['pre', 'main']) if (m && twin[pass](m)) ask(object, pass, makerOf(pass, camera, scene), labelled(twin[pass](m), object, pass), false); },
     /** What the last frame was laid on the screen from (temporal.resolve's: a tool's timing of the upscale alone). */
     last: null,
-    /** fn({ depth, motion, camera, w, h }) after every prepass, before the colour: what reads what the prepass drew, with
-        the camera as it drew it (its shift for this frame too). The land's pages ask there for what they show
-        (src/terrain/pages.js). name: whose its passes are, for a tool's timing (src/core/gpu.js mark). */
+    /** fn({ depth, depthWas, motion, camera, w, h }) after every prepass, before the colour: what reads what the prepass
+        drew, with the camera as it drew it (its shift for this frame too); depthWas the frame before's depth (the other
+        turn's, drawn into by nothing this frame; empty the first frame after a new size). The land's pages ask there for
+        what they show (src/terrain/pages.js); the water takes what it reflects of the world from the frame before
+        (src/terrain/water.js). name: whose its passes are, for a tool's timing (src/core/gpu.js mark). */
     afterPrepass(fn, name = null) { prepassed.push([fn, name]); },
     /** Draw the world as this camera sees it, onto the canvas. */
     render(scene, camera) {
@@ -121,7 +123,7 @@ export function createScreen(renderer, { temporal, lens = null }) {
       mark('prepass'); renderer.setRenderObjectFunction(pre); renderer.setRenderTarget(t.pre); renderer.render(scene, camera);
       // (and pass two, against this frame's depth: what it finds drawn into the prepass after the rest)
       if (culls) { mark('prepass, late'); occlusion.late(renderer, t.depth, size.x, size.y, (late) => { const ac = renderer.autoClear; renderer.autoClear = false; renderer.render(late, camera); renderer.autoClear = ac; }); }
-      for (const [fn, name] of prepassed) { mark(name); fn({ depth: t.depth, motion: t.pre.texture, camera, w: size.x, h: size.y }); }   // (once all of it is drawn)
+      for (const [fn, name] of prepassed) { mark(name); fn({ depth: t.depth, depthWas: was.depth, motion: t.pre.texture, camera, w: size.x, h: size.y }); }   // (once all of it is drawn)
       // the colour, into the prepass's depth. (Cleared to the renderer's clear colour, which the sky sets to the hour's
       // horizon as the screen shows it: here in the light's own numbers, the screen's curve taken back off it)
       const E = 1.25 * U.uExposure.value, un = (v) => -Math.log(1 - Math.min(0.999, v) ** 2.2) / E;
