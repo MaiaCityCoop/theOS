@@ -25,7 +25,7 @@
 //             wait past a fill a place and one a layout
 import './glob.js';
 
-const { ownOf, storeOf, roomsFor } = await import('../src/scatter/tier.js');
+const { ownOf, storeOf, roomsFor, holdOf } = await import('../src/scatter/tier.js');
 const { WG, MARGIN } = await import('../src/scatter/regions.js');
 const { pace } = await import('../src/core/pace.js');
 const { FRAME_MS_BY_CLASS } = await import('../src/core/budget.js');
@@ -76,32 +76,43 @@ async function own(n, { moving, still, jump, mean }, name) {
 /** A resident tier's store as residentOf runs it (one tier its kind's: its kind laid out as soon as its read has
     answered), its regions' `cells` visited at the frame's pace (tier.js CELLS: pace, measured against geometry's share
     of a frame), a cell costing the GPU what visits all of them over `per` frames at rest; the camera jumping every
-    `visit` frames to a place where it finds `means[j]` (in turn). -> { laid, past (layouts for no more found than
-    held), waiting (frames a region waited), wrong (frames filled and not known to fit), least (the least room it was
-    laid out at) }. */
+    `visit` frames to a place where it finds `means[j]` (in turn); what its draws show kept while it fills anew (holdOf:
+    its kind laid out again, a jump), gathered into what they read once the fill is through (swapIn). -> { laid, past
+    (layouts for no more found than held), waiting (frames a region waited), wrong (frames filled and not known to fit),
+    least (the least room it was laid out at), short (frames, once a whole picture was shown, its draws showed part of
+    one or none) }. */
 async function resident(per, { frames, visit, means, first, cells }) {
   const L = lagging(), C = pace(WG), budget = FRAME_MS_BY_CLASS.geometry, cost = (budget * per) / cells;   // (cost: ms a cell)
-  let N = first, P = first, sealed = 0, dirty = true, epoch = 0, seen = -1, done = 0, packs = 0, asked = 0, asking = false, mean = means[0];
-  const S = storeOf(() => dirty), last = { at: -1, whole: false }, out = { laid: 0, past: 0, waiting: 0, wrong: 0, least: Infinity };
+  let N = first, P = first, sealed = 0, dirty = true, epoch = 0, seen = -1, done = 0, packs = 0, asked = 0, asking = false, mean = means[0], swap = false, drawn = null, shown = false;
+  const S = storeOf(() => dirty), H = holdOf(), last = { at: -1, whole: false }, out = { laid: 0, past: 0, waiting: 0, wrong: 0, least: Infinity, short: 0 }, FILL = 'its regions';
+  const fillAnew = () => { done = 0; H.emptied(); H.waiting([FILL]); };   // (its store emptied, every region waiting: residentOf empty, then its update)
+  const gather = () => { drawn = { n: sealed, whole: done >= cells }; H.gathered(1); };   // (what its draws read: its store's things now)
+  // (a read come back: laid out again where roomsFor says, else it fits)
+  const answer = (z, read) => {
+    const room = roomsFor([z[1], z[2]], [N, P], read.whole && read.at === S.at());
+    if (room && (room[0] !== N || room[1] !== P)) { if (room[0] > N && !(z[1] > N) && !(z[2] > P)) out.past++; N = room[0]; P = room[1]; out.least = Math.min(out.least, N); dirty = true; return; }
+    S.fit(read.at);
+  };
+  // (its visits, the nearest first, within the frame's cells; a packing whole where nothing waits after it; gathered
+  // where what is drawn is not kept)
+  const fill = () => {
+    const n = Math.min(Math.max(WG, C.left), cells - done); done += n; C.left -= n; C.measured(n, n * cost, budget);
+    if (done >= cells) H.done(FILL);
+    sealed = Math.round((mean * done) / cells); packs++; last.at = S.at(); last.whole = done >= cells; out.waiting++;
+    if (!H.holds(swap)) gather();
+  };
   const R = L.renderer(() => [Math.min(sealed, N), sealed, sealed]);   // (held, found, packed for its draws: as its last packing sealed them, what the GPU holds till the next)
   for (let f = 1; f <= frames; f++) {
     await L.next(); C.tick();
-    if (dirty && !asking) { dirty = false; epoch++; out.laid++; }   // (ready: its kind laid out, every tier of it having answered)
-    if (seen !== epoch) { seen = epoch; done = 0; S.made(); }   // (its run: its kind laid out again, what it held is gone)
-    if (f > 1 && f % visit === 1) { done = 0; mean = means[Math.floor(f / visit) % means.length]; }   // (a jump: every region new, at the same layout)
-    if (!asking && (S.wrong() || packs !== asked)) {
-      asking = true; asked = packs; const read = { ...last };
-      R.getArrayBufferAsync().then((b) => {
-        const z = new Uint32Array(b), room = roomsFor([z[1], z[2]], [N, P], read.whole && read.at === S.at());
-        if (room && (room[0] !== N || room[1] !== P)) { if (room[0] > N && !(z[1] > N) && !(z[2] > P)) out.past++; N = room[0]; P = room[1]; out.least = Math.min(out.least, N); dirty = true; return; }
-        S.fit(read.at);
-      }).finally(() => { asking = false; });
-    }
-    if (done < cells) {   // (its visits, the nearest first, within the frame's cells; a packing whole where nothing waits after it)
-      const n = Math.min(Math.max(WG, C.left), cells - done); done += n; C.left -= n; C.measured(n, n * cost, budget);
-      sealed = Math.round((mean * done) / cells); packs++; last.at = S.at(); last.whole = done >= cells; out.waiting++;
-    }
-    else if (S.wrong()) out.wrong++;
+    if (dirty && !asking) { dirty = false; epoch++; out.laid++; swap = epoch > 1; }   // (ready: its kind laid out, every tier of it having answered; what is drawn kept where it was laid out before: relayout)
+    if (seen !== epoch) { seen = epoch; fillAnew(); S.made(); }   // (its run: its kind laid out again, what it held is gone)
+    if (f > 1 && f % visit === 1) { fillAnew(); mean = means[Math.floor(f / visit) % means.length]; }   // (a jump: every region new, at the same layout)
+    if (!asking && (S.wrong() || packs !== asked)) { asking = true; asked = packs; const read = { ...last }; R.getArrayBufferAsync().then((b) => answer(new Uint32Array(b), read)).finally(() => { asking = false; }); }
+    if (done < cells) fill(); else if (S.wrong()) out.wrong++;
+    if (swap && !H.holds(false)) { swap = false; gather(); }   // (swapIn: every tier of its kind through its fill anew)
+    const whole = !!(drawn?.whole && drawn.n);
+    if (shown && !whole) out.short++;   // (a whole picture shown before, part of one or none now)
+    shown ||= whole;
   }
   return out;
 }
@@ -123,8 +134,9 @@ async function check() {
     const places = Number.isFinite(R.visit) ? Math.ceil(R.frames / R.visit) : 1;
     for (const per of [1, 3, 8, 16]) {
       const r = await resident(per, R);
-      console.log(`  resident, ${how}, filled at rest over ${String(per).padStart(2)} frame${per > 1 ? 's' : ' '}: laid out ${r.laid} times (${r.past} for no more found than held), its regions waiting ${r.waiting} of ${R.frames} frames, filled and not known to fit ${r.wrong}, laid out at ${r.least === Infinity ? 'its first room only' : `${r.least} at the least`}`);
+      console.log(`  resident, ${how}, filled at rest over ${String(per).padStart(2)} frame${per > 1 ? 's' : ' '}: laid out ${r.laid} times (${r.past} for no more found than held), its regions waiting ${r.waiting} of ${R.frames} frames, filled and not known to fit ${r.wrong}, drawn short ${r.short}, laid out at ${r.least === Infinity ? 'its first room only' : `${r.least} at the least`}`);
       if (r.past) fail(`resident over ${per}, ${how}: laid out ${r.past} times for no more found than it held`);
+      if (r.short) fail(`resident over ${per}, ${how}: ${r.short} frames its draws showed part of what they had shown, or none`);
       if (r.wrong > 4 * places) fail(`resident over ${per}, ${how}: filled and not known to fit ${r.wrong} frames`);
       if (r.laid > places) fail(`resident over ${per}, ${how}: laid out ${r.laid} times, at ${places} place${places > 1 ? 's' : ''}`);
       const rest = Math.floor(R.cells / per), fill = Math.ceil(R.cells / rest), ramp = Math.ceil(Math.log2(rest / WG)) + 1;   // (a fill at the pace's rest, frames; and its first, from a workgroup's cells a frame, twice as many a frame)

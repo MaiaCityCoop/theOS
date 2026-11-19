@@ -593,10 +593,14 @@ function residentPackedOf(T, geos, material, { found, select, store = 0, slots =
   T.passes = [...new Set([...s.full, ...s.only, ...ends])];
   return meshesOf(geos, material, args, C, P, s.data, S, (at, slot) => at(s.offs.node.element(OF_ROW.add(slot))), { share: `${s.id}|${C ? C.share : '-'}`, tag: (m) => { m.userData.ofRow = me.row; } });
 }
-/** A kind laid out again (a tier of it made again from its own count): each tier's range from its room, its stores and
-    what it packed made again as large as all of them, its culling's ranges too; every tier of it packed again. Never
-    past the room its class has left (geometry, its own buffers still in it: what it was is let go only after what it is
-    is made, src/core/gpu.js), nor past what one binding holds: held to that, the rest is the dial's (the governor's). */
+/** A kind laid out again (a tier of it made again from its own count): each tier's range from its room, its stores
+    made again as large as all of them, every tier of it filled again; what its draws read (what it packed for them,
+    where each draw's things begin, their culling) laid out with them where nothing of it is drawn yet, else kept as it
+    is till every tier of it holds again what it held (swapIn): what is drawn is never emptied (2026-11-19: every tier
+    of the kind hidden and emptied at once, drawn again as it filled in, a piece a frame: the meadow, the trees and
+    shrubs popping). Never past the room its class has left (geometry, its own buffers still in it: what it was is let
+    go only after what it is is made, src/core/gpu.js), nor past what one binding holds: held to that, the rest is the
+    dial's (the governor's). */
 function relayout(s) {
   const again = s.epoch > 0; s.dirty = false; s.wait = null; s.epoch++;
   const P = (me) => me.P, row = s.slots * bytesOf('vec4');
@@ -611,14 +615,47 @@ function relayout(s) {
   // (held to it, a tier is complete for what it holds: what it finds past that it asks no room for, till the measure
   // changes (onMeasure, below) or its kind is laid out again for another of it)
   for (const me of s.tiers) me.cap = fit < 1 ? { N: me.N, P: me.P } : null;
-  let sb = 0, db = 0; const arenas = new Set();
+  let sb = 0;
+  for (const me of s.tiers) { me.base = sb; sb += 2 * me.N; me.through = false; }   // (through: its fill anew since, holdOf)
+  s.stores.make(sb * s.slots); s.leaves.make(sb);
+  if (again) s.swap = true; else drawnOf(s);
+}
+/** What a kind's draws read laid out at its tiers' rooms now: what it packed for them (each tier's range, its culling's
+    too) and where each draw's things begin, made as large as all of them. */
+function drawnOf(s) {
+  let db = 0; const arenas = new Set();
   for (const me of s.tiers) {
-    me.base = sb; sb += 2 * me.N; me.dbase = db; me.uBase.value = db; db += P(me);
-    const C = me.T.culler; if (C) { C.from(me.dbase); C.resize(P(me), false); arenas.add(C.arena); }
-    if (again) { me.T.n = 0; for (const m of me.T.meshes) m.visible = false; }   // (what it packed is gone: drawn again once it is packed again)
+    me.dbase = db; me.uBase.value = db; db += me.P;
+    const C = me.T.culler; if (C) { C.from(me.dbase); C.resize(me.P, false); arenas.add(C.arena); }
   }
-  s.stores.make(sb * s.slots); s.leaves.make(sb); s.packed.make(db * s.slots); s.offs.make(s.tiers.length * s.K);
+  s.packed.make(db * s.slots); s.offs.make(s.tiers.length * s.K);
   for (const A of arenas) A.relayout();
+}
+/** A kind laid out again, once every tier of it holds again what it held: what its draws read laid out (drawnOf) and
+    every tier of it gathered into it at once, so what is drawn goes from what was to what is in one frame, never
+    through nothing. */
+function swapIn(s, renderer) {
+  s.swap = false; drawnOf(s);
+  for (const me of s.tiers) me.gather(renderer);
+}
+/** What a resident tier's draws keep while its store fills anew (its kind laid out again, what its cells read changed, a
+    jump: residentOf empty): a picture shown is drawn as it was, nothing gathered into it, till the fill has visited
+    every region it began with, and its kind's layout of what is drawn is made (swap: swapIn); a tier that showed nothing
+    fills in as it comes. The regions new since are the band moving on: they come in as ever. */
+export function holdOf() {
+  let shown = false, left = null;   // (left: the regions the fill has still to visit; 'all': every one waiting, said next)
+  return {
+    /** Its store emptied. */
+    emptied() { left = shown ? 'all' : null; },
+    /** The regions waiting now, after the update that follows: those the fill is to visit. */
+    waiting(keys) { if (left === 'all') left = new Set(keys); },
+    /** A region visited all, or let go. */
+    done(key) { if (left instanceof Set) left.delete(key); },
+    /** Whether what is drawn is kept: the fill not through, or its kind's layout of what is drawn not yet made. */
+    holds: (swap) => !!swap || (left instanceof Set && left.size > 0) || left === 'all',
+    /** Gathered: what is drawn is what it holds now (n: its regions; none, it shows nothing). */
+    gathered(n) { shown = n > 0; left = null; },
+  };
 }
 /** Before any resident tier packs (each run, and the scatter's compile, src/scatter/index.js): the shared rows made as
     large as all the tiers made so far, and every kind laid out that asks for it. */
@@ -667,6 +704,7 @@ function residentOf(T, me, s, ends) {
   const ids = [], freed = [];   // (numbers free; and those let go this packing, free from the next: the store still holds their things till it is copied forward)
   let at = 0, key = null, gkey = null, asking = false, packs = 0, asked = 0, epoch = -1, fresh = 1, gathers = 0, gathered = 0;   // (gathered: a gather since its counts were read; asked: its packings when it was last read)
   const S = storeOf(() => s.dirty), last = { at: -1, whole: false };   // (whether its store fits what it found, storeOf; last: its last packing's layout, and whether it held all it was to then)
+  const H = holdOf();   // (what its draws keep while its store fills anew)
   const drop = (id) => { alive[id] = 0; freed.push(id); };
   const letGo = (L) => { if (L.id != null) { drop(L.id); L.id = null; } };
   // (what it has still to visit, by region: { L, side (its pieces' side, cells: as large as its share lets when it is
@@ -677,7 +715,7 @@ function residentOf(T, me, s, ends) {
   const hold = (w, id) => { w.was.push(id); kept.set(id, (kept.get(id) ?? 0) + 1); };
   const release = (w) => { for (const id of w.was) { const c = kept.get(id) - 1; if (c > 0) kept.set(id, c); else { kept.delete(id); drop(id); } } };
   // (the store emptied: nothing copied forward, every number free at once)
-  const empty = () => { for (const L of regions.reset()) L.id = null; waits.clear(); kept.clear(); alive.fill(0); ids.length = freed.length = 0; for (let i = LEAVES - 1; i >= 0; i--) ids.push(i); key = null; fresh = 1; };
+  const empty = () => { for (const L of regions.reset()) L.id = null; waits.clear(); kept.clear(); alive.fill(0); ids.length = freed.length = 0; for (let i = LEAVES - 1; i >= 0; i--) ids.push(i); key = null; fresh = 1; H.emptied(); };
   empty();
   source(`tiers: a store made again (${T.asset ?? 'a tier'})`, () => (S.wrong() ? 1 : 0) + waits.size);   // (the world complete waits for a store made as large as it needs, and all of it visited: src/core/settle.js)
   // (a region new or run out, to wait its turn: what it held before kept till it is all visited; run out again before
@@ -690,7 +728,7 @@ function residentOf(T, me, s, ends) {
   // (a region let go: what it waits to replace too; or, where a region waiting takes its place (its parent, its
   // quarters), kept till that one is all visited)
   const leave = (L) => {
-    const w = waits.get(L.key); if (w) { waits.delete(L.key); release(w); }
+    const w = waits.get(L.key); if (w) { waits.delete(L.key); H.done(L.key); release(w); }
     if (L.id == null) return;
     let held = false; for (const v of waits.values()) if (overlaps(v.L, L)) { hold(v, L.id); held = true; }
     if (held) L.id = null; else letGo(L);
@@ -747,7 +785,7 @@ function residentOf(T, me, s, ends) {
         X[n * 2] = L.id; X[n * 2 + 1] = bitsOf(L.pad / sc);   // (its pad as the measure has distances: the lens's)
         cells += c; n++; w.next++;
       }
-      if (w.next === per * per) { waits.delete(L.key); did('swaps', w.was.length); release(w); }   // (all of it visited: what it takes the place of let go; swaps: the regions so replaced, joined or split, said to the frame: tools/gate/motion.js --swaps)
+      if (w.next === per * per) { waits.delete(L.key); H.done(L.key); did('swaps', w.was.length); release(w); }   // (all of it visited: what it takes the place of let go; swaps: the regions so replaced, joined or split, said to the frame: tools/gate/motion.js --swaps)
     }
     CELLS.left -= cells;
     return { n, cells };
@@ -759,31 +797,41 @@ function residentOf(T, me, s, ends) {
     const adds = !freed.length;   // (nothing let go: only adding, into the store it holds)
     if (adds) table(at, at, at, n, 1); else table(at, 1 - at, 1 - at, n);
     s.visit.dispatchSize = Math.max(WG, cells);
-    timed(renderer, cells, s.before, [s.visit], [...s.after, ...ends]); if (!adds) at = 1 - at; gkey = g; packs++; fresh = 0;
+    const held = H.holds(s.swap);   // (filling anew: what is drawn kept, its count sealed for the next packing, nothing gathered)
+    timed(renderer, cells, s.before, [s.visit], held ? [G.seal] : [...s.after, ...ends]); if (!adds) at = 1 - at; gkey = held ? null : g; packs++; fresh = 0;
+    if (!held) H.gathered(T.n);
     last.at = S.at(); last.whole = !waits.size;   // (what a read of it is of: its layout, and whether nothing waited to be visited)
     did('packs'); did('kcells', Math.round(cells / 1000));
   };
+  // (its gather alone, from the store it holds: where the camera moved by a step, or what it gathers from changed; and
+  // into what its kind's draws read once that is laid out again, swapIn)
+  const gatherNow = (renderer) => { table(at, at, at, 0); renderer.compute([...s.only, ...ends]); gathers++; gathered = 1; H.gathered(T.n); did('gathers'); };
+  const step = (renderer, g) => { if (g === gkey || H.holds(s.swap)) return; gkey = g; gatherNow(renderer); };
+  me.gather = (renderer) => { if (made(T.passes, 'run')) { gkey = null; gatherNow(renderer); } };
+  // (its fill anew through, or nothing shown to keep: its share of its kind's swap, made by the last of its tiers through;
+  // regions new since are the band moving on, as ever, and wait for nothing)
+  const through = (renderer) => { me.through = !H.holds(false); if (s.swap && s.tiers.every((t) => t.through)) swapIn(s, renderer); };
   return {
     regions,
     dirty() { gkey = null; },
     run(renderer, world, kept, cx, cy, cz) {
       ready();
-      const c = T.cam; if (!c) return;
-      if (!made(T.passes, 'run')) { T.make(renderer); return; }   // (its passes made first: src/core/compile.js)
+      const c = T.cam; if (!c) { me.through = true; return; }   // (nothing to fill: its kind's swap does not wait for it)
+      if (!made(T.passes, 'run')) { me.through = true; T.make(renderer); return; }   // (its passes made first: src/core/compile.js)
       if (epoch !== s.epoch) { epoch = s.epoch; empty(); S.made(); }   // (its kind laid out again: what it held is gone)
       const sc = T.fixed ? Math.min(T.fixed, T.far + Math.abs(c.dy) * 1.2) / T.far : c.s, near = T.near * sc, far = T.far * sc, q = T.step || Math.max(0.25, T.S / 16);
       // (what it holds again from nothing where what its cells read has changed: the lens, the stage, the ways, things'
       // own state, what grows over it. Its band moving with the measure only uses its regions' pads up: regions.js)
       const k = `${kept}|${T.reads?.() ?? ''}`;
       if (k !== key) { empty(); key = k; }
-      update(c, near, far, k);
+      update(c, near, far, k); H.waiting(waits.keys());
       const { n, cells } = visits(sc);
       T.n = regions.leaves.size; for (const m of T.meshes) m.visible = T.n > 0;
       if (!T.n && !waits.size && !freed.length) S.fit(S.at());   // (nothing in its band, nothing to let go: it needs no room)
       if (S.wrong() || gathered || packs !== asked) ask(renderer);
       const g = `${world}|${near}|${far}|${Math.round(cx / q)},${Math.round(cy / q)},${Math.round(cz / q)}`;
-      if (n || freed.length) pack(renderer, n, cells, g);
-      else if (g !== gkey) { gkey = g; table(at, at, at, 0); renderer.compute([...s.only, ...ends]); gathers++; gathered = 1; did('gathers'); }
+      if (n || freed.length) pack(renderer, n, cells, g); else step(renderer, g);
+      through(renderer);   // (every tier of its kind holding again what it held: what is drawn made anew, all of it at once)
     },
   };
 }
