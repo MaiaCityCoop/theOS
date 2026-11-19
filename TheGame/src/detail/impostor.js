@@ -30,7 +30,7 @@ import { lit, weathered, snowLift, unlit } from '../world/light.js';
 import { passOf } from '../core/pass.js';
 import { IN, PLANE } from '../../assets/kit/crowd.js';
 import { UV_TILES } from '../../assets/kit/plant.js';
-import { makeOwned, PORTABLE } from '../core/gpu.js';
+import { makeOwned, PORTABLE, budgetShare } from '../core/gpu.js';
 import { ownGpuMs, pace, frameShare } from '../core/pace.js';
 import { shown } from '../core/settle.js';
 import { compileFor } from '../core/compile.js';
@@ -47,7 +47,7 @@ import { farLayers } from '../scatter/entries.js';
     device and at every start of the same world. Handed to the crowd kit wherever it builds a far end (in the recipes'
     workers with each level's band: src/scatter/trees.js); a made thing's card takes the same views. */
 let ATLASES = null;
-export const atlases = () => (ATLASES ||= atlasesOf({ layers: farLayers(), bytes: SHARE_MB.geometry.atlases * 2 ** 20, limits: PORTABLE, tiles: UV_TILES }));
+export const atlases = () => (ATLASES ||= atlasesOf({ layers: farLayers(), bytes: SHARE_MB.geometry.atlases * 2 ** 20 * budgetShare(), limits: PORTABLE, tiles: UV_TILES }));   // (their share of geometry's budget on this device: src/core/gpu.js budgetShare)
 
 // ---- the views: a direction over the half-sphere above, a point of the square [-1, 1]² (and back) ----
 /** A direction (y up, y ≥ 0) of the square's point (u, v), node or numbers. */
