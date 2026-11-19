@@ -40,10 +40,10 @@
 //   - where it has sunk, the land wears its stand's colour (the stand's `cover`: src/terrain/material.js), as thick as
 //     the stand grows there: a forest, and its undergrowth, to the horizon.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, attribute, positionGeometry, vertexIndex, instanceIndex, screenCoordinate, If, Discard, abs, max, mix, smoothstep, exp, pow, normalize, length, floor, cos, sin, cross, clamp, log, log2, exp2, step, fract, unpackHalf2x16, hash, sqrt } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, attribute, positionGeometry, vertexIndex, screenCoordinate, If, Discard, abs, max, mix, smoothstep, exp, pow, normalize, length, floor, cos, sin, cross, clamp, log, log2, exp2, step, fract, unpackHalf2x16, hash, sqrt } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, camDist, heightAt } from '../world/land.nodes.js';
-import { layersOf, posIn, placeIn, grownIn, grovesOf, writersOf } from './rule.js';
+import { layersOf, posIn, placeIn, grownIn, grovesOf, writersOf, hashesOf } from './rule.js';
 import { createGrowth } from './growth.js';
 import { toScreen, airOf, lightOn, shineOf, glintOf, sunAt, contactShade, weatherOn, snowLiftAtVertex, unlit, windAt, windDir, windStrength, ign } from '../world/light.js';
 import { passOf, cut, motion, vWas } from '../core/pass.js';
@@ -53,7 +53,7 @@ import { recipe, recipes, versionOf } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
 import { kindOf, sizeOf, most } from '../../assets/kinds.js';
 import { levelOf, levelOfMesh, handOver, sinkInto } from '../detail/handover.js';
-import { createAtlas, bakers, viewClip, tileClip, impostorRead, clumpRead, facingOf, facingEnc, planeFrame, litIn, atlases } from '../detail/impostor.js';
+import { createAtlas, bakers, viewClip, tileClip, impostorRead, clumpRead, facingOf, facingEnc, planeFrame, litIn, atlases, pictureOf } from '../detail/impostor.js';
 import { levelsUnder, PICTURES } from '../detail/atlas.js';
 import { offScreen, clipOf, Tier } from './tier.js';
 import { createDrawer, pool } from './drawer.js';
@@ -163,30 +163,39 @@ export { FOOT };   // how deep a plant's foot is set into the ground (assets/kit
 //   G: the group (groupsOf): its layer (the cells, rule.js), the growth map it reads (G.M) and its kinds, each one of
 //      the layer's things (Kd.e: its entry); how tall it stands and which of its shapes, the rule's (rule.js grownIn: a
 //      kind's stages by age, the age its stand's or a sapling's, the plant its stage scaled to its own height)
-// (a kind's numbers in a stand's packing: its entry in its layer, its first shape among the group's, its size on screen
-// to its height; uniforms, as grownIn's (rule.js numbersOf): the stands whose kinds differ only in them pack by one
-// pipeline, each a compile of its own while they were literals)
-const kindNumbers = (Kd) => (Kd.numbers ||= { e: uniform(Kd.e.i, 'int'), offset: uniform(Kd.offset), wide: uniform(Kd.wide) });
-/** Each of a group's shapes' base, a share of its height, in the group's order of shapes (offsets); as long as the
-    largest group's (groupsOf: most), the rest nought, so every group's packing declares it alike. */
-const basesOf = (G) => uniformArray([...G.kinds.flatMap((Kd) => Kd.bases), ...Array(Math.max(0, (G.most ?? 0) - G.kinds.reduce((n, Kd) => n + Kd.bases.length, 0))).fill(0)], 'float');
+/** What a group's packing reads of the things of its layer (G.L), one table of uniforms (until 2026-11-19 its kinds were
+    its code, one If a kind: each group of a layer a shader of its own; and before, their numbers literals in it): a row
+    each of the layer's entries, [1 where it is one of the group's kinds, its first shape among the group's (offsets), its
+    size on screen to its height (`wide`), 0]; then a row each of the group's shapes, [its base, a share of its height,
+    0, 0], in the group's order of shapes, as many as the largest group's (groupsOf: most), the rest nought: every
+    group's packing declares it alike. at: where the shapes' rows begin. */
+const kindsOf = (G) => {
+  if (G.kindRows) return G.kindRows;
+  const n = G.L.entries.length, bases = G.kinds.flatMap((Kd) => Kd.bases), rows = Array.from({ length: n + Math.max(G.most ?? 0, bases.length) }, () => new THREE.Vector4());
+  for (const Kd of G.kinds) rows[Kd.e.i].set(1, Kd.offset, Kd.wide, 0);
+  bases.forEach((b, j) => rows[n + j].set(b, 0, 0, 0));
+  return (G.kindRows = { rows: uniformArray(rows, 'vec4'), at: n });
+};
 function plantIn(c, G, band, all, seen, found) {
-  const { L, kinds } = G, cx = c.x, cy = c.y, h0 = (k) => uint(k + L.seed - 300);   // (the layer's seed moves every hash: each layer its own cells)
+  const { L } = G, cx = c.x, cy = c.y, h0 = hashesOf(L);   // (the layer's seed moves every hash: each layer its own cells)
   const pos = posIn(c, L).toVar(), dist = camDist(pos);
   const range = all ? length(pos.sub(band.at ?? U.uCam.xz)) : dist;   // the shadow's stand-in: metres round the camera, whatever the lens (what is solid: round where it is asked for, band.at)
   const there = range.lessThan(band.far).and(range.greaterThanEqual(band.near));
   If(seen ? there.and(inView(pos, seen.r, seen.high)) : there, () => {   // (seen.r: a uniform, its level's)   // (and in the eye's view: not the shadow's stand-in, whose shade may fall into it)
-    const R = placeIn(c, L, G.M, pos), I = R.I, d = abs(I.x), w = I.y, BASES = (G.bases ||= basesOf(G));
+    const R = placeIn(c, L, G.M, pos), I = R.I, d = abs(I.x), w = I.y, K = kindsOf(G);
     const which = float(0).toVar(), h = float(1).toVar(), across = float(1).toVar(), base = float(0).toVar(), hit = float(0).toVar();
-    // the kind's own: how large this one is, and which of its shapes (the rule's: rule.js grownIn, as the growth map
-    // reckons its crown)
-    kinds.forEach((Kd) => { const K = kindNumbers(Kd); If(R.k.equal(K.e), () => {
-      const T = grownIn(c, L, Kd.e, pos);
-      h.assign(T.h); which.assign(T.shape.add(K.offset));
-      across.assign(h.mul(K.wide));   // (its size on screen by what its kind measures it by, src/detail sizeOf: a bush is low and wide, its largest side counts. `wide`: that to its height)
-      base.assign(h.mul(BASES.element(int(which))));   // (how far round its middle what of it covers the ground reaches, its own shape's: assets/kinds.js baseOf)
-      hit.assign(1);
-    }); });
+    // the kind's own, where it is one of the group's: how large this one is, and which of its shapes (the rule's: rule.js
+    // grownIn, as the growth map reckons its crown)
+    If(R.k.greaterThanEqual(0), () => {
+      const E = K.rows.element(R.k);
+      If(E.x.greaterThan(0.5), () => {
+        const T = grownIn(c, L, R.k, pos);
+        h.assign(T.h); which.assign(T.shape.add(E.y));
+        across.assign(h.mul(E.z));   // (its size on screen by what its kind measures it by, src/detail sizeOf: a bush is low and wide, its largest side counts. `wide`: that to its height)
+        base.assign(h.mul(K.rows.element(int(which).add(K.at)).x));   // (how far round its middle what of it covers the ground reaches, its own shape's: assets/kinds.js baseOf)
+        hit.assign(1);
+      });
+    });
     // Whether it is of the tier's level (the size on screen the level asks, and a little either side: its hand-over,
     // and as far as the camera may move before the cells are worked out again) the drawer says; what of it shows, its
     // vertices say each frame (plantMaterial). (The shadow's stand-in: every plant in its band)
@@ -664,9 +673,9 @@ function farOf(renderer, tex, G, D) {
     const tileV = Fn(() => {
       // (a chunk's plane over its own corners only: its range of the chunks' list, CL, as many corners drawn as its row's
       // largest chunk has, those past its own behind the far plane, not drawn)
-      const tile = rowU.mul(tilesU).add(int(instanceIndex)), c = tile.div(3), a = tile.sub(c.mul(3)), clip = vec4(0, 0, 2, 1).toVar();
+      const col = int(pictureOf()), tile = rowU.mul(tilesU).add(col), c = tile.div(3), a = tile.sub(c.mul(3)), clip = vec4(0, 0, 2, 1).toVar();   // (col: its tile of the row, pictureOf: a row is baked a few tiles at a time)
       const from = cellsU.element(c.mul(4)).w, many = cellsU.element(c.mul(4).add(1)).w, blo = cellsU.element(c.mul(4).add(2)).xyz, bhi = cellsU.element(c.mul(4).add(3)).xyz;
-      If(c.lessThan(nU).and(vertexIndex.lessThan(uint(many))), () => { const V = vertexAt(CL.node.element(uint(from).add(vertexIndex))), P = tileClip(V.position, blo, bhi, a, float(instanceIndex), float(tilesU)); pass(V, P.z.mul(2).sub(1), planeFrame(a)); clip.assign(P.clip); });
+      If(c.lessThan(nU).and(vertexIndex.lessThan(uint(many))), () => { const V = vertexAt(CL.node.element(uint(from).add(vertexIndex))), P = tileClip(V.position, blo, bhi, a, float(col), float(tilesU)); pass(V, P.z.mul(2).sub(1), planeFrame(a)); clip.assign(P.clip); });
       return clip;
     })();
     const N = (j) => D().numOf(kindU, j), leafA = () => tex.a(floor(vTwig.greaterThan(0.5).select(N(3).x, N(2).z).add(0.5)), vUv).bias(-2);
@@ -1024,7 +1033,7 @@ function standBodies(G, KINDS, ground, renderer) {
   };
   const g = new THREE.BufferGeometry(); g.setIndex([0, 0, 0]); g.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
   const T = new Tier(NOWHERE, g, () => new THREE.NodeMaterial(), { cell: L.cell, P, near: 0, far: REACH, live, gpu: true, cap: Math.min(65536, n * n * P * P), slots: 2, cull: false, fixed: REACH });
-  T.step = 2;
+  T.step = 2; T.label(`plants, ${G.name}: bodies`);   // (its packing asked by its name: src/core/compile.js, tools/census.js)
   const grid = bodyGrid(Math.max(4, L.cell)), tag = G.key.slice(0, 48);
   addBodies(grid.near);
   let busy = false, was = '', warned = false, ready = false;
