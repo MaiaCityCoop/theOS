@@ -33,8 +33,8 @@
 //     one, each where its own sprigs were, each growing in over the FADE below its own: within the BAND;
 //   - the impostor's frame: the sphere round the whole plant, from which the GPU bakes its views (one octahedral
 //     impostor a shape, src/detail/impostor.js). Its error: its bake's texel (CELL over the sphere's width) and what its
-//     views' spacing and its one step of parallax misplace, the plant's depth times their angle (src/detail/atlas.js
-//     spacingOf, depthOf); under `far.lo` a level holds nothing else. Where its error is under the clumps' it takes over
+//     views' spacing misplaces, the sphere's radius times their angle (src/detail/atlas.js spacingOf); under `far.lo` a
+//     level holds nothing else. Where its error is under the clumps' it takes over
 //     from the crowd itself, and the shape has no clumps. A plant without a far end (its kind's `far`, assets/kinds.js)
 //     has neither: its crowd goes by its own error to where it is gone.
 //
@@ -67,7 +67,7 @@
 // much of a part is drawn at its own error. Which parts a level of the heap holds is cut in pixels at the dial at rest, as
 // assets/kit/plant.js bandsOf cuts the levels (src/detail/error.js switchPx: the workers' dial is 1).
 import { switchPx, BAND, FADE } from '../../src/detail/error.js';
-import { spacingOf, depthOf } from '../../src/detail/atlas.js';
+import { spacingOf } from '../../src/detail/atlas.js';
 const { PI, sqrt, hypot, floor, ceil, min, max, abs, log, log2, exp } = Math;
 
 /** Every number of the rule, in one place, as the plants are drawn. A plant's file has none of them, and none of them
@@ -187,8 +187,8 @@ function headOf(m, K) {
   const R = m.root, rootReach = (q) => { let r = 0; for (const v of q.verts) r = max(r, hypot(P[v * 3] - R[v * 3], P[v * 3 + 1] - R[v * 3 + 1], P[v * 3 + 2] - R[v * 3 + 2])); return r; };
   const area = Float64Array.from(order, (p) => sprigs[p].area), reach = thins ? Float64Array.from(order, (p) => rootReach(sprigs[p])) : null;
   // ---- the impostor's error (metres): its bake's texel, CELL of them over its sphere's width, and what its views'
-  // spacing and its one step of parallax misplace, the plant's depth times their angle (src/detail/atlas.js) ----
-  const views = withFar ? spacingOf(K.VIEWS) * depthOf(P, n) : 0, eImp = withFar ? (2 * sphere[3]) / K.CELL + views : Infinity;
+  // spacing misplaces, its sphere's radius times their angle (src/detail/atlas.js) ----
+  const views = withFar ? spacingOf(K.VIEWS) * sphere[3] : 0, eImp = withFar ? (2 * sphere[3]) / K.CELL + views : Infinity;
   // ---- where the crowd ends: the rung after it, its clumps or its impostor, whichever has the lesser error. The
   // clumps: as many chunks as cost no more than the sprigs still there where the crowd ends (first all of them, then
   // those its clumps leave); a shape whose impostor is as fine as its clumps hands its crowd over to it, and has no

@@ -15,7 +15,7 @@ import { layerOf, standOf, standFade, CARPET, SLOPES, NO_STAND, SHADE_REACH, CRO
 import { lit, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW, glintOf } from '../world/light.js';
 import { passOf, motion } from '../core/pass.js';
 import { gWrite, lightFamily, FAMILY } from '../core/gbuffer.js';
-import { endOf, bladeLight, tuftShade, underShade, meadowSeen } from '../scatter/grass.js';
+import { standsFor, meadowLight, tuftShade, meadowSeen } from '../scatter/grass.js';
 import { reliefShares, reliefOverSnow } from './relief.js';
 import { SOIL_RELIEF } from '../world/physics.js';
 
@@ -104,9 +104,9 @@ export function laid(tex, p, s, D, X) {
   // the grass as a carpet, at three sizes: blades near, tufts further, drifts of them from high up (each read only where
   // it shows: the blades' within 110 m, the drifts' past 300); its cover the map's: where the meadow's blades stand,
   // the bare patches cut it as they cut the blades, and the floor shows between them; as the blades thin out towards
-  // the meadow's end the carpet takes their place, all of it (their own share: src/scatter/grass.js endOf, one
+  // the meadow's end the carpet takes their place, all of it (the share they stand for: src/scatter/grass.js standsFor, one
   // statistic either side, so where the blades end nothing shows); far its tufts are let go (350 to 900 m)
-  const carpet = BASE.grass.carpet, blades = endOf(D);
+  const carpet = BASE.grass.carpet, blades = standsFor(D);
   const cover = mix(mix(X.cv.y, X.cv.x, blades), X.cv.z, smoothstep(350, 900, D));
   const cv = cover.mul(mix(1, 0.82, blades)).toVar();
   const pr = rot(p), prr = rotB(p);
@@ -207,7 +207,7 @@ export function terrainMaterial(vt) {
     // past the meadow's blades, its mean top (src/scatter/grass.js meanTop: U.uMeadowTop): the land's own vertices raised
     // by it as much as the meadow covers (the carpet's share, the page's), so what stands there sinks into it as it did
     // among the blades; as long as it shows (its top over a dial pixel, handed over within BAND)
-    const past = float(1).sub(endOf(dist)).mul(smoothstep(1, BAND, dialPxAt(pxAt(U.uMeadowTop, dist)))).toVar();
+    const past = float(1).sub(standsFor(dist)).mul(smoothstep(1, BAND, dialPxAt(pxAt(U.uMeadowTop, dist)))).toVar();
     If(past.greaterThan(0), () => {
       const sp = P.cell.mul(P.k.add(1)), G = vt.read(wp, vec2(sp, 0), vec2(0, sp), dist, { lod: true });
       raise.addAssign(G.cv.mul(U.uMeadowTop).mul(past));
@@ -235,11 +235,12 @@ export function terrainMaterial(vt) {
     const d = abs(vI.x), w = vI.y;
     const G = vt.read(p, dx, dy, rdist, { eye: normalize(U.uCam.sub(vWorld)), level: by(vWorld, [dx, dy]) });   // (along the eye's ray through the ground's relief: parallax)
     // where the meadow's blades stand, what shows between them is their lower halves, as dark to their tips as a blade
-    // is (src/scatter/grass.js underShade), drawn over it; as they thin out towards its end it comes out of it (their own
-    // share at the pixel's distance: endOf), what a field of them shows from where the eye is then: their tips along
-    // the ground, more of their depth and the floor between them from above (meadowSeen)
-    const blades = endOf(dist2), seen = meadowSeen(normalize(U.uCam.sub(vWorld)), G.cv);
-    const c = G.c.mul(mix(float(1), mix(seen.shade, underShade(), blades), G.cv)).toVar(), cv = G.cv, h = G.h;
+    // is (src/scatter/grass.js underShade), drawn over it; as they thin out towards its end, what those left out would
+    // have shown comes out of it (the share the drawn stand for at the pixel's distance: standsFor; of the rest, what a
+    // field of them shows from where the eye is: their tips along the ground, more of their depth and the floor between
+    // them from above, meadowSeen), so the blades and the carpet hide as much of the floor as all of the blades do
+    const blades = standsFor(dist2), seen = meadowSeen(normalize(U.uCam.sub(vWorld)), G.cv.mul(float(1).sub(blades)));
+    const c = G.c.mul(mix(float(1), seen.shade, G.cv)).toVar(), cv = G.cv, h = G.h;
     // past where the shadow cascades reach round the camera (the farthest of them: SHADE_REACH, src/world/shadow.js), a
     // stand's floor lies in its crowns' shade
     const shade = SHADE_REACH > 0 ? G.shade.mul(smoothstep(SHADE_REACH * 0.8, SHADE_REACH, length(p.sub(U.uCam.xz)))) : float(0);
@@ -261,9 +262,9 @@ export function terrainMaterial(vt) {
     // are kept that far, src/world/land.nodes.js)
     const relief = mix(0.74, 1.1, smoothstep(-6, 16, vHill));
     const colour = weathered(mix(c.mul(mix(1, 0.5, wet)), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9).toVar();
-    // (wet, it shines: its highlight's own share, where its way and the eye's are at hand; past the meadow's blades,
-    // how much of it is their carpet, lit as they are: landLight)
-    const V = normalize(U.uCam.sub(vWorld)), glint = glintOf(n, V, wet.mul(0.3), 48), carpet = cv.mul(float(1).sub(blades)).mul(float(1).sub(snow));
+    // (wet, it shines: its highlight's own share, where its way and the eye's are at hand; of its colour, the share that
+    // is the meadow's blades left out, lit as they are: landLight)
+    const V = normalize(U.uCam.sub(vWorld)), glint = glintOf(n, V, wet.mul(0.3), 48), carpet = cv.mul(seen.blade).div(mix(float(1), seen.shade, cv).max(1e-4)).mul(float(1).sub(snow));
     // the prepass: what its light needs, in the G-buffer (src/core/gbuffer.js; lit in the one pass of light: LAND); it
     // stands still, only the camera moves; and in its motion's fourth number (no other material writes one), the level
     // of the land's pages its footprint calls for (2 more: 0 is not the land), for the pages to know what is seen
@@ -282,16 +283,17 @@ export function terrainMaterial(vt) {
 }
 
 /** The land lit, as the screen shows it (node code): its colour as its light multiplies it, its way n, where it is w,
-    the way to the eye V, its highlight's own share (glint: wet, it shines), how much of it is the meadow's carpet past
-    its blades (carpet: lit as they are where the eye meets them, meadowSeen, at `up` up them: src/scatter/grass.js
-    bladeLight; the ground's own light where it is bare, under snow or under the blades), and how much of the sun a
+    the way to the eye V, its highlight's own share (glint: wet, it shines), how much of its colour is the meadow's
+    blades left out (carpet: lit as they are where the eye meets them, meadowSeen, at `up` up them, over the normals
+    the eye sees of them: src/scatter/grass.js meadowLight; the ground's own light where it is bare, under snow, under
+    the blades or between them), and how much of the sun a
     stand's crowns take from it past where their shadows are drawn (shade: laid). The sun through the clouds (their
     shade read once: under a cloud the sky is dimmer too) and the shadow map; the sky's light, dimmer in a stand's
     shade. One light, for the pass of light (sayLight) and for a picture drawn without a prepass. */
 function landLight({ colour, n, w, V, glint, carpet, up, shade }) {
   const cs = cloudShade(w).toVar(), sun = cs.mul(sunDim()).mul(shadowAt(w)).mul(float(1).sub(shade)).toVar();
   const ground = lit({ colour, n, w, V, sun, sky: cs.mul(0.3).add(0.7).mul(float(1).sub(shade.mul(0.35))), glint });
-  return mix(ground, lit({ colour, n, w, V, sun, ...bladeLight(n, up) }), carpet);
+  return mix(ground, lit({ colour, w, V, sun, ...meadowLight(V, up) }), carpet);
 }
 let said = false;
 /** The land's light, said once (src/core/gbuffer.js lightFamily): its pixels lit where its prepass left them, by

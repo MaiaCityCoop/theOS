@@ -89,8 +89,9 @@
 // nothing. A gate run under `bun tools/gpu/lock.js take <owner> -- …` holds the lock whole.
 //
 // A measure (device, walks, bench, compile, paths, all, motion, the hour) is taken only on a machine with the memory for it
-// (tools/gate/machine.js onMachine): where its turn starts with less free than the game's GPU budget, or the swap grows
-// while it runs, it says "not measured" and why, keeps nothing, and ends with 75 (EX_TEMPFAIL: run it again later).
+// (tools/gate/machine.js onMachine): where its turn starts with less free than the game takes there (its browsers' own
+// footprint in the last run on that machine, the GPU's budget at the least), or the swap grows while it runs, it says
+// "not measured" and why, keeps nothing, and ends with 75 (EX_TEMPFAIL: run it again later).
 //
 // It never waits on a timer for the picture: once the camera has moved it waits for window.__game.settle() (src/core/
 // settle.js), which resolves when nothing streams or builds for that camera and the picture built over time has come to
@@ -102,8 +103,7 @@
 // world is made in half a minute, not two); the paths make a fresh one for their cold run.
 import { chromium } from 'playwright-core';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync, readdirSync, statSync } from 'node:fs';
-import { execSync, execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { VIEWS, PATHS, HOURLY } from './gate/views.js';
@@ -115,7 +115,7 @@ import { outputRatio } from '../src/core/output.js';
 import { flip, tiles, heat, readPNG, writePNG, PPD } from './gate/flip.js';
 import { stepper } from './gate/clock.js';
 import { locked, unlock } from './gpu/lock.js';
-import { onMachine, machineLine, head } from './gate/machine.js';
+import { onMachine, machineLine, head, processes, withChildren, heldBy } from './gate/machine.js';
 import { tiled } from './gate/tiles.js';
 import { sideBySide } from './gate/sheet.js';
 import { guard, closeHard } from './gate/guard.js';
@@ -559,35 +559,25 @@ function told({ ticks, gpu, timestamps }) {
   return { frame: { ...of(steps, FRAME + JITTER), hitches: steps.filter((v) => v > 2 * FRAME).length }, gpu: timestamps ? of(g, BUDGET) : null, inside: r.length ? { least: Math.min(...r), median: rank(r, 0.5) } : null };
 }
 
-const run = promisify(execFile);
 /** The whole browser's memory, four times a second: every process of the Chrome on this profile (the browser, its GPU
     process, its pages, its helpers: those that name the profile and every one they started), summed two ways: the
-    resident size (ps), and on a Mac the physical footprint (footprint), which counts what Metal holds for the GPU where
-    the resident size does not (read on 2026-11-17: a Chrome GPU process 52 MB resident had a footprint of 1.16 GB). The
-    gate goes by the footprint where there is one. The most it reached, overall and on each part of the run (`phase`). */
+    resident size, and what they hold of the machine (tools/gate/machine.js heldBy: on a Mac the physical footprint, which
+    counts what Metal holds for the GPU where the resident size does not). The gate goes by the latter. The most it reached, overall and on each part of the run (`phase`). */
 function memory(dir) {
-  const W = { phase: 'the start', peak: { bytes: 0 }, rss: 0, phases: {}, looks: 0 }, mac = process.platform === 'darwin'; let busy = false;
+  const W = { phase: 'the start', peak: { bytes: 0 }, rss: 0, phases: {}, looks: 0, measure: 'resident size' }; let busy = false;
   const look = async () => {
     if (busy) return; busy = true;
     try {
-      const rows = [];
-      for (const line of (await run('ps', ['-A', '-o', 'pid=,ppid=,rss=,command='])).stdout.split('\n')) { const m = line.match(/^\s*(\d+)\s+(\d+)\s+(\d+)\s+(.*)$/); if (m) rows.push({ pid: +m[1], ppid: +m[2], rss: +m[3] * 1024, cmd: m[4] }); }
-      const ours = new Map(rows.filter((p) => p.cmd.includes(dir)).map((p) => [p.pid, p]));
-      for (let more = true; more;) { more = false; for (const p of rows) if (!ours.has(p.pid) && ours.has(p.ppid)) { ours.set(p.pid, p); more = true; } }
+      const ours = withChildren(await processes(), (p) => p.cmd.includes(dir));
       if (!ours.size) return;
-      let foot = null;
-      if (mac) {   // (a process gone between the two looks makes footprint fail for it alone: what it did say is read)
-        const out = await run('footprint', ['--noCategories', '-f', 'bytes', ...[...ours.keys()].flatMap((pid) => ['-p', `${pid}`])]).then((r) => r.stdout, (e) => e.stdout ?? '');
-        foot = new Map([...out.matchAll(/\[(\d+)\]:.*?Footprint:\s*(\d+) B/g)].map((m) => [+m[1], +m[2]]));
-      }
-      const of = (p) => (foot ? foot.get(p.pid) ?? 0 : p.rss), bytes = [...ours.values()].reduce((s, p) => s + of(p), 0);
+      const H = await heldBy(ours), of = H.of; W.measure = H.measure; const bytes = [...ours.values()].reduce((s, p) => s + of(p), 0);
       W.looks++; W.rss = Math.max(W.rss, [...ours.values()].reduce((s, p) => s + p.rss, 0));
       if (bytes > W.peak.bytes) { const by = {}; for (const p of ours.values()) { const k = p.cmd.match(/--type=([\w-]+)/)?.[1] ?? 'browser'; by[k] = (by[k] ?? 0) + of(p); } W.peak = { bytes, phase: W.phase, by }; }
       if (bytes > (W.phases[W.phase] ?? 0)) W.phases[W.phase] = bytes;
     } finally { busy = false; }
   };
   const timer = setInterval(() => look().catch(() => {}), 250);
-  W.stop = () => { clearInterval(timer); return { measure: mac ? 'physical footprint' : 'resident size', peak: W.peak, rss: W.rss, phases: W.phases, looks: W.looks }; };
+  W.stop = () => { clearInterval(timer); return { measure: W.measure, peak: W.peak, rss: W.rss, phases: W.phases, looks: W.looks }; };
   return W;
 }
 
@@ -702,21 +692,26 @@ async function hourly(opt) {
     try {
       const set = (o) => stills(chrome, o).catch((e) => { console.log(`  stills ${o.tag}: ${e.message.slice(0, 300)}`); return o.tag; });   // (a view the GPU refused is marked in its gate.json; the hour goes on)
       s = await smoke(chrome, { views }); a = await set({ tag, views }); t = await set({ tag: `${tag}-truth`, truth: true, views });
-      b = await (await import('./gate/ceilings.js')).rule(() => bench(chrome, opt), { twice: true, ratchet: opt.ratchet }, tag);   // (twice: the hour's own noise) c = await compile(chrome, opt); w = await walks(chrome);
+      b = await (await import('./gate/ceilings.js')).rule(() => bench(chrome, opt), { twice: true, ratchet: opt.ratchet }, tag); c = await compile(chrome, opt); w = await walks(chrome);   // (the bench twice: the hour's own noise)
     } finally { await closeHard(chrome, chrome.gateDir); }
     const unsettled = (set) => Object.entries(JSON.parse(readFileSync(`${OUT}${set}/gate.json`, 'utf8')).views ?? {}).filter(([, r]) => r.notSettled).map(([k]) => k);
     return { tag, when: new Date().toISOString(), out: OUTPUT, device: dev, firstView: first, walks: w, start: s.start, smoke: s, stills: { lod: unsettled(a), truth: unsettled(t) }, flip: await diff(a, t, { ...opt, views }).catch((e) => ({ none: e.message })), bench: b, compile: c, paths: await paths({ ...opt, paths: opt.paths ?? 'walk,zoom' }) };
   }, (o) => ({ tag, when: new Date().toISOString(), ...o }))) }; });
+  run.submissions = (await import('./gate/device.js')).submitRule(run, lastMeasured(at, tag));   // (held against the last hour whose device was measured)
   mkdirSync(`${at}${tag}/`, { recursive: true }); save(`${at}${tag}/summary.json`, run);   // (its own folder, whatever else made one: a hour not measured made none, and left no board, 2026-11-19)
-  if (run.device?.pass === false || run.wgsl?.pass === false || run.bench?.ceilings?.pass === false) process.exitCode = 1;   // (a lost device fails the hour, a module the device will not compile, and a class or pass of a bench view past its ceiling)
+  if (run.device?.pass === false || run.wgsl?.pass === false || run.bench?.ceilings?.pass === false || run.submissions.pass === false) process.exitCode = 1;   // (a lost device fails the hour, a module the device will not compile, a class or pass of a bench view past its ceiling, and a submission the rule refuses)
   return board(tag, at);
 }
+/** The hours kept in `at` before `tag`, the newest first. */
+const hoursBefore = (at, tag) => (existsSync(at) ? readdirSync(at) : []).filter((d) => d !== tag && existsSync(`${at}${d}/summary.json`)).sort((x, y) => statSync(`${at}${y}/summary.json`).mtimeMs - statSync(`${at}${x}/summary.json`).mtimeMs);
+/** The last hour kept before `tag` whose device was measured (its submissions counted): its run, or null. */
+const lastMeasured = (at, tag) => { for (const d of hoursBefore(at, tag)) { const R = JSON.parse(readFileSync(`${at}${d}/summary.json`, 'utf8')); if (!R.notMeasured && R.device?.sure != null) return R; } return null; };
 /** The scoreboard of the hour `tag` (in `at`): every measure against the last hour kept before it (tools/gate/ten.js),
     and the frame by class and pass against its shares and ceilings (tools/gate/ceilings.js board); board.md beside its
     summary. */
 async function board(tag, at) {
   const { runOf, held } = await import('./gate/ten.js'), here = runOf(`${at}${tag}/summary.json`);
-  const before = readdirSync(at).filter((d) => d !== tag && existsSync(`${at}${d}/summary.json`)).sort((x, y) => statSync(`${at}${y}/summary.json`).mtimeMs - statSync(`${at}${x}/summary.json`).mtimeMs)[0];
+  const before = hoursBefore(at, tag)[0];
   const H = before ? held(here, runOf(`${at}${before}/summary.json`)) : null, R = JSON.parse(readFileSync(`${at}${tag}/summary.json`, 'utf8')), mem = memoryOn(R.smoke);
   const { wgslLines, costBlock } = await import('./gate/wgsl.js');
   const md = [`# The hour on main, ${tag} (${OUTPUT.width} × ${OUTPUT.height}), ${new Date().toISOString().slice(0, 16)}`, '',
@@ -733,7 +728,7 @@ async function measuresOf(R, H, mem) {
   const S = R.start;
   const out = [...(R.stills?.lod ?? []).map((v) => `${v} (stills)`), ...(R.stills?.truth ?? []).map((v) => `${v} (?truth)`), ...Object.keys(R.bench?.unsettled ?? {}).map((v) => `${v} (bench)`), ...['cold', 'warm'].flatMap((c) => Object.entries(R.paths?.[c]?.paths ?? {}).filter(([, r]) => r.notSettled).map(([k]) => `${k} (paths, ${c})`))];
   return [mem.line,
-    ...(await import('./gate/device.js')).lines(R.device), '',
+    ...(await import('./gate/device.js')).lines(R.device), ...(R.submissions ? [R.submissions.line] : []), '',
     S?.settled === false ? `**The start did not settle** in ${(S.ms / 1000).toFixed(0)} s: ${String(S.said).slice(0, 300)}` : `The start settled in ${((S?.ms ?? 0) / 1000).toFixed(1)} s.`,
     out.length ? `Not settled, so not measured: ${out.join(', ')}.` : 'Every view and path settled.', '',
     ...walkLines(R.walks, await import('./gate/device.js')), '', H ? H.text : `The first hour kept: nothing before it to hold it against.`, '',
@@ -785,7 +780,7 @@ try {
   if (cmd === 'smoke' && r?.memory?.over?.length) process.exitCode = 1;   // (the GPU smoke too)
   if (cmd === 'device' && r.pass === false) process.exitCode = 1;
   if (['bench', 'compile', 'paths', 'device'].includes(cmd) && r.host?.after) { mkdirSync(OUT, { recursive: true }); save(`${OUT}${cmd}.json`, r); }   // (the numbers kept, where it ran: .gate/bench.json and so on)
-  if (r?.host) console.log(`  ${machineLine(r.host.before, r.host.after)}`);
+  if (r?.host) console.log(`  ${machineLine(r.host.before, r.host.after, r.host.game)}`);
   if (r?.notMeasured) { console.log(`gate: not measured: ${r.notMeasured}.`); process.exitCode = 75; }   // (75, EX_TEMPFAIL: run it again once the machine has the memory)
 } catch (e) { console.error(`gate: ${e.message}`); process.exitCode = 1; }
 finally { for (const d of FRESH) rmSync(d, { recursive: true, force: true }); }
