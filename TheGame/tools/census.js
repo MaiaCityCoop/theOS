@@ -99,16 +99,41 @@ const codeOf = (e) => {
   if (e.pass === 'pre') renderer.setRenderTarget(PRE);
   try { const s = M.build(o.isMesh ? o : { isMesh: true, geometry: new THREE.BufferGeometry(), material: mat }, mat); return `${s.vertex}\0${s.fragment}`; } finally { renderer.setRenderTarget(null); }
 };
-for (const e of first) { let c; try { c = codeOf(e); } catch (err) { c = `failed ${e.name}: ${err.message}`; } (codes[e.pass] ||= new Set()).add(c); }
-const programs = Object.fromEntries(Object.entries(codes).map(([k, s]) => [k, s.size]));
+// (and as a pipeline: its code and what three tells pipelines apart by besides, how it is drawn: its side, its blending,
+// its depth, the vertex buffers its geometry binds, which way its faces turn; src/core/compile.js sharePipelines keys a
+// pipeline by all of it. A program drawn more than one way is more than one pipeline)
+const layoutOf = (g) => (g ? `${Object.entries(g.attributes ?? {}).map(([n, a]) => `${n}:${a.itemSize}${a.isInstancedBufferAttribute ? 'i' : ''}`).sort().join(',')}${g.index ? '|i' : ''}` : '-');
+const matOf = (e) => { const m = [e.what.material].flat()[0], T = m?.isNodeMaterial ? twinOf(m) : null; return e.pass === 'own' ? m : e.pass === 'cast' ? T?.shadow : T?.[e.pass]; };
+const STATE = ['side', 'transparent', 'blending', 'depthTest', 'depthWrite', 'depthFunc', 'colorWrite'];
+const stateOf = (e) => { if (e.pass === 'run') return {}; const m = matOf(e) ?? {}; return { ...Object.fromEntries(STATE.map((k) => [k, m[k]])), layout: layoutOf(e.what.geometry), flipped: e.what.matrixWorld?.determinant?.() < 0 }; };
+const pipes = {}, ways = new Map();   // (a pass's pipelines; a program -> how it is drawn, each way's names)
+for (const e of first) {
+  let c; try { c = codeOf(e); } catch (err) { c = `failed ${e.name}: ${err.message}`; }
+  (codes[e.pass] ||= new Set()).add(c);
+  const st = JSON.stringify(stateOf(e)); (pipes[e.pass] ||= new Set()).add(`${c}#${st}`);
+  const key = `${e.pass}\0${c}`; let w = ways.get(key); if (!w) ways.set(key, (w = { pass: e.pass, bytes: c.length, by: new Map() })); if (!w.by.has(st)) w.by.set(st, new Set()); w.by.get(st).add(familyOf(e));
+}
+// (a packing is a list of passes, a compute pipeline each: the first view's compute pipelines are its passes' distinct shaders)
+const passCodes = new Set(); for (const e of first.filter((x) => x.pass === 'run')) for (const n of [e.what].flat()) { try { passCodes.add(M.compute(n)); } catch { /* counted as its list's */ } }
+pipes.run = passCodes;
+const programs = Object.fromEntries(Object.entries(codes).map(([k, s]) => [k, s.size])), pipelines = Object.fromEntries(Object.entries(pipes).map(([k, s]) => [k, s.size]));
+// (the programs drawn more than one way, and what differs between their ways)
+const several = [...ways.values()].filter((w) => w.by.size > 1).map((w) => {
+  const S = [...w.by.keys()].map((x) => JSON.parse(x)), differ = Object.keys(S[0]).filter((k) => S.some((x) => JSON.stringify(x[k]) !== JSON.stringify(S[0][k])));
+  return { pass: w.pass, ways: w.by.size, kb: Math.round(w.bytes / 1024), differ, who: [...new Set([...w.by.values()].flatMap((x) => [...x]))].slice(0, 4) };
+}).sort((a, b) => b.ways - a.ways);
+// (the first view's programs by their size: what a compiler reads)
+const sizes = [...ways.values()].map((w) => ({ pass: w.pass, kb: Math.round(w.bytes / 1024), who: [...new Set([...w.by.values()].flatMap((x) => [...x]))].slice(0, 3) })).sort((a, b) => b.kb - a.kb);
 const result = {
-  first: { asks: first.length, programs: Object.values(programs).reduce((a, b) => a + b, 0), byPass: count(first, (e) => e.pass), programsByPass: programs, byFamily: count(first, (e) => `${familyOf(e)} · ${e.pass}`) },
+  first: { asks: first.length, programs: Object.values(programs).reduce((a, b) => a + b, 0), pipelines: Object.values(pipelines).reduce((a, b) => a + b, 0), byPass: count(first, (e) => e.pass), programsByPass: programs, pipelinesByPass: pipelines, several, sizes, byFamily: count(first, (e) => `${familyOf(e)} · ${e.pass}`) },
   after: { asks: after.length, byPass: count(after, (e) => e.pass), byFamily: count(after, (e) => `${familyOf(e)} · ${e.pass}`) },
   camera: [p.x, p.y, p.z].map((v) => +v.toFixed(1)), reach: +cascades().half[0].toFixed(1),
 };
 {
-  console.log(`census: the first view waits for ${result.first.asks} asks, ${result.first.programs} programs; ${result.after.asks} more come after it (camera at ${result.camera}, the near cascade's reach ${result.reach} m)`);
-  console.log(`  by pass: ${JSON.stringify(result.first.byPass)}; programs: ${JSON.stringify(result.first.programsByPass)}`);
+  console.log(`census: the first view waits for ${result.first.asks} asks, ${result.first.programs} programs, ${result.first.pipelines} pipelines; ${result.after.asks} more come after it (camera at ${result.camera}, the near cascade's reach ${result.reach} m)`);
+  console.log(`  by pass: ${JSON.stringify(result.first.byPass)}; programs: ${JSON.stringify(result.first.programsByPass)}; pipelines: ${JSON.stringify(result.first.pipelinesByPass)}`);
+  console.log(`  programs drawn more than one way (each way a pipeline): ${several.length}`); for (const w of several) console.log(`    ${w.ways}×  ${w.pass} ${w.kb} KB, ${w.differ.join(', ')} differ: ${w.who.join(' | ')}`);
+  console.log('  the largest programs:'); for (const z of sizes.slice(0, 12)) console.log(`    ${String(z.kb).padStart(4)} KB  ${z.pass}: ${z.who.join(' | ')}`);
   console.log('  by family and pass, the first view:'); for (const [k, n] of Object.entries(result.first.byFamily)) console.log(`    ${String(n).padStart(4)}  ${k}`);
   console.log(`  after it, by pass: ${JSON.stringify(result.after.byPass)}`); for (const [k, n] of Object.entries(result.after.byFamily).slice(0, 12)) console.log(`    ${String(n).padStart(4)}  ${k}`);
 }
