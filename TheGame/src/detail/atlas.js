@@ -75,9 +75,10 @@ export function depthOf(P, n = P.length / 3) {
 }
 
 // ---- the atlases: what they are made of, and how large ----
-/** A texel's bytes: two RGBA8 textures, its colour and cover, its way, depth and light (impostor.js createAtlas); MIPS:
-    its smaller pictures under it, a third more. */
-const TEXEL = 8, MIPS = 4 / 3;
+/** A texel's bytes: two RGBA8 textures, its colour and cover, its way, depth and light, and an R8, how much of it is
+    leaf (impostor.js createAtlas: each of its own, so each filters as it is); MIPS: its smaller pictures under it, a
+    third more. */
+const TEXEL = 9, MIPS = 4 / 3;
 /** The least picture an atlas keeps, texels a side: its smaller pictures go down to it (impostor.worker.js), and one read
     at any of its levels stays inside its own cell (impostor.js inCell). */
 export const LEAST = 4;

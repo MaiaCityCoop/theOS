@@ -92,7 +92,9 @@ const buildAll = (where) => {
 };
 buildAll('the world');
 // what bakes the far ends (src/scatter/trees.js farOf): compiled at the start, drawn straight by the bakers, by no pass,
-// so as itself only (no prepass or colour twin)
+// so as itself only (no prepass or colour twin); and the bakers' own reduce (src/detail/impostor.js createBaker: a row's
+// samples into the atlas' three textures), the views' and the clumps' tiles'
+await tryTo("the far ends' reduce", async () => { const { bakers: of } = await import('../src/detail/impostor.js'); bakers.push(...of().views().reduces, ...of().tiles(1).reduces); });
 for (const o of bakers) for (const m of o.userData.materials) {
   if (built.has(m)) continue; built.add(m); part = `the world: a far end's bake (${m.name || m.type})`;
   try { const s = M.build(o, m); shaders.render.add(`${s.vertex}\0${s.fragment}`); made.push('own'); } catch (e) { failed.push(`${part}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); }
