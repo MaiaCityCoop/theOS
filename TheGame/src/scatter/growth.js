@@ -28,6 +28,9 @@ import * as THREE from 'three/webgpu';
 import { Fn, If, float, int, uint, vec2, ivec2, uniform, globalId, floor, clamp, round } from 'three/tsl';
 import { gpuStorage, roomOf } from '../core/gpu.js';
 import { did } from '../core/work.js';
+import { ownGpuMs, pace } from '../core/pace.js';
+import { FRAME_MS, FRAME_MS_BY_CLASS } from '../core/budget.js';
+import { shown, source } from '../core/settle.js';
 
 /** Texels a window moves by at once; the most layers that write (a word each). */
 export const SNAP = 8, WORDS = 3;
@@ -112,13 +115,40 @@ export function createGrowth(renderer, fields) {
   // worked out first (a later layer's window within an earlier one's: its readers are nearer); and what stands in its
   // cells before what it leaves at its texels. A cell worked out again is the same: the rule is the rule)
   const run = (n, rects) => {
-    const { cells } = writers[n], pass = passes[n];
-    for (const [x0, z0, ww, hh] of rects) {
-      const [cx, cx1] = cells(x0, ww), [cz, cz1] = cells(z0, hh), cw = cx1 - cx, ch = cz1 - cz;
-      uCells.value.set(cx, cz, cw, ch); renderer.compute(fills[n], [Math.ceil(cw / 8), Math.ceil(ch / 8), 1]);
-    }
-    for (const [x0, z0, ww, hh] of rects) { uRect.value.set(x0, z0, ww, hh); renderer.compute(pass, [Math.ceil(ww / 8), Math.ceil(hh / 8), 1]); }
+    const { cells } = writers[n];
+    for (const [x0, z0, ww, hh] of rects) { const [cx, cx1] = cells(x0, ww), [cz, cz1] = cells(z0, hh); jobs.push({ n, fill: true, x: cx, z: cz, w: cx1 - cx, h: cz1 - cz, r: 0, c: 0 }); }
+    for (const [x0, z0, ww, hh] of rects) jobs.push({ n, fill: false, x: x0, z: z0, w: ww, h: hh, r: 0, c: 0 });
   };
+  // ---- the work, a piece at a time ----
+  // (in that order, in pieces of whole workgroups, each its own submission: as many workgroups a frame as fit the frame's
+  // share for geometry (behind the veil, till the first view is shown, the whole frame's: as the land's pages), by each
+  // piece's own time on the GPU (src/core/pace.js), so no submission holds the GPU long. A window come onto whole (the
+  // first time, a jump, the rule changed) was one dispatch of all of it, 256 workgroups of a layer's gather: 2 s in
+  // WebKit after the first view, 2026-11-19. What reads the map packs again once all of it is worked out (version); the
+  // world is not complete before (settle). Without the GPU's clock to ask (the CPU's stand-in), all of it at once)
+  const jobs = [], P = pace(1);   // (a job: writer n's rectangle of cells (fill) or texels, x z w h; r, c: its workgroups' rows done, and of the next row)
+  source('the growth map', () => jobs.length);
+  /** Its next k workgroups at most, as a rectangle: whole rows where k holds one, else part of a row. -> [x, z, w, h, k] */
+  const take = (J, k) => {
+    const cols = Math.ceil(J.w / 8), rows = Math.ceil(J.h / 8);
+    if (J.c === 0 && k >= cols) { const m = Math.min(rows - J.r, Math.floor(k / cols)), R = [J.x, J.z + J.r * 8, J.w, Math.min(m * 8, J.h - J.r * 8), m * cols]; J.r += m; return R; }
+    const m = Math.min(cols - J.c, k), R = [J.x + J.c * 8, J.z + J.r * 8, Math.min(m * 8, J.w - J.c * 8), Math.min(8, J.h - J.r * 8), m];
+    J.c += m; if (J.c === cols) { J.c = 0; J.r++; }
+    return R;
+  };
+  const work = () => {
+    P.tick();
+    let clocked = true;
+    while (jobs.length && (P.left > 0 || !clocked)) {
+      if (!(jobs[0].w > 0 && jobs[0].h > 0)) { jobs.shift(); continue; }   // (nothing to work out)
+      const J = jobs[0], [x0, z0, ww, hh, k] = take(J, clocked ? P.left : Infinity), kernel = J.fill ? fills[J.n] : passes[J.n], u = J.fill ? uCells : uRect;
+      const ms = ownGpuMs(renderer, () => { u.value.set(x0, z0, ww, hh); renderer.compute(kernel, [Math.ceil(ww / 8), Math.ceil(hh / 8), 1]); });
+      if (ms) { P.left -= k; ms.then((t) => P.measured(k, t, shown() ? FRAME_MS_BY_CLASS.geometry : FRAME_MS)).catch(() => {}); } else clocked = false;
+      if (J.r >= Math.ceil(J.h / 8)) jobs.shift();
+    }
+    if (!jobs.length && pending) { pending = false; version++; }
+  };
+  let pending = false;
   /** The rectangles word w's window comes onto as it is kept round (x, z) (all of it the first time or after a jump),
       its new place set; null where it has not moved. */
   const moved = (Wd, x, z) => {
@@ -144,10 +174,9 @@ export function createGrowth(renderer, fields) {
         jump, or when what the rule reads changed: `world`). Before anything that reads it packs. */
     update(x, z, world = '') {
       if (!passes.length) return;
-      if (world !== key) { key = world; for (const Wd of words) Wd.window = null; }
-      let any = false;
-      writers.forEach(({ w }, n) => { const rects = moved(words[w], x, z); if (rects) { run(n, rects); any = true; } });
-      if (any) version++;
+      if (world !== key) { key = world; jobs.length = 0; for (const Wd of words) Wd.window = null; }   // (what was left to work out of the windows before: worked out whole again)
+      writers.forEach(({ w }, n) => { const rects = moved(words[w], x, z); if (rects) { run(n, rects); pending = true; } });
+      work();
     },
     /** A number that changes whenever the map does: what reads it packs again. */
     version: () => version,
