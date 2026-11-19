@@ -331,6 +331,9 @@ function patchPass({ K, S, data, count, own, capOff, uCap, entryOf: ofEntry }, l
 const firstStore = (store) => Math.max(WG, 2 ** Math.ceil(Math.log2(Math.max(WG, store))));   // (until its own count is known: what its engine reckons)
 const lean = (type, name, atomic = false, cls = 'geometry') => { const b = gpuStorageLater(type, name, cls); if (atomic) b.node.toAtomic(); return b; };
 let GR = null;   // (what every resident tier shares: shared(), made with the first)
+// (a tier's own numbers in Z, one a slot: what its store holds (no more than its room), what it found, what it packed
+// for its draws in all; read back to size its stores: residentOf, ask)
+const ZROW = ['held', 'found', 'packed'], ZAT = Object.fromEntries(ZROW.map((n, i) => [n, i]));
 const KINDS = new Map();   // (a kind of tier, by its key: its passes, its stores, its tiers)
 function shared() {
   if (GR) return GR;
@@ -345,16 +348,17 @@ function shared() {
   // in its kind's (base), the store copied from and into (from, to), the one gathered (g), its regions (nE), and
   // whether what it held is gone (fresh))
   const u = { zi: uniform(0, 'uint'), kb: uniform(0, 'uint'), K: uniform(1, 'uint'), N: uniform(1, 'uint'), base: uniform(0, 'uint'), from: uniform(0, 'uint'), to: uniform(0, 'uint'), g: uniform(0, 'uint'), nE: uniform(0, 'uint'), fresh: uniform(0, 'uint'), append: uniform(0, 'uint'), P: uniform(1, 'uint') };   // (P: as many as what it packs for its draws holds)
+  const zOf = (slot) => (ZAT[slot] ? u.zi.add(uint(ZAT[slot])) : u.zi);   // (where a tier's number lies in Z: its own row's slot)
   const eachK = (fn) => { Loop({ start: uint(0), end: u.K, type: 'uint', condition: '<' }, ({ i }) => { fn(i); }); };
   const zero = () => { eachK((k) => { atomicStore(C.element(u.kb.add(k)), uint(0)); }); };
   const begin = Fn(() => {
     zero();
-    If(u.fresh.greaterThan(uint(0)), () => { Z.element(u.zi).assign(uint(0)); });   // (what it held is gone: nothing is copied forward)
+    If(u.fresh.greaterThan(uint(0)), () => { Z.element(zOf('held')).assign(uint(0)); });   // (what it held is gone: nothing is copied forward)
     // (adding only: what it holds stays where it is, the visit writes after it; else all of it copied forward)
-    atomicStore(held.element(uint(0)), u.append.greaterThan(uint(0)).select(Z.element(u.zi), uint(0)));
-    sizeTo(DFn, u.append.greaterThan(uint(0)).select(uint(0), Z.element(u.zi).add(uint(WG - 1)).div(uint(WG))));
+    atomicStore(held.element(uint(0)), u.append.greaterThan(uint(0)).select(Z.element(zOf('held')), uint(0)));
+    sizeTo(DFn, u.append.greaterThan(uint(0)).select(uint(0), Z.element(zOf('held')).add(uint(WG - 1)).div(uint(WG))));
   })().compute(1);
-  const seal = Fn(() => { const n = atomicLoad(held.element(uint(0))).toVar(), m = n.min(u.N); Z.element(u.zi).assign(m); Z.element(u.zi.add(uint(1))).assign(n); sizeTo(DGn, m.add(uint(WG - 1)).div(uint(WG))); })().compute(1);
+  const seal = Fn(() => { const n = atomicLoad(held.element(uint(0))).toVar(), m = n.min(u.N); Z.element(zOf('held')).assign(m); Z.element(zOf('found')).assign(n); sizeTo(DGn, m.add(uint(WG - 1)).div(uint(WG))); })().compute(1);
   // (where each draw's things begin, one after another, each no more than the room left (P): what is past it is not
   // written, nor drawn; how many there were in all kept beside its store's counts, read back with them)
   const lay = Fn(() => {
@@ -363,11 +367,11 @@ function shared() {
       const c = atomicLoad(C.element(u.kb.add(k))).toVar(), n = c.min(u.P.sub(at.min(u.P)));
       O.element(u.kb.add(k)).assign(at); atomicStore(C.element(u.kb.add(k)), n); at.addAssign(n); all.addAssign(c); atomicStore(cur.element(k), uint(0));
     });
-    Z.element(u.zi.add(uint(2))).assign(all);
+    Z.element(zOf('packed')).assign(all);
   })().compute(1);
-  const gbegin = Fn(() => { zero(); sizeTo(DGn, Z.element(u.zi).add(uint(WG - 1)).div(uint(WG))); })().compute(1);
+  const gbegin = Fn(() => { zero(); sizeTo(DGn, Z.element(zOf('held')).add(uint(WG - 1)).div(uint(WG))); })().compute(1);
   const EN = storage(E, 'uvec4', LEAVES).toReadOnly();
-  GR = { tiers: [], KB: 0, KMAX: 1, dirty: true, stale: true, Zs, Cs, Os, Us, Z, C, O, cur, held, E, X, A, XN: storage(X, 'uvec2', LEAVES).toReadOnly(), AL: storage(A, 'uint', LEAVES + 1).toReadOnly(), DF, DG, u, begin, seal, lay, gbegin, entry: entryOf(EN, u.nE, Math.ceil(Math.log2(LEAVES)) + 1) };
+  GR = { tiers: [], KB: 0, KMAX: 1, dirty: true, stale: true, Zs, Cs, Os, Us, Z, C, O, cur, held, E, X, A, XN: storage(X, 'uvec2', LEAVES).toReadOnly(), AL: storage(A, 'uint', LEAVES + 1).toReadOnly(), DF, DG, u, zOf, begin, seal, lay, gbegin, entry: entryOf(EN, u.nE, Math.ceil(Math.log2(LEAVES)) + 1) };
   return GR;
 }
 /** A kind of tier's own passes (copy forward, visit, the gather's two) and stores, made with its first tier. */
@@ -393,7 +397,7 @@ function kindOf(key, { K, slots, found, select, twice, label, cls }) {
   const thing = () => wgOf().mul(uint(WG)).add(localId.x);
   // from the store it held (from) to the other (to): what is kept copied forward; then the cells of the regions packed
   const forward = Fn(() => {
-    const i = thing().toVar(), at = u.from.add(i.min(u.N.sub(uint(1)))).toVar(), l = i.lessThan(G.Z.element(u.zi)).select(leaf.element(at), uint(LEAVES)).toVar();
+    const i = thing().toVar(), at = u.from.add(i.min(u.N.sub(uint(1)))).toVar(), l = i.lessThan(G.Z.element(G.zOf('held'))).select(leaf.element(at), uint(LEAVES)).toVar();
     keep(G.AL.element(l).greaterThan(uint(0)), (k) => { put(k, Array.from({ length: slots }, (_, j) => rowOf(at, j)), l); });
   })().compute(MANY, [WG]);
   forward.dispatchSize = G.DF;
@@ -404,7 +408,7 @@ function kindOf(key, { K, slots, found, select, twice, label, cls }) {
   // from the store it holds now (g) into its draws' buckets: counted, laid out (lay), written
   const gather = (write) => {
     const p = Fn(() => {
-      const i = thing().toVar(), on = i.lessThan(G.Z.element(u.zi)), at = u.g.add(i.min(u.N.sub(uint(1)))).toVar(), r = Array.from({ length: slots }, (_, j) => rowOf(at, j).toVar()), L = select(r);
+      const i = thing().toVar(), on = i.lessThan(G.Z.element(G.zOf('held'))), at = u.g.add(i.min(u.N.sub(uint(1)))).toVar(), r = Array.from({ length: slots }, (_, j) => rowOf(at, j).toVar()), L = select(r);
       into(L, on.and(L.alive), write ? G.cur : counts, write ? (b, n) => { If(n.lessThan(atomicLoad(G.C.element(u.kb.add(b)))), () => { rowsAt(data, S, u.base.add(G.O.element(u.kb.add(b))).add(n), L.data ?? r); }); } : null);   // (no more than lay left room for: never into the next tier's)
     })().compute(MANY, [WG]);
     p.dispatchSize = G.DG; return p;
@@ -417,7 +421,7 @@ function kindOf(key, { K, slots, found, select, twice, label, cls }) {
 /** A resident tier's packing: its rows in the shared ones, its range in its kind's stores, its draws and their culling. */
 function residentPackedOf(T, geos, material, { found, select, store = 0, slots = 0, bounds = null, kind = null, twice = false, label = 'a tier', cls = 'geometry' }) {
   const G = shared(), K = geos.length, S = uint(slots), s = kindOf(kind ?? T, { K, slots, found, select, twice, label, cls });   // (cls: the class its kind's memory is its share of, src/core/classes.js: the meadow's the ground's)
-  const me = { T, K, zi: 3 * G.tiers.length, kb: G.KB, N: firstStore(store), base: 0, dbase: 0, uKb: uniform(G.KB, 'uint'), uBase: uniform(0, 'uint') };
+  const me = { T, K, zi: ZROW.length * G.tiers.length, kb: G.KB, N: firstStore(store), base: 0, dbase: 0, uKb: uniform(G.KB, 'uint'), uBase: uniform(0, 'uint') };
   me.P = (s.twice ? 2 : 1) * me.N;   // (what it packs for its draws: until its own count is read back, as much as its store, twice where a thing of it may be drawn twice)
   const P = () => me.P;
   G.tiers.push(me); G.KB += K; G.KMAX = Math.max(G.KMAX, K); G.dirty = G.stale = true; s.tiers.push(me); s.dirty = true;
@@ -468,7 +472,7 @@ function relayout(s) {
 export function ready() {
   const G = GR; if (!G?.stale) return;
   G.stale = false;
-  if (G.dirty) { G.dirty = false; G.Zs.make(3 * G.tiers.length); G.Cs.make(G.KB); G.Os.make(G.KB); G.Us.make(G.KMAX); for (const s of KINDS.values()) s.dirty = true; }   // (a tier made after others had packed: what every one held is gone)
+  if (G.dirty) { G.dirty = false; G.Zs.make(ZROW.length * G.tiers.length); G.Cs.make(G.KB); G.Os.make(G.KB); G.Us.make(G.KMAX); for (const s of KINDS.values()) s.dirty = true; }   // (a tier made after others had packed: what every one held is gone)
   for (const s of KINDS.values()) if (s.dirty) { if (s.wait?.size) G.stale = true; else relayout(s); }   // (a kind whose tiers then asking have not all answered waits for them: laid out once, not once a tier)
 }
 // ---- the cells a frame visits ----
@@ -512,7 +516,8 @@ function residentOf(T, me, s, ends) {
   let at = 0, key = null, gkey = null, asking = false, wrong = 0, packs = 0, epoch = -1, fresh = 1, gathers = 0, gathered = 0;   // (gathered: a gather since its counts were read)   // (wrong: a packing changed its store, and whether it fits what it found is not yet read back: the world is not complete till it is)
   const drop = (id) => { alive[id] = 0; freed.push(id); };
   const letGo = (L) => { if (L.id != null) { drop(L.id); L.id = null; } };
-  // (what it has still to visit, by region: { L, side (its pieces' side, cells), next (the first piece not visited),
+  // (what it has still to visit, by region: { L, side (its pieces' side, cells: as large as its share lets when it is
+  // begun, visits), next (the first piece not visited),
   // was (the numbers of what it takes the place of, let go once it is all visited) }; and of each number kept for
   // regions waiting, how many wait on it (a region split in four: kept till the last quarter is all visited))
   const waits = new Map(), kept = new Map();
@@ -525,9 +530,8 @@ function residentOf(T, me, s, ends) {
   // (a region new or run out, to wait its turn: what it held before kept till it is all visited; run out again before
   // that, begun again, its pieces visited so far kept the same way)
   const wait = (L) => {
-    let side = L.w; while (side > BLOCK && side * side > shareOf()) side /= 2;
     const w = waits.get(L.key) ?? { L, was: [] };
-    Object.assign(w, { side, next: 0 }); waits.set(L.key, w);
+    w.next = 0; waits.set(L.key, w);
     if (L.id != null) { hold(w, L.id); L.id = null; }
   };
   // (a region let go: what it waits to replace too; or, where a region waiting takes its place (its parent, its
@@ -555,7 +559,7 @@ function residentOf(T, me, s, ends) {
     asking = true; s.asking.add(me); const asked = packs, seen = gathers;
     renderer.getArrayBufferAsync(G.Zs.attr).then((b) => {
       // (held to its class's room: no more than it was held to: a decision, not a wait)
-      const z = new Uint32Array(b), f = z[me.zi + 1], p = z[me.zi + 2], N = Math.min(roomFor(f), me.cap?.N ?? Infinity), P = Math.min(roomFor(p), me.cap?.P ?? Infinity);
+      const z = new Uint32Array(b), f = z[me.zi + ZAT.found], p = z[me.zi + ZAT.packed], N = Math.min(roomFor(f), me.cap?.N ?? Infinity), P = Math.min(roomFor(p), me.cap?.P ?? Infinity);
       T.over = f > me.N || p > me.P;
       if (N > me.N || N * BAND < me.N || P > me.P || P * BAND < me.P) { me.N = N; me.P = P; if (!s.dirty) s.wait = new Set(s.asking); s.dirty = G.stale = true; wrong = 1; return; }
       if (asked === packs) wrong = 0;   // (no packing since: what it holds is what was read)
