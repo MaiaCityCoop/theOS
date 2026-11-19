@@ -4,15 +4,16 @@
     {
       "name": "sward",
       "colour": [
-        0.06,
-        0.14,
-        0.024
+        0.038,
+        0.088,
+        0.018
       ],
       "roughness": 0.9,
       "cell": 1.0,
       "threshold": 0.0,
       "softness": 1.0,
-      "amount": 1.0
+      "amount": 1.0,
+      "grass": true
     },
     {
       "name": "lush",
@@ -25,7 +26,8 @@
       "cell": 60.0,
       "threshold": 0.45,
       "softness": 0.35,
-      "amount": 1.0
+      "amount": 1.0,
+      "grass": true
     },
     {
       "name": "dry",
@@ -38,7 +40,8 @@
       "cell": 1900.0,
       "threshold": 0.55,
       "softness": 0.3,
-      "amount": 0.6
+      "amount": 0.6,
+      "grass": true
     },
     {
       "name": "litter",
@@ -51,7 +54,8 @@
       "cell": 0.7,
       "threshold": 0.55,
       "softness": 0.25,
-      "amount": 0.5
+      "amount": 0.5,
+      "grass": true
     },
     {
       "name": "moss",
@@ -64,7 +68,8 @@
       "cell": 2.1,
       "threshold": 0.6,
       "softness": 0.2,
-      "amount": 0.6
+      "amount": 0.6,
+      "grass": true
     },
     {
       "name": "damp",
@@ -77,20 +82,22 @@
       "cell": 3.0,
       "threshold": 0.62,
       "softness": 0.2,
-      "amount": 0.4
+      "amount": 0.4,
+      "grass": true
     },
     {
-      "name": "bare",
+      "name": "sandy earth",
       "colour": [
-        0.085,
-        0.072,
-        0.055
+        0.16,
+        0.125,
+        0.085
       ],
       "roughness": 1.0,
       "cell": 16.0,
-      "threshold": 0.8,
-      "softness": 0.05,
-      "amount": 1.0
+      "threshold": 0.74,
+      "softness": 0.06,
+      "amount": 1.0,
+      "grass": false
     }
   ],
   "relief": 0.6,
@@ -109,52 +116,51 @@
     "height": 0.12,
     "height_range": 0.33
   },
-  "plants": [
+  "places": [
     {
-      "kind": "clover",
-      "per_m2": 2.5
+      "asset": "clover",
+      "per_m2": 2.5,
+      "on": "grass"
     },
     {
-      "kind": "plantain",
-      "per_m2": 1.0
+      "asset": "plantain",
+      "per_m2": 1.0,
+      "on": "grass"
     },
     {
-      "kind": "dandelion",
-      "per_m2": 1.0
+      "asset": "dandelion",
+      "per_m2": 1.0,
+      "on": "grass"
     },
     {
-      "kind": "moss",
-      "per_m2": 1.5
+      "asset": "moss",
+      "per_m2": 1.5,
+      "on": "grass"
     },
     {
-      "kind": "seed_head",
-      "per_m2": 4.0
-    }
-  ],
-  "scatter": [
-    {
-      "kind": "clod",
-      "per_m2": 9.0,
-      "size": [
-        0.02,
-        0.06
-      ]
+      "asset": "seed head",
+      "per_m2": 4.0,
+      "on": "grass"
     },
     {
-      "kind": "pebble",
-      "per_m2": 5.0,
-      "size": [
-        0.01,
-        0.05
-      ]
+      "asset": "clod",
+      "per_m2": 6.0,
+      "on": "any"
     },
     {
-      "kind": "stone",
-      "per_m2": 0.3,
-      "size": [
-        0.06,
-        0.25
-      ]
+      "asset": "pebble",
+      "per_m2": 14.0,
+      "on": "open"
+    },
+    {
+      "asset": "stone",
+      "per_m2": 0.8,
+      "on": "open"
+    },
+    {
+      "asset": "stone",
+      "per_m2": 0.05,
+      "on": "grass"
     }
   ]
 }

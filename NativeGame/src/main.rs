@@ -10,6 +10,7 @@ mod camera;
 mod film;
 mod clouds;
 mod grass;
+mod library;
 mod meadow;
 mod terrain;
 mod ui;

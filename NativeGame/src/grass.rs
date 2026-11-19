@@ -201,7 +201,7 @@ fn blades(cx: i32, cz: i32, share: f32, fine: bool) -> Mesh {
     let count = if fine { count * 3 / 2 } else { count };
 
     // the seed heads' share of the slots, from the recipe's seed heads per square metre
-    let seed_share = crate::biome::current().plant("seed_head") / (DENSITY * 2.0);
+    let seed_share = crate::biome::current().per_m2("seed head") / (DENSITY * 2.0);
     let mut g = Geo::default();
     let (sx, sz) = if fine { (cx as u32 ^ 0x5151_5151, cz as u32 ^ 0xA7A7_A7A7) } else { (cx as u32, cz as u32) };
     for i in 0..count {
@@ -328,7 +328,9 @@ fn leaf(g: &mut Geo, base: Vec3, dir: Vec3, rise: f32, len: f32, width: f32, col
 fn low_plants(g: &mut Geo, cx: i32, cz: i32, share: f32) {
     // how many of each kind, from the biome's recipe (the kinds below pick from the total in proportion)
     let biome = crate::biome::current();
-    let kinds = [biome.plant("clover"), biome.plant("plantain"), biome.plant("dandelion"), biome.plant("moss")];
+    let library = crate::library::load();
+    let kinds = [biome.per_m2("clover"), biome.per_m2("plantain"), biome.per_m2("dandelion"), biome.per_m2("moss")];
+    let tint = |name: &str, r: f32| library.get(name).map(|a| crate::library::colour(a, r));
     let total: f32 = kinds.iter().sum();
     let count = (total * CHUNK * CHUNK * share) as u32;
     let (sx, sz) = (cx as u32 ^ 0x3C3C, cz as u32 ^ 0xC3C3);
@@ -346,7 +348,7 @@ fn low_plants(g: &mut Geo, cx: i32, cz: i32, share: f32) {
         match which {
             // clover: a small patch of trifoliate leaves on short stalks (linear reflectance: a cool mid green)
             0..=4 => {
-                let col = Vec3::new(0.035, 0.10, 0.03) * (0.8 + 0.4 * r(5));
+                let col = tint("clover", r(5)).unwrap_or(Vec3::new(0.04, 0.1, 0.03)) * (0.8 + 0.4 * r(6));
                 for k in 0..(4 + (r(6) * 6.0) as u32) {
                     let ka = a0 + k as f32 * 2.3;
                     let stem = at + Vec3::new(ka.cos(), 0.0, ka.sin()) * (0.05 * r(7 + k)) + Vec3::Y * (0.04 + 0.05 * r(8 + k));
@@ -359,7 +361,7 @@ fn low_plants(g: &mut Geo, cx: i32, cz: i32, share: f32) {
             }
             // plantain: a rosette of broad ribbed leaves lying out from the centre
             5..=6 => {
-                let col = Vec3::new(0.04, 0.09, 0.025) * (0.8 + 0.4 * r(5));
+                let col = tint("plantain", r(5)).unwrap_or(Vec3::new(0.04, 0.1, 0.03)) * (0.8 + 0.4 * r(6));
                 let n = 5 + (r(6) * 4.0) as u32;
                 for k in 0..n {
                     let ka = a0 + k as f32 * std::f32::consts::TAU / n as f32;
@@ -368,7 +370,7 @@ fn low_plants(g: &mut Geo, cx: i32, cz: i32, share: f32) {
             }
             // dandelion: a flatter rosette of long toothed leaves
             7..=8 => {
-                let col = Vec3::new(0.045, 0.11, 0.03) * (0.8 + 0.4 * r(5));
+                let col = tint("dandelion", r(5)).unwrap_or(Vec3::new(0.04, 0.1, 0.03)) * (0.8 + 0.4 * r(6));
                 let n = 7 + (r(6) * 5.0) as u32;
                 for k in 0..n {
                     let ka = a0 + k as f32 * std::f32::consts::TAU / n as f32 + 0.2 * r(7 + k);
@@ -377,7 +379,7 @@ fn low_plants(g: &mut Geo, cx: i32, cz: i32, share: f32) {
             }
             // moss: a low cushion of tiny pointed shoots, deep green to yellow-green
             _ => {
-                let col = Vec3::new(0.03, 0.075, 0.015).lerp(Vec3::new(0.07, 0.11, 0.02), r(5));
+                let col = tint("moss", r(5)).unwrap_or(Vec3::new(0.04, 0.1, 0.03)) * (0.8 + 0.4 * r(6));
                 let radius = 0.06 + 0.1 * r(6);
                 for k in 0..40 {
                     let ka = a0 + k as f32 * 2.4;

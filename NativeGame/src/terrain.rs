@@ -84,7 +84,7 @@ fn sward(x: f32, z: f32) -> Vec3 {
 /// a few metres across, as a grazed or trodden meadow has them. The grass leaves them out.
 pub fn bare(x: f32, z: f32) -> f32 {
     let n = noise(x, z, 16.0, 20) * 0.65 + noise(x, z, 5.0, 21) * 0.25 + noise(x, z, 1.5, 22) * 0.10;
-    let t = ((n - 0.80) / 0.05).clamp(0.0, 1.0); // rarer: a few patches, not a mottled field
+    let t = ((n - 0.74) / 0.06).clamp(0.0, 1.0); // rarer: a few patches, not a mottled field
     t * t * (3.0 - 2.0 * t)
 }
 
@@ -119,14 +119,14 @@ impl Geo {
     }
 
     /// A clod of earth: a lumpy, low octahedron of soil `size` metres across, sitting on the ground at (x, z).
-    fn clod(&mut self, x: f32, z: f32, size: f32, seed: u32) {
+    fn clod(&mut self, x: f32, z: f32, size: f32, seed: u32, col: Vec3, flatness: f32) {
         let r = |k: u32| hash(seed as i32, k as i32, 91);
         let ground = height(x, z);
         let yaw = r(1) * std::f32::consts::TAU;
         let (sy, cy) = yaw.sin_cos();
         let corner = |k: u32, v: Vec3| {
             let v = v * (0.7 + 0.6 * r(10 + k));
-            let v = Vec3::new(v.x, v.y * 0.55, v.z) * size * 0.5;
+            let v = Vec3::new(v.x, v.y * flatness, v.z) * size * 0.5;
             Vec3::new(v.x * cy - v.z * sy, v.y, v.x * sy + v.z * cy) + Vec3::new(x, ground + size * 0.12, z)
         };
         let pts = [
@@ -134,7 +134,7 @@ impl Geo {
         ];
         let faces = [[2, 4, 0], [2, 1, 4], [2, 5, 1], [2, 0, 5], [3, 0, 4], [3, 4, 1], [3, 1, 5], [3, 5, 0]];
         // the soil's own colour, a little darker and damper than the surface it lies on
-        let col = soil(x, z) * (0.6 + 0.3 * r(2)) + Vec3::new(0.02, 0.012, 0.006);
+
         for f in faces {
             let (a, b, c) = (pts[f[0]], pts[f[1]], pts[f[2]]);
             let n = (b - a).cross(c - a).normalize_or_zero();
@@ -146,7 +146,7 @@ impl Geo {
     }
 
     /// A stone: an irregular, flattened, partly buried rounded shape `size` metres across, at (x, z).
-    fn stone(&mut self, x: f32, z: f32, size: f32, seed: u32) {
+    fn stone(&mut self, x: f32, z: f32, size: f32, seed: u32, colour: Vec3, flatness: f32) {
         // an icosahedron, each corner pushed in or out, then the whole squashed and sunk into the ground
         let t = (1.0 + 5.0f32.sqrt()) / 2.0;
         let corners = [
@@ -159,7 +159,7 @@ impl Geo {
             [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1],
         ];
         let r = |k: u32| hash(seed as i32, k as i32, 77);
-        let squash = 0.45 + 0.35 * r(1);
+        let squash = flatness * (0.75 + 0.5 * r(1));
         let stretch = 0.8 + 0.5 * r(2);
         let yaw = r(3) * std::f32::consts::TAU;
         let (sy, cy) = yaw.sin_cos();
@@ -174,7 +174,7 @@ impl Geo {
             })
             .collect();
         // grey to brown, a little darker below, lichen-pale on some tops (linear: rock about 0.15 to 0.25)
-        let grey = Vec3::new(0.21, 0.20, 0.18).lerp(Vec3::new(0.15, 0.12, 0.09), r(4)) * (0.8 + 0.35 * r(5));
+        let grey = colour;
         for f in faces {
             let (a, b, c) = (pts[f[0] as usize], pts[f[1] as usize], pts[f[2] as usize]);
             let n = (b - a).cross(c - a).normalize_or_zero();
@@ -258,19 +258,23 @@ pub fn chunk(cx: i32, cz: i32, size: f32, share: f32) -> Mesh {
         // pebbles (1 to 5 cm), and a stone (6 to 25 cm) in every few square metres
         // what lies on the ground, from the biome's recipe: each kind so many to the square metre, its own sizes
         let biome = crate::biome::current();
-        for (n, s) in biome.scatter.iter().enumerate() {
-            let count = (s.per_m2 * size * size) as u32;
+        let library = crate::library::load();
+        for (n, p) in biome.places.iter().enumerate() {
+            let Some(a) = library.get(&p.asset).filter(|a| a.kind == "rock") else { continue };
+            let count = (p.per_m2 * size * size) as u32;
             for k in 0..count {
                 let seed = (cx.wrapping_mul(92837) ^ cz.wrapping_mul(689287)) as u32 ^ k.wrapping_mul(2654435761) ^ (n as u32).wrapping_mul(0x51ED_270B);
                 let (x, z) = (cx as f32 * size + hash(seed as i32, 1, 5) * size, cz as f32 * size + hash(seed as i32, 2, 5) * size);
-                if bare(x, z) < 0.5 && s.kind != "clod" && hash(seed as i32, 6, 5) < 0.5 {
-                    continue; // stones lie mostly where the ground is bare; under the sward half of them are hidden
+                let open = bare(x, z) > 0.5;
+                if (p.on == "open" && !open) || (p.on == "grass" && open) {
+                    continue;
                 }
                 let r = hash(seed as i32, 4, 5);
-                let across = s.size[0] + (s.size[1] - s.size[0]) * if s.kind == "pebble" { r * r } else { r };
-                match s.kind.as_str() {
-                    "clod" => g.clod(x, z, across, seed),
-                    _ => g.stone(x, z, across, seed),
+                let across = a.size[0] + (a.size[1] - a.size[0]) * r * r;
+                let col = crate::library::colour(a, hash(seed as i32, 7, 5)) * (0.8 + 0.4 * hash(seed as i32, 8, 5));
+                match a.generator.as_str() {
+                    "clod" => g.clod(x, z, across, seed, col, a.flatness),
+                    _ => g.stone(x, z, across, seed, col, a.flatness),
                 }
             }
         }

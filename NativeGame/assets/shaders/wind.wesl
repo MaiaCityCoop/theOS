@@ -94,7 +94,7 @@ fn land(p: vec2<f32>) -> f32 {
 // `terrain::bare`: where the ground is bare, no grass grows.
 fn bare(p: vec2<f32>) -> f32 {
     let n = tnoise(p, 16.0, 20u) * 0.65 + tnoise(p, 5.0, 21u) * 0.25 + tnoise(p, 1.5, 22u) * 0.10;
-    return smoothstep(0.0, 1.0, clamp((n - 0.80) / 0.05, 0.0, 1.0));
+    return smoothstep(0.0, 1.0, clamp((n - 0.74) / 0.06, 0.0, 1.0));
 }
 
 // The finest level's cell, in metres (625 blades a square metre), and how far a level reaches, in its cells.

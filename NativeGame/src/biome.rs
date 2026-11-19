@@ -31,6 +31,13 @@ pub struct Layer {
     pub softness: f32,
     /// How much it covers where it does, 0 to 1.
     pub amount: f32,
+    /// Whether grass grows on it (a sandy or earthy patch: no). The grass leaves out the first layer that says no.
+    #[serde(default = "yes")]
+    pub grass: bool,
+}
+
+fn yes() -> bool {
+    true
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -43,23 +50,18 @@ pub struct Grass {
     pub height_range: f32,
 }
 
-/// Something that lies on the ground: generated shapes, so many to the square metre, this big.
+/// Where a library asset (`library.rs`) is placed in this biome: how many to the square metre near the eye, and on
+/// which ground (`any`, `grass`: where grass grows, `open`: on the patches without).
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Scatter {
-    /// `clod`, `pebble` or `stone`; the shape's generator in `terrain.rs`.
-    pub kind: String,
-    /// How many to the square metre near the eye.
+pub struct Place {
+    pub asset: String,
     pub per_m2: f32,
-    /// Smallest and largest, metres across.
-    pub size: [f32; 2],
+    #[serde(default = "any")]
+    pub on: String,
 }
 
-/// A plant that grows among the grass: its generator, how many to the square metre near the eye.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Plant {
-    /// `clover`, `plantain`, `dandelion`, `moss` or `seed_head`; the generator in `grass.rs`.
-    pub kind: String,
-    pub per_m2: f32,
+fn any() -> String {
+    "any".into()
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -72,8 +74,8 @@ pub struct Biome {
     pub relief: f32,
     pub mottle: f32,
     pub grass: Grass,
-    pub plants: Vec<Plant>,
-    pub scatter: Vec<Scatter>,
+    /// The plants and rocks of this biome: library assets, placed.
+    pub places: Vec<Place>,
 }
 
 static CURRENT: std::sync::RwLock<Option<Biome>> = std::sync::RwLock::new(None);
@@ -90,14 +92,18 @@ pub fn set(b: Biome) {
 }
 
 impl Biome {
-    /// Per square metre of a plant kind (0 if the recipe has none).
-    pub fn plant(&self, kind: &str) -> f32 {
-        self.plants.iter().filter(|p| p.kind == kind).map(|p| p.per_m2).sum()
+    /// Per square metre of an asset (0 if the recipe does not place it).
+    pub fn per_m2(&self, asset: &str) -> f32 {
+        self.places.iter().filter(|p| p.asset == asset).map(|p| p.per_m2).sum()
     }
 }
 
 fn layer(name: &str, colour: [f32; 3], roughness: f32, cell: f32, threshold: f32, softness: f32, amount: f32) -> Layer {
-    Layer { name: name.into(), colour, roughness, cell, threshold, softness, amount }
+    Layer { name: name.into(), colour, roughness, cell, threshold, softness, amount, grass: true }
+}
+
+fn place(asset: &str, per_m2: f32, on: &str) -> Place {
+    Place { asset: asset.into(), per_m2, on: on.into() }
 }
 
 impl Biome {
@@ -106,29 +112,29 @@ impl Biome {
         Biome {
             name: "meadow".into(),
             layers: vec![
-                layer("sward", [0.060, 0.140, 0.024], 0.9, 1.0, 0.0, 1.0, 1.0),
+                layer("sward", [0.038, 0.088, 0.018], 0.9, 1.0, 0.0, 1.0, 1.0),
                 layer("lush", [0.070, 0.150, 0.028], 0.9, 60.0, 0.45, 0.35, 1.0),
                 layer("dry", [0.115, 0.120, 0.050], 0.95, 1900.0, 0.55, 0.30, 0.6),
                 layer("litter", [0.140, 0.115, 0.065], 0.95, 0.7, 0.55, 0.25, 0.5),
                 layer("moss", [0.035, 0.070, 0.018], 0.8, 2.1, 0.60, 0.20, 0.6),
                 layer("damp", [0.045, 0.060, 0.025], 0.7, 3.0, 0.62, 0.20, 0.4),
-                // where the grass is gone: trodden loam (the grass's `bare` reads this same noise)
-                layer("bare", [0.085, 0.072, 0.055], 1.0, 16.0, 0.80, 0.05, 1.0),
+                // sandy, earthy patches where no grass grows: open ground of sand and loam, with cracks and pebbles
+                // (the grass's `bare` reads this same noise)
+                Layer { grass: false, ..layer("sandy earth", [0.16, 0.125, 0.085], 1.0, 16.0, 0.74, 0.06, 1.0) },
             ],
             relief: 0.6,
             mottle: 0.35,
             grass: Grass { deep: [0.045, 0.120, 0.018], light: [0.100, 0.230, 0.035], height: 0.12, height_range: 0.33 },
-            plants: vec![
-                Plant { kind: "clover".into(), per_m2: 2.5 },
-                Plant { kind: "plantain".into(), per_m2: 1.0 },
-                Plant { kind: "dandelion".into(), per_m2: 1.0 },
-                Plant { kind: "moss".into(), per_m2: 1.5 },
-                Plant { kind: "seed_head".into(), per_m2: 4.0 },
-            ],
-            scatter: vec![
-                Scatter { kind: "clod".into(), per_m2: 9.0, size: [0.02, 0.06] },
-                Scatter { kind: "pebble".into(), per_m2: 5.0, size: [0.01, 0.05] },
-                Scatter { kind: "stone".into(), per_m2: 0.3, size: [0.06, 0.25] },
+            places: vec![
+                place("clover", 2.5, "grass"),
+                place("plantain", 1.0, "grass"),
+                place("dandelion", 1.0, "grass"),
+                place("moss", 1.5, "grass"),
+                place("seed head", 4.0, "grass"),
+                place("clod", 6.0, "any"),
+                place("pebble", 14.0, "open"),
+                place("stone", 0.8, "open"),
+                place("stone", 0.05, "grass"),
             ],
         }
     }
@@ -141,7 +147,7 @@ impl Biome {
             u.rules[k] = Vec4::new(l.cell, l.threshold, l.softness, l.amount);
         }
         // which layer is bare ground (cracks, pebbles, grains show there)
-        let bare = self.layers.iter().position(|l| l.name == "bare").unwrap_or(LAYERS) as f32;
+        let bare = self.layers.iter().position(|l| !l.grass).unwrap_or(LAYERS) as f32;
         u.micro = Vec4::new(self.relief, self.mottle, bare, self.layers.len().min(LAYERS) as f32);
         u
     }

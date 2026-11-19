@@ -84,7 +84,7 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
             }
         }
         // ---- the bare ground's own detail, where it shows, while a pixel is small enough to hold it ----
-        let near = clamp(0.06 / px - 0.5, 0.0, 1.0); // centimetre detail, gone past a few tens of metres
+        let near = clamp(0.012 / px - 0.5, 0.0, 1.0); // centimetre detail, gone past a few tens of metres
         var lift = 0.0; // this pixel's small height, for its shade and its relief
         if (bare > 0.01 && near > 0.0) {
             // damp and dry: the soil darkens in soft-edged patches where it holds water
@@ -98,7 +98,7 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
             // pebbles: one in some cells, a small grey dome
             let pc = cells(p, 0.05, 84u);
             let pebble = (1.0 - smoothstep(0.25, 0.33, pc.f1)) * step(0.55, pc.id) * bare * near;
-            let grey = vec3<f32>(0.20, 0.19, 0.17) * (0.7 + 0.6 * fract(pc.id * 7.31));
+            let grey = vec3<f32>(0.15, 0.14, 0.12) * (0.7 + 0.5 * fract(pc.id * 7.31));
             colour = mix(colour, grey, pebble);
             lift = lift + pebble * (1.0 - pc.f1 / 0.33);
             rough = mix(rough, 0.55, pebble);

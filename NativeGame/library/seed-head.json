@@ -1,0 +1,22 @@
+{
+  "name": "seed head",
+  "kind": "plant",
+  "generator": "seed_head",
+  "size": [
+    0.55,
+    0.95
+  ],
+  "colour": [
+    [
+      0.3,
+      0.24,
+      0.1
+    ],
+    [
+      0.2,
+      0.16,
+      0.08
+    ]
+  ],
+  "flatness": 1.0
+}
