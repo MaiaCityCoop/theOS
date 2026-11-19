@@ -57,11 +57,16 @@ import { boxIn } from '../core/frustum.js';
 import { MAXP } from './tier.js';
 import { inView } from './view.js';
 import { createDrawer } from './drawer.js';
-import { LADDER, FULLN, trisOf } from '../../assets/kit/ladder.js';
+import { LADDER, FULLN, trisOf, ladderOf } from '../../assets/kit/ladder.js';
+import { SURFACE_LEVELS, surfaceBand, surfacePx } from '../detail/error.js';
+import { zooRooms, mostOf } from './rooms.js';
+import { ready } from '../core/settle.js';
+import { heapRow, heldOf } from './heap.js';
+import { pxAt, dialPxAt } from '../detail/measure.js';
 import { STAND, MOVING, KINDS as ALL, FAMILIES, HERDS, lookOf as lookOfKind, fullTris, fingerprint } from '../../assets/zoo/index.js';
-import { BONES } from '../../assets/kit/solid.js';
+import { BONES, STILL_PER } from '../../assets/kit/solid.js';
 import { MODELS } from '../shading/index.js';
-import { gpuStorage } from '../core/gpu.js';
+import { gpuStorage, roomOf } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { addBodies } from '../world/bodies.js';
 import { idOf } from '../world/things.js';
@@ -87,6 +92,18 @@ const LEVELS = [
   { P: 50, cap: 131072 },
   { P: 100, cap: 524288 },   // its dot: one triangle, turned to the eye
 ].map((l, i) => ({ n: LADDER[i].n, px: LADDER[i].px, ...l }));
+// The zoo's kinds that stand and bring their bands (assets/zoo/index.js bandOf: the blobs), the first of what stands
+// (the families' order: assets/zoo/index.js FAMILIES): drawn by their bands (createStress: a drawer of its own)
+const BANDED = FAMILIES.filter((E) => !E.placed && !E.roams && E.F.bandOf);
+if (BANDED.some((E, i) => E.first !== BANDED.slice(0, i).reduce((n, B) => n + B.count, 0))) throw new Error("stress: the zoo's kinds with bands are not the first that stand");
+// their bands (intent 0038, stage 8b; src/detail/error.js surfaceBand) as the drawer takes them: each its P and cap
+// the ladder level's drawn at its top (the same sizes on screen), its room the families' (rooms.json, src/scatter/rooms.js
+// zooRooms), level 0 drawn by its cut; every band by slots, how many decided once the world is made (slotsOf)
+const bandsOf = () => Array.from({ length: SURFACE_LEVELS }, (_, l) => { const at = LEVELS[ladderOf(l ? surfacePx(l - 1) : Infinity)]; return { px: surfacePx(l), band: surfaceBand(l), delta: 0, room: mostOf(BANDED.map((E) => zooRooms(E.F, l, STILL_PER))), P: at.P, cap: at.cap, slots: 1, ...(l ? {} : { cut: true }) }; });
+// how many kinds' each band holds at once: of what geometry's class has left once the world is made (src/core/gpu.js
+// roomOf), a band's share each and one share more for what grows after it, no more than there are kinds; none where
+// nothing is left (its kinds drawn by the ladder, and said short)
+const slotsOf = (LV, NB) => { const bytes = (r) => r.tris * 3 * 4 + r.verts * STILL_PER * 16, share = Math.max(0, roomOf('geometry')) / (LV.length + 1); return LV.map((l) => Math.min(NB, Math.floor(share / bytes(l.room)))); };
 const L = LEVELS.length, MCAP = 65536;   // MCAP: the most movers of one level drawn at once
 const WRAP = 512;   // seconds after which the movers' stride clock begins again
 const SHADE = { level: 5, far: 30, wide: 1.5, reach: 12, shrink: 0.85 };   // what casts their shadows: a coarse level of each round the camera, a little smaller than the thing (so it does not shade itself)
@@ -406,9 +423,19 @@ export function createStress(scene, renderer, tex) {
   };
 
   // how it is drawn: the one drawer (src/scatter/drawer.js): the heap of every kind's meshes, their looks and textures,
-  // the levels' materials and draws, and what streams them in. Here only where things stand and move.
-  const D = createDrawer(scene, renderer, tex, { name: 'stand', LEVELS, SHADE, SMOOTH, zoo: { first: 0, ALL, STAND, MOVING, lookOfKind, fingerprint } });
+  // the levels' materials and draws, and what streams them in. Two of it: the ladder's draws every kind from the start;
+  // the zoo's kinds that bring their bands are drawn by them where a band of theirs is in, as the world's rocks are
+  // (bandsOf, above: its heap laid out once the world is made, from what is left, slotsOf). Here only where things
+  // stand and move.
+  const NB = BANDED.reduce((n, E) => n + E.count, 0), D = createDrawer(scene, renderer, tex, { name: 'stand', LEVELS, SHADE, SMOOTH, skinShare: (ALL - NB) / ALL, zoo: { first: 0, ALL, STAND, MOVING, lookOfKind, fingerprint } });
+  const BANDS = NB ? bandsOf() : null, DB = NB ? createDrawer(scene, renderer, tex, { name: 'stand: bands', LEVELS: BANDS, SHADE, SMOOTH, still: true, bands: true, skinShare: NB / ALL, zoo: { first: 0, ALL: NB, STAND: NB, MOVING: 0, lookOfKind, fingerprint } }) : null;
+  if (DB) ready.then(() => DB.lay(slotsOf(BANDS, NB)));   // (the bands' room: what the world leaves once it is complete, never first: src/core/settle.js)
   const { H, lookOf, sizes, skins, boneRows, ask, stats, pending } = D;
+  // (by which drawer a thing of the zoo's kind z, size metres, dist metres off, is drawn: by its bands where one of them
+  // no finer than its size asks is in (heap.js), else by the ladder)
+  const banded = (z, size, dist) => { const px = dialPxAt(pxAt(size, dist)), want = uint(0).toVar(); for (let j = 0; j < BANDS.length - 1; j++) want.addAssign(px.lessThanEqual(DB.LO.element(j)).select(uint(1), uint(0))); return z.lessThan(uint(NB)).and(heldOf(heapRow(DB.H, z, uint(0))).shiftRight(want).greaterThan(uint(0))); };
+  const LADDERED = { D, LV: LEVELS, ok: (z, size, dist) => (DB ? banded(z, size, dist).not() : null), name: 'level', shade: 'shadows' };
+  const BANDED_ = DB && { D: DB, LV: BANDS, ok: (z) => z.lessThan(uint(NB)), name: 'band', shade: 'band shadows' };
 
   const tiers = [];
   // the plots a tier may draw from: those whose land comes within `far` of the camera, and into its view
@@ -418,8 +445,8 @@ export function createStress(scene, renderer, tex) {
   // The drawer's (drawer.js: tier): it tests whether a thing is of the level and drops it into the level's draws; here
   // only where a thing stands. Its patches are blocks of P by P cells of a plot's lattice: chosen each frame from the
   // plots near (select, below)
-  const tier = (i, shadow = false) => {
-    const P = shadow ? 8 : LEVELS[i].P, round = uniform(SMAX / 2 + (CELL * P) / 16 + 2);
+  const tier = (W, i, shadow = false) => {   // (W: its drawer, its levels, and which of the zoo's kinds are its: LADDERED, BANDED_)
+    const P = shadow ? 8 : W.LV[i].P, round = uniform(SMAX / 2 + (CELL * P) / 16 + 2);
     const place = (c, { band, whole, all }, found) => {
       const plot = plotOfCell(c), ci = inPlot(c), cj = c.y, base = uint(plot).mul(uint(ROW)), h = (s) => rnd(c.x, c.y, uint(s));
       // (where it stands: kept for its plot, above; a plot not kept yet has nothing to show)
@@ -428,14 +455,16 @@ export function createStress(scene, renderer, tex) {
       If(slot.greaterThan(-0.5).and(range.lessThan(band.far)).and(range.greaterThanEqual(band.near)).and(whole.or(inView(pos, round, SMAX))), () => {
         // its kind: its group of rows holds every kind once (groupOf, above)
         const g = cj.div(int(GROUP)), r4 = int(floor(rnd(plot, g, uint(902)).mul(4))), a = int(floor(rnd(plot, g, uint(901)).mul(KINDS / 10))).mul(10).add(1).add(r4.mul(2)).add(r4.greaterThanEqual(2).select(int(2), int(0)));
-        const kind = uint(ci.add(cj.mod(int(GROUP)).mul(int(SIDE))).mul(a).add(int(floor(rnd(plot, g, uint(904)).mul(KINDS)))).mod(int(KINDS)).add(plot.mul(int(OFF))).mod(int(STAND))), size = clamp(lookOf(kind, 3).w.mul(h(903).mul(0.4).add(0.8)).mul(PT.element(base.add(uint(3)))), SMIN, SMAX);
-        found(kind, size, dist, (A, B) => {
-          A.assign(vec4(pos, groundAt(pos, float(0)).sub(size.mul(0.06)), size));
-          B.assign(vec4(h(907).mul(TAU), float(kind), lookOf(kind, 2).w, h(908).mul(TAU)));   // (its turn, its kind, how far it sways, its sway's phase)
+        const kind = uint(ci.add(cj.mod(int(GROUP)).mul(int(SIDE))).mul(a).add(int(floor(rnd(plot, g, uint(904)).mul(KINDS)))).mod(int(KINDS)).add(plot.mul(int(OFF))).mod(int(STAND))), size = clamp(lookOf(kind, 3).w.mul(h(903).mul(0.4).add(0.8)).mul(PT.element(base.add(uint(3)))), SMIN, SMAX), ok = W.ok(kind, size, dist);   // (its kind of the zoo's, its size by its look; whether its tier's drawer draws it: W)
+        If(ok ?? true, () => {
+          found(kind, size, dist, (A, B) => {
+            A.assign(vec4(pos, groundAt(pos, float(0)).sub(size.mul(0.06)), size));
+            B.assign(vec4(h(907).mul(TAU), float(kind), lookOf(kind, 2).w, h(908).mul(TAU)));   // (its turn, its kind, how far it sways, its sway's phase)
+          });
         });
       });
     };
-    const T = D.tier(i, { cell: CELL, P, cap: shadow ? 8192 : LEVELS[i].cap, sizes: [SMIN, SMAX], place, shadow, fade: FADE, thing: 'stand', own: true });   // (own: its plots are its patches, below)   // (thing: a thing's own state, by its cell of its plot's lattice: src/world/things.js)
+    const T = W.D.tier(i, { cell: CELL, P, cap: shadow ? 8192 : W.LV[i].cap, sizes: [SMIN, SMAX], place, shadow, fade: FADE, thing: 'stand', own: true });   // (own: its plots are its patches, below)   // (thing: a thing's own state, by its cell of its plot's lattice: src/world/things.js)
     // its patches: of each plot near, the blocks of its lattice that lie in the tier's band of distances and in view
     // (where a block lies: its middle through toLand; a block near the camera is found by the camera's own lattice point)
     // (where a block's middle lies on the land: folded once, kept; a tier asks it of thousands of blocks a frame)
@@ -461,13 +490,14 @@ export function createStress(scene, renderer, tex) {
       }
       T.n = n; for (const m of T.meshes) m.visible = n > 0;
     };
-    T.viewKeyed = !shadow; T.asset = shadow ? 'Stress: shadows' : `Stress: level ${i}`;
+    T.viewKeyed = !shadow; T.asset = shadow ? `Stress: ${W.shade}` : `Stress: ${W.name} ${i}`; T.bands = W === BANDED_;
     const run = T.run.bind(T); T.run = (r, world, ...a) => run(r, `${world}|${slots.version}`, ...a);   // packed again when other plots' places are kept (and when the heap has changed: the drawer's)
     tiers.push(T);
     return T;
   };
-  for (let i = 0; i < L; i++) tier(i);
-  tier(SHADE.level, true);
+  for (let i = 0; i < L; i++) tier(LADDERED, i);
+  tier(LADDERED, SHADE.level, true);
+  if (BANDED_) { BANDS.forEach((_, l) => tier(BANDED_, l)); tier(BANDED_, BANDS.findIndex((_, l) => ladderOf(l ? surfacePx(l - 1) : Infinity) === SHADE.level), true); }   // (its shade: the band of the ladder's shadow level's sizes)
 
   // ---- the movers: ten thousand a plot, each ONE mesh of its kind on a skeleton (assets/kit/creature.js), where its
   // round has brought it by now, its stride as far as it has come. One tier, packed every frame; each mover dropped
@@ -558,6 +588,15 @@ export function createStress(scene, renderer, tex) {
   };
   // (a plot's ten thousand reckoned a part each time it is asked for: all at once is a frame lost)
   const moversOf = (p) => { const M = (p.movers ||= []); for (let n = 0; n < 1500 && M.length < MSIDE * MSIDE; n++) M.push(moverOf(p, M.length % MSIDE, Math.floor(M.length / MSIDE))); return M; };
+  // (both drawers: each of them, and their looks at what is near as one: the ladder's reach for both (a band's slots are
+  // asked as far as the ladder's fine levels are, no further), a kind asked of the ladder, a kind with bands of its
+  // bands too; null: neither looks this frame)
+  const each = (f) => { f(D); if (DB) f(DB); };
+  const look = () => {
+    const N = D.scan(), NBs = DB?.scan(); if (!N && !NBs) return null;
+    const S0 = N ?? NBs;
+    return { ahead: S0.ahead, reach: S0.reach, wants: (k, s, d, own) => { N?.wants(k, s, d, own); if (k < NB) NBs?.wants(k, s, d, own); }, none() { N?.none(); NBs?.none(); }, done() { N?.done(); NBs?.done(); } };
+  };
   // each frame: when the camera has moved, ask for the fine levels of what now
   // stands or passes near (coarser first: quick to build, and something to draw meanwhile), nearest first
   let tick = 0;
@@ -568,13 +607,13 @@ export function createStress(scene, renderer, tex) {
       cp.slice(0, PLOTS).forEach((c, i) => { const p = plotOf(c, i); PL.push(p); plotRows.array.set([p.x, p.z, p.mean, p.k, ...p.R, ...p.TH, ...p.PH, p.q, p.Lc, p.verge, p.least, 0, 0, ...p.clrs, p.most, -1], i * ROW); });
       plotRows.addUpdateRange(0, plotRows.array.length); plotRows.needsUpdate = true;   // (all of it: a later change of one number must not be the only thing sent)
     }
-    D.start();
+    each((d) => d.start());
     if (!(tick++ & 3)) keepNear(U.uCam.value.x, U.uCam.value.z);   // (which plots are near changes slowly: asked every fourth frame)
     const cam = U.uCam.value, dy = U.uDy.value;
     if (API.pause) return;
     built = 0;
-    D.skinsIn();
-    const N = D.scan(); if (!N) return;
+    each((d) => d.skinsIn());
+    const N = look(); if (!N) return;
     did('scan');   // (a look at its millions near: a busy frame, its length not counted by the governor)
     // as far as the coarsest of the fine levels is asked for (and a fifth): of what stands, and of the largest mover
     const ahead = N.ahead, t = U.uTime.value, reachOfSize = N.reach, wants = N.wants, Rs = reachOfSize(SMAX), Rm = reachOfSize(MMAX);
@@ -624,7 +663,7 @@ export function createStress(scene, renderer, tex) {
 
   // for looking at it (window.__stress): how many stand in a plot and of how many kinds; what each level holds and draws now
   const API = (window.__stress = {
-    heap: H, tiers, stats, levels: LEVELS, plots: PL, sizes, pause: false, smooth: SMOOTH, fingerprint: D.fingerprint, families: FAMILIES.map((E) => ({ id: E.id, first: E.first, count: E.count, roams: E.roams })), herds: HERDS, models: MODELS.map((M) => M.id),
+    heap: H, bands: DB && { heap: DB.H, levels: BANDS, stats: DB.stats, pending: DB.pending }, tiers, stats, levels: LEVELS, plots: PL, sizes, pause: false, smooth: SMOOTH, fingerprint: D.fingerprint, families: FAMILIES.map((E) => ({ id: E.id, first: E.first, count: E.count, roams: E.roams })), herds: HERDS, models: MODELS.map((M) => M.id),
     standsAt: (pi, i, j) => standsAt(PL[pi], i, j, sizes), boxOf: (k) => bodyOf(k).box, lay: () => LAY, way: (pi, k, o, u) => wayAtJS(PL[pi], k, o, u), rings: () => RING.map(({ rho, W, MA, MN, bundle, road }) => ({ rho, W, MA, MN, bundle, road })), clrOf: (pi, k) => clrOf(PL[pi], k), toLand: (pi, fi, fj) => toLand(PL[pi], fi, fj), toLattice: (pi, x, z) => toLattice(PL[pi], x, z),
     movers: (pi, t = U.uTime.value) => { while (moversOf(PL[pi]).length < MSIDE * MSIDE); return API.moversNow(pi, t); },
     moversNow: (pi, t) => moversOf(PL[pi]).map((M) => { const [x, z, yaw] = moverAtJS(PL[pi], M, t); return { x, z, yaw, rig: M.rig, herd: M.herd, ring: M.ring, s: M.s, v: M.v, kind: M.k, fly: M.fly }; }),
@@ -642,8 +681,9 @@ export function createStress(scene, renderer, tex) {
       for (const T of tiers) {
         const B = await T.read(renderer);
         if (T.movers) { out.push({ tier: T.asset, packed: B.reduce((x, b) => x + b.count, 0), tris: B.reduce((x, b, l) => x + b.count * (LEVELS[l].n === FULLN ? 125000 : trisOf(LEVELS[l].n)), 0), byLevel: B.map((b) => b.count), patches: T.n, over: T.over }); continue; }
-        const full = LEVELS[T.level].n === FULLN, count = B.reduce((x, b) => x + b.count, 0); let tris = 0;
-        if (full) for (const b of B) for (let j = 0; j < b.count; j++) tris += fullTris(b.data[1][j * 4 + 1]); else tris = count * trisOf(LEVELS[T.level].n);
+        const full = !T.bands && LEVELS[T.level].n === FULLN, count = B.reduce((x, b) => x + b.count, 0); let tris = 0;
+        if (T.bands) for (const b of B) for (let j = 0; j < b.count; j++) tris += DB.H.count(b.data[1][j * 4 + 1], T.level) / 3;   // (a band's: all its clusters', what the rule draws of them no more)
+        else if (full) for (const b of B) for (let j = 0; j < b.count; j++) tris += fullTris(b.data[1][j * 4 + 1]); else tris = count * trisOf(LEVELS[T.level].n);
         out.push({ tier: T.asset, packed: count, tris, patches: T.n, over: T.over, shaped: T.shaped >= 0 ? B[T.shaped].count : 0 });
       }
       return { tiers: out, held: H.held(), skinsHeld: skins.who.filter((x) => x >= 0).length, pending: pending.size, ...stats, heapMB: +(H.bytes / 1048576).toFixed(1) };

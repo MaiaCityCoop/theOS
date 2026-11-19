@@ -14,13 +14,9 @@
 //                              kind's box at it: boxes, six numbers a kind; band: the sizes on screen a level of plants is
 //                              drawn between, as its stand cut it ('shade': its shade), handed to its family
 //                              (assets/kit/plant.js plantFamily)
-//   ['band', k, l, room, real, version, keep]   kind k's band l (assets/zoo/index.js bandOf: a family whose kinds are
-//                              surfaces), no larger than room: real, its hierarchy's, built here (or read back where it
-//                              was kept); else the best there is without building: what was kept, or its stand-in.
-//                              keep: kept in the browser once built (src/core/kept.js, under `version`: its drawer's)
-//   ['own bands', k0, n, [[l, idx, elems, D], …], version]   as 'own', of such a family's bands every kind has its own
-//                              of: each kind's best without building, kept once built; and which are short: shorts,
-//                              one a kind (assets/zoo/index.js bandOf)
+//   ['band', k, l, room, version, keep]   kind k's band l (assets/zoo/index.js bandOf: a family whose kinds are
+//                              surfaces), no larger than room, built here from its hierarchy; keep: kept in the browser
+//                              once built (src/core/kept.js, under `version`: its drawer's) and read back from there
 import { meshOf, bandOf, skinOf, bonesOf, herdRooms } from '../../assets/zoo/index.js';
 import { keptGet, keptPut } from '../core/kept.js';
 import { recipe } from '../core/registry.js';
@@ -44,25 +40,24 @@ function solidBox(v, D, out = new Float32Array(6), at = 0) {
   out.set(b, at); return out;
 }
 
-// a kind's band, real or the best there is without building (the jobs, above), its key in the browser its room's too:
-// a band packed for another room may not fit this one
-async function bandFrom(k, l, room, real, version, keep) {
-  const key = `band ${k} ${l} ${room.tris} ${room.elems}`, was = version && (keep || !real) ? await keptGet(version, key) : null;
+// a kind's band (the jobs, above), its key in the browser its room's too: a band packed for another room may not fit this one
+async function bandFrom(k, l, room, version, keep) {
+  const key = `band ${k} ${l} ${room.tris} ${room.elems}`, was = keep && version ? await keptGet(version, key) : null;
   if (was) return was;
-  const m = bandOf(k, l, room, real);
-  if (real && keep && version) await keptPut(version, key, m);   // (before its arrays are handed over: the browser keeps a copy of them as they are)
+  const m = bandOf(k, l, room);
+  if (keep && version) await keptPut(version, key, m);   // (before its arrays are handed over: the browser keeps a copy of them as they are)
   return m;
 }
 // levels every kind has its own of, of n kinds (k0 the first, or a list of them), each level one block as the heap
 // takes it (the jobs, above); make(kind, l, room, band): a kind's mesh at a level
 async function blocksOf(k0, n, levels, make) {
   const kindOf = (i) => (Array.isArray(k0) ? k0[i] : k0 + i);
-  const blocks = levels.map(([l, idx, elems, D]) => ({ l, corners: new Uint32Array(n * idx), verts: new Uint32Array(n * elems * 4), counts: new Uint32Array(n), draws: new Uint32Array(n), elems: new Uint32Array(n), shorts: new Uint8Array(n), ...(D != null ? { boxes: new Float32Array(n * 6) } : {}) }));
+  const blocks = levels.map(([l, idx, elems, D]) => ({ l, corners: new Uint32Array(n * idx), verts: new Uint32Array(n * elems * 4), counts: new Uint32Array(n), draws: new Uint32Array(n), elems: new Uint32Array(n), ...(D != null ? { boxes: new Float32Array(n * 6) } : {}) }));
   // (a kind at a time, all its levels: a family may make one of its levels from another it has just made)
   for (let i = 0; i < n; i++) for (let b = 0; b < levels.length; b++) {
     const [l, idx, elems, D, band] = levels[b], m = await make(kindOf(i), l, { tris: idx / 3, elems, band });
     if (m.index.length > idx || m.verts.length > elems * 4) throw new Error(`recipes: kind ${kindOf(i)} level ${l} is larger than its place (${m.index.length} corners of ${idx}, ${m.verts.length / 4} elements of ${elems})`);
-    blocks[b].corners.set(m.index, i * idx); blocks[b].verts.set(m.verts, i * elems * 4); blocks[b].counts[i] = m.count ?? m.index.length; blocks[b].draws[i] = m.index.length; blocks[b].elems[i] = m.verts.length / 4; blocks[b].shorts[i] = m.short ? 1 : 0;
+    blocks[b].corners.set(m.index, i * idx); blocks[b].verts.set(m.verts, i * elems * 4); blocks[b].counts[i] = m.count ?? m.index.length; blocks[b].draws[i] = m.index.length; blocks[b].elems[i] = m.verts.length / 4;
     if (D != null) { if (m.box) blocks[b].boxes.set(m.box, i * 6); else solidBox(m.verts, D, blocks[b].boxes, i * 6); }
     else if (m.box) (blocks[b].boxes ||= new Float32Array(n * 6)).set(m.box, i * 6);   // (a family that measures its meshes itself: the plants', assets/kit/plant.js)
   }
@@ -79,10 +74,10 @@ self.onmessage = async ({ data: { id, jobs } }) => {
     else if (j[0] === 'rooms') out.push(herdRooms());
     else if (j[0] === 'outline') out.push(recipe(j[1]).outlineFor(j[2]));   // (a tree kind's outline and rooms, for the atlases' numbers: src/scatter/trees.js outlinesAhead)
     else if (j[0] === 'bones') { const [, k0, n] = j, rows = new Float32Array(n * BONES * 12); for (let i = 0; i < n; i++) { const B = bonesOf(k0 + i); if (B) rows.set(B, i * BONES * 12); } out.push(rows); move.push(rows.buffer); }
-    else if (j[0] === 'band') { const m = await bandFrom(j[1], j[2], j[3], j[4], j[5], j[6]); out.push(m); move.push(m.index.buffer, m.verts.buffer); }
+    else if (j[0] === 'band') { const m = await bandFrom(j[1], j[2], j[3], j[4], j[5]); out.push(m); move.push(m.index.buffer, m.verts.buffer); }
     else {
-      const [what, k0, n, levels, version] = j, blocks = await blocksOf(k0, n, levels, what === 'own bands' ? (k, l, room) => bandFrom(k, l, room, false, version, true) : (k, l, room) => meshOf(k, l, room));
-      for (const B of blocks) move.push(B.corners.buffer, B.verts.buffer, B.counts.buffer, B.draws.buffer, B.elems.buffer, B.shorts.buffer, ...(B.boxes ? [B.boxes.buffer] : []));
+      const [, k0, n, levels] = j, blocks = await blocksOf(k0, n, levels, (k, l, room) => meshOf(k, l, room));
+      for (const B of blocks) move.push(B.corners.buffer, B.verts.buffer, B.counts.buffer, B.draws.buffer, B.elems.buffer, ...(B.boxes ? [B.boxes.buffer] : []));
       out.push(blocks);
     }
   }
