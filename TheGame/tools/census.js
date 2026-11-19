@@ -46,7 +46,7 @@ const { createUniforms } = await import('../src/core/uniforms.js'), U = createUn
 (await import('../src/detail/impostor.js')).setImpostorRenderer(renderer);
 const { createTemporal } = await import('../src/core/temporal.js'), { createScreen } = await import('../src/core/screen.js'), { createLens } = await import('../src/camera/post.js');
 const temporal = createTemporal(renderer), screen = createScreen(renderer, { temporal, lens: createLens(renderer) });
-const { keepMeasure, measureNow } = await import('../src/detail/measure.js'); keepMeasure(() => screen.inside, () => screen.out);
+const { keepMeasure, measureNow } = await import('../src/detail/measure.js'); keepMeasure(() => screen.out);
 let tex = M.tiles;
 try { tex = (await import('../src/materials/bake.js')).bakeTextures(renderer, { spare: 1 }); } catch { /* the stand-in's tiles */ }
 (await import('../src/world/tile.js')).useTiles(tex);

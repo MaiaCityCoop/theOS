@@ -15,6 +15,9 @@
 //   spentSince(reader, names)    what the passes so named have taken on the GPU since this reader last asked (ms; none
 //                                the first time): the room a paced pass has left in its class (src/terrain/water.js:
 //                                the light's)
+//   frameDone()                  the frame's passes are all handed over (src/boot.js, after it draws): a promise of its
+//                                own time on the GPU, its passes' together, once they are done (null where there is no
+//                                queue to ask): what the governor judges (src/core/governor.js)
 
 /** A submission's own time on the GPU (ms, a promise; null without a queue to ask). */
 export function ownGpuMs(renderer, submit) {
@@ -27,16 +30,26 @@ export function ownGpuMs(renderer, submit) {
 }
 
 // ---- each pass's own time on the GPU, by its marks ----
-let QUEUE = null, open = null, doneWas = 0;
-const TOTAL = new Map(), READ = new Map();   // (TOTAL: a pass's name -> ms all told; READ: a reader -> what it had seen of them)
+let QUEUE = null, open = null, doneWas = 0, FRAME = 0;
+const TOTAL = new Map(), READ = new Map(), OWN = new Map();   // (TOTAL: a pass's name -> ms all told; READ: a reader -> what it had seen of them; OWN: a frame's number -> its passes' ms so far)
 /** The device whose queue the passes' times are taken on (src/core/gpu.js useGPU); none: none taken. */
 export const timesOn = (device) => { QUEUE = device?.queue?.onSubmittedWorkDone ? device.queue : null; };
 /** A pass named `name` begins (null: none): the one before ends; its own time on the GPU added to its name's. */
 export function passBegins(name) {
   if (!QUEUE) return;
   const was = open;
-  if (was) QUEUE.onSubmittedWorkDone().then(() => { const d = performance.now(); TOTAL.set(was.name, (TOTAL.get(was.name) ?? 0) + Math.max(0, d - Math.max(was.t0, doneWas))); doneWas = d; }, () => {});
-  open = name ? { name, t0: performance.now() } : null;
+  if (was) QUEUE.onSubmittedWorkDone().then(() => { const d = performance.now(), ms = Math.max(0, d - Math.max(was.t0, doneWas)); TOTAL.set(was.name, (TOTAL.get(was.name) ?? 0) + ms); OWN.set(was.frame, (OWN.get(was.frame) ?? 0) + ms); doneWas = d; }, () => {});
+  open = name ? { name, t0: performance.now(), frame: FRAME } : null;
+}
+/** The frame's passes are all handed over: a promise of its own time on the GPU (ms: its passes' together, each from
+    when it began or the GPU was done with all before it, to when it is done), once they are done; null without a queue
+    to ask. A pass still open ends here (its time is this frame's), and the queue is done with them in the order they
+    were handed over, so its last is counted first. */
+export function frameDone() {
+  if (!QUEUE) return null;
+  passBegins(null);
+  const f = FRAME++;
+  return QUEUE.onSubmittedWorkDone().then(() => { const ms = OWN.get(f) ?? 0; OWN.delete(f); return ms; }, () => null);
 }
 /** What the passes named `names` have taken on the GPU since `reader` last asked (ms; none the first time it asks). */
 export function spentSince(reader, names) {
