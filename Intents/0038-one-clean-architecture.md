@@ -205,7 +205,8 @@ from `main`). `?hud` shows the frame, memory and settle readout on any device; t
 5. **Data lives once:** workers hand results over and let them go; nothing is kept on the page that is on the GPU.
 
 **Next steps, in order (each a small PR, merged on green CPU CI, then checked on next):**
-1. **Mac reload and phone memory:** push or finish branch `aven/0038-outlines-baked` (commit f13ae843, one measure v2): bake
+1. **Mac reload and phone memory:** branch `aven/0038-outlines-baked` (commit f13ae843) exists only on the MacBook's worktree,
+   committed but never pushed. Push it from there, or redo it: bake
    outlines.json and crowds.bin for every device class's atlases, and fail the build if one is missing. Without it, next
    measures outlines at runtime and Safari reloads the page for memory.
 2. **Trees missing at the phone's share** even after #385 (the rest dial is sane at 2.27): bisect main 48c7e58 → 289c988
@@ -222,7 +223,12 @@ from `main`). `?hud` shows the frame, memory and settle readout on any device; t
    WebContent while settling, workers against the main heap against GC, and cut the largest.
 6. Then 60 fps per-pass ceilings (`gate.js bench --ratchet`), and quality items (Todo).
 
-**Open PRs:** #379 and #382 (ready: the start waits only for wanted far ends, and bakes are kept by shape); #392 (the pool
+**Open PRs:** #379 and #382 (the start waits only for wanted far ends; bakes kept by shape). Both are **red in CI**: the far
+tier's gather binds 10 storage buffers against the limit of 8 (#379's T0 and WANT buffers). The fix is to read the wanted
+shapes from the far tiers' own bucket counts (a Tier.found), drop the T0/WANT buffers and want(), and set T.farEnd in
+drawer.js, applying the same change to far.js on #382. It was written but left uncommitted on the MacBook (worktree
+0038-cold-start-6e5ccd, branch aven/0038-far-wanted): commit and push it there, or redo it.
+Also: #392 (the pool
 design doc); #394 (the ground's level per smooth surface); #396 (pool stage 1). Drafts #255, #256, #265, #275 need a GPU
 look.
 
