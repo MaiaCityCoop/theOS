@@ -126,17 +126,23 @@ export const countCompiles = () => {
   // (the first frame shown waits for what the first frame asked for, a snapshot taken as it was drawn: what streams in
   // after it, its asks with it, does not hold it: 2026-11-19, the veil waited for the whole running count, 460 and more
   // in Chrome for minutes, the master's registry reads)
-  source('the first view', (held, frame) => { if (frame) view ??= new Set(open); if (!view) return open.size; let n = 0; for (const e of view) if (open.has(e)) n++; return n; }, { first: true });
+  // (and only what the first view needs, asked as near (0): what may come after it, the far cascades' casters, the
+  // canopy's probes, is made after it, nearest first, and fades in as it comes: ask)
+  source('the first view', (held, frame) => { if (frame) view ??= new Set([...open].filter(needed)); if (!view) return [...open].filter(needed).length; let n = 0; for (const e of view) if (open.has(e)) n++; return n; }, { first: true });
 };
 
 // ---- made by need ----
 const STATE = new WeakMap(), SAME = new WeakMap();   // what -> Map(pass -> 'asked' | 'made' | 'failed'); a copy -> what it is drawn as
-const asking = new Map();   // a maker -> what was asked of it since the last flush ([{ what, pass, name, counted }])
+const asking = new Map();   // a maker -> what was asked of it since the last flush ([{ what, pass, name, counted, near }])
+const ASKED = new WeakMap();   // what -> Map(pass -> its ask), while it is asked (a later ask of it may say it is nearer)
 let asked = 0, done = 0, now = '', flushing = false, view = null;
-const open = new Set();   // (what was asked, counted, and is not made yet, nor failed: each { what, pass, name, counted })
+const open = new Set();   // (what was asked, counted, and is not made yet, nor failed: each { what, pass, name, counted, near })
 const queued = new Map(), due = new Set();   // (a maker -> what waits for its turn; the makers with a turn waiting)
 const own = (what) => SAME.get(what) ?? what;
 const stateOf = (what) => { let S = STATE.get(what); if (!S) STATE.set(what, (S = new Map())); return S; };
+// (an ask's rank: what the first view waits for, 0; then how near it is, metres from the eye; what is made ahead of
+// need, after all of it)
+const rank = (e) => (e.counted ? e.near : Infinity), needed = (e) => rank(e) === 0;
 /** Whether `what` (a mesh, or a list of compute passes) is made for `pass`. */
 export const made = (what, pass) => STATE.get(own(what))?.get(pass) === 'made';
 /** Whether `what` was asked to be made for `pass` and is not yet (neither made nor failed). */
@@ -152,21 +158,31 @@ export const sameAs = (copy, what) => void SAME.set(copy, what);
 // the queue waited for everything asked since, and the first view for them (2026-11-19, the master)
 // (a maker's turn takes all that waits for it when the turn comes, not what one frame asked: the frames' asks of one
 // pass are one compile, as large as they have come to, side by side, not one small compile after another: 460 asks
-// queued were minutes, 2026-11-19)
+// queued were minutes, 2026-11-19; the GPU compiles what it is asked at once side by side, 28 pipelines 1.9 s where
+// one at a time took 5.1, B's on the M2)
 function flush() {
   flushing = false;
   for (const [maker, list] of asking) {
     asking.delete(maker);
     let q = queued.get(maker); if (!q) queued.set(maker, (q = [])); q.push(...list);
-    if (!due.has(maker)) { due.add(maker); turnOf(maker, list.some((e) => e.counted)); }
+    if (!due.has(maker)) { due.add(maker); inTurn(turn, list.some((e) => e.counted)); }
   }
 }
-const turnOf = (maker, counted) => inTurn(() => {
-  const list = queued.get(maker) ?? []; queued.delete(maker); due.delete(maker);
-  return list.length ? made1(maker, list) : null;
-}, counted);
+// A turn: of the makers with a turn coming (each has one), the one whose asks rank first as it comes, not the first
+// that was asked (2026-11-19: the far cascades' rocks and the canopy's probes were made before the plants' prepass,
+// which the first frame needs most, as a frame draws them first). What the first view waits for before anything else,
+// then the nearest first, what is made ahead of need last. A maker asked for some of what the first view waits for and
+// some not makes the first view's now, and the rest in a turn of its own after
+function turn() {
+  let best = null, top = Infinity;
+  for (const m of due) { const r = Math.min(...queued.get(m).map(rank)); if (!best || r < top) { best = m; top = r; } }
+  if (!best) return null;
+  const q = queued.get(best), list = top === 0 ? q.filter(needed) : q, rest = top === 0 ? q.filter((e) => !needed(e)) : [];
+  if (rest.length) { queued.set(best, rest); inTurn(turn, rest.some((e) => e.counted)); } else { queued.delete(best); due.delete(best); }
+  return made1(best, list);
+}
 function made1(maker, list) {
-  const names = [...new Set(list.map((e) => e.name))], over = (L) => { done += L.filter((e) => e.counted).length; for (const e of L) open.delete(e); };
+  const names = [...new Set(list.map((e) => e.name))], over = (L) => { done += L.filter((e) => e.counted).length; for (const e of L) { open.delete(e); ASKED.get(own(e.what))?.delete(e.pass); } };
   now = names.length > 1 ? `${names[0]} and ${names.length - 1} more` : names[0];
   // (the turn timed, compiles: the pipelines it asks of the GPU while it runs)
   const t = { name: now, asks: list.length, inView: 0, at: performance.now(), ms: null, pipes: [] };
@@ -183,19 +199,27 @@ function made1(maker, list) {
 }
 /** Ask `maker` (make(list): a promise, see flush) for `what` to be made for `pass`, unless it is made, being made, or
     could not be: with all else asked of it before this frame is over, in turn. name: what it is, for the veil and the
-    console. counted: whether the world waits for it (made ahead of need, src/boot.js: not). What could not be made is
-    never drawn, and the console says what it was. */
-export function ask(what, pass, maker, name = '', counted = true) {
+    console. counted: whether the world waits for it (made ahead of need, src/boot.js: not). near: 0, what the first
+    view waits for (the screen's own passes, the packing that feeds them, the near cascade's casters); else metres from
+    the eye, made after it, the nearest first, and faded in as it comes (src/world/shadow.js, light/canopy.js). Asked
+    again, nearer or counted, it is taken so. What could not be made is never drawn, and the console says what it was. */
+export function ask(what, pass, maker, name = '', counted = true, near = 0) {
   const S = stateOf(own(what));
-  if (S.has(pass)) return;
+  if (S.has(pass)) {
+    const e = S.get(pass) === 'asked' && ASKED.get(own(what))?.get(pass);
+    if (e && counted && !e.counted) { e.counted = true; asked++; open.add(e); }
+    if (e && near < e.near) e.near = near;
+    return;
+  }
   S.set(pass, 'asked'); if (counted) asked++;
   let list = asking.get(maker); if (!list) asking.set(maker, (list = []));
-  const e = { what, pass, name, counted }; list.push(e); if (counted) open.add(e);
+  const e = { what, pass, name, counted, near }; list.push(e); if (counted) open.add(e);
+  let A = ASKED.get(own(what)); if (!A) ASKED.set(own(what), (A = new Map())); A.set(pass, e);
   if (!flushing) { flushing = true; queueMicrotask(flush); }
 }
 /** Whether `what` may be drawn or run for `pass` now: once it is made. Else it is asked for (ask) and left out until
     it is. */
-export function ready(what, pass, maker, name = '') { if (made(what, pass)) return true; ask(what, pass, maker, name); return false; }
+export function ready(what, pass, maker, name = '', near = 0) { if (made(what, pass)) return true; ask(what, pass, maker, name, true, near); return false; }
 /** Each of `groups` (a function that asks for something, not counted) in order, each once what the one before asked has
     been made: what is made ahead of need, a little at a time, so that what a frame asks for meanwhile waits for little. */
 export async function ahead(groups) { for (const g of groups) { g(); await Promise.resolve(); await last; } }   // (its flush is queued before the turn it waits for)
@@ -211,11 +235,11 @@ const ownMakers = new WeakMap();
     a scene) once it is made for its target, and say whether it drew. Until it is made, it is made aside, for the target
     set now (always of one kind: the same formats), and nothing is drawn: a pipeline first used in a frame is compiled
     there, at once, and the frame waits for the GPU to compile it (2026-11-19: the start's first frames in WebKit, 0.9
-    to 1 s each, the master's own-time trace). name: what it is, for the veil and the console. */
-export function drawMade(renderer, mesh, camera, name) {
+    to 1 s each, the master's own-time trace). name: what it is, for the veil and the console; near: as ask's. */
+export function drawMade(renderer, mesh, camera, name, near = 0) {
   let maker = ownMakers.get(mesh);
   if (!maker) { const target = renderer.getRenderTarget(); ownMakers.set(mesh, (maker = (list) => compileList(renderer, target, list, camera, mesh))); }
-  if (!ready(mesh, 'own', maker, (mesh.material.name ||= name))) return false;
+  if (!ready(mesh, 'own', maker, (mesh.material.name ||= name), near)) return false;
   renderer.render(mesh, camera); return true;
 }
 /** What makes compute passes (lists of them) on `renderer`, side by side: a maker for ask. */

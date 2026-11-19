@@ -38,6 +38,7 @@ export function waiting() {
   return out;
 }
 
+import { FADE_FRAMES } from './budget.js';
 let V = null, clock = NaN, frames = 0, still = 0, need = 32, first = null;
 const asks = new Set(), seen = new Float64Array(37), broke = new Set();
 /** A promise: the world complete for the page's first view, and the picture built over time come to rest on it (what
@@ -54,6 +55,17 @@ export const drawn = new Promise((res) => (view = res));
 let SHOWN = false; drawn.then(() => (SHOWN = true));
 /** Whether the first frame has been shown (drawn): what the start does all at once, and the world after it in turn. */
 export const shown = () => SHOWN;
+/** What comes in after the first frame shown, faded in, never on in one frame (2026-11-19, the master: what the first
+    view does not wait for, src/core/compile.js ask's near, fades in as it arrives). set(share) is told its share, 0 …
+    1. arrive(): what it shows is all in (once: again, nothing): behind the veil, at once (nothing is shown yet); else
+    over FADE_FRAMES frames, smoothly (src/core/budget.js). step(): once a frame. */
+export function arriving(set) {
+  let n = -1;   // (frames since it arrived; -1: not yet)
+  return {
+    arrive() { if (n >= 0) return; n = SHOWN ? 0 : FADE_FRAMES; set(n ? 1 : 0); },
+    step() { if (n < 0 || n >= FADE_FRAMES) return; const t = ++n / FADE_FRAMES; set(t * t * (3 - 2 * t)); },
+  };
+}
 
 /** What a frame's view is compared by: the camera, the renderer (its canvas's pixels), the screen (the inside's pixels:
     the governor's ratio), the picture built over time, the shared uniforms (the clock, the detail governor). */
