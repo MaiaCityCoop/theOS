@@ -58,7 +58,7 @@ import { useGround } from './world/rocksolid.js';
 import { showBodies } from './world/bodies.js';
 import { createCity } from './city/index.js';
 import { createLakes } from './world/lakes.js';   // the city's plots over the land, seen from above (world/city.js)
-import { sharePipelines, watchCompiles, compiles, countCompiles, making, ahead } from './core/compile.js';
+import { sharePipelines, watchCompiles, compiles, countCompiles, making, ahead, firstReach } from './core/compile.js';
 import { waitsOn, gpuLost } from './core/waits.js';   // what the start waits for, watched: the veil says what holds it up, or what stopped the page
 import { flag } from './core/flags.js';
 import { FIRST_FRAME, stampDone } from './core/marks.js';   // (the first frame that draws the world, on the page's own timeline)
@@ -140,7 +140,7 @@ export async function boot({ profile = 'world' } = {}) {
   const tex = bakeTextures(renderer, world ? { spare: 1 } : { spare: 8, first: landMaterials() });   // (the library's pictures ask for materials the world may not wear; the start's are compiled side by side and painted while the world is made: tex.ready)
   useTiles(tex);   // node code that reads a baked tile by itself (the clouds' field, the snow's clumps: src/world/tile.js)
   game.screenLight = startLight(renderer, screen);   // the light's start, before any material is built: the backend's reads, the shadow cascades laid out from what casts, the light worked out on the screen (src/world/light/start.js)
-  screen.reach = cascades().half[0];   // (the first view waits for what is drawn within the near cascade's reach; the rest comes after, rising in: src/core/screen.js)
+  firstReach(cascades().half[0]);   // (the first view waits for what is drawn within the near cascade's reach; the rest comes after, rising in: src/core/compile.js nearFrom)
   mark('bake');
   await loadingStep('Raising the land', 0.3);
   // what grows on the land (the ground under the camera and every scattered thing: src/scatter): the world's from the

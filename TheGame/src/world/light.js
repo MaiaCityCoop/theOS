@@ -16,7 +16,7 @@ import { cascades } from './shadow.js';
 import { blueAt } from './light/noise.js';
 import { SUN_DIAMETER } from './light/physics.js';
 import { SCREEN } from './light/screen.js';
-import { skyAlong, glowAlong } from './sky/dome.js';
+import { skyAlong } from './sky/dome.js';
 import { canopyAt, groundColour } from './light/canopy.js';
 
 export { snowDepth, snowCover, snowDrift, snowLift, snowLiftAtVertex, SNOW } from './weather/snow.js';
@@ -30,8 +30,8 @@ export const useBackend = (renderer) => { texelReads = !!renderer?.backend?.isWe
 // air: the far land takes the sky's colour; one height fog for everything, thickest at the ground, thinning upwards
 // (by e every airScale metres), so a line of sight from high up passes through less of it. The weather's fog (its lane) thickens it.
 const airMean = Fn(([h]) => { const k = h.div(max(U.uAirScale, 1)); return k.lessThan(1e-3).select(float(1).sub(k.mul(0.5)), float(1).sub(exp(k.negate())).div(k)); });
-// the air's own light: what the sky shows along the same way (src/world/sky/dome.js: its colour from the horizon up, and
-// its glow round the sun), so the far land melts into the very sky behind it; the more air in the line of sight, the
+// the air's own light: what the sky shows along the same way (src/world/sky/dome.js skyAlong: the air's, its glow round
+// the sun its aerosols'), so the far land melts into the very sky behind it; the more air in the line of sight, the
 // more of it
 /** The air between the eye and w, as its two parts: k, how much of a surface's colour comes through, and col, the air's
     own light: a height fog, its light the sky's along the same way. A material that lights itself per vertex (a tree:
@@ -41,7 +41,7 @@ const airHere = Fn(([w, eye]) => {
   const d = w.sub(eye), dist = length(d), v = normalize(d);
   // (and by where the land is no longer drawn it is all air: from high up the land's end is not an edge against the sky)
   const end = smoothstep(U.uLandEnd.mul(0.55), U.uLandEnd.mul(0.94), dist), k0 = exp(dist.negate().mul(U.uHaze).mul(airMean(U.uAirH)).mul(lane.fog.mul(40).add(1))).mul(float(1).sub(end));
-  return vec4(skyAlong(v).add(glowAlong(v)), k0);
+  return vec4(skyAlong(v), k0);
 });
 export const airOf = (w, eye = U.uCam) => {
   const A = airHere(w, eye), dist = length(w.sub(eye));
