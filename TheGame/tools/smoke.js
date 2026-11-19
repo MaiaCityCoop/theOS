@@ -34,13 +34,16 @@ const pipelinesOf = ({ render, compute }) => {
   const modules = new Set([...[...render].flatMap((p) => p.split('\0')), ...compute]);
   return { render: render.size, compute: compute.size, modules: modules.size, bytes: [...modules].reduce((s, m) => s + Buffer.byteLength(m), 0) };
 };
-const FULL = process.argv.includes('--full');
-// (--full: what grows after it is made, waited for, the characters' figures, flesh and skin; for it what a page has and
-// Bun has not: its frames, and its workers able to import the game's modules, given tools/glob.js first)
-if (FULL) {
+// (the run's mode, decided once: the quick one CI runs, or --full, which waits for what grows after it is made, the
+// characters' figures, flesh and skin, and gives Bun what a page has and it has not for it: its frames, and its workers
+// able to import the game's modules, given tools/glob.js first. Each mode says what it waits for of a thing made, and
+// which unbuilt places it knows, tools/unbuilt.json)
+const MODE = process.argv.includes('--full') ? fullMode() : { grown: () => null, known: (J) => ({ ...J.sites, ...J.full }) };
+function fullMode() {
   globalThis.requestAnimationFrame ??= (f) => setTimeout(() => f(performance.now())); globalThis.cancelAnimationFrame ??= (id) => clearTimeout(id);
   const Real = globalThis.Worker, GLOB = new URL('./glob.js', import.meta.url).pathname;
   globalThis.Worker = class extends Real { constructor(url, o = {}) { super(url, { ...o, preload: [...[o.preload ?? []].flat(), GLOB] }); } };
+  return { grown: (made) => made.grown, known: (J) => ({ ...J.sites }) };
 }
 const M = await mock({ lean: true }), { THREE, renderer } = M;
 // (where each material and compute pass is made: the game's own frames on the stack as three's constructor sets its
@@ -171,7 +174,7 @@ await tryTo('the library', async () => {
   const { materialPreview } = await import('../src/materials/preview.js'), { humanOf } = await import('../characters/kit/human.js'), { personOf, randomAvatar } = await import('../characters/kit/avatar.js');
   for (const m of recipes('material')) { part = `the library: ${m.name}, its ball`; library.add(new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), materialPreview(tex, m.uid, 2))); }
   const people = recipes('character'), settler = people.find((c) => c.uid === '944dc52a-5094-480c-9396-5ceedbbf03b1');
-  const grown = [], stand = (made) => { library.add(made.object); if (FULL && made.grown) grown.push(made.grown.catch((e) => failed.push(`${part}, grown: ${String(e?.message ?? e).slice(0, 300)}`))); };
+  const grown = [], stand = (made) => { library.add(made.object); const g = MODE.grown(made); if (g) grown.push(g.catch((e) => failed.push(`${part}, grown: ${String(e?.message ?? e).slice(0, 300)}`))); };
   for (const c of people) { part = `the library: ${c.name}`; stand(c.make(tex)); }   // (each as its own recipe makes it: a figure, a skeleton, a person; what grows of it after, waited for with --full)
   if (settler) { part = 'the library: a person of one\'s own'; stand(humanOf(tex, personOf(randomAvatar(() => 0.5), settler))); }
   await Promise.all(grown);
@@ -203,7 +206,7 @@ console.error = said;
 // one it knows, said; one it knows now built, said, to be taken out of it)
 if (!SITES.length) failed.push(`the game's code gave no place that makes shaders (git ls-files in ${ROOT}: ${FILES.length} files): nothing was held against what was built`);   // (a census that sees nothing must not pass)
 // (known: the gaps of every run, `sites`; and, but with --full, what only --full builds, `full`: --full must build it)
-const KNOWN = new URL('./unbuilt.json', import.meta.url), J = existsSync(KNOWN) ? JSON.parse(readFileSync(KNOWN, 'utf8')) : {}, unmade = unbuilt(), known = { ...J.sites, ...(FULL ? {} : J.full) }, count = {};
+const KNOWN = new URL('./unbuilt.json', import.meta.url), J = existsSync(KNOWN) ? JSON.parse(readFileSync(KNOWN, 'utf8')) : {}, unmade = unbuilt(), known = MODE.known(J), count = {};
 for (const u of unmade) count[u.at] = (count[u.at] ?? 0) + 1;
 for (const [at, n] of Object.entries(count)) if (n > (known[at] ?? 0)) failed.push(`what the game makes at ${at} the smoke never builds (${n} place${n > 1 ? 's' : ''}: ${unmade.filter((u) => u.at === at).map((u) => `line ${u.line}`).join(', ')}), so the gate never compiles it: make it here, or name it in tools/unbuilt.json with why`);
 const closed = Object.entries(known).filter(([at, n]) => (count[at] ?? 0) < n).map(([at]) => at), fullOnly = Object.keys(count).filter((at) => J.full?.[at]);
