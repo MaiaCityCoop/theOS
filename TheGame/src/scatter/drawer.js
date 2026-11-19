@@ -83,6 +83,7 @@ import { createCut, clusterOf, levelHead, allowedAt, eased, ruleOf } from './cut
 import { MARGIN } from './regions.js';
 import { camDist } from '../world/land.nodes.js';
 import { surfaceBand, BAND, GONE, dialPx } from '../detail/error.js';
+import { castsInto } from '../world/shadow.js';
 
 const GROW = 1.5, SKIN = 128, SKINPX = 28, SINK = BAND, LOOK = 24;   // GROW: seconds a level that came late takes to grow out of the coarser one; SKIN: a kind's own texture, pixels a side; SKINPX: the size on screen from which a thing wears it (the stress world's zoo: 8b); SINK: the BAND a dot sinks away over, from its level's lo up to where it is gone (the one hand-over, src/detail/error.js); LOOK: a kind's look, numbers (six rows of four)
 // a make's levels: a kind a draw up to BYKIND kinds, else by the size of their meshes (classOf: the power of two of
@@ -356,7 +357,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
           tOf = (time) => float(1).sub(whole).mul(SMOOTH).mul(max(morphs.mul(float(1).sub(smoothstep(lo, top, q))), float(1).sub(smoothstep(0, GROW, sinceCame(R, time)))));
           el = null; D = delta;
         }
-        If(ok, () => {
+        If(ok.and(castsInto(vec3(A.x, A.z.add(A.w.mul(0.5)), A.y), A.w)), () => {   // (in the shadow pass, only what can cast into the map: src/world/shadow.js)
           const t = tOf(U.uTime).toVar();
           const v = solidOf((el ? H.elems.element(R.y.add(el)) : shared ? H.elems.element(R.y.add(vertexIndex)) : heapElem(H, R, vertexIndex)).toVar(), t, D, STILL), { turn } = turnOf(B.x);
           const p0 = vec3(v.p).toVar(), n0 = vec3(v.n).toVar(), P = vec3(p0).toVar(), N = vec3(n0).toVar();
