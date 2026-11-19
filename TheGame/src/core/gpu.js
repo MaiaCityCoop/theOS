@@ -159,7 +159,7 @@ function own(cls, name, owns) {
   for (const o of owns.flat()) {
     if (!o) continue;
     const ts = o.isRenderTarget ? [...o.textures.map((t, k) => [t, o.textures.length > 1 ? `${label} (${t.name || k})` : label]), ...(o.depthTexture ? [[o.depthTexture, `${label} (depth)`]] : [])] : o.isTexture ? [[o, label]] : [];
-    for (const [t, l] of ts) { OWNS.set(t, { label: l, cls: to }); const g = R?.backend.get(t)?.texture; if (g) relabel(g, l, to); }
+    for (const [t, l] of ts) { OWNS.set(t, { label: l, cls: to }); const g = R?.backend.has(t) ? R.backend.get(t).texture : null; if (g) relabel(g, l, to); }   // (has: three's data is never made before three makes it)
   }
 }
 /** A made texture called `label` and counted under class cls (own): its bytes moved there in the tally. */
