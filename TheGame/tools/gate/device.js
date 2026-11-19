@@ -272,28 +272,30 @@ export function lines(d) {
 /** A submission as the board says it (watch: held): its own time, how late its done may have been heard, when, and what
     it held: what was written before it, each pipeline with its draws and instances or its dispatches and workgroups,
     where its pass began. */
-export const submission = (h) => `${h.ms} ms${h.late ? ` (its done heard up to ${h.late} ms late: the page's thread was busy)` : ''}, ${(h.at / 1e3).toFixed(1)} s in, ${h.passes} pass${h.passes === 1 ? '' : 'es'}${h.up?.writes ? `, ${h.up.bytes < 1048576 ? `${Math.ceil(h.up.bytes / 1024)} KB` : `${(h.up.bytes / 1048576).toFixed(1)} MB`} written before it in ${h.up.writes} write${h.up.writes === 1 ? '' : 's'}` : ''}: ${h.what.join('; ') || 'no draw or dispatch'}`;
+export const submission = (h) => `${h.ms} ms${h.gpu != null ? ` (${h.gpu} ms of it on the GPU, by its timestamps)` : ''}${h.late ? ` (its done heard up to ${h.late} ms late: the page's thread was busy)` : ''}, ${(h.at / 1e3).toFixed(1)} s in, ${h.passes} pass${h.passes === 1 ? '' : 'es'}${h.up?.writes ? `, ${h.up.bytes < 1048576 ? `${Math.ceil(h.up.bytes / 1024)} KB` : `${(h.up.bytes / 1048576).toFixed(1)} MB`} written before it in ${h.up.writes} write${h.up.writes === 1 ? '' : 's'}` : ''}: ${h.what.join('; ') || 'no draw or dispatch'}`;
 /** The submissions as the board says them (r: the device's run, or a world's walk: what watch kept): the longest with what
     it held, how many were over SUBMIT_MS (how many surely, however late heard), and the next worst with what each held. */
 export const submissions = (r) => `the longest ${r.long ? submission(r.long) : `${r.longest ?? 0} ms`}${r.slow == null ? '' : r.slowN ? `; **${r.slowN} over ${SUBMIT_MS} ms** (budget.js SUBMIT_MS; ${r.sure} surely, however late heard)${r.slow.length > 1 ? `, the next worst: ${r.slow.slice(1, 3).map(submission).join(' | ')}` : ''}` : `; none over ${SUBMIT_MS} ms`}`;
 /** The hour's rule on its submissions (R: the hour's run; was: the last measured hour's run, or null), the device's run
-    and each world's walk alike: it fails where a submission was surely (however late its done was heard) within the
-    watchdog's reach (WATCHDOG_MS: a lost device waiting to happen), or where more were surely over SUBMIT_MS than in the
-    last measured hour (a ratchet, down to none). A part not measured, or measured before the count was kept, holds
-    nothing. { pass, fails, line (the board's) }. */
+    and each world's walk alike: it fails where a submission's own time on the GPU, as the GPU's own timestamps tell it
+    (gpu: ms), was within the watchdog's reach (WATCHDOG_MS: a lost device waiting to happen), or where more were surely
+    over SUBMIT_MS than in the last measured hour (a ratchet, down to none). A done heard on the page's thread cannot tell
+    a stall of that thread from the GPU's work (2026-11-19: the ground's pieces, well under a millisecond each, heard 231
+    and 461 ms late frame after frame), so one within the reach with no timestamps is said, unproven, and fails nothing.
+    A part not measured, or measured before the count was kept, holds nothing. { pass, fails, unproven, line }. */
 export function submitRule(R, was = null) {
   const parts = (X) => ({ 'the device': X?.device, ...Object.fromEntries(Object.entries(X?.walks ?? {}).map(([w, r]) => [`the walk, ${w}`, r])) });
-  const now = parts(R), then = parts(was), fails = [], counts = [];
+  const now = parts(R), then = parts(was), fails = [], counts = [], unproven = [];
   for (const [k, r] of Object.entries(now)) {
     if (r?.sure == null) continue;
-    for (const h of (r.slow ?? []).filter((x) => x.ms - x.late >= WATCHDOG_MS)) fails.push(`${k}: a submission surely within the watchdog's reach (${WATCHDOG_MS} ms): ${submission(h)}`);
+    for (const h of (r.slow ?? []).filter((x) => x.ms - x.late >= WATCHDOG_MS)) (h.gpu != null ? (h.gpu >= WATCHDOG_MS ? fails : []) : unproven).push(`${k}: a submission ${h.gpu != null ? `of ${h.gpu} ms on the GPU` : 'heard'} within the watchdog's reach (${WATCHDOG_MS} ms): ${submission(h)}`);
     const b = then[k]?.sure;
     if (b != null && r.sure > b) fails.push(`${k}: ${r.sure} submissions surely over ${SUBMIT_MS} ms, more than the last measured hour's ${b}`);
     counts.push(`${k} ${r.sure}${b != null ? ` (${b})` : ''}`);
   }
   const line = !counts.length ? `The submissions' rule: nothing measured to hold.`
-    : `The submissions' rule (budget.js: none surely within the watchdog's reach, ${WATCHDOG_MS} ms; no more surely over ${SUBMIT_MS} ms than the hour before): ${fails.length ? '**not met**' : 'met'}. Surely over ${SUBMIT_MS} ms: ${counts.join(', ')}${was ? ` (in brackets: the last measured hour, ${was.tag})` : ' (no measured hour before it to hold it against)'}${fails.length ? `. ${fails.join('; ')}` : ''}.`;
-  return { pass: !fails.length, fails, line };
+    : `The submissions' rule (budget.js: none surely within the watchdog's reach, ${WATCHDOG_MS} ms; no more surely over ${SUBMIT_MS} ms than the hour before): ${fails.length ? '**not met**' : 'met'}. Surely over ${SUBMIT_MS} ms: ${counts.join(', ')}${was ? ` (in brackets: the last measured hour, ${was.tag})` : ' (no measured hour before it to hold it against)'}${fails.length ? `. ${fails.join('; ')}` : ''}${unproven.length ? `. Unproven (no GPU timestamps: a done heard late may be the page's thread, not the GPU): ${unproven.join('; ')}` : ''}.`;
+  return { pass: !fails.length, fails, unproven, line };
 }
 /** The frames as the board says them (F: window.__game.frames(), src/core/frames.js; since: from when): how many, how
     many longer than TASK_MS, and the slowest with where its time went on the page's thread: its parts, largest first,
