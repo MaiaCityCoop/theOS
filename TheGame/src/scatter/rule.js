@@ -364,11 +364,11 @@ function influenceAt(p, L, M) {
 export function placeIn(c, L, M, pos) {
   const h0 = hashesOf(L), rank = rankOf(c, rnd(c.x, c.y, h0(300))).toVar(), k = int(-1).toVar(), I = vec4(0).toVar();
   const bios = biomesIn(L), top = Math.max(...bios.map((b) => L.entries.filter((e) => e.biome === b).reduce((s, e) => s + e.most, 0)));   // (the most its things stack to in one of its biomes)
-  const clump = (b) => groveAt(pos, grovesOf(b, L));   // (0 … 1.6: thick in its groves, open in its glades)
-  const coarse = bios.map((b) => (b.river ? float(1) : shareOf(b, { p: pos, dist: float(0), d: float(1e5), w: float(1), b: float(0) })).mul(clump(b))).reduce((a, x) => max(a, x));
+  const groves = bios.map((b) => groveAt(pos, grovesOf(b, L)).toVar());   // (0 … 1.6: thick in its groves, open in its glades; once, for the cheap test and the share)
+  const coarse = bios.map((b, j) => (b.river ? float(1) : shareAt(b)(pos, float(1e5), float(1), float(0))).mul(groves[j])).reduce((a, x) => max(a, x));
   If(rank.lessThan(coarse.mul(top)), () => {
     I.assign(riverInfo(pos));
-    const F = influenceAt(pos, L, M), A = placeAt(L, pos, { p: pos, dist: float(0), d: abs(I.x), w: I.y, b: I.z }, F), D = float(0).toVar();
+    const d = abs(I.x), F = influenceAt(pos, L, M), A = placeAt(L, pos, { p: pos, dist: float(0), d, w: I.y, b: I.z }, F, { groves, share: (b) => shareAt(b)(pos, d, I.y, I.z) }), D = float(0).toVar();
     Loop({ start: int(0), end: placerOf(L).count, type: 'int', condition: '<' }, ({ i }) => {
       D.addAssign(densIn(A, rowOf(L, i)));
       If(rank.lessThan(D), () => { k.assign(i); Break(); });
@@ -380,13 +380,24 @@ export function placeIn(c, L, M, pos) {
 }
 /** What the rule reads at pos once for all of layer L's entries (densIn): each of its biomes' share there (ctx: the
     place as the biomes read it, the river with it) in its groves, off the places kept clear; each of its lead groups'
-    slow noise; the lakes (where any of its entries keeps to them); the river's shore; F (influenceAt). */
-function placeAt(L, pos, ctx, F) {
+    slow noise; the lakes (where any of its entries keeps to them); the river's shore; F (influenceAt). The placer's
+    (placeIn): its groves, worked out for its cheap test, and its biomes' shares as functions (shareAt). */
+function placeAt(L, pos, ctx, F, { groves = null, share = (b) => shareOf(b, ctx) } = {}) {
   const clear = clearAt(pos).toVar();
   return { F, s: () => ctx.d.div(ctx.w), near: L.entries.some((e) => e.lakes) ? nearLake(pos).toVar() : null,
-    shares: biomesIn(L).map((b) => shareOf(b, ctx).mul(groveAt(pos, grovesOf(b, L))).mul(clear).toVar()),
+    shares: biomesIn(L).map((b, j) => share(b).mul(groves ? groves[j] : groveAt(pos, grovesOf(b, L))).mul(clear).toVar()),
     leads: leadersIn(L).map((g) => leadAt(pos, grovesOf(g.biome, L)).mul(0.7).add(0.15).toVar()) };
 }
+/** Biome bio's share at p as the placer reads it (shareOf: its rule, placed; d, w, b: the river there), a function of
+    its own, written once in each placer's code however often it is asked (the cheap test and the share: each biome's
+    rule was written out twice). The sandbox's uniform is handed to it (sand: uSand), as a function may not name one:
+    three writes a function's code once, in the first shader that calls it, and every later shader takes that text. */
+const SHARES = new Map();
+const shareAt = (bio) => {
+  if (!SHARES.has(bio)) SHARES.set(bio, Fn(([p, d, w, b, sand]) => shareOf(bio, { p, dist: float(0), d, w, b, sand })).setLayout({ name: `share${SHARES.size}`, type: 'float', inputs: [{ name: 'p', type: 'vec2' }, { name: 'd', type: 'float' }, { name: 'w', type: 'float' }, { name: 'b', type: 'float' }, { name: 'sand', type: 'vec4' }] }));
+  const f = SHARES.get(bio);
+  return (p, d, w, b) => f(p, d, w, b, U.uSand);
+};
 /** One of a few nodes by its place (i: a number, that one; a node, the one it says). */
 const pick = (list, i) => (typeof i === 'number' ? list[i] : list.reduce((acc, x, j) => (j ? int(i).equal(j).select(x, acc) : x), null));
 /** f() where c holds, g() where not: c a boolean (the code holds only the one) or a node (a select). */
