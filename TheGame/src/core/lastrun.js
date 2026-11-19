@@ -2,10 +2,12 @@
 // kills a tab that holds too much and loads it again. So from the moment the world is ready the page keeps a small note
 // of where it stands, about once a second, on the device and nowhere else (localStorage): the seconds since it was
 // ready, what the GPU holds (the ledger's total and its largest class, the HUD's own figures: src/core/gpu.js), the
-// device's class as its adapter said it (adapterOf: who made it, its largest buffer), the frames drawn since, and the
-// last error the page met. A run that ends as a page ends (pagehide, or put away: visibilitychange) clears it; one that
+// device's class as its adapter said it (adapterOf: who made it, its largest buffer), the budget the game holds itself
+// to on it (wholeBudget, MB), the build it runs (its short id, as the page shows it: vite.config.js version), the
+// frames drawn since, how many makes wait for memory (src/core/compile.js), and the last error the page met. A run that ends as a page ends (pagehide, or put away: visibilitychange) clears it; one that
 // is killed leaves it, and the next start says it once, on the veil under its line and in the console, then lets it go.
-import { ledger, adapterOf } from './gpu.js';
+import { ledger, adapterOf, wholeBudget } from './gpu.js';
+import { waitingOnMemory } from './compile.js';
 
 const KEY = 'maia-last-run';
 let error = null;   // (the last error the page met, a line of it)
@@ -21,16 +23,18 @@ export function lastRunLine() {
   if (!n) return null;
   const gb = (mb) => (mb / 1024).toFixed(2), gib = (b) => (b / 2 ** 30).toFixed(2), A = n.adapter;
   const on = A ? `, on ${A.vendor ? `${/^[aeiou]/i.test(A.vendor) ? 'an' : 'a'} ${A.vendor}` : 'a'} GPU of ${gib(A.buffer)} GiB` : '';
-  const line = `Last start closed ${n.s.toFixed(1)} s after it was ready, holding ${gb(n.gpu)} GB${n.top ? ` (${n.top[0]} ${gb(n.top[1])})` : ''}${on}, ${n.frames} frames drawn${n.error ? `; its last error: ${n.error}` : ''}.`;
+  const line = `Last start closed ${n.s.toFixed(1)} s after it was ready, holding ${gb(n.gpu)} GB${n.top ? ` (${n.top[0]} ${gb(n.top[1])})` : ''}${on}${n.budget ? `, budget ${n.budget} MB` : ''}${n.build ? `, build ${n.build}` : ''}, ${n.frames} frames drawn${n.waiting ? `, ${n.waiting} make${n.waiting > 1 ? 's' : ''} waiting on memory` : ''}${n.error ? `; its last error: ${n.error}` : ''}.`;
   console.warn(`[the last start] ${line}`, n);
   return line;
 }
 /** From the moment the world is ready (at: performance.now() then): the note kept about once a second, and let go as
     the page ends (kept again if it is shown again). frames(): how many frames it has drawn since. */
 export function keepRun(at, frames) {
+  // (the build: its short id, as the page shows it at its top right: vite.config.js version; the dev server's "dev")
+  const build = document.getElementById('os-build')?.textContent.trim().split(/\s/)[0] || null;
   const note = () => {
     const L = ledger(), top = Object.entries(L.classes).sort((x, y) => y[1].gpu - x[1].gpu)[0], A = adapterOf();
-    write({ s: (performance.now() - at) / 1000, gpu: L.gpu, top: top?.[1].gpu > 0 ? [top[0], top[1].gpu] : null, adapter: A && { vendor: A.vendor, architecture: A.architecture, buffer: A.maxBufferSize }, frames: frames(), error });
+    write({ s: (performance.now() - at) / 1000, gpu: L.gpu, top: top?.[1].gpu > 0 ? [top[0], top[1].gpu] : null, adapter: A && { vendor: A.vendor, architecture: A.architecture, buffer: A.maxBufferSize }, budget: Math.round(wholeBudget()), build, frames: frames(), waiting: waitingOnMemory(), error });
   };
   let timer = 0;
   const go = () => { note(); timer ||= setInterval(note, 1000); }, end = () => { clearInterval(timer); timer = 0; write(null); };

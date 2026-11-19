@@ -23,7 +23,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, If, vec2, vec3, vec4, uv, float, uint, uvec2, uvec4, ivec2, uniform, sqrt, clamp, normalize, texture, textureLoad, property, outputStruct, instancedArray, instanceIndex, min, max, dot, round, select, uniformArray, int, renderGroup } from 'three/tsl';
 import { recipes, manifest } from '../core/registry.js';
-import { note, makeOwned, budgetOf } from '../core/gpu.js';
+import { note, makeOwned, budgetOf, budgetShare } from '../core/gpu.js';
 import { BUDGET_MB } from '../core/budget.js';
 import { compileFor, inTurn } from '../core/compile.js';
 import { source, ready as settled } from '../core/settle.js';
@@ -215,7 +215,7 @@ function storeOf(renderer, textures, packed, keepWhen, pool) {
     } catch (e) { toKeep.length = 0; console.warn('[textures] what was painted is not kept (Cache Storage refused it): painted again next time', e); }
     keeping = null;
   };
-  return { laidOut, read, kept: () => keeping ?? Promise.resolve(), keepLater: (jobs) => { if (!packed) return; toKeep.push(...jobs); keeping ||= (keepWhen ?? settled).then(keepAll); } };
+  return { laidOut, read, kept: () => keeping ?? Promise.resolve(), keepLater: (jobs) => { if (!packed || budgetShare() < 1) return; toKeep.push(...jobs); keeping ||= (keepWhen ?? settled).then(keepAll); } };   // (nothing kept where the budget is less than the Mac's, a phone's: the layers read back after the start are memory the page holds, until the keeping is paced a layer a frame)
 }
 
 /** The world's textures. Returns how to read them (each a node, as any texture's: with .grad(dx, dy), .level()):

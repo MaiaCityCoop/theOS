@@ -41,6 +41,15 @@ export const OUTPUT = { width: 1920, height: 1080 };
     its browser gives the game a window of it. unit: CSS pixels, and device pixels a CSS pixel. source: Samuel's MacBook
     (8 GB, 2026-11-19: WebKit's GPU process died there 38 s past the start, the device lost) */
 export const MACHINE = { width: 1512, height: 945, dpr: 2 };
+/** The cores of the machine the gate is for (MACHINE), as its browser tells a page (navigator.hardwareConcurrency; WebKit
+    says no more than 8 on a Mac, 2 on an iPhone): what the start's worker pools are sized from, no device's from more
+    (src/core/workers.js poolSize). unit: cores. source: Samuel's MacBook (Apple M1, 8 cores: sysctl hw.ncpu, 2026-11-19) */
+export const MACHINE_CORES = 8;
+/** The cores a start keeps busy beside its workers: the page's own thread and the GPU process's. The rest its worker
+    pools share (src/core/workers.js poolSize: on the Mac 3 a pool, the recipes' and the impostors'). unit: cores. source:
+    the impostors' pool as it was (cores less 2, src/detail/impostor.js); the master, 2026-11-19 ("the Mac stays at its 3
+    and 3; a 0.375 device gets 1 each") */
+export const BUSY_CORES = 2;
 /** The 12 ms a frame shared out by the frame's classes: what a class's passes may take, the gate's ceilings start from
     it (tools/gate/ceilings.js). The upscale's is its floor: its bytes alone at a 4K output took about 1.9 ms (#86).
     'other', a pass no class names, is the slack. unit: ms. source: Intents/0038, Build (the bench pass by pass; the
