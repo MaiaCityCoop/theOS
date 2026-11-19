@@ -26,6 +26,23 @@ import { MiB } from './physics.js';
 import { passBegins, timesOn } from './pace.js';
 import { pass as framePass } from './frames.js';
 
+// ---- a compute pass called by its maker ----
+// three calls a compute pipeline by its node's name (computePipeline_compute_<name>); one made without a name is just
+// "computePipeline_compute", and a trace of the GPU's own time names none of them (2026-11-19: a submission of 2 s in
+// WebKit after the first view, one dispatch of 256 workgroups, called so). So every compute node is called, as it is
+// made, by where it was made (its file and line, the first frame of the game's own: the ledger calls a buffer by its
+// maker so), and one given a name of its own keeps that. (Node's constructor sets the name: the setter sees it made.)
+const MAKER = new WeakMap(), AT = /(?:TheGame\/|\/\/[^/]+\/)(src\/[^?:)\s]+)(?:\?[^:)\s]*)?:(\d+)/;   // (a file of the game's own: from its address's root, or its path's TheGame/)
+const makerOf = () => {
+  const was = Error.stackTraceLimit; Error.stackTraceLimit = 64;   // (three's own frames before the maker's: its constructors, its kernel, its chaining)
+  try { for (const l of (new Error().stack ?? '').split('\n').slice(2)) { const m = !l.includes('node_modules') && l.match(AT); if (m && m[1] !== 'src/core/gpu.js') return `${m[1]}:${m[2]}`; } return ''; } finally { Error.stackTraceLimit = was; }
+};
+Object.defineProperty(THREE.ComputeNode.prototype, 'name', {
+  configurable: true,
+  get() { const M = MAKER.get(this); return M ? M.own || M.at : ''; },
+  set(v) { const M = MAKER.get(this); if (M) M.own = v; else MAKER.set(this, { at: makerOf(), own: v }); },
+});
+
 const HELD = new Map(), MB = MiB, PEAK = Object.fromEntries(CLASS_NAMES.map((c) => [c, 0])), OVER = new Map(), WHOLE = 'the whole GPU';
 let peakAll = 0;
 if (Object.values(BUDGET_MB).reduce((s, b) => s + b, 0) !== GPU_MB) throw new Error(`src/core/budget.js: the classes' budgets (BUDGET_MB) share out the GPU's whole (GPU_MB, ${GPU_MB} MB), so they add up to it`);
