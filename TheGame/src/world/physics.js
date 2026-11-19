@@ -29,3 +29,9 @@ export const STATURE = { man: { mean: 1.756, sd: 0.069 }, woman: { mean: 1.629, 
     on the function of the shoulder joint" (Journal of Bone and Joint Surgery 26): two parts in the socket to one of
     the girdle, over the arm's raise. */
 export const SHOULDER_RHYTHM = 1 / 3;
+
+/** What a surface of skin mirrors of the light that meets it head on. The Body's skin is drawn by it
+    (characters/kit/skin/light.js). unit: a share of the light, 0 … 1. source: an index of refraction of 1.4, of which
+    2.8 % follows; the figure every skin shader holds (Jimenez's SeparableSSS demo, Unity HDRP's diffusion profile, GPU
+    Gems 3 ch. 14). */
+export const SKIN_F0 = 0.028;

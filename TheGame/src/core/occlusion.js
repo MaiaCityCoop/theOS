@@ -41,7 +41,7 @@ import { Fn, If, Loop, float, int, uint, vec2, vec3, vec4, uvec4, ivec2, uniform
 import { gpuStorageLater, more, limitOf, roomOf, bytesOf, remade } from './gpu.js';
 import { passOf } from './pass.js';
 import { windStrength, snowDepth } from '../world/light.js';
-import { made, sameAs } from './compile.js';
+import { made, sameAs, ready, computeMaker } from './compile.js';
 import { outputRatio } from './output.js';
 
 const WG = 64, SW = 256, EPS = 2 ** -21;   // EPS: how much farther than the pyramid a box must be to be hidden (a few steps of a 24-bit depth); SW: the scans' workgroup
@@ -250,7 +250,7 @@ function arena() {
       acc.addAssign(s.all);
       workgroupBarrier();
     });
-    If(t.equal(uint(0)), () => { set(uG, C1, acc); sizeTo(D1, acc); });
+    If(t.equal(uint(0)), () => { const all = acc.min(uNC); set(uG, C1, all); sizeTo(D1, all); });   // (never more chunks than the arena has room for: uNC)
   })().compute(SW, [SW]);
   // pass one: what is out of view dropped; what the last frame's pyramid does not hide drawn; the rest held back
   const oneTest = Fn(() => {
@@ -298,7 +298,7 @@ function arena() {
       acc.addAssign(s.all);
       workgroupBarrier();
     });
-    If(t.equal(uint(0)), () => { set(uG, C2, acc); sizeTo(D2, acc); });
+    If(t.equal(uint(0)), () => { const all = acc.min(uNC); set(uG, C2, all); sizeTo(D2, all); });   // (as pass one's: uNC)
   })().compute(SW, [SW]);
   const oneWrite = Fn(() => {
     A.build();
@@ -335,7 +335,7 @@ function arena() {
     If(w.lessThan(at(uG, C2)).and(isSet(m0, m1, lid)), () => { LIST.element(base.add(at(g, N1)).add(CH.element(c.add(uint(2))).sub(CH.element(s0.add(uint(2))))).add(below(m0, m1, lid))).assign(LIST.element(uN.add(base).add(j))); });
   })().compute(MANY, [WG]);
   twoWrite.dispatchSize = d2;
-  Object.assign(A, { early: [prep, oneTest, oneScan, oneWrite], late: [twoTest, twoScan, twoWrite], BOX, LIST, BK, at, eye, on, debug: { bk, d1, d2, get lists() { return lists.attr; }, get chunks() { return chunks.attr; }, get boxes() { return boxes.attr; } } });
+  Object.assign(A, { early: [prep, oneTest, oneScan, oneWrite], late: [twoTest, twoScan, twoWrite], passes: [prep, oneTest, oneScan, oneWrite, twoTest, twoScan, twoWrite], BOX, LIST, BK, at, eye, on, debug: { bk, d1, d2, get lists() { return lists.attr; }, get chunks() { return chunks.attr; }, get boxes() { return boxes.attr; } } });
   ARENAS.push(A);
   return A;
 }
@@ -375,7 +375,10 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, off
     A.build();
     const run = uint(0).toVar();
     for (let k = 0; k < K; k++) {
-      const g = uG0.add(uint(k)), n = (offAt ? atomicLoad(count.element(k)) : atomicLoad(count.element(k)).min(A.at(g, CAP))).toVar();
+      // (no more than its room: a bucket's own (CAP), or a resident tier's buckets together no more than its region (uHalf),
+      // whatever its count says: a count read before its packing has run, or past what its store holds, would have the
+      // culling dispatch for things that are not there (2026-11-19: a 410 ms pass one at the start, on Samuel's MacBook))
+      const g = uG0.add(uint(k)), n = (offAt ? atomicLoad(count.element(k)).min(uHalf.sub(run)) : atomicLoad(count.element(k)).min(A.at(g, CAP))).toVar();
       if (offAt) { A.at(g, BASE).assign(uBase.add(offAt(uint(k)).mod(uHalf))); A.at(g, CAP).assign(n); }   // (its place in the arena, folded: regionOf)
       F.element(k * 5 + 1).assign(n); A.at(g, PACK).assign(n); A.at(g, PRE).assign(run); run.addAssign(n);
       if (also) also(k);   // (what its tier writes beside, a draw at a time)
@@ -460,6 +463,9 @@ export const occlusion = {
     const list = [];
     for (const A of ARENAS) {
       A.any = false;
+      // (its passes made first: until they are, its tiers are drawn as they packed, none culled, src/core/compile.js. An
+      // arena made after the start, for tiers that came later, compiled its passes as it was first culled, in the frame)
+      if (!ready(A.passes, 'run', computeMaker(renderer), 'the culling')) continue;
       for (const t of A.tiers) { t.T.drawn = t.T.n > 0 && inScene(t.T.mesh, scene); A.any ||= t.T.drawn; }
       if (!A.any) continue;
       A.build();
