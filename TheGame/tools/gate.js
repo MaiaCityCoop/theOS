@@ -671,17 +671,18 @@ async function walks(chrome) {
       await P.page.evaluate(() => { window.__cine.dof = false; }); await P.page.evaluate(course, p);
       const g = await P.page.evaluate(settled, { wait: WAIT, at: `the walk's start, ${world}`, keep: KEEP.on });
       if (g.settled === false) { out[world] = { notSettled: g.said }; continue; }
-      const r = told(await P.page.evaluate(ride, { fly: false, limit: 20e3 })), d = await P.page.evaluate(() => window.__device);
-      out[world] = { ...r, longest: Math.round(d?.longest ?? 0), long: d?.long ?? null, slow: d?.slow ?? [], slowN: d?.slowN ?? 0, sure: d?.sure ?? 0 };
+      await P.page.evaluate(() => window.__game?.frames?.());   // (the frames of the walk alone: src/core/frames.js)
+      const r = told(await P.page.evaluate(ride, { fly: false, limit: 20e3 })), d = await P.page.evaluate(() => window.__device), frames = await P.page.evaluate(() => window.__game?.frames?.() ?? null);
+      out[world] = { ...r, longest: Math.round(d?.longest ?? 0), long: d?.long ?? null, slow: d?.slow ?? [], slowN: d?.slowN ?? 0, sure: d?.sure ?? 0, frames };
     } finally { said(P.errors); await P.close(); }
   }
-  console.log(`  ${walkLines(out, D.submissions).join('\n  ').replace(/\*\*/g, '')}`);
+  console.log(`  ${walkLines(out, D).join('\n  ').replace(/\*\*/g, '')}`);
   return out;
 }
-/** The walk's lines on the board: each world's frames and GPU against 60 fps and BUDGET, its hitches, its submissions
-    (said: tools/gate/device.js submissions). */
-const walkLines = (W, said) => Object.entries(W ?? {}).map(([w, r]) => (r.notSettled ? `The walk, ${w}: not settled (${String(r.notSettled).slice(0, 160)}).`
-  : `The walk, ${w}: frames p50 ${f(r.frame?.median, 1).trim()} ms, p99 ${f(r.frame?.p99, 1).trim()} ms (60 fps: ${FRAME.toFixed(1)}); GPU p50 ${f(r.gpu?.median, 2).trim()} ms, p99 ${f(r.gpu?.p99, 2).trim()} ms (budget ${BUDGET}); ${r.frame?.hitches ?? 0} hitches over ${(2 * FRAME).toFixed(0)} ms; submissions from the page's start, ${said(r)}.`));
+/** The walk's lines on the board: each world's frames and GPU against 60 fps and BUDGET, its hitches, its submissions,
+    and its slowest frames with their parts (D: tools/gate/device.js, which says them). */
+const walkLines = (W, D) => Object.entries(W ?? {}).map(([w, r]) => (r.notSettled ? `The walk, ${w}: not settled (${String(r.notSettled).slice(0, 160)}).`
+  : `The walk, ${w}: frames p50 ${f(r.frame?.median, 1).trim()} ms, p99 ${f(r.frame?.p99, 1).trim()} ms (60 fps: ${FRAME.toFixed(1)}); GPU p50 ${f(r.gpu?.median, 2).trim()} ms, p99 ${f(r.gpu?.p99, 2).trim()} ms (budget ${BUDGET}); ${r.frame?.hitches ?? 0} hitches over ${(2 * FRAME).toFixed(0)} ms; submissions from the page's start, ${D.submissions(r)}.${'frames' in r ? ` ${D.framesLine(r.frames, 'of the walk')}` : ''}`));
 /** The hour's measure of main (ship-first: a PR merges when its CI is green, main is measured once an hour, and what
     got worse goes back as work): one run under the GPU lock taken once (tools/gpu/lock.js), at the output (OUTPUT): the
     GPU smoke (smoke), the stills and ?truth at HOURLY's views and FLIP between them, the bench twice by class and pass
@@ -735,7 +736,7 @@ async function measuresOf(R, H, mem) {
     ...(await import('./gate/device.js')).lines(R.device), '',
     S?.settled === false ? `**The start did not settle** in ${(S.ms / 1000).toFixed(0)} s: ${String(S.said).slice(0, 300)}` : `The start settled in ${((S?.ms ?? 0) / 1000).toFixed(1)} s.`,
     out.length ? `Not settled, so not measured: ${out.join(', ')}.` : 'Every view and path settled.', '',
-    ...walkLines(R.walks, (await import('./gate/device.js')).submissions), '', H ? H.text : `The first hour kept: nothing before it to hold it against.`, '',
+    ...walkLines(R.walks, await import('./gate/device.js')), '', H ? H.text : `The first hour kept: nothing before it to hold it against.`, '',
     ...(await import('./gate/ceilings.js')).board(R.bench?.ceilings)];
 }
 async function all(opt) {

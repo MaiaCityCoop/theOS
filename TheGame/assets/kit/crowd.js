@@ -103,23 +103,40 @@ const SIDES = [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [1, -1, 0], [1, 0, 1]
     triangle stops (by its first corner: a number a vertex), F the frame { c, r } the pictures are taken in, R their
     pixels a side. */
 function coverOf(P, n, I, stop, F, R) {
-  const k = R / (2 * F.r), T = new Float32Array(R * R), X = new Float32Array(n), Y = new Float32Array(n), [cx, cy, cz] = F.c; let sum = 0;
-  for (const [ux, uy, uz, vx, vy, vz] of SIDES) {
-    T.fill(1);
-    for (let i = 0, p = 0; i < n; i++, p += 3) { const x = P[p] - cx, y = P[p + 1] - cy, z = P[p + 2] - cz; X[i] = (x * ux + y * uy + z * uz + F.r) * k - 0.5; Y[i] = (x * vx + y * vy + z * vz + F.r) * k - 0.5; }
-    for (let t = 0; t < I.length; t += 3) {
-      const a = I[t], b = I[t + 1], c = I[t + 2], X0 = X[a], Y0 = Y[a], X1 = X[b], Y1 = Y[b], X2 = X[c], Y2 = Y[c];
-      const x0 = max(0, ceil(min(X0, X1, X2))), x1 = min(R - 1, floor(max(X0, X1, X2))), y0 = max(0, ceil(min(Y0, Y1, Y2))), y1 = min(R - 1, floor(max(Y0, Y1, Y2)));
-      if (x1 < x0 || y1 < y0) continue;   // (no pixel's middle in it: most twigs)
-      const keep = 1 - stop[a], ax = X1 - X0, ay = Y1 - Y0, bx = X2 - X1, by = Y2 - Y1, gx = X0 - X2, gy = Y0 - Y2;
-      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-        const e0 = ax * (y - Y0) - ay * (x - X0), e1 = bx * (y - Y1) - by * (x - X1), e2 = gx * (y - Y2) - gy * (x - X2);
-        if ((e0 >= 0 && e1 >= 0 && e2 >= 0) || (e0 <= 0 && e1 <= 0 && e2 <= 0)) T[y * R + x] *= keep;
-      }
-    }
-    for (let i = 0; i < T.length; i++) sum += 1 - T[i];
-  }
+  const T = new Float32Array(R * R), X = new Float32Array(n), Y = new Float32Array(n); let sum = 0;
+  for (const side of SIDES) { pictureOf(P, n, I, stop, F, R, side, T, X, Y); for (let i = 0; i < T.length; i++) sum += 1 - T[i]; }
   return sum / (SIDES.length * R * R);
+}
+/** One of its pictures (coverOf's): what of the light gets through each of its R × R pixels (into T), seen from `side`
+    (SIDES: its two axes), in the frame F. X, Y: room for its vertices' places in it. */
+function pictureOf(P, n, I, stop, F, R, [ux, uy, uz, vx, vy, vz], T, X = new Float32Array(n), Y = new Float32Array(n)) {
+  const k = R / (2 * F.r), [cx, cy, cz] = F.c;
+  T.fill(1);
+  for (let i = 0, p = 0; i < n; i++, p += 3) { const x = P[p] - cx, y = P[p + 1] - cy, z = P[p + 2] - cz; X[i] = (x * ux + y * uy + z * uz + F.r) * k - 0.5; Y[i] = (x * vx + y * vy + z * vz + F.r) * k - 0.5; }
+  for (let t = 0; t < I.length; t += 3) {
+    const a = I[t], b = I[t + 1], c = I[t + 2], X0 = X[a], Y0 = Y[a], X1 = X[b], Y1 = Y[b], X2 = X[c], Y2 = Y[c];
+    const x0 = max(0, ceil(min(X0, X1, X2))), x1 = min(R - 1, floor(max(X0, X1, X2))), y0 = max(0, ceil(min(Y0, Y1, Y2))), y1 = min(R - 1, floor(max(Y0, Y1, Y2)));
+    if (x1 < x0 || y1 < y0) continue;   // (no pixel's middle in it: most twigs)
+    const keep = 1 - stop[a], ax = X1 - X0, ay = Y1 - Y0, bx = X2 - X1, by = Y2 - Y1, gx = X0 - X2, gy = Y0 - Y2;
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const e0 = ax * (y - Y0) - ay * (x - X0), e1 = bx * (y - Y1) - by * (x - X1), e2 = gx * (y - Y2) - gy * (x - X2);
+      if ((e0 >= 0 && e1 >= 0 && e2 >= 0) || (e0 <= 0 && e1 <= 0 && e2 <= 0)) T[y * R + x] *= keep;
+    }
+  }
+  return T;
+}
+/** How much of its own round a plant's mesh m covers seen from straight above, as its far end's pictures are read for
+    it (src/scatter/trees.js crownCover): its picture from above (coverOf's, each card stopping its share of the light),
+    its round a disc's from where what it covers lies (π r², r² twice their mean square distance from their middle),
+    at most all but half a pixel of it. What the land counts it as covering where it stands for it far off
+    (tools/covercheck.js: on the CPU, from the mesh; the game from the pictures). */
+export function topShareOf(m) {
+  const P = m.position, n = P.length / 3, R = CROWD.PIC, T = new Float32Array(R * R), stop = Float32Array.from({ length: n }, (_, v) => (m.part[v] === 1 ? CROWD.STOPS : 1));
+  pictureOf(P, n, m.index, stop, boundsOf(P, n).frame, R, SIDES[1], T);
+  let w = 0, sx = 0, sy = 0, sq = 0;
+  for (let y = 0; y < R; y++) for (let x = 0; x < R; x++) { const c = 1 - T[y * R + x]; w += c; sx += c * x; sy += c * y; sq += c * (x * x + y * y); }
+  const area = 2 * Math.PI * (sq / Math.max(w, 1e-9) - ((sx / Math.max(w, 1e-9)) ** 2 + (sy / Math.max(w, 1e-9)) ** 2));
+  return area > 1 ? min(w / area, 1 - 0.5 / area) : null;
 }
 
 // ---- the order: each next part the one farthest from all taken before, the classes one after another ----

@@ -30,7 +30,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mark } from './wgsl.js';
-import { MACHINE, BUDGET_MB, FRAME_MS, SUBMIT_MS } from '../../src/core/budget.js';
+import { MACHINE, BUDGET_MB, FRAME_MS, SUBMIT_MS, TASK_MS } from '../../src/core/budget.js';
 
 /** In the page, before anything of it runs: the device as the gate sees it. The buffers it makes (net of destroy); what
     each command buffer holds (its passes, where in the page's code each began, each pipeline they used with its draws
@@ -196,7 +196,9 @@ async function coldStart(url, { secs, programs, dir, salt }) {
     const out = { machine: MACHINE, budget: Object.values(BUDGET_MB).reduce((a, b) => a + b, 0), peak: 0, process: 0, samples: [] };
     await go();
     out.ready = await arrived(page, out, t0, secs);
+    if (out.ready != null) await page.evaluate(() => window.__game?.frames?.());   // (the frames from ready on: the start's are the veil's, src/boot.js)
     const s = out.ready == null ? await page.evaluate(look) : await stay(page, out, secs);
+    out.frames = await page.evaluate(() => window.__game?.frames?.() ?? null);
     Object.assign(out, { shown: s.shown == null ? null : +(s.shown / 1e3).toFixed(1), settled: out.samples.at(-1) ?? null, longest: Math.round(s.longest ?? 0), over: s.over ?? 0, submits: s.submits ?? 0, lost: s.lost ?? null, errors: s.errors ?? [], long: s.long ?? null, slow: s.slow ?? [], slowN: s.slowN ?? 0, sure: s.sure ?? 0, dead: s.dead ?? [], process: Math.round(out.process) });
     out.honest = out.buffers == null || out.peak >= out.buffers;   // (the ledger holds at least the buffers the device made)
     out.pass = !out.lost && out.ready != null;
@@ -261,6 +263,7 @@ export function lines(d) {
     `The largest makes, by class and what they were (the ledger's makers): ${(d.makers ?? []).map(([c, w, m, n]) => `${c}: ${w} ${m} MB (${n})`).join('; ') || '–'}.`,
     `Made past a budget (the ledger's over): ${(d.past ?? []).map((o) => `${o.who} with ${o.by} (${o.mb} MB of ${o.budget})`).join('; ') || 'none'}.`,
     `Submissions: ${d.over} of ${d.submits} over a frame's GPU budget (${FRAME_MS} ms); ${submissions(d)}.`,
+    ...('frames' in d ? [framesLine(d.frames, d.ready != null ? 'from ready on' : 'from the start')] : []),
     d.dead.length ? `**A destroyed buffer was used** (WebKit says only "Validation failure."): ${d.dead[0]}${d.dead.length > 1 ? ` (and ${d.dead.length - 1} more)` : ''}.` : 'No destroyed buffer was used.',
     ...(d.errors.length ? [`The device said: ${d.errors[0]}`] : []),
   ];
@@ -272,4 +275,10 @@ export const submission = (h) => `${h.ms} ms${h.late ? ` (its done heard up to $
 /** The submissions as the board says them (r: the device's run, or a world's walk: what watch kept): the longest with what
     it held, how many were over SUBMIT_MS (how many surely, however late heard), and the next worst with what each held. */
 export const submissions = (r) => `the longest ${r.long ? submission(r.long) : `${r.longest ?? 0} ms`}${r.slow == null ? '' : r.slowN ? `; **${r.slowN} over ${SUBMIT_MS} ms** (budget.js SUBMIT_MS; ${r.sure} surely, however late heard)${r.slow.length > 1 ? `, the next worst: ${r.slow.slice(1, 3).map(submission).join(' | ')}` : ''}` : `; none over ${SUBMIT_MS} ms`}`;
+/** The frames as the board says them (F: window.__game.frames(), src/core/frames.js; since: from when): how many, how
+    many longer than TASK_MS, and the slowest with where its time went on the page's thread: its parts, largest first,
+    and what lay outside it till the next began (the page's other work: a worker's message, what an await resumes; or
+    the wait for the screen). */
+export const framesLine = (F, since) => (!F ? `Frames ${since}: none read (the game kept none).` : `Frames ${since}: ${F.frames}, ${F.long ? `**${F.long} longer than ${TASK_MS} ms**` : `none longer than ${TASK_MS} ms`} (budget.js TASK_MS); the slowest: ${F.slow.slice(0, 3).map(frameOf).join(' | ') || '–'}.`);
+const frameOf = (f) => `${Math.round(f.ms)} ms, ${(f.at / 1e3).toFixed(1)} s in, its own ${f.own.toFixed(1)} (${f.parts.slice(0, 5).map(([n, ms]) => `${n} ${ms.toFixed(1)}`).join(', ') || 'no part'})${f.outside >= 1 ? `, outside it ${Math.round(f.outside)} (the page's other work, or the wait for the screen)` : ''}`;
 const say = (d) => console.log(`device:\n  ${[readyLine(d), ...lines(d)].join('\n  ').replace(/\*\*/g, '')}`);

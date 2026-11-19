@@ -24,6 +24,7 @@ import { CLASS_NAMES, classOf } from './classes.js';
 import { BUDGET_MB, GPU_MB } from './budget.js';
 import { MiB } from './physics.js';
 import { passBegins, timesOn } from './pace.js';
+import { pass as framePass } from './frames.js';
 
 const HELD = new Map(), MB = MiB, PEAK = Object.fromEntries(CLASS_NAMES.map((c) => [c, 0])), OVER = new Map(), WHOLE = 'the whole GPU';
 let peakAll = 0;
@@ -180,7 +181,7 @@ function relabel(g, label, cls) {
 let tap = null;
 /** The passes from here on are `name`'s (null: no one's in particular), until the next mark; what the device makes
     meanwhile is the class's they are in. */
-export const mark = (name) => { NOW = name ? classOf(name) : 'other'; OWNER = name || null; passBegins(name); if (tap) tap(name); };   // (and its own time on the GPU taken: src/core/pace.js)
+export const mark = (name) => { NOW = name ? classOf(name) : 'other'; OWNER = name || null; passBegins(name); framePass(name); if (tap) tap(name); };   // (and its own time on the GPU taken, src/core/pace.js, and on the page's thread, src/core/frames.js)
 /** A tool listens to the marks: fn(name), or null to stop. */
 export const listen = (fn) => { tap = fn; };
 
