@@ -61,7 +61,7 @@ import { useGround } from './world/rocksolid.js';
 import { showBodies } from './world/bodies.js';
 import { createCity } from './city/index.js';
 import { createLakes } from './world/lakes.js';   // the city's plots over the land, seen from above (world/city.js)
-import { sharePipelines, watchCompiles, compiles, countCompiles, making, ahead, firstReach } from './core/compile.js';
+import { sharePipelines, watchCompiles, compiles, countCompiles, making, pipelines, ahead, firstReach } from './core/compile.js';
 import { waitsOn, gpuLost } from './core/waits.js';   // what the start waits for, watched: the veil says what holds it up, or what stopped the page
 import { flag } from './core/flags.js';
 import { FIRST_FRAME, stampDone } from './core/marks.js';   // (the first frame that draws the world, on the page's own timeline)
@@ -339,10 +339,13 @@ export async function boot({ profile = 'world' } = {}) {
   // (Until 2026-11-18 the start compiled everything the world could draw, every mesh made visible, before any frame:
   // 308 pipelines, 7.7 s of a 14.1 s cold start in Chrome, and a first picture that was not yet complete; under memory
   // pressure, three minutes on "Lighting the world")
-  // (the veil says what the start waits on: what is being compiled, n of m; once nothing is, what is still out)
+  // (the veil says what the start waits on: how many of the pipelines asked of the GPU are made (the one cache's count:
+  // src/core/compile.js pipelines; each step a compile, the start's own with the first view's: the bar ends as the veil
+  // lifts. An ask is a mesh and a pass, and most of a stand's share a pipeline: on next, 395 asks for 58 pipelines of the
+  // first view), what is being made now; once nothing is, what is still out)
   const tell = () => {
-    const M = making(), out = M.done < M.asked ? '' : Object.entries(waiting()).map(([k, n]) => `${k} ${n}`).join(', ');
-    loadingSay('Lighting the world', 0.55 + 0.4 * (M.asked ? M.done / M.asked : 0), { count: `${M.done} / ${M.asked}`, detail: M.now || (out ? `waiting on ${out}` : '') });   // (its phase, how many are made, and which now: three lines, brand.css)
+    const M = making(), P = pipelines(), [n, of] = P.asked ? [P.made, P.asked] : [M.done, M.asked], out = M.done < M.asked ? '' : Object.entries(waiting()).map(([k, w]) => `${k} ${w}`).join(', ');
+    loadingSay('Lighting the world', 0.55 + 0.4 * (of ? n / of : 0), { count: `${n} / ${of}`, detail: M.now || (out ? `waiting on ${out}` : '') });   // (its phase, how many are made, and which now: three lines, brand.css)
   };
   const makeAhead = () => {   // (a material at a time: what draws with it, for every pass; and each tier's packing)
     const groups = grown?.scatter ? grown.scatter.ahead() : [], by = new Map();
