@@ -167,7 +167,7 @@ export function createGround(renderer, tex) {
     const before = renderer.getRenderTarget(), ac = renderer.autoClear;
     renderer.autoClear = false;   // (the pieces drawn before kept)
     while (PACE.left > 0 && jobs.length) {
-      const J = jobs[0], bx = J.t % K, by = Math.floor(J.t / K), n0 = Math.min(PACE.left, PACE.most());
+      const J = jobs[0], bx = J.t % K, by = Math.floor(J.t / K), n0 = Math.min(PACE.left, PACE.most(UNIT));
       const [w, h] = bx === 0 && n0 >= K ? [K, Math.min(Math.floor(n0 / K), K - by)] : [Math.min(n0, K - bx), 1], n = w * h;
       G.o.value.set(J.ox, J.oz); G.texel.value = J.texel; G.base.value = J.base;
       stage.viewport.set(0, 0, N, N); stage.scissor.set(bx * BLOCK, by * BLOCK, w * BLOCK, h * BLOCK);   // (the whole window's mapping, its piece's pixels only)
