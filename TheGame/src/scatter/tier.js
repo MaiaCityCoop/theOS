@@ -211,7 +211,10 @@ function fallbackOf(T, geos, material) {
 const argsOf = (geos) => { const args = new THREE.IndirectStorageBufferAttribute(new Uint32Array(geos.flatMap((g) => [g.index.count, 0, 0, 0, 0])), 5); return { args, argsNode: storage(args, 'uint', 5 * geos.length) }; };
 /** After its packing, where the eye does not cull it: each draw as many as its bucket holds, no more than its room
     (rooms: each bucket's room and where its things begin, a vec2 a bucket). */
-const argsPass = (argsNode, count, K, rooms) => Fn(() => { for (let k = 0; k < K; k++) argsNode.element(k * 5 + 1).assign(min(atomicLoad(count.element(k)), uint(rooms.element(k).x))); })().compute(1);
+const argsPass = (argsNode, count, uK, rooms) => Fn(() => { eachDraw(uK, (k) => { argsNode.element(k.mul(uint(5)).add(uint(1))).assign(min(atomicLoad(count.element(k)), uint(rooms.element(k).x))); }); })().compute(1);
+/** fn(k) for each of a tier's draws (k a node), as many as uK says (a uniform): a pass over them is one pipeline
+    whatever their count, not one a count (it was written out a draw at a time, a compile each). */
+const eachDraw = (uK, fn) => { Loop({ start: uint(0), end: uK, type: 'uint', condition: '<' }, ({ i }) => { fn(i); }); };
 /** Its meshes: each bucket's draw from its arguments, its material reading a thing's rows where the packing put it
     (through what the eye's culling kept, culled: C): its place (placeOf(at, slot): which of the store's things it is,
     slot a node, the bucket a mesh says), its rows there (S of them). room(k): as many as bucket k may hold. A material is
@@ -265,8 +268,8 @@ function packedOf(T, geos, material, { live, cap = 0, slots = 0, spans = null, b
   const C = (T.culler = culled ? cullOf(T, { K, caps, offs, total, S: slots, data, args, count, box: bounds }) : null);
   // (laid out again at N, a room a bucket: its draws as many, its culling's ranges too; packed again)
   T.ownRow = ownOf(T, caps, (N) => { N.forEach((n, k) => { caps[k] = n; geos[k].instanceCount = n; }); const all = lay(); if (C) C.resize(all); T.repack(); });
-  const zero = Fn(() => { for (let k = 0; k < K; k++) atomicStore(count.element(k), uint(0)); })().compute(1);
-  T.passes = [zero, patchPass({ K, S, data, count, rooms, entryOf: entryOf(EN, nE, STEPS) }, live, RN), ...(C ? [C.args, C.boxes] : [argsPass(argsNode, count, K, rooms)])];
+  const uK = uniform(K, 'uint'), zero = Fn(() => { eachDraw(uK, (k) => { atomicStore(count.element(k), uint(0)); }); })().compute(1);
+  T.passes = [zero, patchPass({ K, S, data, count, rooms, entryOf: entryOf(EN, nE, STEPS) }, live, RN), ...(C ? [C.args, C.boxes] : [argsPass(argsNode, count, uK, rooms)])];
   return meshesOf(geos, material, args, C, (k) => caps[k], data, S, (at, slot) => at(OFr.element(slot)));
 }
 /** A store's room for n things: a MARGIN more, in whole workgroups (a resident tier's and a bucket of its own patches'). */
@@ -500,7 +503,7 @@ function residentPackedOf(T, geos, material, { found, select, store = 0, slots =
   Object.assign(T, { slots, data: s.data, args, offsets: OFF, residentRow: me, room: () => Infinity });
   T.offAt = (k) => OFr.element(k);   // (where bucket k's things begin in what its kind packed: a node, for what reads a bucket of it itself: src/scatter/cut.js)
   const C = (T.culler = culled ? cullOf(T, { K, caps: null, offs: geos.map(() => 0), total: P(), S: slots, data: { element: (e) => s.data.element(me.uBase.mul(S).add(e)) }, args, count, box: bounds, offAt: (k) => G.O.element(row(k)), also: offsOf }) : null);
-  const ends = C ? [C.args, C.boxes] : [Fn(() => { for (let k = 0; k < K; k++) { argsNode.element(k * 5 + 1).assign(atomicLoad(count.element(k))); offsOf(k); } })().compute(1)];
+  const uK = uniform(K, 'uint'), ends = C ? [C.args, C.boxes] : [Fn(() => { eachDraw(uK, (k) => { argsNode.element(k.mul(uint(5)).add(uint(1))).assign(atomicLoad(count.element(k))); offsOf(k); }); })().compute(1)];
   T.resident = residentOf(T, me, s, ends);
   T.passes = [...new Set([...s.full, ...s.only, ...ends])];
   return meshesOf(geos, material, args, C, P, s.data, S, (at, slot) => at(OFr.element(slot)));
