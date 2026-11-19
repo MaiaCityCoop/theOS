@@ -23,7 +23,6 @@ import { note } from '../core/gpu.js';
 
 export const LEVELS = 6, N = 2048, E0 = 8, SNAP = 32, MARGIN = 0.1;
 const BUDGET = 4.6e6;   // texels laid a frame at most (a whole map and a little)
-const EASE = 0.08;   // how far a frame the finest map read comes down to a finer one laid (a level in twelve frames)
 
 export function createGroundCache() {
   const array = (name) => { const rt = new THREE.RenderTarget(N, N, { depth: LEVELS, depthBuffer: false, generateMipmaps: false, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace }); Object.assign(rt.texture, { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping, anisotropy: 4, name }); return rt; };
@@ -80,9 +79,7 @@ export function createGroundCache() {
         d.x = cx; d.z = cz; d.ok = true;
       }
       renderer.setRenderTarget(was); renderer.autoClear = auto;
-      // (the finest map read: a coarser one at once, when a finer has fallen behind and is not laid (a half-laid map is
-      // not read); a finer one, once laid, eased in over a few frames: the point is read from both over the ring between)
-      uValid.value = valid > uValid.value ? valid : Math.max(valid, uValid.value - EASE); uOn.value = valid < LEVELS ? 1 : 0;
+      uValid.value = valid; uOn.value = valid < LEVELS ? 1 : 0;
     },
     /** The layers at p as the maps hold them (dx, dy: how far apart the pixel's neighbours are): { w (how much of it is
         the maps': 0 none … 1 all), c, h, n, cv, shade }, variables. Read only where w is over nought. */
@@ -91,9 +88,8 @@ export function createGroundCache() {
       // the map by reach (the finest whose square holds the point, a margin kept) and by fineness (its texels no finer than the pixel)
       const Lu = max(max(log2(max(cheb.mul(2 / (E0 * (1 - MARGIN))), 1e-4)), log2(max(max(min(a, b), max(a, b).div(4)).div(E0 / N), 1e-4))), uValid.sub(0.999));
       const l = max(ceil(Lu), 0).toVar(), t = clamp(Lu.sub(l).add(1), 0, 1).toVar(), last = l.greaterThan(LEVELS - 1.5);
-      // (not through a long lens, whose distances are not the camera's, nor on the library's stage, whose ground changes:
-      // given way to the layers laid per pixel over a span of lenses, never at once, as the lens lengthens with height)
-      const on = uOn.mul(smoothstep(0.85, 0.98, U.uLodInv)).mul(U.uStage.z.greaterThan(0).select(float(0), float(1)));
+      // (not through a long lens, whose distances are not the camera's, nor on the library's stage, whose ground changes)
+      const on = uOn.mul(U.uLodInv.greaterThan(0.98).select(float(1), float(0))).mul(U.uStage.z.greaterThan(0).select(float(0), float(1)));
       const w = l.greaterThan(LEVELS - 0.5).select(float(0), last.select(float(1).sub(smoothstep(0.7, 1, t)), float(1))).mul(on).toVar();
       const c = vec3(0).toVar(), h = float(0).toVar(), n = vec2(0).toVar(), cv = float(0).toVar(), shade = float(0).toVar();
       If(w.greaterThan(0.001), () => {

@@ -31,8 +31,6 @@
 //     bonesOf?(i)             its skeleton: Float32Array, BONES bones of three rows of four (assets/kit/creature.js
 //                             says what a bone is); without: nothing in it moves by itself
 //     fullTris?(i)            how many triangles its full mesh has (for the readout)
-//     printOf?(i, l), print?()  what its fingerprint reads where meshOf is slow to make on the page (a quick drawing of
-//                             the same recipe), and a word for how it makes its levels (another way: another word)
 //     roams?: [{ name, share, speed: [from, to] (m/s), size: [from, to] (m), road (it keeps to the roads; else to
 //               the trails), fly: [from, to] (metres over the ground), stride (of its size, a radian of its gait), first, count }]
 //                             its herds: how its kinds move about (kinds first … first + count of it are one herd; share:
@@ -122,8 +120,7 @@ export function fingerprint(engine = null) {
   for (const E of FAMILIES) {
     if (E.placed !== engine) continue;
     eat([E.first, E.count, ...E.id].map((c) => (typeof c === 'string' ? c.charCodeAt(0) : c)));
-    if (E.F.print) eat([...E.F.print()].map((c) => c.charCodeAt(0)));   // (how a family makes its levels, where it can make them more than one way)
-    for (const i of [0, Math.floor(E.count * 0.43), E.count - 1]) { for (const l of [3, 4, 5]) { const m = (E.F.printOf ?? E.F.meshOf)(i, l); eat(m.index); eat(m.verts); } eat([E.F.fullTris?.(i) ?? 0]); const B = E.F.bonesOf?.(i); if (B) eat(new Int32Array(B.buffer)); }
+    for (const i of [0, Math.floor(E.count * 0.43), E.count - 1]) { for (const l of [3, 4, 5]) { const m = E.F.meshOf(i, l); eat(m.index); eat(m.verts); } eat([E.F.fullTris?.(i) ?? 0]); const B = E.F.bonesOf?.(i); if (B) eat(new Int32Array(B.buffer)); }
     const S = E.F.skinOf?.(Math.floor(E.count / 2), 8); if (S) eat(S.levels[0]);
   }
   return (h >>> 0).toString(36);

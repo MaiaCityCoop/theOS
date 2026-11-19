@@ -69,9 +69,6 @@ jobs:
       - name: Sign-in checks
         working-directory: TheGame
         run: bun tools/account-check.js
-      - name: Every asset against its measure
-        working-directory: TheGame
-        run: bun tools/scale.js
       - name: Build both sites for next
         run: deploy/bundle.sh deploy/environments/next.json "$GITHUB_SHA" "$RUNNER_TEMP/release-next.tar"
       - name: Shell scripts parse

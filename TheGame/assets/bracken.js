@@ -19,13 +19,6 @@ export default tree({
   name: 'Bracken',
   kind: 'shrub',
   about: 'A fern of the wood’s floor: a handful of long fronds arching up and out from one foot, fresh green.',
-  // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
-  measure: {
-    real: 'Pteridium aquilinum, bracken',
-    typical: [1, 2],
-    most: 5,
-    source: ['Natural England: fronds mostly 1 to 2 m (one of 4 m recorded); Britannica: to 5 m or more; Oxford Botanic Garden: mature fronds to 3 m'],
-  },
   colours: { wood: woodCol, leaves: leafCol },
   materials: { wood: 'bf97f33b-56bd-4df4-89ba-949e77ce8c27' /* pine bark */, leaves: '6042540e-d4ea-4a07-8bd9-d8465f5635b9' /* bracken frond */ },
   foliage: { wrap: 0.5, through: 0.6, flutter: 0.8 },

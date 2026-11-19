@@ -9,18 +9,13 @@
 //
 //   rockMesh(asset, v, l) -> { index, verts }   shape v at level l, packed (solid.js): each vertex with its place on the
 //                                               next coarser level's mesh, and how dark it is where it meets the ground
-//   rockBody(asset, v) -> { span, sunk, rad, top, frame }   what who places it must know: shape v as it was grown
-//                                               (span: its largest side then, rad: how far it reaches from its middle,
-//                                               top: how high it stands), how much of its largest side lies under the
-//                                               ground, and its box as it is drawn (frame: its largest side 1)
-// A rock is drawn at its size: a rock of size s is s across, its largest side, metres (its asset's size.length, which
-// is the measure's: world/scale.js). No engine scales it by anything of its own.
+//   rockBody(asset, v) -> { span, sunk, rad, top }   what who places it must know, for a rock of size 1 (its asset's
+//                                               size.length is that size): its largest side; how much of that lies
+//                                               under the ground; how far it reaches from its middle; how high it stands
 //   rockFamily(id, asset)                       the asset's shapes as a family of the zoo (assets/zoo/index.js)
 import { LADDER, FULLN, DOTN, underOf } from './ladder.js';
 import { ball, ballMesh, hash3, noise3, SWELL } from './blob.js';
 import { dotMesh } from './solid.js';
-import { ladderOf, ladderMesh } from './reduce.js';
-import { LOD } from './crowd.js';   // (`?lod=new`: its levels made from its full mesh by the one reduction, intent 0033)
 import { sstep } from './math.js';
 import { kindOf, kindRule, shapesOf } from '../kinds.js';
 
@@ -86,30 +81,16 @@ const rockAt = (S, n) => {
     return 0.45 + 0.55 * sstep(-0.25, 0.35, ly);
   };
 };
-/** Shape v of a rock asset at its full detail, all its recipe makes: { V, pos, nor, shade, index } (assets/kit/blob.js:
-    ball), its own frame (its foot at 0, its largest side 1). */
-export const rockFull = (asset, v) => { const S = shapeOf(asset, v); return ball(FULL_ROCK, rockAt(S, FULL_ROCK), true); };
-// (`?lod=new`: a shape's levels, all from its full mesh by the one reduction (reduce.js), the last few kept: a worker
-// asked for a shape's levels one after another makes them once)
-const CHAINS = new Map();
-const chainOf = (asset, v) => {
-  const key = `${asset.uid}:${asset.placement.seed}:${v}`; let C = CHAINS.get(key); if (C) return C;
-  if (CHAINS.size >= 3) CHAINS.delete(CHAINS.keys().next().value);
-  CHAINS.set(key, (C = ladderOf(rockFull(asset, v)))); return C;
-};
-/** Shape v of a rock asset at level l of the ladder. Under `?lod=new` every level is made from its full mesh alone
-    (sketch: as before, the recipe drawn coarser: what is wanted on the page at once, the library's). */
-export function rockMesh(asset, v, l, sketch = false) {
+/** Shape v of a rock asset at level l of the ladder. */
+export function rockMesh(asset, v, l) {
   const n = LADDER[l].n;
   if (n === DOTN) return dotMesh();
-  if (LOD.on && !sketch) return ladderMesh(chainOf(asset, v), l);
   const S = shapeOf(asset, v);
   return ballMesh((q) => rockAt(S, q), n === FULLN ? FULL_ROCK : n, underOf(l), LADDER[l].delta);
 }
-/** What who places shape v must know: { span (its largest side as it was grown), sunk (how much of its largest side
-    lies under the ground), rad (how far it reaches from its middle, level, as grown), top (how high it stands over the
-    ground, as grown), frame (its box in the frame it is drawn in: its foot at 0, its largest side 1) }. Drawn at size s,
-    it is s across. */
+/** What who places shape v must know, for a rock of size 1: { span (its largest side), sunk (how much of that lies
+    under the ground), rad (how far it reaches from its middle, level), top (how high it stands over the ground),
+    frame (its box in the frame it is drawn in: its foot at 0, its largest side 1) }. */
 export const rockBody = (asset, v) => measure(shapeOf(asset, v)).body;
 
 /** A rock asset's shapes as a family of the zoo (assets/zoo/index.js): `id` its name there. The engine that places
@@ -118,13 +99,9 @@ export const rockBody = (asset, v) => measure(shapeOf(asset, v)).body;
 export const rockFamily = (id, asset) => ({
   id, placed: 'rocks', asset: asset.uid, count: asset.placement.shapes ?? 1,
   meshOf: (i, l) => rockMesh(asset, i, l),
-  // (what its fingerprint reads: the recipe drawn coarser, quick on the page, and which way its levels are made)
-  printOf: (i, l) => rockMesh(asset, i, l, true), print: () => (LOD.on ? 'reduce 1' : ''),
   lookOf: (i) => {
-    // (size: its largest side as a stand that sizes its kinds by their look draws it, src/scatter/stress.js: the size
-    // the world draws most of them at, its asset's least to most by the cube of a die, as src/scatter/rocks.js does)
-    const B = rockBody(asset, i), L = asset.look ?? {}, [lo, hi] = asset.size.length, middle = lo + (hi - lo) * 0.125;
-    return { model: 'glossy', mean: L.tint ?? [1, 1, 1], c2: [0, 0, 0], material: L.material ?? null, cover: L.moss ?? 1, bump: L.relief ?? 1.1, relief: 0, scale: asset.placement.texture ?? 2, gloss: 0.2, sway: 0, snow: kindOf(asset, 'snow')?.clumps ?? 0.05, glow: 0, through: 0, size: middle, sunk: B.sunk };
+    const B = rockBody(asset, i), L = asset.look ?? {};
+    return { model: 'glossy', mean: L.tint ?? [1, 1, 1], c2: [0, 0, 0], material: L.material ?? null, cover: L.moss ?? 1, bump: L.relief ?? 1.1, relief: 0, scale: asset.placement.texture ?? 2, gloss: 0.2, sway: 0, snow: kindOf(asset, 'snow')?.clumps ?? 0.05, glow: 0, through: 0, size: B.span, sunk: B.sunk };
   },
   fullTris: () => 12 * FULL_ROCK * FULL_ROCK,
   // what of it is solid, and its box (src/world/bodies.js), in the frame it is drawn in: its kind's rule (assets/kinds.js:

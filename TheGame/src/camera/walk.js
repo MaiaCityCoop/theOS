@@ -2,7 +2,6 @@
 import { PLACES } from '../../world/places.js';
 import { heightAt, riverAt, aridAt } from '../world/land.js';
 import { step, ceilingAt } from '../world/solids.js';
-import { WALKER } from '../../world/scale.js';
 
 export function createControls(camera, canvas, msg) {
   const keys = new Set();
@@ -31,7 +30,7 @@ export function createControls(camera, canvas, msg) {
   camera.rotation.order = 'YXZ';
   return {
     get fly() { return fly; },
-    place(x, z, facing) { camera.position.set(x, heightAt(x, z) + WALKER.eye, z); yaw = facing; },
+    place(x, z, facing) { camera.position.set(x, heightAt(x, z) + 1.7, z); yaw = facing; },
     update(dt) {
       const f = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0);
       const s = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
@@ -40,7 +39,7 @@ export function createControls(camera, canvas, msg) {
       const n = f && s ? 0.7071 : 1, sy = Math.sin(yaw), cy = Math.cos(yaw), p = camera.position;
       const nx = p.x + (-sy * f + cy * s) * speed * n * dt, nz = p.z + (-cy * f - sy * s) * speed * n * dt;
       if (fly) { p.x = nx; p.z = nz; } else [p.x, p.z] = step(p.x, p.z, nx, nz);   // on foot, walls and things stop you; a door lets you in
-      const ground = heightAt(p.x, p.z) + Math.max(0.6, Math.min(WALKER.eye, ceilingAt(p.x, p.z) - 0.25));   // under a low roof, you stoop
+      const ground = heightAt(p.x, p.z) + Math.max(0.6, Math.min(1.7, ceilingAt(p.x, p.z) - 0.25));   // under a low roof, you stoop
       if (fly) {
         vy = ((keys.has('Space') ? 1 : 0) - (keys.has('KeyC') ? 1 : 0)) * speed * 0.6;
         p.y = Math.max(ground, p.y + vy * dt);

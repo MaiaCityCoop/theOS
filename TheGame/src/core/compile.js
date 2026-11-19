@@ -13,9 +13,7 @@ let last = Promise.resolve();
     promise of what it gives. */
 export function inTurn(fn) {
   const done = last.then(fn, fn);   // (in turn, whether the one before it went well or not)
-  // (and the next one's turn comes when this one is done or after 20 s, whichever is first: a compile the GPU never
-  // answers held every one after it, and the page with them)
-  last = Promise.race([done.catch(() => {}), new Promise((res) => setTimeout(res, 20000))]);
+  last = done.catch(() => {});
   return done;
 }
 
