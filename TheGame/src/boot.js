@@ -161,7 +161,7 @@ export async function boot({ profile = 'world' } = {}) {
   const weather = (game.weather = createWeather({ scene, renderer, camera }));
   for (const id of weather.ids) game[id] = weather[id];
   game.sky = sky;   // the sun and the sky: one time of day drives the light (intent 0007)
-  const shadows = createLight(renderer, { groundAt });   // the light's passes before a frame: the shadow cascades and the canopy map (src/world/light/index.js), read by every surface (src/world/light.js)
+  const shadows = createLight(renderer, { groundAt, land: terrain.pages });   // the light's passes before a frame: the shadow cascades and the canopy map (src/world/light/index.js), read by every surface (src/world/light.js)
   game.light = game.shadows = shadows;
   game.controls = controls;
   const city = world ? (game.city = createCity({ scene, camera, canvas, renderer, compile: (o) => screen.compile(o, camera, scene) })) : null;   // (compiled for the target the world is drawn into)

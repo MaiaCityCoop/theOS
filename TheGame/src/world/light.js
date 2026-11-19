@@ -16,7 +16,7 @@ import { cascades } from './shadow.js';
 import { blueAt } from './light/noise.js';
 import { SUN_DIAMETER } from './light/physics.js';
 import { SCREEN } from './light/screen.js';
-import { skyAt } from './light/canopy.js';
+import { canopyAt, groundColour } from './light/canopy.js';
 
 export { snowDepth, snowCover, snowDrift, snowLift, snowLiftAtVertex, SNOW } from './weather/snow.js';
 export { cloudShade, CLOUD_H } from './weather/clouds.js';
@@ -55,9 +55,17 @@ export const airOf = (w, eye = U.uCam) => {
 const airAt = Fn(([c, w, eye]) => { const A = airOf(w, eye); return mix(A.col, c, A.k); });
 /** The end of every material: its colour seen through the air from the eye, to the screen. */
 export const finish = (c, w, eye = U.uCam) => toScreen(airAt(max(c, vec3(0)), w, eye));   // (no light is less than none)
-/** The sky's light on a surface facing n: most from above, less on what faces sideways, and a little bounced up off the
-    sunlit ground onto what faces down. */
-export const skyLight = (n) => U.uAmb.mul(n.y.mul(0.32).add(0.68)).add(U.uSun.mul(U.uSunDir.y.max(0)).mul(vec3(0.09, 0.1, 0.06)).mul(float(0.5).sub(n.y.mul(0.5))));
+/** The sky's light on a surface facing n (at w: past the crowns over it, src/world/light/canopy.js; else all of it): most
+    from above, less on what faces sideways. And what the ground round it sends up (the bounce): the ground's own colour
+    (round the eye, off the land's pages: canopy.js groundColour) in the light on it, the sun's and the sky's, as much of
+    it as the crowns let reach the floor there (canopy.js canopyAt), on as much of what the surface faces as the ground
+    fills (a plane's view factor: none of what faces up, half of what faces sideways, all of what faces down). clouds:
+    the share of the sun the storm and the clouds let through there, where it is worked out already (lightOn). */
+export const skyLight = (n, w = null, clouds = null) => {
+  const C = w ? canopyAt(w) : null, sky = U.uAmb.mul(n.y.mul(0.32).add(0.68)), through = clouds ?? (w ? sunDim().mul(cloudShade(w)) : sunDim());
+  const onGround = U.uSun.mul(U.uSunDir.y.max(0)).mul(through).add(U.uAmb).mul(C ? C.floor : 1);
+  return (C ? sky.mul(C.sky) : sky).add(groundColour().mul(onGround).mul(float(0.5).sub(n.y.mul(0.5))));
+};
 /** The screen's curve: the light's numbers to the picture's (its exposure, a soft shoulder, gamma). */
 export const display = (c) => pow(float(1).sub(exp(c.negate().mul(1.25).mul(U.uExposure))), vec3(1 / 2.2));
 /** What every material returns, its colour for the screen. Drawn for the world's frame (either pass: src/core/pass.js)
@@ -203,8 +211,9 @@ export const sunDim = () => float(1).sub(lane.dim.mul(0.6));
 const SHADOWS = { soft: (w, n) => shadowOf(w, n, 'soft'), one: (w, n) => shadowAtOne(w, n), vertex: (w) => shadowAtVertex(w), pulled: (w) => shadowAtPulled(w) };
 /** The share of the sun's light that reaches w (1: all): past the storm, the clouds and what casts a shadow. how: 'soft'
     (a pixel's: the cascades with their penumbra), 'one' (one tap: what is too thin for a soft edge to show, a blade),
-    'vertex' (a vertex stage's: a tree's corners), 'pulled' (what is drawn into the map pulled towards the light). */
-export const sunAt = (w, how = 'soft', n = null) => sunDim().mul(cloudShade(w)).mul(SHADOWS[how](w, n));
+    'vertex' (a vertex stage's: a tree's corners), 'pulled' (what is drawn into the map pulled towards the light).
+    clouds: the share the storm and the clouds let through, where it is worked out already (lightOn). */
+export const sunAt = (w, how = 'soft', n = null, clouds = null) => (clouds ?? sunDim().mul(cloudShade(w))).mul(SHADOWS[how](w, n));
 // what the screen's light left for this pixel (src/world/light/screen.js): one texel, loaded (no sampler), the share of
 // the sun the contact shadows let through. Read in the colour pass of what takes part in the prepass (its depth is the
 // one the screen's light read), in a fragment; 1 anywhere else.
@@ -228,11 +237,12 @@ export const contactShade = Fn((builder) => (onScreen(builder) ? mix(float(1), S
       glint         its highlight's own share, worked out already where its gloss and ns were at hand (glintOf: a
                     deferred family's prepass, src/core/gbuffer.js); else from gloss, sharp and ns here */
 export const lightOn = (s) => {
-  const n = s.n, L = U.uSunDir, V = s.V ?? (s.w ? normalize((s.eye ?? U.uCam).sub(s.w)) : null), share = (s.sun ?? sunAt(s.w, s.how, s.n)).mul(contactShade());
+  const n = s.n, L = U.uSunDir, V = s.V ?? (s.w ? normalize((s.eye ?? U.uCam).sub(s.w)) : null), clouds = s.w ? sunDim().mul(cloudShade(s.w)) : null;   // (clouds: once, for its sun and for the ground's round it)
+  const share = (s.sun ?? sunAt(s.w, s.how, s.n, clouds)).mul(contactShade());
   const wrap = s.wrap ?? 0, ndl = s.ndl ?? (wrap ? n.dot(L).add(wrap).div(float(wrap).add(1)) : n.dot(L)).max(0);
   const back = V ? max(V.negate().dot(L), 0) : null, light = U.uSun.mul(share);   // (how far the eye looks into the sun; the sun's light here)
-  // the sky's light, less what the crowns above hide of it (the canopy's probes: src/world/light/canopy.js)
-  let sky = s.w ? skyLight(n).mul(skyAt(s.w)) : skyLight(n), sun = ndl;
+  // the sky's light, less what the crowns above hide of it, and the ground's off its lit floor (skyLight)
+  let sky = skyLight(n, s.w ?? null, clouds), sun = ndl;
   // through it, two-sided: the sun behind it seen through it (a lobe round the sun, as tight as `lobe`), and its far
   // side lit (what faces away from the sun, seen from the dark side, glows through)
   if (s.through) { const t = pow(back, s.lobe ?? 3).mul(0.65).add(max(n.dot(L).negate(), 0).mul(0.35)).mul(s.through); sun = sun.add(s.tint ? s.tint.mul(t) : t); }
