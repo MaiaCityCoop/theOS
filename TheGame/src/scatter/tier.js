@@ -621,8 +621,17 @@ function relayout(s) {
   if (again) s.swap = true; else drawnOf(s);
 }
 /** What a kind's draws read laid out at its tiers' rooms now: what it packed for them (each tier's range, its culling's
-    too) and where each draw's things begin, made as large as all of them. */
+    too) and where each draw's things begin, made as large as all of them. Made beside what its draws read till now,
+    which is let go only once nothing uses it (src/core/gpu.js retire): within the room its class has left with that
+    still in it (roomOf), each tier held to it where it is less, the rest the dial's (as relayout holds its stores). Its
+    relayout reserved that room for it, beside all it held; what came between (its fill anew, a few frames: swapIn) may
+    have taken some of it. */
 function drawnOf(s) {
+  const row = s.slots * bytesOf('vec4'), need = s.tiers.reduce((n, me) => n + me.P * row, 0), room = Math.max(0, roomOf(s.cls));
+  if (need > room) {
+    console.warn(`tiers ${s.tiers.map((me) => `${me.T.asset ?? ''} ${me.T.level ?? ''}`.trim()).join(', ')}: what their draws read would hold ${Math.round(need / 2 ** 20)} MB, past the ${Math.round(room / 2 ** 20)} MB their class has left (${s.cls}): held to it, the rest is the dial's (the governor's)`);
+    for (const me of s.tiers) { me.P = Math.max(WG, Math.floor((me.P * room) / need / WG) * WG); me.cap = { N: me.N, P: me.P }; }
+  }
   let db = 0; const arenas = new Set();
   for (const me of s.tiers) {
     me.dbase = db; me.uBase.value = db; db += me.P;
