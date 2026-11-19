@@ -53,7 +53,8 @@ import { recipe, recipes, versionOf } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
 import { kindOf, sizeOf, most } from '../../assets/kinds.js';
 import { levelOf, levelOfMesh, handOver, sinkInto } from '../detail/handover.js';
-import { createAtlas, bakers, viewClip, tileClip, impostorRead, clumpRead, facingOf, facingEnc, planeFrame, litIn, atlases, pictureOf } from '../detail/impostor.js';
+import { createAtlas, bakers, viewClip, tileClip, impostorRead, clumpRead, facingOf, facingEnc, planeFrame, litIn, atlases, atlasesAt, ATLAS_SHARES, pictureOf } from '../detail/impostor.js';
+import { shippedRooms } from '../core/outlines.js';
 import { levelsUnder, PICTURES } from '../detail/atlas.js';
 import { offScreen, clipOf, Tier } from './tier.js';
 import { createDrawer, pool } from './drawer.js';
@@ -903,6 +904,10 @@ const patchOf = (cell, reach) => Math.min(256, Math.max(4, 2 ** Math.ceil(Math.l
 export function outlinesAhead(world = true) {
   const A = world ? atlases() : null, kinds = world ? recipes('asset').filter((a) => a.outlineFor && !a.roomsKnown(A)) : [];
   if (!kinds.length) return Promise.resolve();
+  // (the build reckons every tree kind's rooms for each class's atlases, tools/outlines.js: one it has not is a recipe
+  // changed since the build, or atlases no class of device has, and its start reckons them in the workers, 0.4 GB a
+  // worker: said loudly, never measured in silence. Safari reloaded the page for it, 2026-11-19)
+  (import.meta.env?.PROD ? console.error : console.warn)(`plants: the build's outlines.json has no rooms of ${kinds.length} tree kind${kinds.length > 1 ? 's' : ''} for this device's atlases (${A.key}): ${kinds.map((a) => `${a.name} (${shippedRooms(a, atlasesAt(ATLAS_SHARES.at(-1))) ? 'baked for other atlases' : 'not baked: changed since the build'})`).join(', ')}: reckoned now in the recipes' workers`);
   const ask = pool(), plain = { ...A };
   return Promise.all(kinds.map((a) => ask([['outline', a.uid, plain]]).then(([o]) => a.takeOutline(A, o), (e) => console.warn(`plants: the workers could not reckon '${a.name}': reckoned here`, e))));
 }

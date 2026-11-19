@@ -20,8 +20,14 @@ import { OUTLINES } from '../../assets/kit/tree.js';
 const KEY = 'maia-outlines-1';
 const keyOf = (id) => { const v = manifest[id.split(':')[0]]?.version; return v ? `${id}@${v}` : null; };   // null for what is no recipe's (a tree grown again from another seed)
 const idOf = (k) => k.slice(0, k.lastIndexOf('@'));
-// (what the build measured: none where it has not, a tool's run, the dev server before it has)
+// (what the build measured: none where it has not, a tool's run, the dev server before it has; a build without it is
+// broken, and says so: every plant would be measured at the start, its trees in the recipes' workers)
 const [SHIPPED = {}] = Object.values(import.meta.glob('../../outlines.json', { eager: true, import: 'default' }));
+if (import.meta.env?.PROD && !Object.keys(SHIPPED).length) console.error("outlines: this build shipped no outlines.json (tools/outlines.js): every plant is measured at the start, its trees in the recipes' workers");
+/** The build's rooms and far ends of plant a for the far ends' atlases A ({ rooms, far }), as the kit takes them
+    (assets/kit/tree.js crowdRooms: its outline's `atlases`, by their key); null where the build reckoned none: a recipe
+    changed since, or atlases no class of device has (src/detail/impostor.js ATLAS_SHARES). */
+export const shippedRooms = (a, A) => SHIPPED[keyOf(`${a.uid}:${a.placement?.seed ?? 1}`)]?.atlases?.[a.far ? A.key : ''] ?? null;
 /** Whether outline o holds the numbers the build measured of k: those the workers take. */
 const asShipped = (k, o) => !!SHIPPED[k] && Object.keys(SHIPPED[k]).every((n) => JSON.stringify(o[n]) === JSON.stringify(SHIPPED[k][n]));
 
@@ -45,7 +51,7 @@ export function keepOutlines() {
     // only its chunks: a few numbers a plant. What the build ships, with nothing reckoned of it, is not kept again)
     const keep = (id, o) => {
       const k = keyOf(id), shipped = !!k && asShipped(k, o);
-      if (k && (!shipped || (o.rooms && !SHIPPED[k].rooms))) all[k] = { ...o, ...(o.far ? { far: o.far.map(({ chunks }) => ({ chunks })) } : {}), ...(shipped ? { shipped } : {}) };   // (what the build shipped whole is not kept again)
+      if (k && (!shipped || (o.rooms && !SHIPPED[k].atlases?.[o.atlas]))) all[k] = { ...o, ...(o.far ? { far: o.far.map(({ chunks }) => ({ chunks })) } : {}), ...(shipped ? { shipped } : {}) };   // (what the build shipped whole is not kept again)
       return !!k;
     };
     for (const [id, o] of OUTLINES.kept) keep(id, o);
