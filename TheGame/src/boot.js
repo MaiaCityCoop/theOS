@@ -46,6 +46,7 @@ import { createControls } from './camera/rig.js';   // the one camera, from the 
 import { createLens } from './camera/post.js';
 import { createScreen } from './core/screen.js';
 import { startLight } from './world/light/start.js';
+import { cascades } from './world/shadow.js';
 import { createTemporal } from './core/temporal.js';
 import { createSky } from './world/sky.js';
 import { createWeather } from './world/weather/index.js';
@@ -139,6 +140,7 @@ export async function boot({ profile = 'world' } = {}) {
   const tex = bakeTextures(renderer, world ? { spare: 1 } : { spare: 8, first: landMaterials() });   // (the library's pictures ask for materials the world may not wear; the start's are compiled side by side and painted while the world is made: tex.ready)
   useTiles(tex);   // node code that reads a baked tile by itself (the clouds' field, the snow's clumps: src/world/tile.js)
   game.screenLight = startLight(renderer, screen);   // the light's start, before any material is built: the backend's reads, the shadow cascades laid out from what casts, the light worked out on the screen (src/world/light/start.js)
+  screen.reach = cascades().half[0];   // (the first view waits for what is drawn within the near cascade's reach; the rest comes after, rising in: src/core/screen.js)
   mark('bake');
   await loadingStep('Raising the land', 0.3);
   // what grows on the land (the ground under the camera and every scattered thing: src/scatter): the world's from the
