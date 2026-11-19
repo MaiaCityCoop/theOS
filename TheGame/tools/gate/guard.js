@@ -11,6 +11,7 @@
 // will not close), and the call fails: the view is marked failed and the run stops, nothing waited on.
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { processes, withChildren, heldBy } from './machine.js';
 
 const run = promisify(execFile);
 
@@ -21,17 +22,11 @@ class Unanswered extends Error {}
     footprint on a Mac, else the resident size), and the machine's swap: a line. */
 async function memoryNow(dir) {
   try {
-    const rows = [];
-    for (const line of (await run('ps', ['-A', '-o', 'pid=,ppid=,rss=,%cpu=,command='])).stdout.split('\n')) { const m = line.match(/^\s*(\d+)\s+(\d+)\s+(\d+)\s+([\d.]+)\s+(.*)$/); if (m) rows.push({ pid: +m[1], ppid: +m[2], rss: +m[3] * 1024, cpu: +m[4], cmd: m[5] }); }
-    const ours = new Map(rows.filter((p) => dir && p.cmd.includes(dir)).map((p) => [p.pid, p]));
-    for (let more = true; more;) { more = false; for (const p of rows) if (!ours.has(p.pid) && ours.has(p.ppid)) { ours.set(p.pid, p); more = true; } }
-    let foot = null;
-    if (process.platform === 'darwin' && ours.size) { const out = await run('footprint', ['--noCategories', '-f', 'bytes', ...[...ours.keys()].flatMap((pid) => ['-p', `${pid}`])]).then((r) => r.stdout, (e) => e.stdout ?? ''); foot = new Map([...out.matchAll(/\[(\d+)\]:.*?Footprint:\s*(\d+) B/g)].map((m) => [+m[1], +m[2]])); }
-    const by = {};
-    for (const p of ours.values()) { const k = p.cmd.match(/--type=([\w-]+)/)?.[1] ?? 'browser', b = by[k] ||= { bytes: 0, rss: 0, cpu: 0 }; b.bytes += foot?.get(p.pid) ?? p.rss; b.rss += p.rss; b.cpu += p.cpu; }
+    const ours = withChildren(await processes(), (p) => dir && p.cmd.includes(dir)), H = await heldBy(ours), by = {};
+    for (const p of ours.values()) { const k = p.cmd.match(/--type=([\w-]+)/)?.[1] ?? 'browser', b = by[k] ||= { bytes: 0, rss: 0, cpu: 0 }; b.bytes += H.of(p); b.rss += p.rss; b.cpu += p.cpu; }
     const swap = process.platform === 'darwin' ? (await run('sysctl', ['-n', 'vm.swapusage'])).stdout.trim() : '';
     const gb = (b) => `${(b / 1e9).toFixed(2)} GB`, all = Object.values(by).reduce((s, b) => s + b.bytes, 0);
-    return `the browser ${gb(all)}${foot ? ' (physical footprint)' : ''}: ${Object.entries(by).map(([k, b]) => `${k} ${gb(b.bytes)}, ${(b.rss / 1e6).toFixed(0)} MB resident, ${b.cpu.toFixed(0)} % CPU`).join('; ')}${swap ? `; swap ${swap}` : ''}`;
+    return `the browser ${gb(all)} (${H.measure}): ${Object.entries(by).map(([k, b]) => `${k} ${gb(b.bytes)}, ${(b.rss / 1e6).toFixed(0)} MB resident, ${b.cpu.toFixed(0)} % CPU`).join('; ')}${swap ? `; swap ${swap}` : ''}`;
   } catch (e) { return `(memory not read: ${e.message})`; }
 }
 

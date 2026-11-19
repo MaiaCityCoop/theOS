@@ -24,8 +24,9 @@ export const GBUFFER = [
 ];
 /** Its bytes a pixel, all its targets'. */
 export const GBUFFER_BYTES = GBUFFER.reduce((n, t) => n + t.bytes, 0);
-/** The families lit here, each its number in the G-buffer (its 2 bits; none: 0, what the colour pass draws). */
-export const FAMILY = Object.fromEntries(['none', 'stands', 'grass'].map((name, at) => [name, at]));
+/** The families lit here, each its number in the G-buffer (its 2 bits, all four said: none, 0, what the colour pass
+    draws; the stands, src/scatter/trees.js; the grass, grass.js; the land, src/terrain/material.js). */
+export const FAMILY = Object.fromEntries(['none', 'stands', 'grass', 'land'].map((name, at) => [name, at]));
 /** A family's own numbers (0 … 1) beside its part and its family in gB's second word: each its bits, and where it lies. */
 const OWN = [7, 7, 8, 6], OWN_AT = OWN.map((_, i) => OWN.slice(0, i).reduce((a, b) => a + b, 0)), PART_AT = OWN.reduce((a, b) => a + b, 0), FAMILY_AT = PART_AT + 2;
 /** What a deferred material's prepass writes into it (set in its fragment by gWrite; 0 in any other's). */

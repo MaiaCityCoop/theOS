@@ -12,10 +12,13 @@ import { useBuilder } from '../../assets/kit/surface.js';
 import { ERROR_PX, BAND, PX_CUT, SURFACE_LEVELS, surfaceBand, surfacePx, dialPx } from '../../src/detail/error.js';
 import { rockFull } from '../../assets/kit/rock.js';
 import { spanOf } from '../../assets/kinds.js';
+import { pxKAt } from '../../src/detail/measure.js';
+import { OUTPUT } from '../../src/core/budget.js';
+import { outputRatio } from '../../src/core/output.js';
 
 await ready; useBuilder(build);
 const STEP = +(process.env.STEP || 1.01), SAMPLE = +(process.env.SAMPLE || 1);   // (a step a frame: 1 % nearer; SAMPLE: every so many triangles' corners measured, for a large surface)
-const K = 1 / (2 * Math.tan((68 / 2) * Math.PI / 180)), H = 1440;   // the measure's: pixels drawn a metre covers at a metre through the walker's lens, the inside 1440 tall (the budget's: a 4K screen drawn at 1440p)
+const KH = pxKAt(OUTPUT.height * outputRatio(OUTPUT.width, OUTPUT.height));   // the measure's: pixels drawn a metre covers at a metre through the walker's lens, at the most rows the game draws on the output (src/detail/measure.js, src/core/output.js: 1080)
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 /** M of a thing: rocks by their kit, made things welded as assets/kit/made.js does it (place, normal, colour alike). */
@@ -34,9 +37,9 @@ async function meshOf(name) {
     level the packing picks by its size on screen, its clusters by the rule, each vertex turned as far as it says
     (morph off: not at all). { tris: [[ax, ay, az, bx, …] …], px (the thing's size on screen, pixels drawn) }. */
 function drawn(D, eye, morph) {
-  const mid = [0, 0.4, 0], d = Math.hypot(eye[0] - mid[0], eye[1] - mid[1], eye[2] - mid[2]), px = (K * H) / d;
+  const mid = [0, 0.4, 0], d = Math.hypot(eye[0] - mid[0], eye[1] - mid[1], eye[2] - mid[2]), px = KH / d;
   let l = 0; while (l < SURFACE_LEVELS - 1 && dialPx(px) <= surfacePx(l)) l++;   // (the levels' sizes are dial pixels: src/detail/error.js)
-  const [lo, hi] = surfaceBand(l), allowed = (dd) => Math.min(hi, Math.max(lo, (ERROR_PX() * dd) / (K * H))), w = l ? 0 : smooth(PX_CUT * ERROR_PX(), 2 * PX_CUT * ERROR_PX(), px);
+  const [lo, hi] = surfaceBand(l), allowed = (dd) => Math.min(hi, Math.max(lo, (ERROR_PX() * dd) / KH)), w = l ? 0 : smooth(PX_CUT * ERROR_PX(), 2 * PX_CUT * ERROR_PX(), px);
   const at = (s) => Math.max(1e-3, Math.hypot(eye[0] - s.c[0], eye[1] - s.c[1], eye[2] - s.c[2]) - s.r), P = D.M.pos, KK = 6 + D.k, tris = [];
   for (const c of D.clusters) {
     if (!(c.self.err <= hi && c.parent.err > lo)) continue;   // (not in this level)

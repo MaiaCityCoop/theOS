@@ -20,7 +20,8 @@
 // Two of each by turns: the frame before's depth says what has changed place.
 import * as THREE from 'three/webgpu';
 import { note, mark } from './gpu.js';
-import { compileFor, compileList, made, ask, labelled } from './compile.js';
+import { compileFor, compileList, made, ask, labelled, nearFrom } from './compile.js';
+import { shown, arriving } from './settle.js';
 import { twinOf } from './pass.js';
 import { GBUFFER, GBUFFER_BYTES, lightPass } from './gbuffer.js';
 import { U } from './uniforms.js';
@@ -56,7 +57,7 @@ export function createScreen(renderer, { temporal, lens = null }) {
       const w = size.x, h = size.y, made = (o, depth) => new THREE.RenderTarget(w, h, { samples: 0, type: THREE.HalfFloatType, generateMipmaps: false, depthTexture: depth, ...o });
       const turns = [0, 1].map(() => { const depth = new THREE.DepthTexture(w, h); return { depth, pre: prepassTarget(w, h, depth), main: made({ minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter }, depth) }; });
       T = { w, h, turns, drawn: 0 };   // (drawn: frames drawn into them: the first, the other turn's depth holds nothing yet)
-      note('the picture inside (its colour, motion, id, G-buffer and depth, two of each)', 2 * w * h * (8 + 8 + 8 + GBUFFER_BYTES + 4), 0, 'geometry');   // (what the prepass and the colour draw into)
+      note('the picture inside (its colour, motion, id, G-buffer and depth, two of each)', 2 * w * h * (8 + 8 + 8 + GBUFFER_BYTES + 4), 0, 'geometry', turns.flatMap((t) => [t.pre, t.main, t.depth]));   // (what the prepass and the colour draw into)
     }
     return T.turns[turn];
   };
@@ -75,11 +76,25 @@ export function createScreen(renderer, { temporal, lens = null }) {
   // with no colour on it would be a hole the sky shows through. A deferred material's colour is its pass of light's
   // (src/core/gbuffer.js lightPass): made for that instead)
   const lit = (L) => !L || made(L.mesh, 'main') || (ask(L.mesh, 'main', makerOf('main', L.camera, L.mesh), labelled(twin.main(L.mesh.material), L.mesh, 'main')), false);
+  // (how near an object is, as its asks say it, src/core/compile.js: what the first view waits for (0) within the near
+  // cascade's reach, the rest after it, by where its band begins (userData.near, metres: a tier's level, its family
+  // says it); one that says nothing, 0)
+  const nearOf = (object) => nearFrom(object.userData?.near ?? 0);
+  // (what a frame left out, its pipelines not made yet: as it comes, after the first frame shown, it rises out of the
+  // ground over FADE frames, a level that is gone sunk the other way: userData.arrived, 0 … 1, which its family
+  // multiplies into its sink, src/detail/handover.js. What was made before it came into view comes as it is)
+  const left = new WeakSet(), rising = new Map();   // (left out; rising: an object -> its arrival)
+  const rise = (o) => { const a = arriving((v) => { o.userData.arrived = v; }); a.arrive(); if (o.userData.arrived < 1) rising.set(o, a); };
   const both = (object, material, camera, scene) => {
     const pre = twin.pre(material), main = twin.main(material);
-    if ((!pre || made(object, 'pre')) && (main ? made(object, 'main') : lit(lightPass()))) return true;   // (a frame's own way: two looks)
-    if (pre) ask(object, 'pre', makerOf('pre', camera, scene), labelled(pre, object, 'pre'));
-    if (main) ask(object, 'main', makerOf('main', camera, scene), labelled(main, object, 'main'));
+    if ((!pre || made(object, 'pre')) && (main ? made(object, 'main') : lit(lightPass()))) {   // (a frame's own way: two looks)
+      if (left.has(object)) { left.delete(object); if (shown()) rise(object); }
+      return true;
+    }
+    const near = nearOf(object);
+    if (pre) ask(object, 'pre', makerOf('pre', camera, scene), labelled(pre, object, 'pre'), true, near);
+    if (main) ask(object, 'main', makerOf('main', camera, scene), labelled(main, object, 'main'), true, near);
+    left.add(object);
     return false;
   };
   // (what is drawn on its own after the rest of the colour, apart: left out of the scene's draw of it)
@@ -91,6 +106,9 @@ export function createScreen(renderer, { temporal, lens = null }) {
   return {
     get out() { return OUT; }, size: sizeOf,
     get inside() { return ratio(); },
+    /** The inside's pixel ratio as the governor draws it, no more than the canvas's (without the dial's supersampling,
+        ?truth's): the rows the one measure counts (src/detail/measure.js). */
+    get drawn() { return Math.min(OUT, inside); },
     /** The colour's target the world is drawn into. */
     get target() { return T?.turns[turn].main ?? null; },
     /** The inside's pixel ratio: no more than the canvas's. */
@@ -122,6 +140,7 @@ export function createScreen(renderer, { temporal, lens = null }) {
     apart(object, draw, name = null) { apartFrom.set(object, { draw, name }); },
     /** Draw the world as this camera sees it, onto the canvas. */
     render(scene, camera) {
+      for (const [o, a] of rising) { a.step(); if (o.userData.arrived >= 1) { rising.delete(o); delete o.userData.arrived; } }   // (risen: as one that never had to)
       const t = targetsNow(), was = T.turns[1 - turn], alpha = renderer.getClearAlpha(), clearDepth = renderer.autoClearDepth;
       U.uFrame.value = (U.uFrame.value + 1) % 4096;   // (the blue noise steps on: src/world/light/noise.js)
       temporal.begin(camera, size.x, size.y);

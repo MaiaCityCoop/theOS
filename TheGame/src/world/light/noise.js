@@ -10,9 +10,10 @@
 // numbers are four such ranks of the one tile, each shifted by a far step, so two or three terms of one pixel do not
 // follow each other.
 import * as THREE from 'three/webgpu';
-import { texture, ivec2, uint, fract, float } from 'three/tsl';
+import { ivec2, uint, fract, float } from 'three/tsl';
 import { U } from '../../core/uniforms.js';
 import { BLUE_NOISE_SIDE, BLUE_NOISE_SIGMA } from '../../core/method.js';
+import { TABLES, TABLE_W, tables } from './tables.js';
 
 const N = BLUE_NOISE_SIDE, SIGMA = BLUE_NOISE_SIGMA;
 
@@ -36,22 +37,20 @@ function voidAndCluster() {
   return rank;
 }
 
-let made = null;
-/** The tile as a texture: rgba8, each number a rank of the tile (0 … 1), the four shifted apart. */
+let made = false;
+/** The tile laid into the light's tables (light/tables.js: its first rows), each number a rank of the tile (0 … 1, as an
+    8-bit share), the four shifted apart; once. */
 function tile() {
-  if (made) return made;
-  const rank = voidAndCluster(), data = new Uint8Array(N * N * 4), at = (x, y) => rank[(((y % N) + N) % N) * N + (((x % N) + N) % N)];
+  if (made) return; made = true;
+  const rank = voidAndCluster(), at = (x, y) => rank[(((y % N) + N) % N) * N + (((x % N) + N) % N)], data = TABLES.image.data;
   const shifts = [[0, 0], [37, 19], [11, 45], [53, 29]];
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) for (let c = 0; c < 4; c++) data[(y * N + x) * 4 + c] = Math.floor((at(x + shifts[c][0], y + shifts[c][1]) / (N * N)) * 256);
-  made = new THREE.DataTexture(data, N, N, THREE.RGBAFormat, THREE.UnsignedByteType);
-  made.minFilter = made.magFilter = THREE.NearestFilter; made.wrapS = made.wrapT = THREE.RepeatWrapping; made.generateMipmaps = false; made.needsUpdate = true;
-  return made;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) for (let c = 0; c < 4; c++) data[(y * TABLE_W + x) * 4 + c] = THREE.DataUtils.toHalfFloat(Math.floor((at(x + shifts[c][0], y + shifts[c][1]) / (N * N)) * 256) / 255);
+  TABLES.needsUpdate = true;
 }
 
-let node = null;   // (one texture node for every read: one binding a shader, however many terms read it)
 /** The noise at a pixel (screen coordinates), this frame: four numbers 0 … 1, blue in space, stepping on by the golden
     ratio from frame to frame (U.uFrame). */
 export const blueAt = (p) => {
-  const t = (node ||= texture(tile())).load(ivec2(uint(p.x).mod(uint(N)), uint(p.y).mod(uint(N))));
+  tile(); const t = tables.load(ivec2(uint(p.x).mod(uint(N)), uint(p.y).mod(uint(N))));
   return fract(t.add(float(U.uFrame).mul(0.61803398875)).add(float(0.5 / 256)));
 };

@@ -38,6 +38,7 @@ export function waiting() {
   return out;
 }
 
+import { FADE_FRAMES } from './budget.js';
 let V = null, clock = NaN, frames = 0, still = 0, need = 32, first = null;
 const asks = new Set(), seen = new Float64Array(37), broke = new Set();
 /** A promise: the world complete for the page's first view, and the picture built over time come to rest on it (what
@@ -54,6 +55,17 @@ export const drawn = new Promise((res) => (view = res));
 let SHOWN = false; drawn.then(() => (SHOWN = true));
 /** Whether the first frame has been shown (drawn): what the start does all at once, and the world after it in turn. */
 export const shown = () => SHOWN;
+/** What comes in after the first frame shown, faded in, never on in one frame (2026-11-19, the master: what the first
+    view does not wait for, src/core/compile.js ask's near, fades in as it arrives). set(share) is told its share, 0 …
+    1. arrive(): what it shows is all in (once: again, nothing): behind the veil, at once (nothing is shown yet); else
+    over FADE_FRAMES frames, smoothly (src/core/budget.js). step(): once a frame. */
+export function arriving(set) {
+  let n = -1;   // (frames since it arrived; -1: not yet)
+  return {
+    arrive() { if (n >= 0) return; n = SHOWN ? 0 : FADE_FRAMES; set(n ? 1 : 0); },
+    step() { if (n < 0 || n >= FADE_FRAMES) return; const t = ++n / FADE_FRAMES; set(t * t * (3 - 2 * t)); },
+  };
+}
 
 /** What a frame's view is compared by: the camera, the renderer (its canvas's pixels), the screen (the inside's pixels:
     the governor's ratio), the picture built over time, the shared uniforms (the clock, the detail governor). */
@@ -82,10 +94,24 @@ export function tick(did) {
   if (view && !own) { view({ frames }); view = null; }
   still = moved || did || out + lost > 0 || T.age === 0 ? 0 : still + 1;
   need = T.settles;
-  if (still < need || T.age < need) return;
+  if (still < need || T.age < need) return void (calm = false);
   if (first) { first({ frames }); first = null; }
   for (const a of asks) if (frames > a.from) { asks.delete(a); clearTimeout(a.timer); a.res({ frames: frames - a.from, ms: Math.round(performance.now() - a.t0), still }); }
+  calmed();
 }
+// (each time the world has come to settle: calm, from the first frame of a stretch it stands settled to the first that
+// is not)
+let calm = false;
+const CALM = new Set();
+function calmed() {
+  if (calm) return;
+  calm = true;
+  for (const f of CALM) try { f(); } catch (e) { console.warn('settle: what lets go as the world settles failed', e); }
+}
+/** fn(), each time the world has come to settle (the first frame of each stretch it stands settled, as ready and settle
+    take it): what may let go of what it holds only while nothing is asked of it (src/core/workers.js: a worker with
+    nothing to do), or ask again what waits for the start's peak to pass (src/core/compile.js: what memory refused). */
+export const onSettled = (fn) => void CALM.add(fn);
 
 /** Whether something waits for the world to settle (a page's first view, a still, the gate): a camera that moves by
     itself (the library's stage circling its subject: src/stage/studio.js) stands still meanwhile, or it never would. */

@@ -7,10 +7,17 @@
 import { plugin } from 'bun';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { Glob } from 'bun';
 import { buildRegistry } from './registry.js';
+import { GAME, marked } from './sites.js';
 
-buildRegistry(resolve(import.meta.dir, '..'));
+if (Bun.isMainThread) buildRegistry(resolve(import.meta.dir, '..'));   // (once, by the tool itself: a worker it starts, given this file first, tools/smoke.js --full, globs and reads it)
+const ROOT = resolve(import.meta.dir, '..') + '/';
+// (and every place in the game's code that makes a shader hands its thing, as it is made, to __made with its own name,
+// 'file:line' (tools/sites.js marked): a tool that asks where a thing was made reads it there, the smoke; nothing
+// otherwise)
+globalThis.__made ??= (id, x) => x;
 const CALL = /import\.meta\.glob\(\s*(\[[^\]]*\]|'[^']*')\s*(?:,\s*(\{[^}]*\}))?\s*\)/g;
 
 plugin({
@@ -18,6 +25,8 @@ plugin({
   setup(build) {
     build.onLoad({ filter: /[\\/]TheGame[\\/](src|world|biomes|assets|materials|characters|camera|cine)[\\/].*\.js$/ }, ({ path }) => {
       let src = readFileSync(path, 'utf8');
+      const rel = path.slice(ROOT.length);
+      if (GAME.test(rel)) src = marked(src, rel);
       if (!src.includes('import.meta.glob')) return { contents: src, loader: 'js' };
       const dir = dirname(path), head = [];
       src = src.replace(CALL, (_, pats, opts) => {
@@ -29,6 +38,7 @@ plugin({
           if (!no.some((g) => g.match(rel) || g.match(f))) found.add(rel);
         }
         const keys = [...found].sort(), at = (k) => JSON.stringify(resolve(dir, k));
+        if (o.query === '?url') { const url = (k) => JSON.stringify(pathToFileURL(resolve(dir, k)).href); return `({ ${keys.map((k) => `${JSON.stringify(k)}: ${o.eager ? url(k) : `() => Promise.resolve(${url(k)})`}`).join(', ')} })`; }   // (a file's URL, as Vite's ?url gives the one it emitted: what fetch reads it by)
         if (!o.eager) return `({ ${keys.map((k) => `${JSON.stringify(k)}: () => import(${at(k)})${o.import ? `.then((m) => m[${JSON.stringify(o.import)}])` : ''}`).join(', ')} })`;   // lazy: a function a module
         const names = keys.map((_, i) => `__glob_${head.length + i}`);
         keys.forEach((k, i) => head.push(o.import === 'default' ? `import ${names[i]} from ${at(k)};` : o.import ? `import { ${o.import} as ${names[i]} } from ${at(k)};` : `import * as ${names[i]} from ${at(k)};`));

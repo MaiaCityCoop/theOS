@@ -41,7 +41,7 @@ jobs:
           fetch-depth: 0   # all of main's line: the code gates' base is main (a pull request's first parent), or for a revert what it restores
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.4.4
+          bun-version-file: TheGame/package.json   # (packageManager: the repo's one pin of Bun, tools/smoke.js reads it too)
       - name: Install
         working-directory: TheGame
         run: bun install --frozen-lockfile
@@ -51,12 +51,18 @@ jobs:
       - name: The plants' outlines, measured as the page measures them (never kept in git)
         working-directory: TheGame
         run: bun tools/outlines.js
+      - name: What the build makes and git keeps, as its maker makes it of this commit (the solids' rooms)
+        working-directory: TheGame
+        run: bun tools/fresh.js
       - name: Every name bound, every import found
         working-directory: TheGame
         run: bun tools/lint.js
       - name: Every material and pass built, on the GPU's stand-in
         working-directory: TheGame
-        run: bun tools/smoke.js
+        run: bun tools/smoke.js --wgsl "$RUNNER_TEMP/wgsl.json"
+      - name: Every shader the smoke built, compiled as Chrome compiles it (Tint, on its CPU adapter, SwiftShader)
+        working-directory: TheGame
+        run: bun tools/gate.js wgsl --cpu --from "$RUNNER_TEMP/wgsl.json"
       - name: What smoke counted, kept for main's commit
         if: github.event_name == 'push'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -88,7 +94,7 @@ jobs:
           persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.4.4
+          bun-version-file: TheGame/package.json   # (packageManager: the repo's one pin of Bun, tools/smoke.js reads it too)
       - name: Install
         run: |
           (cd TheGame && bun install --frozen-lockfile)
@@ -151,7 +157,7 @@ jobs:
           persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.4.4
+          bun-version-file: TheGame/package.json   # (packageManager: the repo's one pin of Bun, tools/smoke.js reads it too)
       - name: API tests
         working-directory: API
         env:

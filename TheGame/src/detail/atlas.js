@@ -4,14 +4,14 @@
 // holds it (tools/registry.js SHARED).
 //
 // An impostor (src/detail/impostor.js) is VIEWS x VIEWS pictures of the thing over the half-sphere above, each pixel the
-// three views nearest its own ray's way blended, each read with one step of parallax. Two things put what it shows off
-// where the thing is, and they are one displacement:
-//   - the views' spacing: the eye sees the thing from up to an angle a off the views it reads, so what lies at another
-//     depth than the view saw it at shifts by that depth times tan a;
-//   - its one step of parallax on one quad: a pixel reads the depth where its ray crosses the thing's middle and shows
-//     what the view saw a step away, which can lie anywhere in the thing's depth.
-// So what a pixel shows lies at most the thing's depth times tan a from where it is: spacingOf(VIEWS) * depthOf(thing),
-// counted once. Its bake's texel comes on top (crowd.js).
+// three views nearest its own ray's way blended, each read where that ray crosses the view's plane through the thing's
+// middle (its sphere's). What it shows is off where the thing is by the views' spacing: the eye sees the thing from up to
+// an angle a off the views it reads, so what the view saw at z from that plane shows z tan a from where it is, and z is
+// at most the sphere's radius r (the farthest any of it lies from the middle, every way). So what a pixel shows lies at
+// most r times tan a from where it is: spacingOf(VIEWS) * r. Its bake's texel comes on top (crowd.js). (Until 2026-11-19
+// a pixel read the depth where its ray crossed the middle and took one step of parallax by it: what it then showed could
+// lie anywhere in the thing's depth, twice that, so the impostor came a third nearer, about 11 px for a 20 m tree
+// instead of about 15, the crowd drawn whole the while.)
 //
 // How large the atlases are follows from that error, the share of memory they are given and the limits every device
 // grants (atlasesOf): the views and their texels are chosen where the impostor's error is least for the bytes a far end
@@ -37,7 +37,8 @@ export const facingWay = (u, v, out) => {
 const SPACING = new Map();
 /** What VIEWS x VIEWS views cost an impostor, at its worst over every way the eye can see the thing from: the blend's sum
     of w tan a over the three views it reads (impostor.js impostorViews: a its angle from the eye's way, w its weight).
-    Times the thing's depth (depthOf), how far what the impostor shows lies from where it is. Measured on the views
+    Times the thing's sphere's radius (the farthest any of it lies from the plane each view is read on), how far what
+    the impostor shows lies from where it is. Measured on the views
     themselves: from 8 views on, a triangle of views is at its worst at the middle of its long side, a cell's middle,
     where the two views at its ends weigh half each (eight and twenty-four eyes a view's step find no worse, up to 128
     views), so every cell's middle, corner and sides' middles are its eyes; fewer views are coarse enough that their
@@ -60,40 +61,6 @@ export function spacingOf(views) {
   return worst;
 }
 
-/** How deep a thing is, at its deepest: the most its points reach along any way the eye can see it from (its extent
-    along 256 ways over the half-sphere, each with its opposite: its diameter, near enough). P: its points' places
-    (x y z), n of them. */
-export function depthOf(P, n = P.length / 3) {
-  if (!n) return 0;
-  // (each way's extent is its farthest point's and its nearest's. The farthest from the box's middle are looked at
-  // first, every way; a point nearer the middle than every way's extent then holds round it (R) moves none of them, so
-  // only the rest are looked at too. The same depth, exactly. Every point every way, for every shape, was a tenth of the
-  // scatter's 5 s at a start, 2026-11-19)
-  const c = [0, 1, 2].map((a) => { let lo = Infinity, hi = -Infinity; for (let p = a; p < n * 3; p += 3) { if (P[p] < lo) lo = P[p]; if (P[p] > hi) hi = P[p]; } return (lo + hi) / 2; });
-  const d2 = new Float64Array(n); let far = 0;
-  for (let i = 0, p = 0; i < n; i++, p += 3) { d2[i] = (P[p] - c[0]) ** 2 + (P[p + 1] - c[1]) ** 2 + (P[p + 2] - c[2]) ** 2; if (d2[i] > far) far = d2[i]; }
-  const lo = new Float64Array(256).fill(Infinity), hi = new Float64Array(256).fill(-Infinity);
-  const look = (idx, m) => {   // (the first m points of `idx` every way: each way's extent widened to them)
-    for (let k = 0; k < 256; k++) {
-      const x = DEPTH_X[k], y = DEPTH_Y[k], z = DEPTH_Z[k]; let l = lo[k], h = hi[k];
-      for (let j = 0; j < m; j++) { const p = idx[j] * 3, d = P[p] * x + P[p + 1] * y + P[p + 2] * z; if (d < l) l = d; if (d > h) h = d; }
-      lo[k] = l; hi[k] = h;
-    }
-  };
-  const idx = new Uint32Array(n); let m = 0;
-  for (let i = 0; i < n; i++) if (d2[i] >= far * 0.81) idx[m++] = i;
-  look(idx, m);
-  let R = Infinity; for (let k = 0; k < 256; k++) { const cu = c[0] * DEPTH_X[k] + c[1] * DEPTH_Y[k] + c[2] * DEPTH_Z[k]; R = Math.min(R, hi[k] - cu, cu - lo[k]); }
-  R -= 1e-9 * (1 + sqrt(far));   // (less a hair: what passes by stays clear of every rounding)
-  m = 0; for (let i = 0; i < n; i++) if (d2[i] < far * 0.81 && !(R > 0 && d2[i] < R * R)) idx[m++] = i;
-  look(idx, m);
-  let worst = 0; for (let k = 0; k < 256; k++) if (hi[k] - lo[k] > worst) worst = hi[k] - lo[k];
-  return worst;
-}
-// (the ways depthOf looks along: a golden spiral over the half-sphere, each way's x, y and z)
-const DEPTH = Array.from({ length: 256 }, (_, k) => { const y = (k + 0.5) / 256, r = sqrt(1 - y * y), a = k * PI * (3 - sqrt(5)); return [r * cos(a), y, r * sin(a)]; });
-const DEPTH_X = Float64Array.from(DEPTH, (w) => w[0]), DEPTH_Y = Float64Array.from(DEPTH, (w) => w[1]), DEPTH_Z = Float64Array.from(DEPTH, (w) => w[2]);
-
 // ---- the atlases: what they are made of, and how large ----
 /** What an atlas keeps of a texel: three pictures, each a texture of its own so each is filtered as it is
     (impostor.js createAtlas), by its channels, eight bits each: its colour and cover; its data, its way (facingCode),
@@ -113,6 +80,8 @@ export const atlasBytes = (side, layers) => side * side * layers * TEXEL * MIPS;
 /** The smaller pictures a picture of `cell` texels a side has down to the least (its levels after the first). */
 export const levelsUnder = (cell) => floor(Math.log2(cell / LEAST) + 1e-9);
 
+/** What is kept of a view baked at `cell` texels a side: its level under where it has one (atlasesOf, below). */
+const storedOf = (cell) => (levelsUnder(cell) ? cell / 2 : cell);
 /** The plants' far ends' atlases, sized from what they are given and what every device grants:
       layers   how many far ends the stands bake, a layer of each atlas each (src/scatter/entries.js farLayers)
       bytes    the share they are given, their views and their clumps together (src/core/classes.js SHARE_MB)
@@ -126,20 +95,23 @@ export const levelsUnder = (cell) => floor(Math.log2(cell / LEAST) + 1e-9);
     - the chunks: as many as the tiles a plane's uv can name hold, three planes each, and the bake's uniforms hold (a
       chunk's cell and box, four vec4: src/scatter/trees.js farOf);
     - the views: what is left of a far end's share once its clumps have theirs, as VIEWS x VIEWS views of CELL texels a
-      side, where the impostor's error is least: its texel, 2r / CELL, and its views' spacing, at most spacingOf(VIEWS)
-      times its depth (at most 2r: r its sphere's radius). A view halves to the least picture (CELL = LEAST to 2 LEAST,
+      side, where the impostor's error is least: its texel, 2r / CELL, and its views' spacing, spacingOf(VIEWS) times r
+      (r its sphere's radius: half of 2r). A view halves to the least picture (CELL = LEAST to 2 LEAST,
       times a power of two); VIEWS is even (no view looks straight down), and a row of views, baked at SS samples a
-      texel, is no wider than every device draws. */
+      texel, is no wider than every device draws. The share holds what is kept of them, STORED texels a view (below): it
+      was planned at CELL, and kept a quarter of that (#230), three quarters of it standing empty. */
 export function atlasesOf({ layers, bytes, limits, tiles }) {
   const TILE = LEAST, TILES = tiles, CLUMPS = min(floor((TILES * TILES) / 3), floor(limits.maxUniformBufferBindingSize / 64));
-  const views = bytes / max(1, layers) - atlasBytes(TILES * TILE, 1), side = min(floor(sqrt(views / (TEXEL * MIPS))), floor(limits.maxTextureDimension2D / SS));
+  // (texels a side its kept views may take, of its share; and a row of views as baked, SS samples a texel, as wide as
+  // every device draws)
+  const views = bytes / max(1, layers) - atlasBytes(TILES * TILE, 1), kept = floor(sqrt(views / (TEXEL * MIPS))), wide = floor(limits.maxTextureDimension2D / SS);
   const cells = [];
-  for (let k = 1; LEAST * k <= side / 2; k *= 2) for (let c = LEAST; c < 2 * LEAST; c++) cells.push(c * k);
+  for (let k = 1; LEAST * k <= wide / 2; k *= 2) for (let c = LEAST; c < 2 * LEAST; c++) cells.push(c * k);
   let best = null;
   for (const CELL of cells.sort((a, b) => b - a)) {   // (fewest views first: a texel's error alone, 1 / CELL, then says where none can do better)
     if (best && 1 / CELL >= best.e) break;
-    const VIEWS = floor(side / CELL / 2) * 2; if (VIEWS < 2) continue;
-    const e = 1 / CELL + spacingOf(VIEWS);
+    const VIEWS = min(floor(kept / storedOf(CELL) / 2), floor(wide / CELL / 2)) * 2; if (VIEWS < 2) continue;
+    const e = 1 / CELL + spacingOf(VIEWS) / 2;   // (in the sphere's widths, 2r: its texel's 1 / CELL, its views' r of it)
     if (!best || e < best.e) best = { e, VIEWS, CELL };
   }
   if (!best) throw new Error(`atlases: ${(bytes / 2 ** 20).toFixed(0)} MiB for ${layers} far ends hold no views`);
@@ -148,6 +120,6 @@ export function atlasesOf({ layers, bytes, limits, tiles }) {
   // (its texels' level by its size on screen), so there its views' share being about its texel's (as they are chosen
   // above, the least error for the bytes) it reads the level under the bake's: the bake's own finest is never read, and
   // is not kept (three quarters of the bytes). The bake is still CELL texels a side (its level under: a mean of four)
-  const { VIEWS, CELL } = best, STORED = levelsUnder(CELL) ? CELL / 2 : CELL;
+  const { VIEWS, CELL } = best, STORED = storedOf(CELL);
   return { VIEWS, CELL, STORED, TILE, TILES, CLUMPS, key: `${VIEWS}x${CELL}|${TILES}x${TILE}|${CLUMPS}` };
 }
