@@ -1,9 +1,9 @@
 // The skeleton (intent 0036): every bone of the body in its own shape and size, laid out for one man of reference,
 // 1.80 m, standing in the neutral pose (arms down, palms to the thighs, every frame turned like the world's). It is the
-// first of the body's layers (the bones, then the muscles on them, the fat, the skin: ./bones.js) and the rig the person
+// first of the body's layers (the bones, then the muscles on them, the fat, the skin: ./body.js) and the rig the person
 // moves by: its joints are where these bones meet. Measures from anatomy's textbooks (Gray's Anatomy, 1918, its plates;
 // White, Black & Folkens, "Human Osteology", 3rd ed.), for an adult man; a body of other measures is this skeleton
-// carried to its own.
+// carried to its own (./body.js).
 //
 // Coordinates: metres, from the floor between the feet; x to the person's left, y up, z forwards. Points are written
 // for the left side (x > 0); the right is their mirror.

@@ -10,7 +10,7 @@
 //            that mesh's normal there; the two bones that move it (of its kind's sixteen) and how much the second does.
 //            What stands on no skeleton may keep something else in those twelve bits (a leaf card: where on the card
 //            the vertex is: assets/kit/frond.js)
-//   still    (a solid that stands on no skeleton, its levels a cluster hierarchy, assets/kit/surface.js: a rock) word 3 is
+//   still    (a solid that stands on no skeleton, its levels made by assets/kit/reduce.js: `?lod=new`) word 3 is
 //            dz high (6) | coarse normal u (9) | v (9) | coarse shade (6) | 2 spare: its normal and its shade on the next
 //            coarser level as finely as that level's own, so where the one level gives way to the next they are its, bit for bit
 import { held, sn, sc, oct, OCT, unoct } from './pack.js';
@@ -38,14 +38,6 @@ export function packSolid(out, o, x, y, z, nx, ny, nz, shade, tx, ty, tz, tnx, t
   out[o + 2] = ((NV >> 7) | (SH << 2) | (dx << 8) | (dy << 18) | ((dz & 0xf) << 28)) >>> 0;
   out[o + 3] = (still != null ? (dz >> 4) | (TU << 6) | (TV << 15) | (held(still * 63, 63) << 24) : (dz >> 4) | (TU << 6) | (TV << 13) | (a << 20) | (b << 24) | (W << 28)) >>> 0;
 }
-
-/** A vertex of a still solid's cluster in the heap (a rock's, a blob's: `still`, its levels a cluster hierarchy,
-    assets/kit/surface.js), element by element: one, its place, normal and shade and the same on its parent's surface. */
-const STILL_VERTEX = ['its place, normal and shade, and its way to its parent'];
-/** The elements a still solid's vertex is in the heap. */
-export const STILL_PER = STILL_VERTEX.length;
-/** How hierarchy D's vertices are packed as a still solid's (surface.js packLevel's `write`). */
-export const stillOf = (D) => { const P = D.M.pos, N = D.M.nor, A = D.M.attr; return (out, at, c, j, Dm) => { const v = c.verts[j], t = c.to, o = j * 7; packSolid(out, at, P[v * 3], P[v * 3 + 1], P[v * 3 + 2], N[v * 3], N[v * 3 + 1], N[v * 3 + 2], A[v], t[o], t[o + 1], t[o + 2], t[o + 3], t[o + 4], t[o + 5], Dm, 0, 0, 0, t[o + 6]); }; };
 
 /** A dot: three corners at a thing's middle (what draws it turns it to the eye and takes its colour from its look). */
 export function dotMesh() { const verts = new Uint32Array(12); for (let i = 0; i < 3; i++) packSolid(verts, i * 4, 0, 0.4, 0, 0, 1, 0, 0.85, 0, 0.4, 0, 0, 1, 0, 0); return { index: new Uint32Array([0, 1, 2]), verts }; }

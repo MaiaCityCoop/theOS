@@ -1,9 +1,0 @@
-{
- "about": "The bench's ceilings (tools/gate/ceilings.js): per view, each pass's and each class's GPU ms a frame, lowered to main's measure by --ratchet (the hour's on main), never raised; a class's never below its share (src/core/budget.js FRAME_MS_BY_CLASS). Empty till the first measured ratchet at the 1920 x 1080 output: the 4K ceilings of 3d0c3b5 measured another output.",
- "measured": null,
- "noise": {
-  "passes": {},
-  "classes": {}
- },
- "views": {}
-}

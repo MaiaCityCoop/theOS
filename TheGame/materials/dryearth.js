@@ -6,7 +6,7 @@ export default {
   type: 'material',
   name: "Dry earth",
   kind: 'ground',
-  about: 'Mud dried into curling plates, split by cracks.',
+  about: "Mud dried into plates that curl up at their edges, split by cracks wide and fine, dust and grit over it.",
   usedBy: "the terrain where the land is dry",
   swatch: [0.33, 0.25, 0.16],
   bump: 0.014,   // how deep its relief reads in the normals: larger is flatter

@@ -22,28 +22,20 @@
 //   the grass: one blade, its asset's height times its tuft's share (0.5 to 2.2, src/scatter/grass.js), the middle the
 //     mean share
 //   a person: built (characters/kit/human.js) and measured, feet to the top of the hair
-//   a figure brought in whole (characters/kit/figure.js): read, then measured by its kit from its lowest to its highest
-//     point as its bones hold it at rest (`stands`)
 //   a character that is grown after it is made (the skeleton: characters/kit/bones.js): waited for, then measured the
 //     same way, its quick surface
 // Every level of what is built is measured too: a far level that stands taller or lower than the near one by more
 // than LEVELS is said.
-//
-// And that no asset says anything of its detail (intent 0038, check 4b): an asset's file says only what it is at full
-// detail, and every rung coarser comes where its own error is the one ERROR_PX (src/detail/error.js). The run fails where
-// an asset's file holds a key of detail (DETAIL: its levels, a ladder, rings, a size on screen, a hand-over's width, a far
-// end's levels) or a kind (assets/kinds.js) says where detail changes (a number or a block where only yes or no may be).
 import './glob.js';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 const { recipe, manifest } = await import('../src/core/registry.js');   // (first, as the game does: the recipes import it back)
 const { PERSON, WALKER, TOLERANCE, faultsOf } = await import('../world/scale.js');
 const RIG = (await import('../camera/rig.js')).default;
 const { FOOT, sizeAtOne } = await import('../src/scatter/trees.js');
 const { heightIn } = await import('../assets/kit/tree.js');
-const { rockBody, rockFull, rockFamily } = await import('../assets/kit/rock.js');
-const { sizeOf, default: KINDS } = await import('../assets/kinds.js');
-const DETAIL = /(?:^|[{,])\s*(detail|levels|ladder|tiers|lods?|px|fade|sink|far)\s*:/;   // (a key of an asset's file, its comments left out)
+const { rockBody, rockMesh, rockFamily } = await import('../assets/kit/rock.js');
+const { LADDER, DOTN } = await import('../assets/kit/ladder.js');
+const { unpackSolid } = await import('../assets/kit/solid.js');
+const { sizeOf } = await import('../assets/kinds.js');
 const THREE = await import('three/webgpu');
 const { texture } = await import('three/tsl');
 
@@ -56,30 +48,30 @@ function bounds(pts) {   // pts: a flat array x, y, z, …
 }
 const facesOf = (faces) => faces.flatMap((f) => [...f[0], ...f[1], ...f[2]]);
 
-/** A character as it stands, feet to the top: built (its quick surface is enough to measure; one grown or read after
-    it is made says when it stands), then measured from its skin's points, or, a figure brought in whole, by what its kit
-    says of it (`stands`: its file's points are not in metres, its kit measures them as its bones hold them:
-    characters/kit/figure.js). */
-async function stood(a, notes) {
-  const T = new THREE.Texture(), tex = new Proxy({}, { get: (_, k) => (k === 'want' ? () => {} : () => texture(T)) });
-  const made = a.make(tex, { quick: true }), tall = (h, more) => ({ by: 'height', least: h, middle: h, most: h, notes, ...more }); await made.grown;
-  if (made.stands) return tall(made.stands.top - Math.max(0, made.stands.low));
-  let mesh = null; made.object.traverse((o) => { if (o.isSkinnedMesh) mesh = o; });
-  if (!mesh) return tall(0, { fails: [`it could not be built here${made.failed ? ': ' + made.failed : ''}`] });
-  const B = bounds(mesh.geometry.attributes.position.array);
-  return tall(B.top - Math.max(0, B.lo[1]));
-}
-
 /** What the world draws of a recipe: { least, middle, most } metres tall (or across, for rocks), and what was found on
     the way (levels that disagree). */
 async function measured(a) {
   const P = a.placement ?? {}, notes = [];
-  if (a.type === 'character') return stood(a, notes);
-  if (P.engine === 'rocks') {   // each shape as it is (its full mesh: every coarser version is the builder's, within it), in the frame it is drawn in (its largest side 1), times its size
+  if (a.type === 'character') {
+    const T = new THREE.Texture(), tex = new Proxy({}, { get: (_, k) => (k === 'want' ? () => {} : () => texture(T)) });
+    const made = a.make(tex, { quick: true }); await made.grown;   // (one grown after it is made says when it stands; its quick surface is enough to measure)
+    let mesh = null; made.object.traverse((o) => { if (o.isSkinnedMesh) mesh = o; });
+    if (!mesh) return { by: 'height', least: 0, middle: 0, most: 0, notes, fails: [`it could not be built here${made.failed ? ': ' + made.failed : ''}`] };
+    const B = bounds(mesh.geometry.attributes.position.array), h = B.top - Math.max(0, B.lo[1]);
+    return { by: 'height', least: h, middle: h, most: h, notes };
+  }
+  if (P.engine === 'rocks') {   // each shape built at every level, in the frame it is drawn in (its largest side 1), times its size
     const wide = [], fam = rockFamily('scale', a);
     for (let v = 0; v < (P.shapes ?? 1); v++) {
-      const F = rockFull(a, v), B = bounds(F.pos), near = Math.max(B.hi[0] - B.lo[0], B.hi[2] - B.lo[2]), g = rockBody(a, v).sunk; let reach = 0;
-      for (let i = 0; i < F.pos.length; i += 3) if (F.pos[i + 1] >= g) reach = Math.max(reach, Math.hypot(F.pos[i], F.pos[i + 2]));   // (how far it reaches over the ground)
+      let near = null, reach = 0;
+      LADDER.forEach((L, l) => {
+        if (L.n === DOTN) return;
+        const M = rockMesh(a, v, l), lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity], ps = [];
+        for (let i = 0; i < M.verts.length; i += 4) { const p = unpackSolid(M.verts, i, 1).p; ps.push(p); for (let k = 0; k < 3; k++) { if (p[k] < lo[k]) lo[k] = p[k]; if (p[k] > hi[k]) hi[k] = p[k]; } }
+        const w = Math.max(hi[0] - lo[0], hi[2] - lo[2]);
+        if (near == null) { near = w; const g = rockBody(a, v).sunk; for (const p of ps) if (p[1] >= g) reach = Math.max(reach, Math.hypot(p[0], p[2])); }   // (how far it reaches over the ground: what a walker sees of it)
+        else if (Math.abs(w - near) > LEVELS * near) notes.push(`shape ${v}, level ${l}: ${r3(w)} across against ${r3(near)} near, of its size`);
+      });
       wide.push(near);
       const C = fam.collidersOf(v)[0], k = C ? C.r / reach : 0;   // its collider's round against the drawn rock's reach over the ground, both of its size
       if (!(k >= TOLERANCE.round[0] && k <= TOLERANCE.round[1])) notes.push(`shape ${v}: what stops a walker reaches ${r3(k)} of how far it is drawn over the ground`);
@@ -92,7 +84,12 @@ async function measured(a) {
   if (a.meshAt && a.shapeCount) {   // a plant of a stand
     const tops = [];
     for (let s = 0; s < a.shapeCount; s++) {
-      tops.push(bounds(a.meshAt(0, s).position).top);   // (a plant has one mesh, its finest: the crowd thins it, intent 0038)
+      const near = bounds(a.meshAt(0, s).position);
+      tops.push(near.top);
+      for (let l = 1; l < a.levelCount; l++) {
+        const B = bounds(a.meshAt(l, s).position);
+        if (Math.abs(B.top - near.top) > LEVELS * near.top) notes.push(`shape ${s}, level ${l}: ${r3(B.top)} m against ${r3(near.top)} m near`);
+      }
     }
     const [k0, k1] = P.scale ?? [1, 1], G = a.growth;
     if (G?.stages) {   // a tree: as old as its stand, drawn as the engine draws it (its packed size, the height its age asks times wide, over its shape's size at scale 1)
@@ -112,7 +109,7 @@ async function measured(a) {
     const sMid = mix(k0, k1, 0.5 ** 1.3), mean = tops.reduce((s, x) => s + x, 0) / tops.length;   // (its scale: mix(k0, k1, die^1.3), src/scatter/trees.js)
     return { by: 'height', least: Math.min(...tops) * k0 - FOOT, middle: mean * sMid - FOOT, most: Math.max(...tops) * k1 - FOOT, notes };
   }
-  const levels = a.faces ? [{ faces: a.faces }] : a.detail?.levels ?? [];
+  const levels = a.detail?.levels ?? [];
   if (levels[0]?.faces) {   // a made thing, as made
     const near = bounds(facesOf(levels[0].faces));
     levels.slice(1).forEach((L, i) => { const B = bounds(facesOf(L.faces)); if (Math.abs(B.top - near.top) > LEVELS * near.top) notes.push(`level ${i + 1}: ${r3(B.top)} m against ${r3(near.top)} m near`); });
@@ -141,13 +138,8 @@ for (const [uid, m] of Object.entries(manifest)) {
 // the walker: the person's body, as the camera and the solids read it
 const walker = { eye: RIG.eye, firstKey: RIG.keys[0].h, person: PERSON.stature, ...WALKER }, wfails = [];
 if (Math.abs(RIG.eye - WALKER.eye) > 1e-9 || Math.abs(RIG.keys[0].h - WALKER.eye) > 1e-9) wfails.push(`the camera's eye ${RIG.eye} m (its first key ${RIG.keys[0].h} m) is not the person's ${WALKER.eye} m`);
-// no asset says anything of its detail (check 4b): no key of detail in an asset's file, and no kind with a size on
-// screen, a hand-over or a far end's levels (only yes or no)
-const detail = [], files = Object.values(manifest).filter((m) => m.type === 'asset');
-for (const m of files) readFileSync(resolve(import.meta.dir, '..', m.file), 'utf8').split('\n').forEach((line, i) => { const k = line.replace(/\/\/.*$/, '').match(DETAIL); if (k) detail.push(`${m.file}:${i + 1}: '${k[1]}', detail data: every rung is the engine's, by its own error`); });
-for (const [kind, K] of Object.entries(KINDS)) for (const [k, v] of Object.entries(K)) if (['px', 'fade', 'sink', 'levels', 'tiers'].includes(k) || (['far', 'impostor'].includes(k) && typeof v !== 'boolean')) detail.push(`assets/kinds.js: ${kind}.${k}: a kind says no size on screen and no hand-over`);
 
-if (process.argv.includes('--json')) console.log(JSON.stringify({ rows, walker, miss, wfails, detail }, null, 2));
+if (process.argv.includes('--json')) console.log(JSON.stringify({ rows, walker, miss, wfails }, null, 2));
 else {
   const pad = (s, n) => String(s).padEnd(n);
   console.log(`${pad('thing', 16)}${pad('by', 8)}${pad('least', 8)}${pad('middle', 8)}${pad('most', 8)}${pad('× person', 10)}${pad('real: typical', 15)}${pad('most', 7)}`);
@@ -164,7 +156,5 @@ else {
   const bad = rows.filter((r) => r.fails.length && !r.known).length + miss.length + wfails.length, known = rows.filter((r) => r.known).length;
   console.log(bad ? `\n${bad} out of measure` : `\n${rows.length - known} of ${rows.length} within their measure`);
   if (known) console.log(`${known} known out of measure (said in their measures, to be set right): ${rows.filter((r) => r.known).map((r) => r.name).join(', ')}`);
-  for (const d of detail) console.log(`✗ ${d}`);
-  console.log(detail.length ? `${detail.length} places hold detail data` : `no asset holds detail data (${files.length} asset files, ${Object.keys(KINDS).length} kinds)`);
 }
-process.exit(rows.some((r) => r.fails.length && !r.known) || miss.length || wfails.length || detail.length ? 1 : 0);
+process.exit(rows.some((r) => r.fails.length && !r.known) || miss.length || wfails.length ? 1 : 0);

@@ -16,6 +16,8 @@
      keeps it with the game's API (src/account/api.js); a traveler sees who they could be. */
   html,body{margin:0;height:100%;background:var(--navy);overflow:hidden;font:14px/1.45 var(--sans);color:var(--cream)}   /* the page's background is what Safari paints its status bar and toolbar with on a phone (brand.css: the bars): the brand's blue */
   canvas#c{display:block;width:100vw;height:100vh;pointer-events:none}
+  #msg{display:none}
+  #hud{display:none!important}
   #orbit{position:fixed;inset:0;z-index:1;cursor:grab;touch-action:none}#orbit:active{cursor:grabbing}
   .side{position:fixed;top:calc(var(--edge-t) + 46px);right:var(--edge);z-index:3;max-height:calc(100dvh - 160px - var(--edge-t) - var(--edge-b));overflow:auto;color:var(--forest)}   /* under the account's pill; its parts: brand.css (.g-card) */
   body.framed .side{top:132px}
@@ -39,9 +41,13 @@
 </head>
 <body data-step="Waking the land">
 <canvas id="c"></canvas>
+<div id="hud">loading…</div>
+<div id="msg"></div>
 <div id="orbit"></div>
 <aside class="side glass g-card" id="me" aria-live="polite"><header><span class="g-label">Your person</span><h2 class="g-title big">Asking who you are…</h2></header></aside>
 <span class="hint os-hint g-hint">Drag to circle · wheel to come closer</span>
+<script type="module" src="/cine/cine.js"></script>
+<script type="module" src="/cine/menu.js"></script>
 <script type="module" src="/src/account/index.js"></script>
 <script type="module" src="/src/me/card.js"></script>
 <script type="module" src="/src/me/stage.js"></script>

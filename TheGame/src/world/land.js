@@ -120,9 +120,8 @@ export function baseB(x, z) {
   return 40 * (vnoise(x / 2600, z / 2600, 11) - 0.5) + 14 * (vnoise(x / 900 + 3.7, z / 900 + 3.7, 12) - 0.5);
 }
 /** The land's own height under (x, z), before anything is stood on it. */
-export function naturalAt(x, z) { const { d, w, b } = riverAt(x, z); return naturalWith(x, z, d, w, b); }
-// (the same, the river there given: its distance d, half-width w, bend b)
-function naturalWith(x, z, d, w, b) {
+export function naturalAt(x, z) {
+  const { d, w, b } = riverAt(x, z);
   const m = sstep(w, w + 80, d), mm = 0.35 + 0.65 * m;
   let h = 0, qx = x, qy = z;
   for (let i = 0; i < 8; i++) {
@@ -135,63 +134,17 @@ function naturalWith(x, z, d, w, b) {
   return baseB(x, z) + h + m * 3 + bank - carve;
 }
 
-/** A smoothstep's slope at x (as sstep's: 0 outside a … b). */
-const dstep = (a, b, x) => { const t = (x - a) / (b - a); return t <= 0 || t >= 1 ? 0 : (6 * t * (1 - t)) / (b - a); };
-// (each octave's turn: the land's octaves read the point turned by (0.8, 0.6) once more an octave; a slope found in the
-// turned place is turned back by the same matrix's transpose)
-const TURNS = (() => { const out = []; let a = 1, b = 0, c = 0, d = 1; for (let i = 0; i < 8; i++) { [a, b, c, d] = [0.8 * a - 0.6 * c, 0.8 * b - 0.6 * d, 0.6 * a + 0.8 * c, 0.6 * b + 0.8 * d]; out.push([a, b, c, d]); } return out; })();
-/** The river's distance at (qx, qz) as a neighbour of a point reads it, that point's half-width w and bend (riverAt's
-    b times the side it is on) kept: from q's own field (the GPU's riverNear, src/world/land.nodes.js). */
-export function riverNear(qx, qz, w, bend) {
-  const [r, rx, rz] = riverRaw(qx, qz);
-  return LAKES.length && lakeIn(qx, qz, r) ? 0 : Math.abs(r / Math.max(Math.hypot(rx, rz), 2e-4) - 0.25 * w * bend);
-}
-/** The land's own height under (x, z) and its slope there, worked out with it (each octave's own slope: noised), as
-    naturalAt has it: [h, ∂h/∂x, ∂h/∂z]. The river's distance's slope over e metres ahead (its field read there, its
-    width and bend as they are at (x, z): they change over tens of metres), as the land's normal was: what the river cuts
-    is as soft as that step, and the field's own second slope is not to be had from its noise. */
-function naturalSlopeAt(x, z, e) {
-  const R = riverAt(x, z), d = R.d, w = R.w, b = R.b, bend = R.b * (R.r >= 0 ? 1 : -1);
-  // (the river's part over e ahead in x and in z: its distance there, and what it makes of it, the bank, the cut, how
-  // much of the octaves it lets stand, each its secant)
-  const D = [riverNear(x + e, z, w, bend), riverNear(x, z + e, w, bend)], at = (f) => { const v = f(d); return [v, (f(D[0]) - v) / e, (f(D[1]) - v) / e]; };   // (forward, as the land's normal was)
-  const [m, dmx, dmz] = at((v) => sstep(w, w + 80, v)), [rv, rx, rz] = at((v) => 3 * sstep(w, w + 80, v) + riverBank(v, w, b) - riverCarve(v, w, b));
-  const mm = 0.35 + 0.65 * m;
-  let h = 0, hx = 0, hz = 0, qx = x, qy = z;
-  for (let i = 0; i < 8; i++) {
-    const t = 0.8 * qx - 0.6 * qy; qy = 0.6 * qx + 0.8 * qy; qx = t;
-    const lam = OCT_LAM[i], o = i * 7.31, n = noised(qx / lam + o, qy / lam + o, 20 + i), [a, bb, c, dd] = TURNS[i];
-    const px = (gx * a + gy * c) / lam, pz = (gx * bb + gy * dd) / lam, f = i >= 6 ? mm : m, fx = i >= 6 ? 0.65 * dmx : dmx, fz = i >= 6 ? 0.65 * dmz : dmz;
-    h += OCT_AMP[i] * (n - 0.5) * f; hx += OCT_AMP[i] * (px * f + (n - 0.5) * fx); hz += OCT_AMP[i] * (pz * f + (n - 0.5) * fz);
-  }
-  const n1 = noised(x / 2600, z / 2600, 11), g1x = gx / 2600, g1z = gy / 2600, n2 = noised(x / 900 + 3.7, z / 900 + 3.7, 12), g2x = gx / 900, g2z = gy / 900;
-  return [40 * (n1 - 0.5) + 14 * (n2 - 0.5) + h + rv, 40 * g1x + 14 * g2x + hx + rx, 40 * g1z + 14 * g2z + hz + rz];
-}
-/** The ground's height and slope under (x, z), levelled under what stands (heightAt's, with its slope; the river's
-    part over e metres ahead): [h, ∂h/∂x, ∂h/∂z]. The GPU's land is this (src/world/land.nodes.js heightSlopeAt): proven
-    against the land's own finite difference by tools/slopecheck.js. */
-export function heightSlopeAt(x, z, e) {
-  let [h, hx, hz] = naturalSlopeAt(x, z, e);
-  for (const p of PADS) {
-    const d = Math.hypot(x - p.x, z - p.z); if (d >= p.r + PAD_FALL) continue;
-    const s = sstep(p.r, p.r + PAD_FALL, d), ds = d > 0 ? dstep(p.r, p.r + PAD_FALL, d) / d : 0;
-    [h, hx, hz] = [p.h + (h - p.h) * s, hx * s + (h - p.h) * ds * (x - p.x), hz * s + (h - p.h) * ds * (z - p.z)];
-  }
-  return [h, hx, hz];
-}
-
 // Pads: the ground levels itself under what is stood on it (world/places.js): within a thing's `clear` metres the
 // land is flat at the height under its middle, and it meets the land again over PAD_FALL metres. The GPU's land is
 // written with the same pads (land.nodes.js), so the walker's ground is the drawn ground.
 export const PAD_FALL = 3;
 export const PADS = CLEARINGS.map((p) => ({ x: p.x, z: p.z, r: p.clear, h: naturalAt(p.x, p.z) }));
-// (the land's height h at (x, z), levelled under what stands)
-const padded = (x, z, h) => { for (const p of PADS) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r + PAD_FALL) h = p.h + (h - p.h) * sstep(p.r, p.r + PAD_FALL, d); } return h; };
 /** The ground's height under (x, z), at full detail (what the GPU draws under the camera): the land, levelled under what stands. */
-export function heightAt(x, z) { return padded(x, z, naturalAt(x, z)); }
-/** The same, the river there given (its distance d, half-width w, bend b): the ground as a point's neighbours were read
-    for its slope, the river's width and bend kept (riverNear: tools/slopecheck.js). */
-export const heightWith = (x, z, d, w, b) => padded(x, z, naturalWith(x, z, d, w, b));
+export function heightAt(x, z) {
+  let h = naturalAt(x, z);
+  for (const p of PADS) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r + PAD_FALL) h = p.h + (h - p.h) * sstep(p.r, p.r + PAD_FALL, d); }
+  return h;
+}
 
 // ---- the biomes' outlines (world/outlines.js), in JS as src/world/noise.nodes.js has them on the GPU, constant for constant ----
 const OL = OUTLINES, HOME = PLACES[OL.home];

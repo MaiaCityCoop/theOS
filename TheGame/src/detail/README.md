@@ -1,55 +1,23 @@
 # Levels of detail: the one way
 
 Every asset in the world, whatever it is, changes its level of detail by the same rule, drawn the same way. An asset's
-file says what it is at full detail; none of what follows is written in it (intent 0038: `bun tools/scale.js` fails
-where an asset's file or a kind holds detail data).
+file says what it is; none of what follows is written in it.
 
 ## What an asset says
 
 | Where | What |
 | --- | --- |
-| its file | what it is at full detail: a plant's shapes as its kit grows them, a made thing's `faces`, a rock's look, the grass's `blade` |
-| its kind, `assets/kinds.js` | `measure`: what is measured (`'height'`, else its largest side); `far`: whether a plant has a far end (yes or no); `impostor`: whether what stands at a place has a far card (yes or no) |
-| its stand, in its biome | the colour the land wears where its plants have gone, till their far ends show theirs (what their impostors show: `seen.js`); a stand of things with no far end (herbs, litter), always |
-
-## The one measure
-
-A coarser rung of a thing (a first share of a crowd's sprigs, its clumps, its impostor, a cluster's parent, a ring of
-blades bent in fewer pieces, and last of all nothing: the land under it) differs from the thing at full detail by its
-error, measured on the thing itself: the farthest any of it lies from where the thing is, in metres (object space).
-Nothing that builds a rung knows a pixel. One rule decides every switch, at runtime (`error.js`):
-
-    e · pxK() / dist  ≤  ERROR_PX()          on the GPU: e · U.uPxK / dist ≤ U.uErrorPx (measure.js)
-
-`pxK()` is the live pixel, and the only definition of one: the output's pixels (the canvas's rows, whatever the
-governor draws inside; moved only a BAND at a time) a metre covers one metre from the eye, through the walker's 68° lens. `ERROR_PX()` is the dial: 1 at rest,
-turned by the governor. `switchPx(s)` is the rule as a size on screen, in the dial's pixels, for an error
-that is the share `s` of a thing's size. Each rung comes in over the `BAND` under its switch, never above it: what is
-drawn is never off by more than the dial.
-
-| Rung | Its error | Where it is measured |
-| --- | --- | --- |
-| a first share of a crowd's sprigs | its spread order's share error: the farthest a sprig left out lies from one drawn | `assets/kit/crowd.js` (`turnsOf`) |
-| a solid piece of a plant gone | its width | `assets/kit/crowd.js` |
-| a plant's clumps | where their three planes draw each chunk's leaves (each plane by its share of what is drawn), and their bake's texel (`TILE` of them over a chunk's largest side) | `assets/kit/crowd.js` (`clumpsErrorOf`) |
-| a plant's impostor, a made thing's card | its bake's texel (`CELL` of them over its sphere's width), and its views' spacing: its sphere's radius times `spacingOf(VIEWS)` (each view read on its plane through the middle) | `atlas.js`, `assets/kit/crowd.js`, `index.js` |
-| a cluster's parent | the cluster's own error, from the simplifier and its lost vertices | `assets/kit/clusters.js` |
-| a ring of blades (the blade in its own cells, as it is) | how far its fewer straight pieces miss the blade's curve | `src/scatter/grass.js` `ringsOf` |
-| nothing (a thing gone) | how far it stands off what stays: a plant its height over the land (which wears its stand's colour or its floor), a rock or a made thing all of it (`GONE`); it is whole down to there and sinks away over the `BAND` under it | `assets/kit/plant.js` `goneOf`, `error.js` |
-
-How large the far ends' pictures are follows from those errors: `atlas.js` `atlasesOf` takes the share of memory the
-atlases are given (`src/core/classes.js` `SHARE_MB`), the far ends the stands bake (`src/scatter/entries.js` `farLayers`)
-and the limits every device grants (`src/core/gpu.js` `PORTABLE`), and chooses the views and their texels where the
-impostor's error is least; a clump's plane is the least picture an atlas keeps. `impostor.js` `atlases()` holds the
-numbers for the page, and hands them to the crowd kit in the workers with each level's band.
+| its file, `detail.levels` | its levels, near to far (a tree, a bush: `levels`, built by the kit) |
+| its kind, `assets/kinds.js` | `px`: the pixels where each level ends; `measure`: what is measured (`'height'`, else its largest side); `fade`: half the hand-over's width; `sink`: its way out |
+| its stand, in its biome | `size`: the stand changes level as one; `cover`: the colour the land wears where its plants have sunk |
 
 ## The rule (one place each)
 
 | Question | Answer | Where |
 | --- | --- | --- |
-| How large is it on screen? | `sizeOf(asset)` metres, times the lens's pixels a metre, over its distance through the lens | `assets/kinds.js` (`sizeOf`), `measure.js`, the one measure (`pxK`, `pxOn`; in node code `uPxK`, `pxAt`, `spanAt`, `dialPxAt`; a packed thing's: `src/scatter/row.js` `pxOf`), `U.uLodInv` |
-| Which level is that? | everything's levels, cut by the error allowed a thing, a share of its size (`error.js`; their sizes on screen, in the dial's pixels: `rungPx`): a level only shares the work out, and a dial turned changes no mesh | `index.js` `detailOf`, `assets/kit/plant.js` `bandsOf` |
-| How does a level come and go? | one piece whole at half way (`whole`), the last level sinking (`sunk`, `sinkInto`) | `handover.js` `handOver` |
+| How large is it on screen? | `sizeOf(asset)` metres, times the lens's pixels a metre, over its distance through the lens | `assets/kinds.js` (`sizeOf`), `index.js` (`pxK`), `U.uPxK` (one for every engine; a packed thing's: `src/scatter/row.js` `pxOf`), `U.uLodInv` |
+| Which level is that? | its kind's `px`, resolved | `index.js` `detailOf` |
+| How does a level come and go? | parts one by one (`partGrown`), one piece whole at half way (`whole`), the last level sinking (`sunk`, `sinkInto`) | `handover.js` `handOver` |
 | Which things does a level's packing hold? | its band, its hand-over, and a pad for the camera's movement | `handover.js` `bandOf`, `padOf` |
 | The same, off the GPU | | `handover.js` `handOverAt` |
 
@@ -60,16 +28,14 @@ every distance with it.
 
 | What | Engine | How |
 | --- | --- | --- |
-| trees, bushes, ferns: anything in a stand | `src/scatter/trees.js`, drawn by `src/scatter/drawer.js` | per vertex, each frame: `handOver` + `sinkInto`; packing by the drawer's tier (`bandOf`). Far off, its clumps (a chunk of its leaves as three crossed planes) and its impostor (one quad, three views blended with parallax), both baked on the GPU from its finest level (`impostor.js`); it is its impostor where the impostor's texels are no larger than the pixels drawn (`trees.js` `meshShare`: a short cross-fade, texel by texel) |
-| rocks | `src/scatter/drawer.js` (the rocks placed by `rocks.js`) | their cluster hierarchy (`assets/kit/clusters.js`), cluster by cluster by the cut's rule (`src/scatter/cut.js`); thinning away over the `BAND` above `GONE` |
-| the stress world's zoo | `src/scatter/drawer.js` (`stress.js`, `herds.js`) | still the ladder's eight levels (`assets/kit/ladder.js`) until 8b |
+| trees, bushes, ferns: anything in a stand | `src/scatter/trees.js`, drawn by `src/scatter/drawer.js` | per vertex, each frame: `handOver` + `partGrown` + `sinkInto`; packing by the drawer's tier (`bandOf`) |
+| rocks, and whatever else the heap holds | `src/scatter/drawer.js` (the rocks placed by `rocks.js`) | the ladder's eight levels (`assets/kit/ladder.js`), each vertex moving to its place on the next coarser mesh over a level's last pixels; an asset may end sooner (`detail.end`), shrinking away |
 | what stands at a spot of its own (a tent, a fire pit, later a house): a list of a few or of millions | `src/scatter/placed.js`, drawn by `src/scatter/drawer.js` (intent 0029) | per vertex, each frame: `handOver` (of one piece: whole, half way), `sinkInto`; packing by the drawer's tier over the list's runs; its last level the drawer's dot |
 | what moves (the stress stand's movers, the herds of `?herds=N`) | `src/scatter/stress.js`, `src/scatter/herds.js`, drawn by `src/scatter/drawer.js` | the drawer's one tier of every level, packed every frame: the level its size asks for, on its skeleton until its hull |
-| the same in the library's stage, and where there is no WebGPU | `index.js` `Detailed`, `src/world/place.js` (its light and wind: `src/world/made.nodes.js`, the list's too), `impostor.js` (the plants' impostor, baked once a recipe from its nearest level) | on the CPU: `handOverAt`, the material's `sunk` |
-| the land's colour where a stand has sunk | `src/terrain/material.js`, `src/terrain/layers.js` | `sizeOf`, `detailOf().cut`; its colour what its kinds' impostors show, their pictures' mean (`seen.js`, read from the bake's least level: `src/scatter/trees.js` `seenIn`) |
+| the same in the library's stage, and where there is no WebGPU | `index.js` `Detailed`, `src/world/place.js` (its light and wind: `src/world/made.nodes.js`, the list's too), `impostor.js` | on the CPU: `handOverAt`, the material's `sunk` |
+| the land's colour where a stand has sunk | `src/terrain/material.js` | `sizeOf`, `detailOf().cut`, the stand's `cover` |
 
-The grass (`src/scatter/grass.js`): rings of blades made from its blade (`ringsOf`), each where its blades' own error
-is within `ERROR_PX`, no levels of a thing; the meadow ends where the ground's map does (`ground.js` `REACH`).
+Not on it: the grass (`src/scatter/grass.js`): rings of blades by the lens's distance, no levels of a thing.
 
 ## A new asset
 
@@ -89,9 +55,8 @@ A stand is one thing to the engine, however many kinds grow in it (`src/scatter/
 | memory | a heap of every shape's vertices at every level, on the GPU only (`heap.js`), 32 bytes a vertex | its meshes' bytes; nothing on the page |
 | the start | | its meshes: made once in the recipes' workers (a tree of eight shapes a quarter to half a second, off the page's thread), then kept in the browser and read back (`src/core/kept.js`); the few numbers the page needs at once (its size, each shape's height and trunk) kept apart (`src/core/outlines.js`) |
 
-Kinds share a stand's tiers when they end alike (gone at the same level) and alike have a far end or none; their levels
-are then cut as one, two of everything's one where every shape holds the same in both, each level's patches as large
-as its band asks (`groupsOf`, `cutOf`); a kind made otherwise is a group of its own in the same cells.
+Kinds share a stand's tiers when their levels are the same make (the same pixels and patches: their kind's and the
+kit's); a kind made otherwise is a group of its own in the same cells (`groupsOf`).
 
 ## The heap: what a thousand kinds cost
 
@@ -185,7 +150,7 @@ own. What a browser cannot pay is the draw calls, so here models are branches an
 - **A texture of its own each** (`blobSkin`: 128 pixels a side, painted in a worker): one layer of an array of 1024,
   given to the kinds that are large enough on screen to show it (from 28 pixels), fading in when it comes; under that
   and until then a kind wears its texture's mean colour, which is what the mipmaps make of it anyway. All ten thousand
-  at once would be 870 MB; the pool is 89. Needs more array layers than a device gives unasked (`src/boot.js`).
+  at once would be 870 MB; the pool is 89. Needs more array layers than a device gives unasked (`src/main.js`).
 - **A level turns into the next over the whole of its range**, not its last third, and a mesh that comes late grows in
   over a second and a half: a thing is never still between two levels, and never jumps.
 
@@ -271,20 +236,19 @@ the next.
 
 **The one way to the screen** (`src/core/screen.js`). Every view's picture reaches the canvas the same way: the
 walker's, the virtual camera's through its lens, a film's, a still taken for a story. The world is drawn at the
-inside's pixels, each frame a part of a pixel aside from the last, in two passes (`src/core/pass.js`): a **prepass**
-that cuts out what is cut out (leaves) and writes the depth and each pixel's **motion** (where its point lay a frame
-ago: the camera's movement and the point's own, the wind's, growing; the previous position is the same stateless
-wind asked at the clock as it stood a frame ago), and the **colour**, drawn only where the prepass's depth is (an equal
-test, nothing cut: a tile GPU drops every hidden pixel before shading it), in the light's own numbers. Where the camera
-brings a lens the colour is blurred by it (`src/camera/post.js`); then **one pass** (`src/core/temporal.js`) brings it
-up to the screen's pixels, keeps the screen's picture from frame to frame (read back along each pixel's motion,
-pulled into the range of the drawn pixels round it), puts the screen's curve on it and the lens's glass, and writes
-the kept picture and the canvas together. Standing still it is the picture drawn at the screen's own pixels with its
-edges smoothed; swaying in the wind it is the same, its motion followed; no target is multisampled anywhere, and
+inside's pixels, each frame a part of a pixel aside from the last; where the camera brings a lens the frame is
+blurred by it (`src/camera/post.js`); and the screen's picture is kept from frame to frame and built from those
+frames (`src/core/temporal.js`): a screen pixel takes a frame's pixels in by how near they fell to it and keeps the
+rest from where its point lay a frame ago (found by the camera's own movement and the pixel's depth). Standing still
+it is the picture drawn at the screen's own pixels with its edges smoothed; no target is multisampled anywhere, and
 textures are read as finely as the screen's pixels would read them (`U.uFine`: the ground, the stand's things).
-A new kind that moves by itself works out where it was a frame ago in its vertex stage (`clipOf(w, was)`, from the
-same function of the clock), and takes part in the prepass (`userData.pre`); what moves and cannot say so (a mover on
-its skeleton, the fire, a flake) lowers its pixels' fourth number (the reactive mask), and is taken as it is drawn.
+What moves by itself cannot be followed, so **it says so**: the fourth number of its pixels is how still it is
+(`stillness(amount, where)` in `src/world/light.js`: a mover 0, a blade or a crown by how far it swings in the wind
+now, a flake by its own blending), and little is kept there: it is as sharp as one frame, not smeared. A new kind
+that moves by itself keeps this rule, or it leaves a trail. Three passes after the world's (the look at the inside's
+pixels; the build and the show at the screen's): what a screen pixel does is paid four and a half million times a
+frame, so the arithmetic lives in the look. `?notaau` shifts and keeps nothing (the same passes then spread one
+frame by the filter alone): to measure against.
 
 ## A thing of its own: placed in numbers, its own state, its own look (intent 0029)
 
@@ -320,7 +284,7 @@ Every concept below lives in one module and is imported wherever it is needed; n
 | drawer | the heap of every kind's meshes, the one table of a kind's numbers (its look, then its make's own: `numOf`), the tiers and their draws, what streams them in | `src/scatter/drawer.js` (with `heap.js`, `tier.js`) |
 | placer | where things stand and move: hashed cells (the rocks, the plants, the stand), a list (`placed.js`), paths (`herds.js`) | `src/scatter/*.js`; every one packs a thing the same two rows: `src/scatter/row.js` |
 | thing | one thing of the world: its key (its placer and two numbers), its body's id, its state, its seed | `src/world/things.js`, `src/world/bodies.js` |
-| level | a kind's mesh for a size on screen, the hand-over between two, the lens they are measured through (`measure.js`: `uPxK`, kept by `keepMeasure`) | `src/detail` (`measure.js`, `index.js`, `handover.js`); the solids' ladder: `assets/kit/ladder.js` |
+| level | a kind's mesh for a size on screen, the hand-over between two, the lens they are measured through (`U.uPxK`, kept by `trackView`) | `src/detail` (`index.js`, `handover.js`); the solids' ladder: `assets/kit/ladder.js` |
 | hash | every number from a seed: the land's noise, a recipe's dice, a thing's key, a fingerprint | `src/core/hash.js` (`hash.nodes.js` on the GPU, the same constants) |
 | flag | the address's switches (`?stress`, `?ghost`, `?many`, `?herds`, `?byclass`, …) | `src/core/flags.js` |
 

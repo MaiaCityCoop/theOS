@@ -1,98 +1,150 @@
-// The crowd kit: the one builder of what stands in a stand (intents 0033 and 0038). A plant's file draws its plant once,
-// as it is from near, out of parts (assets/kit/tree.js: wood as tubes, sprigs as prototypes laid by a rigid transform
-// about a pivot, as Nanite's assemblies are). This turns that one build into everything the engine needs to draw the
-// plant at any size on screen, told nothing of what kind of plant it is: it reads its parts (a sprig: its cards, four
-// corners each, its tip and its root; a solid piece: its triangles and its foot) and nothing else. Plain JS, no three
-// and nothing of the page: run in the recipes' worker, and by the library on the page.
+// The crowd kit: the one builder of what stands in a stand (intent 0033). A plant's file draws its plant once, as it
+// is from near (assets/kit/tree.js: wood as tubes, sprigs as crossed cards, each card knowing its root). This turns
+// that one mesh into everything the engine needs to draw the plant at any size on screen, told nothing of what kind of
+// plant it is: it reads the mesh's triangles, which stuff each is of (`part`: 1 a card cut out of a painting, else
+// solid) and the cards' roots, and nothing else. Plain JS, no three and nothing of the page: run in the recipes'
+// worker, and by the library on the page.
 //
-// What it finds, and what the engine does with it. Every rung carries its error in metres, measured here on the plant
-// itself (src/detail/error.js): how far, at its worst, what the rung draws lies from where the plant is. Where a rung
-// may stand in is decided at runtime by one ratio, r = errPx(e · s, dist) / ERROR_PX (s the plant's scale): r ≥ 1, the
-// rung would be seen and must not stand in; under 1 it may. Every hand-over runs below that switch, never above it:
-// from r = 1 down over the BAND (error.js), so what is drawn is never off by more than the dial. Nothing here is a size
-// on screen of its own:
-//   - one spread order of the sprigs. Every sprig has its turn, and any first share of the turns is a fair picture of
-//     the whole crown: the sprigs go by size into classes (each half the area of the one before, the largest first), and
-//     within a class each next is the one farthest from all taken before (a blue-noise order). What is left out is stood
-//     for by what stays (Cook, Halstead, Planck and Ryu 2007, "Stochastic Simplification of Aggregate Detail"): the kept
-//     grow about their roots so the crown covers as much of its round as it did, sqrt(A / A_t) of their size. Drawing
-//     the first t turns, the crowd's error is what that truly misplaces: the farthest a leaf of a sprig left out lies
-//     from a leaf drawn (its share error, turnsOf: where its leaves are, not its middle), and how far the growth moves
-//     the kept leaves (headOf). Each sprig goes (its go) where the crowd without it and every turn after it is within
-//     the dial, shrinking to its root over the FADE below, as the kept grow (growthOf: smooth in the error, so in the
-//     pixels too). Past its end its next rung's bake, made of it whole at its true size (the clumps, the impostor: each
-//     rung is measured against the plant at full detail);
-//   - a solid piece is gone where leaving it out (its width where it is widest) is within the dial, and shrinks to its
-//     foot. The solids' corners are sorted thick first: a first share of the list is the thick wood;
-//   - the clumps (NVIDIA HPG 2026, Simplygon's billboard clouds): the sprigs split into chunks by their boxes, the
-//     largest first, into as many as cost no more than the sprigs still there where the crowd ends (twelve corners a
-//     chunk: three crossed planes through its box's middle, each wearing its own leaves as the GPU bakes them,
-//     src/detail/impostor.js). Their error is where the planes draw the leaves: plane a puts a leaf |p_a - m_a| off along
-//     its axis, seen from v that many times sqrt(1 - v_a²) off on the screen, and it is |v_a| / (|v.x| + |v.y| + |v.z|)
-//     of what is drawn of the chunk (planesErrorOf: at the worst leaf and way); their bake's texel on top (TILE over a
-//     chunk's largest side). Over the FADE below their switch the last sprigs go one by one and the chunks come one by
-//     one, each where its own sprigs were, each growing in over the FADE below its own: within the BAND;
-//   - the impostor's frame: the sphere round the whole plant, from which the GPU bakes its views (one octahedral
-//     impostor a shape, src/detail/impostor.js). Its error: its bake's texel (CELL over the sphere's width) and what its
-//     views' spacing misplaces, the sphere's radius times their angle (src/detail/atlas.js spacingOf); under `far.lo` a
-//     level holds nothing else. Where its error is under the clumps' it takes over
-//     from the crowd itself, and the shape has no clumps. A plant without a far end (its kind's `far`, assets/kinds.js)
-//     has neither: its crowd goes by its own error to where it is gone.
+// What it finds, and what the engine does with it:
+//   - pieces: the triangles that share corners. A card is a piece; the cards of one root are a part (a sprig); a solid
+//     piece (a twig, a limb, the trunk) is a part by itself;
+//   - one order for the crowd of card parts. Every part has its turn, and any first share of the turns is a fair
+//     picture of the whole crown: the parts go by size into classes (each half the area of the one before, the largest
+//     first), and within a class each next part is the one farthest from all taken before. The engine draws a first
+//     share of the turns, smaller as the plant is smaller on screen:
+//         share = min(1, (px / P0)^A)            P0 = CARD x size / a card's size: where a card is CARD pixels
+//         go    = P0 x ((turn + 1/2) / N)^(1/A)  the size on screen under which a part is gone
+//     and enlarges those that stay about their tips (the middle of their outermost corners: they grow back into the
+//     crown, the outline stays), so the crown covers as much:
+//         k     = min(KMAX, area^-E)             area: the share of the cards' area the drawn parts are (areaAt)
+//     E is measured on each shape: a thin crown needs more of it than a thick one, whose cards hide each other.
+//     Position and painting scale alike about the tip: a card shows more of its picture, never the picture stretched;
+//   - a solid piece is gone where it is narrower on screen than TWIG pixels, and shrinks to its foot (the middle of
+//     its wider end). The solids' corners are sorted thick first: a first share of the list is the thick wood;
+//   - the far stand-in: three closed bodies round the crown (36, 20 and 8 triangles), reckoned in the crown's own
+//     proportions (a flat umbrella gets a flat body), each sized so the plant covers as much as it did, and a post
+//     for the trunk where one stands out of the crown. The first takes over where the cards would have to be enlarged
+//     more than KMAX times, or fewer than LEAST parts would stay; every corner of a finer body knows its place on the
+//     next coarser one, and with every corner there the finer is the coarser, triangle for triangle.
 //
-//   crowd(mesh, { size, far, measured? }) -> a shape (measured: what the build measured of it, assets/kit/measures.js;
-//                                 none: measured here; `measure` on the shape is what is kept of it):
-//     count, cards, parts, solids   its vertices; its cards (4 vertices each, corners 0 1 2, 0 2 3); its sprigs; its
-//                                   pieces drawn by corners
-//     position, normal, uv, part, ao, cn, root, twig (and whatever else the mesh carries a vertex)
+//   crowd(mesh, { size }) -> a shape:
+//     count, cards, parts, solids   its vertices; its cards (4 vertices each, corners 0 1 2, 0 2 3: no list of
+//                                   corners, runCorners() is the one list every run of RUN cards is drawn with);
+//                                   its card parts; its pieces drawn by corners
+//     position, normal, uv, part, ao, cn, root, hand, twig (and whatever else the mesh carries a vertex)
 //                                   as the kit made them, in a new order: the cards in turn order (a first share of
 //                                   the list is a first share of the turns), then the solids, thick first. A
 //                                   solid's root is its foot
-//     go        a vertex, metres    the error at which its part goes (0: never: thick wood, which stays until the
-//                                   impostor takes it); a chunk's plane: at which its chunk comes
-//     tip       a vertex, x y z     its sprig's tip (a solid's: its foot)
+//     go        a vertex, pixels    the size on screen under which its part is gone (0: never: thick wood, which
+//                                   stays until the far body has taken over)
+//     tip       a vertex, x y z     the point its part is enlarged about (a solid's: its foot)
+//     tipUv     a vertex, u v       from its own place on its card's painting to the tip's: uv + tipUv x (1 - k)
+//     cls       a vertex, 0 … 3     its part's class by size, 0 the largest (a solid's: 0)
 //     index                         the solids' corners, into the list above, thick first
 //     steps { go, corners, verts }  a piece drawn by corners each, in the list's order: its go, and how many corners
 //                                   and vertices the list holds up to and with it (what is drawn at a size is a
 //                                   first share of both)
-//     turns { go, cards }           a sprig each, in turn order: its go, where its cards begin
-//     size, mid, spread, win { hi, lo }, cover, atlas, errors    what was measured (win: the errors, metres, at which
-//                                   its crowd ends and its window's last part goes; atlas: the atlases' numbers it
-//                                   was built for, none without a far end; errors: each rung's, metres)
-//     sphere    [x, y, z, r]        the impostor's frame
-//     far       { lo, data }        under lo dial pixels nothing but the impostor is drawn; data: what the GPU bakes the
-//                                   shape's far end from (the sphere, its impostor's error, the chunks), carried by its
-//                                   finest level; none without a far end
-//     clumps    { n, cells, boxes, go, order } or null    its chunks (cells: where their parts' tips lie, boxes: their
-//                                   planes' frames, go: the error, metres, at which each comes)
+//     turns { go, cls, cards }      a card part each, in turn order: its go, its class, where its cards begin
+//     meta      16 numbers          what the engine's one rule reads of a shape (META says which is which)
+//     P0, E, A, size, mid, spread, classes, hull { hi, lo }, cover    the same by name, and what was measured
+//     hulls [3] { tris, count, position, normal, uv, ao, to, index, part, reach }
+//                                   the far bodies, finest first; `to`: each corner's place on the next coarser
+//                                   (the coarsest's: the crown's middle); reach: its size, of the crown's own reach
+//     post { count, position, normal, uv, ao, to, index } or null
+//                                   the trunk under the far body; `to`: its own middle line (it thins away)
 //
-// The rule itself, for whoever draws (its twin is the vertex stage's, src/scatter/trees.js crowdRule): grownAt, how
-// much of a part is drawn at its own error. Which parts a level of the heap holds is cut in pixels at the dial at rest, as
-// assets/kit/plant.js bandsOf cuts the levels (src/detail/error.js switchPx: the workers' dial is 1).
-import { switchPx, BAND, FADE } from '../../src/detail/error.js';
-import { spacingOf } from '../../src/detail/atlas.js';
-const { PI, sqrt, hypot, floor, ceil, min, max, abs, log, log2, exp } = Math;
+// The rule itself, for whoever draws (the vertex stage is to be its twin): shareAt, areaAt, enlargedBy, grownAt,
+// hullAt, turnedAt; drawnAt counts what a plant submits at a size.
 
-/** Every number of the rule, in one place, as the plants are drawn. A plant's file has none of them, and none of them
-    says where a rung comes: that is each rung's own error (above); every hand-over is the BAND below its switch. What its
-    far ends' pictures are, the impostor's VIEWS x VIEWS views of CELL texels a side, a clump's plane of TILE texels,
-    TILES of them a row, at most CLUMPS chunks a plant, is not the kit's: the page sizes the atlases from their share of
-    memory (src/detail/atlas.js atlasesOf, src/detail/impostor.js atlases) and hands them in with the rest (opts), to
-    the workers with each level's band (assets/kit/plant.js). */
-const CROWD = {
-  LEAST: 8,        // a crowd of no more sprigs than this does not thin: they stay to its end
-  CLASSES: 4,     // the most classes by size a crowd is sorted into (each half the area of the one before)
+const { PI, sqrt, hypot, floor, ceil, round, min, max, abs, cos, sin, atan2, asin, log, log2, pow } = Math;
+
+/** Every number of the rule, in one place. A plant's file has none of them. */
+export const CROWD = {
+  CARD: 15,        // pixels: how large a card is on screen where its crowd begins to thin (P0 = CARD x size / a card's size)
+  A: 2,            // how fast a crowd thins under P0: its share is (px / P0)^A (2: as many cards to a pixel of crown at every size)
+  E: 0.45,         // how much those that stay are enlarged: by (the share of the cards' area that is drawn)^-E. Measured on every shape that has cards enough to measure (EMIN … EMAX); this is for the others
+  EMIN: 0.2, EMAX: 0.6,
+  FIT: 0.04,       // … the second share it is measured at (as fewest LEAST parts): the larger E of the two
+  KMAX: 5,         // … and never by more than this: where it is reached the far body takes over
+  LEAST: 8,        // … or where fewer card parts than this would stay
+  WIN: 1.3,        // the far body takes over from its start down to this many times smaller: the last parts go one by one, the body grows from the crown's middle
+  GROW: 1.1,       // a part grows from its root between its `go` and this many times it
+  TWIG: 0.75,      // pixels: a solid piece is gone where it is narrower on screen than this
+  RUN: 16,         // cards in a run: the engine draws a crowd's cards by runs, each 4 x RUN vertices and one shared list of 6 x RUN corners
+  CLASSES: 4,      // the most classes by size a crowd is sorted into (each half the area of the one before)
+  HULLS: [[6, 3], [5, 2], [4, 1]],   // the far bodies, finest first: corners round a ring, rings between the two poles (36, 20 and 8 triangles)
+  TURN: [[24, 18], [9, 7]],          // pixels: between which sizes the first body turns into the second, and the second into the third (the post thins away evenly from the far body's window's end to the last of these). Each ends where today's kinds' bands for trees end (18, 7): a level of the far band then holds one body, not three
+  BAKE: 128,       // texels a side of each of a crown's baked views at most (bakeOf), where its far bodies wear it (LOD.BAKE): a shape's own, as many as its far body is pixels tall where it comes (bakeRes)
+  BAKEMIN: 16,     // … and at least
+  RIM: 0.45,       // a baked far body's light at its rim, where it turns away from the eye, against its middle's (src/scatter/trees.js): crowns side by side part by the shade between them
+  DEEP: 0.8,       // a baked texel is darker as what shows there lies deeper in the crown, seen from its side: by this much where it lies at the crown's far side (its hollows and gaps between its lobes, in the crown's own shade)
+  SWAP: [0.3, 0.6], // how far into the far body's window (as DENSE) the wood gives way to the post: the one going out as the other comes in, pixel by pixel
+  END: 1.6,        // a plant's last level thins it away over its last pixels, from this many times its size down to it (src/scatter/trees.js): it never stops at once
+  DENSE: 0.8,      // a baked far body stands at its full size from the first and comes in denser, texel by texel, as the cards go one by one over its window (`into`, 0 … 1): into / (1 - DENSE + DENSE into) of its texels, as many as fill what the cards leave where a crown covers this much (the walk, tools/walk.js: 0.8 holds the oak's and the pine's cover and outline both within 9 %; 0.9 lets the sparser pine's cover run 14 % over, 0.7 its outline 15 % under)
+  FAR: 18,         // pixels: the far body has taken over by this size at the latest (a crown's cards are then a pixel or two each), so the far levels hold no cards
+  REACH: 0.95,     // a body's corner lies as far out as this share of the crown's corners in its sector reach
   STOPS: 1 - sqrt(1 - 0.45),         // how much of the light one triangle of a card stops (a sprig of two crossed cards: 45 %), where cover is reckoned
   PIC: 64,         // … in pictures of this many pixels a side, from thirteen sides
 };
+/** Whether the plants are drawn by this kit (`?lod=new`, set by src/scatter/trees.js before anything is built, and handed
+    to the recipes' workers), and the numbers that set what a plant costs. CARD: at today's level bands a card of the
+    research's 15 pixels submits two to four times today's level at the top of a band; 30 brings the plants to about
+    main's vertices (intent 0033, Build). KMAX: the far body comes no sooner than the cards' enlarging must stop; 4 (was 8): it comes in
+    while the cards still hold the crown's outline, so the plant does not thin before it (intent 0033, the walk).
+    SPLIT: no level the kit makes wider than this many times on screen where it can hold cards (assets/kit/tree.js; 0:
+    the kinds' bands as they are): a level holds all its band may show at its widest. 0 by default: cut at 2, fewer
+    vertices were submitted but the frame was slower (more tiers to pack, more draws; intent 0033, Build). STANDS: the size a stand that
+    changes level as one measures its plants by, of each plant asset (src/scatter/trees.js). `?card=`, `?kmax=` and
+    `?split=` change them. */
+export const LOD = { on: false, CARD: 30, KMAX: 4, SPLIT: 0, BAKE: false, FAR: 18, STANDS: null };
+/** What the plants are drawn with where the address says nothing: 'new', this kit's (the default since intent 0033's
+    pumping and pops were fixed); 'old', their files' own levels. `?lod=old` and `?lod=new` choose either, to compare
+    (src/scatter/trees.js): the game, the library's plant and the films alike. */
+export const LOD_DEFAULT = 'new';
+// BAKE: the far bodies wear their crown baked (bakeOf); FAR: CROWD.FAR's. Under `?lod=new` the game sets BAKE and FAR 40:
+// from 90 m a baked body reads as a crown with its shade and gaps where a few enlarged cards read as large flat leaves,
+// and the far body from 40 px costs less than the cards (intent 0033, Build). `?bake=0`, `?far=` to compare.
+/** Where each of a shape's sixteen numbers lies in `meta`: P0, E, where the far body begins and has taken over (pixels),
+    the crown's middle (three), how many cards, where the classes 1, 2 and 3 begin (three pairs: the share of the
+    parts before it, the share of the cards' area before it), the size it was built for (metres), how many parts. */
+export const META = { P0: 0, E: 1, HI: 2, LO: 3, MID: 4, CARDS: 7, CLASSES: 8, SIZE: 14, PARTS: 15 };
 
-// ---- the rule, as the vertex stage is to reckon it: r, a rung's error over the dial (above) ----
+// ---- the rule, as the vertex stage is to reckon it ----
 const smooth = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
-/** How much of a part is drawn, 0 … 1, where its go is r times the dial: all of it from r = 1 up (leaving it out would
-    be seen), none a FADE under (go 0: never gone by itself). A chunk's plane comes the other way: 1 - grownAt. */
-export const grownAt = (r, go) => (go > 0 ? smooth(log(max(r, 1e-12)) / FADE + 1) : 1);
-/** The size on screen (pixels at the dial at rest) at which a rung of error e (metres) on a shape `size` metres large
-    switches: what the levels are cut by. */
-const switchOf = (e, size) => switchPx(e / size);
+/** The share of a crowd's parts that is drawn at px pixels: all of them from P0 up. */
+export const shareAt = (px, P0, A = CROWD.A) => min(1, pow(max(px, 0) / P0, A));
+/** The share of the cards' area a first `share` of the parts is: the largest come first, so more than their share by
+    count. `meta`: a shape's (its classes' bounds). */
+export function areaAt(share, meta) {
+  let s0 = 0, a0 = 0;
+  for (let c = 0; c <= 3; c++) {
+    const s1 = c < 3 ? meta[META.CLASSES + c * 2] : 1, a1 = c < 3 ? meta[META.CLASSES + c * 2 + 1] : 1;
+    if (share <= s1 && s1 > s0) return a0 + ((a1 - a0) * (share - s0)) / (s1 - s0);
+    s0 = s1; a0 = a1;
+  }
+  return 1;
+}
+/** By how much the parts that are drawn are enlarged about their tips when a first `share` of them is drawn. */
+export const enlargedBy = (share, meta, KMAX = CROWD.KMAX) => min(KMAX, pow(max(areaAt(share, meta), 1e-9), -meta[META.E]));
+/** How grown a part is at px pixels, 0 … 1: nothing under its `go`, all of it from GROW times that. */
+export const grownAt = (px, go, GROW = CROWD.GROW) => (go > 0 ? smooth((px / go - 1) / (GROW - 1)) : 1);
+/** How far the far body has taken over at px pixels, 0 … 1: it grows from the crown's middle by this; the thick wood
+    gives way to the post at a half. */
+export const hullAt = (px, meta) => (meta[META.HI] > 0 ? smooth(log(meta[META.HI] / max(px, 1e-6)) / log(meta[META.HI] / meta[META.LO])) : 0);
+/** How far far body `i` has turned into the next coarser at px pixels, 0 … 1 (the last never turns). */
+export const turnedAt = (px, i, TURN = CROWD.TURN) => (TURN[i] ? smooth(log(TURN[i][0] / max(px, 1e-6)) / log(TURN[i][0] / TURN[i][1])) : 0);
+/** The one list of corners every run of cards is drawn with: card c of a run is vertices 4c … 4c + 3. */
+export const runCorners = (RUN = CROWD.RUN) => Uint16Array.from({ length: RUN * 6 }, (_, i) => floor(i / 6) * 4 + [0, 1, 2, 0, 2, 3][i % 6]);
+/** What a plant submits at px pixels: its cards by whole runs, the solids that are not gone, the far body.
+    -> { cards, runs, corners (of the solids' list), body (which far body, -1: none), verts { cards, solids, body, all } } */
+export function drawnAt(S, px, K = CROWD) {
+  const far = S.hull.hi > 0, plant = !far || px > S.hull.lo, body = far && px < S.hull.hi ? (px > K.TURN[0][1] ? 0 : px > K.TURN[1][1] ? 1 : 2) : -1;
+  const cards = plant ? ceil(shareAt(px, S.P0, S.A) * S.cards) : 0, runs = ceil(cards / K.RUN);
+  let i = 0; while (plant && i < S.solids && S.steps.go[i] < px) i++;
+  if (plant && far && hullAt(px, S.meta) >= 0.5) i = 0;   // (the thick wood has given way to the post)
+  const solids = i ? S.steps.verts[i - 1] : 0, bodyV = body < 0 ? 0 : S.hulls[body].count + (S.post && body < 2 ? S.post.count : 0);
+  return { cards, runs, corners: i ? S.steps.corners[i - 1] : 0, body, verts: { cards: runs * K.RUN * 4, solids, body: bodyV, all: runs * K.RUN * 4 + solids + bodyV } };
+}
 
 // ---- cover: how much of its pictures a thing fills, reckoned as the measuring stick does (the probe of intent 0033:
 // thirteen sides, a triangle stopping its share of the light, what lies behind showing through by what is left) ----
@@ -103,754 +155,519 @@ const SIDES = [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [1, -1, 0], [1, 0, 1]
 });
 /** The share of its pictures a thing covers. P its vertices (n of them), I its corners, stop how much of the light a
     triangle stops (by its first corner: a number a vertex), F the frame { c, r } the pictures are taken in, R their
-    pixels a side. */
-/** How much of its pictures a shape covers (coverOf): what the build measured (K.measured), else reckoned here, each
-    triangle of a card stopping STOPS of the light; none without sprigs. */
-function coverFor(m, K, N, frame) {
-  if (K.measured) return K.measured.cover;
-  if (!N) return 0;
-  const n = m.part.length, stop = Float32Array.from({ length: n }, (_, v) => (m.part[v] === 1 ? K.STOPS : 1));
-  return coverOf(m.position, n, m.index, stop, frame, K.PIC);
+    pixels a side. With `own` (0 or 1 a vertex) -> [all of it, the triangles by themselves whose first corner is 1]. */
+function coverOf(P, n, I, stop, F, R, own = null) {
+  const k = R / (2 * F.r), T = new Float32Array(R * R), T2 = own && new Float32Array(R * R), X = new Float32Array(n), Y = new Float32Array(n), [cx, cy, cz] = F.c; let sum = 0, sum2 = 0;
+  for (const [ux, uy, uz, vx, vy, vz] of SIDES) {
+    T.fill(1); if (own) T2.fill(1);
+    for (let i = 0, p = 0; i < n; i++, p += 3) { const x = P[p] - cx, y = P[p + 1] - cy, z = P[p + 2] - cz; X[i] = (x * ux + y * uy + z * uz + F.r) * k - 0.5; Y[i] = (x * vx + y * vy + z * vz + F.r) * k - 0.5; }
+    for (let t = 0; t < I.length; t += 3) {
+      const a = I[t], b = I[t + 1], c = I[t + 2], X0 = X[a], Y0 = Y[a], X1 = X[b], Y1 = Y[b], X2 = X[c], Y2 = Y[c];
+      const x0 = max(0, ceil(min(X0, X1, X2))), x1 = min(R - 1, floor(max(X0, X1, X2))), y0 = max(0, ceil(min(Y0, Y1, Y2))), y1 = min(R - 1, floor(max(Y0, Y1, Y2)));
+      if (x1 < x0 || y1 < y0) continue;   // (no pixel's middle in it: most twigs)
+      const keep = 1 - stop[a], two = own && own[a], ax = X1 - X0, ay = Y1 - Y0, bx = X2 - X1, by = Y2 - Y1, gx = X0 - X2, gy = Y0 - Y2;
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        const e0 = ax * (y - Y0) - ay * (x - X0), e1 = bx * (y - Y1) - by * (x - X1), e2 = gx * (y - Y2) - gy * (x - X2);
+        if ((e0 >= 0 && e1 >= 0 && e2 >= 0) || (e0 <= 0 && e1 <= 0 && e2 <= 0)) { T[y * R + x] *= keep; if (two) T2[y * R + x] *= keep; }
+      }
+    }
+    for (let i = 0; i < T.length; i++) sum += 1 - T[i];
+    if (own) for (let i = 0; i < T.length; i++) sum2 += 1 - T2[i];
+  }
+  const all = sum / (SIDES.length * R * R);
+  return own ? [all, sum2 / (SIDES.length * R * R)] : all;
 }
-function coverOf(P, n, I, stop, F, R) {
-  const T = new Float32Array(R * R), X = new Float32Array(n), Y = new Float32Array(n); let sum = 0;
-  for (const side of SIDES) { pictureOf(P, n, I, stop, F, R, side, T, X, Y); for (let i = 0; i < T.length; i++) sum += 1 - T[i]; }
-  return sum / (SIDES.length * R * R);
+/** What a crown's leaves (the parts `part` 1) cover seen from each of BAKED's sides, RES pixels a side about `mid`: the
+    pictures a far body must hold (enclosing). -> { mid, r, masks: Uint8Array a side, count: how many pixels each } */
+function crownSeen(P, n, I, part, mid, RES = 48) {
+  let r = 0; for (let i = 0; i < n; i++) if (part[i] === 1) r = max(r, hypot(P[i * 3] - mid[0], P[i * 3 + 1] - mid[1], P[i * 3 + 2] - mid[2]));
+  const J = []; for (let t = 0; t < I.length; t += 3) if (part[I[t]] === 1 && part[I[t + 1]] === 1 && part[I[t + 2]] === 1) J.push(I[t], I[t + 1], I[t + 2]);
+  const F = { mid, r: (r || 1) * 1.3, RES }, masks = BAKED.map((V) => seenFrom(P, n, J, V, F));
+  return { ...F, masks, count: masks.map((M) => M.reduce((a, b) => a + b, 0)) };
 }
-/** One of its pictures (coverOf's): what of the light gets through each of its R × R pixels (into T), seen from `side`
-    (SIDES: its two axes), in the frame F. X, Y: room for its vertices' places in it. */
-function pictureOf(P, n, I, stop, F, R, [ux, uy, uz, vx, vy, vz], T, X = new Float32Array(n), Y = new Float32Array(n)) {
-  const k = R / (2 * F.r), [cx, cy, cz] = F.c;
-  T.fill(1);
-  for (let i = 0, p = 0; i < n; i++, p += 3) { const x = P[p] - cx, y = P[p + 1] - cy, z = P[p + 2] - cz; X[i] = (x * ux + y * uy + z * uz + F.r) * k - 0.5; Y[i] = (x * vx + y * vy + z * vz + F.r) * k - 0.5; }
+/** Which pixels triangles (P, n corners, I) cover seen from side V ({ u, v }) in frame F ({ mid, r, RES }). */
+function seenFrom(P, n, I, { u, v }, { mid, r, RES }) {
+  const M = new Uint8Array(RES * RES), k = RES / (2 * r), X = new Float32Array(n), Y = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const x = P[i * 3] - mid[0], y = P[i * 3 + 1] - mid[1], z = P[i * 3 + 2] - mid[2]; X[i] = (x * u[0] + y * u[1] + z * u[2] + r) * k - 0.5; Y[i] = (x * v[0] + y * v[1] + z * v[2] + r) * k - 0.5; }
   for (let t = 0; t < I.length; t += 3) {
     const a = I[t], b = I[t + 1], c = I[t + 2], X0 = X[a], Y0 = Y[a], X1 = X[b], Y1 = Y[b], X2 = X[c], Y2 = Y[c];
-    const x0 = max(0, ceil(min(X0, X1, X2))), x1 = min(R - 1, floor(max(X0, X1, X2))), y0 = max(0, ceil(min(Y0, Y1, Y2))), y1 = min(R - 1, floor(max(Y0, Y1, Y2)));
-    if (x1 < x0 || y1 < y0) continue;   // (no pixel's middle in it: most twigs)
-    const keep = 1 - stop[a], ax = X1 - X0, ay = Y1 - Y0, bx = X2 - X1, by = Y2 - Y1, gx = X0 - X2, gy = Y0 - Y2;
+    const x0 = max(0, ceil(min(X0, X1, X2))), x1 = min(RES - 1, floor(max(X0, X1, X2))), y0 = max(0, ceil(min(Y0, Y1, Y2))), y1 = min(RES - 1, floor(max(Y0, Y1, Y2)));
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-      const e0 = ax * (y - Y0) - ay * (x - X0), e1 = bx * (y - Y1) - by * (x - X1), e2 = gx * (y - Y2) - gy * (x - X2);
-      if ((e0 >= 0 && e1 >= 0 && e2 >= 0) || (e0 <= 0 && e1 <= 0 && e2 <= 0)) T[y * R + x] *= keep;
+      const e0 = (X1 - X0) * (y - Y0) - (Y1 - Y0) * (x - X0), e1 = (X2 - X1) * (y - Y1) - (Y2 - Y1) * (x - X1), e2 = (X0 - X2) * (y - Y2) - (Y0 - Y2) * (x - X2);
+      if ((e0 >= 0 && e1 >= 0 && e2 >= 0) || (e0 <= 0 && e1 <= 0 && e2 <= 0)) M[y * RES + x] = 1;
     }
   }
-  return T;
+  return M;
 }
-/** How much of its own round a plant's mesh m covers seen from straight above, as its far end's pictures are read for
-    it (src/scatter/trees.js crownCover): its picture from above (coverOf's, each card stopping its share of the light),
-    its round a disc's from where what it covers lies (π r², r² twice their mean square distance from their middle),
-    at most all but half a pixel of it. What the land counts it as covering where it stands for it far off
-    (tools/covercheck.js: on the CPU, from the mesh; the game from the pictures). */
-export function topShareOf(m) {
-  const P = m.position, n = P.length / 3, R = CROWD.PIC, T = new Float32Array(R * R), stop = Float32Array.from({ length: n }, (_, v) => (m.part[v] === 1 ? CROWD.STOPS : 1));
-  pictureOf(P, n, m.index, stop, boundsOf(P, n).frame, R, SIDES[1], T);
-  let w = 0, sx = 0, sy = 0, sq = 0;
-  for (let y = 0; y < R; y++) for (let x = 0; x < R; x++) { const c = 1 - T[y * R + x]; w += c; sx += c * x; sy += c * y; sq += c * (x * x + y * y); }
-  const area = 2 * Math.PI * (sq / Math.max(w, 1e-9) - ((sx / Math.max(w, 1e-9)) ** 2 + (sy / Math.max(w, 1e-9)) ** 2));
-  return area > 1 ? min(w / area, 1 - 0.5 / area) : null;
+/** The least reach (1 … 3) at which a far body H (its corners at reach r: at(r)) holds HOLD of what the crown covers from
+    each side it is baked from (crownSeen), to a hundredth. */
+function enclosing(crown, H, at, HOLD = 0.995) {
+  const holds = (r) => { const Q = at(r); return BAKED.every((V, j) => { if (!crown.count[j]) return true; const M = seenFrom(Q, H.count, H.index, V, crown), C = crown.masks[j]; let k = 0; for (let i = 0; i < M.length; i++) k += M[i] & C[i]; return k >= HOLD * crown.count[j]; }); };
+  let lo = 0.5, hi = 1; while (!holds(hi) && hi < 3) { lo = hi; hi = min(3, hi * 1.25); }
+  for (let i = 0; i < 8 && hi - lo > 0.01; i++) { const mm = (lo + hi) / 2; if (holds(mm)) hi = mm; else lo = mm; }
+  return hi;
+}
+/** The x at which a measure that rises with x (f) reaches `want`, to half a hundredth of it: from a first guess x0,
+    stepping by how the measure answered (`by`: the power it is taken to rise with at first). */
+function reaching(f, want, x0, by) {
+  let c0 = f(x0), x1 = x0 * pow(want / max(c0, 1e-12), 1 / by), c1 = f(x1);
+  for (let i = 0; i < 3 && abs(c1 / want - 1) > 0.005; i++) {
+    const s = abs(x1 / x0 - 1) > 1e-6 && c1 !== c0 ? log(c1 / c0) / log(x1 / x0) : by, x2 = x1 * pow(want / c1, 1 / min(4 * by, max(by / 4, s)));
+    x0 = x1; c0 = c1; x1 = x2; c1 = f(x1);
+  }
+  return x1;
 }
 
 // ---- the order: each next part the one farthest from all taken before, the classes one after another ----
-/** The parts in turn order, and its share error. Each part is where its leaves are, L: its cards (`cards`: rectangles,
-    eleven numbers a card, a corner, its two sides and their lengths' inverse squares; `gfrom`, where each part's begin;
-    `rounds`, each card's middle and how far its corners reach from it, four numbers; `sides`, its two sides' lengths)
-    or, without cards, its middle alone (a chunk: pointsOf), its middle (X, Y, Z) and how far its leaves reach from it
-    (R). The first turn is the part of the first class farthest from the crowd's middle `mid`, so the turns begin at the
-    crown's rim and a first few of them are its outline; each next, of the class being taken (cls), the one whose leaves
-    lie farthest from all taken before. And its share error, `err` (metres): err[t], how far the leaves of the parts left
-    out lie from a leaf drawn when the first t turns are drawn, at most (err[0] none drawn, Infinity; err[n] 0), never
-    more as more are drawn. A left-out part's leaves are where the picture misses them, not its middle: a sprig of a
-    shrub is a spray half a metre long, and the nearest drawn sprig's middle can lie a hand off while its leaves point
-    another way (a mastic's first seven sprigs to go: their middles 34 mm from one drawn, their leaves up to 167 mm from
-    a drawn leaf).
-    How far a card's leaves lie from what is drawn is found in cells, not at so many points of it: each card begins as
-    one cell, measured at its middle, and no leaf of a cell lies farther from a drawn leaf than its middle does and its
-    half-diagonal more (a distance changes no faster than the point it is taken from moves), nor than its corners lie
-    from the card nearest its middle (a distance to one card is convex, so over a cell it is farthest at a corner; to all
-    that is drawn it is no more than to one). So a part lies no farther off than its cells' bounds, the lesser of those
-    two (its bound, what its error is taken as), and no nearer than the farthest of its middles; and a cell whose bound is over exp(FADE) times that is split in four, until none is (or it
-    is as small as numbers hold, a millionth of the part's reach). So the error is never under how far its leaves are
-    off, and over by what one hand-over spans at most (src/detail/error.js FADE: each part goes over that much under
-    its switch). A part is measured against each part taken since it last was (none whose leaves cannot be nearer than
-    its own farthest cell; those near it found in a grid of the taken parts' middles, where that is fewer to look at),
-    and a new cell against the taken cards near it, kept in a grid by their middles. */
-function turnsOf(L, cls, mid) {
-  const { X, Y, Z, R, gfrom, cards: C, rounds: GC, sides: S } = L, n = cls.length, out = new Uint32Array(n), err = new Float64Array(n + 1);
-  err[0] = Infinity; out.err = err;
-  if (!n) return out;
-  const KF = exp(FADE), taken = new Uint8Array(n), seen = new Uint32Array(n), LB = new Float64Array(n), UB = new Float64Array(n);
-  const OWNER = ownersOf(gfrom, n);   // (each card's part)
-  // ---- the cells: a card's share (its middle u, v and half its sides' shares su, sv, of its card g; a part without cards
-  // is one cell, its middle, g -1), where its middle is (x, y, z), its half-diagonal (metres), its squared distance to the
-  // nearest leaf drawn and that distance, and which taken part that is ----
-  let cap = 64, nc = 0, CG = new Int32Array(cap), CU = new Float64Array(cap), CV = new Float64Array(cap), CS = new Float64Array(cap), CT = new Float64Array(cap), CX = new Float64Array(cap), CY = new Float64Array(cap), CZ = new Float64Array(cap), HD = new Float64Array(cap), NEAR = new Float64Array(cap), ROOT = new Float64Array(cap), NQ = new Int32Array(cap), DEAD = new Uint8Array(cap), NG = new Int32Array(cap), CB = new Float64Array(cap);
-  const grow = () => {
-    cap *= 2; const more = (A) => { const B = new A.constructor(cap); B.set(A); return B; };
-    CG = more(CG); CU = more(CU); CV = more(CV); CS = more(CS); CT = more(CT); CX = more(CX); CY = more(CY); CZ = more(CZ); HD = more(HD); NEAR = more(NEAR); ROOT = more(ROOT); NQ = more(NQ); DEAD = more(DEAD); NG = more(NG); CB = more(CB);
-  };
-  const cellsOf = Array.from({ length: n }, () => []), HC = Array.from({ length: n }, () => heapOf());   // (each part's cells, and they in a heap by their bounds: a split one is dead)
-  const cell = (r, g, u, v, su, sv) => {
-    if (nc === cap) grow();
-    const c = nc++; CG[c] = g; CU[c] = u; CV[c] = v; CS[c] = su; CT[c] = sv; NEAR[c] = ROOT[c] = CB[c] = Infinity; NQ[c] = NG[c] = -1;
-    if (g < 0) { CX[c] = X[r]; CY[c] = Y[r]; CZ[c] = Z[r]; HD[c] = 0; }
-    else { const o = g * 11; CX[c] = C[o] + u * C[o + 3] + v * C[o + 6]; CY[c] = C[o + 1] + u * C[o + 4] + v * C[o + 7]; CZ[c] = C[o + 2] + u * C[o + 5] + v * C[o + 8]; HD[c] = hypot(su * S[g * 2], sv * S[g * 2 + 1]); }
-    cellsOf[r].push(c);
-    return c;
-  };
-  /** The squared distance from (x, y, z) to part q's leaves (its cards, else its middle), where it is under `best` (and
-      its square root, `rb`): a card's nearest point, its corner and its two sides' shares, each held to the card. */
-  let atCard = -1;   // (the card toPart found nearest, where it found one nearer than it was asked under)
-  const toCard = (x, y, z, g) => {
-    const o = g * 11, dx = x - C[o], dy = y - C[o + 1], dz = z - C[o + 2];
-    const u = min(1, max(0, (dx * C[o + 3] + dy * C[o + 4] + dz * C[o + 5]) * C[o + 9])), v = min(1, max(0, (dx * C[o + 6] + dy * C[o + 7] + dz * C[o + 8]) * C[o + 10]));
-    return (dx - u * C[o + 3] - v * C[o + 6]) ** 2 + (dy - u * C[o + 4] - v * C[o + 7]) ** 2 + (dz - u * C[o + 5] - v * C[o + 8]) ** 2;
-  };
-  const toPart = (x, y, z, q, best, rb) => {
-    atCard = -1;
-    if (!C) return min(best, (x - X[q]) ** 2 + (y - Y[q]) ** 2 + (z - Z[q]) ** 2);
-    for (let g = gfrom[q], e = gfrom[q + 1]; g < e && best > 0; g++) {
-      const c = g * 4, lim = GC[c + 3] + rb;
-      if ((x - GC[c]) ** 2 + (y - GC[c + 1]) ** 2 + (z - GC[c + 2]) ** 2 >= lim * lim) continue;   // (it cannot be nearer)
-      const d = toCard(x, y, z, g);
-      if (d < best) { best = d; rb = sqrt(d); atCard = g; }
-    }
-    return best;
-  };
-  /** How far cell c's corners lie from card g at the most: its leaves lie no farther from what is drawn, where g is. */
-  const cornersFrom = (c, g) => {
-    const o = CG[c] * 11; let most = 0;
-    for (const a of [-1, 1]) for (const b of [-1, 1]) { const u = CU[c] + a * CS[c], v = CV[c] + b * CT[c]; most = max(most, toCard(C[o] + u * C[o + 3] + v * C[o + 6], C[o + 1] + u * C[o + 4] + v * C[o + 7], C[o + 2] + u * C[o + 5] + v * C[o + 8], g)); }
-    return sqrt(most);
-  };
-  /** Cell c come nearer, to card g (none: a point): its bound by that card too, the least it knows. */
-  const nearer = (c, d, q, g) => { NEAR[c] = d; ROOT[c] = sqrt(d); NQ[c] = q; if (g >= 0 && CG[c] >= 0) { NG[c] = g; CB[c] = min(CB[c], cornersFrom(c, g)); } };
-  const boundOf = (c) => min(ROOT[c] + HD[c], CB[c]);
-  /** Part r's cells against part q, taken since r was last measured: none where q's leaves cannot be nearer than r's
-      farthest cell (its least: never more than it was), else each cell where they can be nearer than its own. */
-  const againstPart = (r, q) => {
-    const gap = sqrt((X[r] - X[q]) ** 2 + (Y[r] - Y[q]) ** 2 + (Z[r] - Z[q]) ** 2) - R[r] - R[q]; if (gap > 0 && gap >= LB[r]) return false;
-    let moved = false;
-    for (const c of cellsOf[r]) {
-      if (DEAD[c]) continue;
-      const g = sqrt((CX[c] - X[q]) ** 2 + (CY[c] - Y[q]) ** 2 + (CZ[c] - Z[q]) ** 2) - R[q]; if (g > 0 && g >= ROOT[c]) continue;
-      const d = toPart(CX[c], CY[c], CZ[c], q, NEAR[c], ROOT[c]); if (d < NEAR[c]) { nearer(c, d, q, atCard); moved = true; }
-    }
-    return moved;
-  };
-  // ---- the taken cards (a point part: its middle) in a grid by their middles, as wide as the widest card's reach: a
-  // new cell's nearest drawn leaf within d lies on a card whose middle is within d and that reach ----
-  const RC = C ? mostOf(GC, 4, 3) : 0;
-  const GS = max(2 * RC, 1e-6), GRID = new Map(), keyOf = (i, j, k) => (i * 4096 + j) * 4096 + k, place = (x, y, z, id) => { const k = keyOf(floor(x / GS), floor(y / GS), floor(z / GS)); let list = GRID.get(k); if (!list) GRID.set(k, (list = [])); list.push(id); };
-  const put = (q) => { if (C) for (let g = gfrom[q]; g < gfrom[q + 1]; g++) place(GC[g * 4], GC[g * 4 + 1], GC[g * 4 + 2], g); else place(X[q], Y[q], Z[q], q); };
-  // ---- and the taken parts by their middles, as wide as the widest part's reach, each with the turn it was taken at ----
-  const RM = mostOf(R, 1, 0);
-  const PS = max(2 * RM, 1e-6), PARTS = new Map(), atTurn = new Int32Array(n).fill(-1);
-  const putPart = (q, s) => { atTurn[q] = s; const k = keyOf(floor(X[q] / PS), floor(Y[q] / PS), floor(Z[q] / PS)); let list = PARTS.get(k); if (!list) PARTS.set(k, (list = [])); list.push(q); };
-  /** Part r against the parts taken from turn `from` to s: each in turn, or, where fewer to look at, those whose middles
-      lie within its reach in the grid (no leaf of a farther one can be nearer than its farthest cell). -> whether a cell
-      came nearer */
-  const sinceOf = (r, from, s) => {
-    let moved = false;
-    const reach = LB[r] + R[r] + RM, i0 = floor((X[r] - reach) / PS), i1 = floor((X[r] + reach) / PS), j0 = floor((Y[r] - reach) / PS), j1 = floor((Y[r] + reach) / PS), k0 = floor((Z[r] - reach) / PS), k1 = floor((Z[r] + reach) / PS);
-    if ((i1 - i0 + 1) * (j1 - j0 + 1) * (k1 - k0 + 1) >= s - from) { for (let k = from; k < s; k++) moved = againstPart(r, out[k]) || moved; return moved; }
-    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) for (let k = k0; k <= k1; k++) { const list = PARTS.get(keyOf(i, j, k)); if (list) for (const q of list) if (atTurn[q] >= from) moved = againstPart(r, q) || moved; }
-    return moved;
-  };
-  /** A new cell c measured against every taken card near it (a point part: every taken middle): its nearest, from the
-      one it starts at. */
-  const against = (c) => {
-    const x = CX[c], y = CY[c], z = CZ[c], reach = ROOT[c] + RC;
-    const i0 = floor((x - reach) / GS), i1 = floor((x + reach) / GS), j0 = floor((y - reach) / GS), j1 = floor((y + reach) / GS), k0 = floor((z - reach) / GS), k1 = floor((z + reach) / GS);
-    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) for (let k = k0; k <= k1; k++) {
-      const list = GRID.get(keyOf(i, j, k)); if (!list) continue;
-      for (const g of list) {
-        if (!C) { const d = (x - X[g]) ** 2 + (y - Y[g]) ** 2 + (z - Z[g]) ** 2; if (d < NEAR[c]) nearer(c, d, g, -1); continue; }
-        const m = g * 4, lim = GC[m + 3] + ROOT[c];
-        if ((x - GC[m]) ** 2 + (y - GC[m + 1]) ** 2 + (z - GC[m + 2]) ** 2 >= lim * lim) continue;   // (it cannot be nearer)
-        const d = toCard(x, y, z, g);
-        if (d < NEAR[c]) nearer(c, d, OWNER[g], g);
-      }
-    }
-  };
-  /** Part r's least: the farthest of its cells' middles (kept, and found again where it may have come nearer). */
-  const lbOf = (r) => { let lo = 0; for (const c of cellsOf[r]) if (!DEAD[c] && ROOT[c] > lo) lo = ROOT[c]; return lo; };
-  /** Part r's bound: its cells' farthest bound, the top of their heap made fresh (a key is what the cell was bound by,
-      never less than it is: a cell only comes nearer). */
-  const ubOf = (r) => {
-    const H = HC[r];
-    for (;;) { const c = H.topId(), k = H.top(); if (DEAD[c]) { H.pop(); continue; } const f = boundOf(c); if (f < k) { H.pop(); H.push(f, c); continue; } return f; }
-  };
-  /** Part r measured against the first s turns (its cells against those taken since it was last), and its cells split,
-      the one of the farthest bound first, each new one measured against every taken card near it (its parent's nearest
-      first): as far as it may be the farthest, its bound over `limit` (another part's), till its bound is within
-      exp(FADE) of its least (it is held, `sure`), or its cell is as small as numbers hold. -> its bound */
-  const sure = new Uint8Array(n);
-  const measure = (r, s, limit) => {
-    if (seen[r] < s) { const moved = sinceOf(r, seen[r], s); seen[r] = s; sure[r] = 0; if (moved) LB[r] = lbOf(r); }
-    const tiny = R[r] * 1e-6;
-    for (;;) {
-      const ub = ubOf(r);
-      if (ub <= limit) return (UB[r] = ub);   // (not the farthest: no finer than that asks)
-      if (ub <= LB[r] * KF) { LB[r] = lbOf(r); if (ub <= LB[r] * KF) { sure[r] = 1; return (UB[r] = ub); } }
-      const c = HC[r].topId(); if (HD[c] <= tiny || CG[c] < 0) { sure[r] = 1; return (UB[r] = ub); }
-      HC[r].pop(); DEAD[c] = 1;
-      for (const [a, b] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]) {
-        const k = cell(r, CG[c], CU[c] + a * CS[c], CV[c] + b * CT[c], CS[c] / 2, CT[c] / 2), q = NQ[c];
-        if (C && NG[c] >= 0) nearer(k, toCard(CX[k], CY[k], CZ[k], NG[c]), q, NG[c]); else if (q >= 0) nearer(k, toPart(CX[k], CY[k], CZ[k], q, Infinity, Infinity), q, -1);   // (from its parent's nearest)
-        against(k); HC[r].push(boundOf(k), k); if (ROOT[k] > LB[r]) LB[r] = ROOT[k];
-      }
-    }
-  };
-  /** The farthest part in heap H from the first s turns, its leaves' bound, or -1. A part's key is its bound when it was
-      last measured (or one over it): never less than it is now, as more drawn only brings a leaf nearer and a cell split
-      bounds its leaves no farther. So the top, measured again (as far as it may still be the farthest: over the next
-      key) and held, as far as every other key, is the farthest of all, and only parts that might be are measured: a
-      crown of thousands is not measured against every turn, nor split finer than its place in the order asks (a lazy
-      greedy). It stays in H. */
-  const farthest = (H, s) => {
-    while (H.size()) {
-      const [key, r] = H.pop();
-      if (taken[r]) continue;
-      const next = H.size() ? H.top() : -Infinity, d = seen[r] === s && (sure[r] || UB[r] <= next) ? UB[r] : measure(r, s, next);
-      H.push(d, r);
-      if (d >= next && sure[r]) return r;
-    }
-    return -1;
-  };
-  const take = (q, s) => { taken[q] = 1; put(q); putPart(q, s); };
-  // the first: the part of the first class farthest from the crowd's middle; then every part's cells (a card each, or its
-  // middle) measured against it, each class in its own heap and all of them in one (what the share error is the farthest of)
-  const ofClass = classesOf(cls), p = farthestFrom(ofClass[0], X, Y, Z, mid);
-  out[0] = p; take(p, 0);
-  /** Part r's cells (a card each, or its middle) measured against the first turn, p. */
-  const begin = (r) => {
-    if (C) for (let g = gfrom[r]; g < gfrom[r + 1]; g++) cell(r, g, 0.5, 0.5, 0.5, 0.5); else cell(r, -1, 0, 0, 0, 0);
-    for (const c of cellsOf[r]) { const d = toPart(CX[c], CY[c], CZ[c], p, Infinity, Infinity); nearer(c, d, p, atCard); HC[r].push(boundOf(c), c); }
-    seen[r] = 1; LB[r] = lbOf(r); UB[r] = ubOf(r);
-  };
-  const heapIn = (parts) => { const H = heapOf(); for (const r of parts) if (!taken[r]) H.push(UB[r], r); return H; };
-  for (let r = 0; r < n; r++) if (r !== p) begin(r);
-  const all = heapIn(Array.from({ length: n }, (_, r) => r));
-  let c = 0, mine = heapIn(ofClass[0]);
-  for (let s = 1; s <= n; s++) {
-    const f = farthest(all, s); err[s] = f < 0 ? 0 : UB[f];   // (of every part not yet taken, whatever its class: how far its leaves may lie from all that are)
-    if (s === n) break;
-    let q = farthest(mine, s);
-    while (q < 0) { mine = heapIn(ofClass[++c]); q = farthest(mine, s); }   // (a class is through: the next)
-    out[s] = q; take(q, s);
+/** X, Y, Z the parts' middles, cls their classes, mid the crowd's middle -> the parts in turn order. The first is the
+    part of the first class farthest from the middle: the turns begin at the crown's rim, and a first few of them are
+    its outline. */
+function turnsOf(X, Y, Z, cls, mid) {
+  const n = cls.length, rest = Uint32Array.from({ length: n }, (_, i) => i).sort((a, b) => cls[a] - cls[b] || a - b), d = new Float64Array(n).fill(Infinity), out = new Uint32Array(n);
+  let lo = 0, hi = 0, at = -1, far = -1;
+  const endOf = (c) => { let e = lo; while (e < n && cls[rest[e]] === c) e++; return e; };
+  if (n) { hi = endOf(cls[rest[0]]); for (let j = 0; j < hi; j++) { const p = rest[j], q = (X[p] - mid[0]) ** 2 + (Y[p] - mid[1]) ** 2 + (Z[p] - mid[2]) ** 2; if (q > far) { far = q; at = j; } } }
+  for (let s = 0; s < n; s++) {
+    const p = rest[at], px = X[p], py = Y[p], pz = Z[p]; out[s] = p; rest[at] = rest[lo]; rest[lo++] = p;
+    if (lo === hi && lo < n) hi = endOf(cls[rest[lo]]);   // (a class is through: the next, by how far its parts lie from all that are taken)
+    far = -1;
+    for (let j = lo; j < n; j++) { const r = rest[j], q = (X[r] - px) ** 2 + (Y[r] - py) ** 2 + (Z[r] - pz) ** 2; if (q < d[r]) d[r] = q; if (j < hi && d[r] > far) { far = d[r]; at = j; } }
   }
   return out;
 }
-/** Each card's part (gfrom: where each part's cards begin; none without cards). */
-const ownersOf = (gfrom, n) => { const O = new Int32Array(gfrom ? gfrom[n] : 0); if (gfrom) for (let r = 0; r < n; r++) O.fill(r, gfrom[r], gfrom[r + 1]); return O; };
-/** The most of every `step`-th number of A from `at`. */
-const mostOf = (A, step, at) => { let m = 0; for (let i = at; i < A.length; i += step) m = max(m, A[i]); return m; };
-/** The parts of each class (cls: each part's), the classes in turn. */
-const classesOf = (cls) => [...new Set(cls)].sort((x, y) => x - y).map((k) => { const o = []; for (let r = 0; r < cls.length; r++) if (cls[r] === k) o.push(r); return o; });
-/** Of the parts `of`, the one whose middle lies farthest from `mid`. */
-const farthestFrom = (of, X, Y, Z, mid) => { let p = -1, far = -1; for (const r of of) { const q = (X[r] - mid[0]) ** 2 + (Y[r] - mid[1]) ** 2 + (Z[r] - mid[2]) ** 2; if (q > far) { far = q; p = r; } } return p; };
-/** A heap of numbers, the largest on top, each with what it is of (turnsOf). */
-function heapOf() {
-  const K = [], V = [], swap = (i, j) => { const k = K[i], v = V[i]; K[i] = K[j]; V[i] = V[j]; K[j] = k; V[j] = v; };
-  return {
-    size: () => K.length, top: () => K[0], topId: () => V[0],
-    push(key, id) { let i = K.push(key) - 1; V.push(id); while (i > 0) { const u = (i - 1) >> 1; if (K[u] >= K[i]) break; swap(u, i); i = u; } },
-    pop() {
-      const top = [K[0], V[0]], k = K.pop(), v = V.pop();
-      if (K.length) { K[0] = k; V[0] = v; for (let i = 0; ;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < K.length && K[l] > K[m]) m = l; if (r < K.length && K[r] > K[m]) m = r; if (m === i) break; swap(m, i); i = m; } }
-      return top;
-    },
-  };
-}
-/** Parts that are points (a chunk each: clumpsOf) as turnsOf takes them: each its middle, and nothing round it. */
-const pointsOf = (X, Y, Z) => ({ X, Y, Z, R: new Float64Array(X.length), gfrom: null, cards: null, rounds: null, sides: null });
 
-/** What every reckoning of a shape begins with: its parts as the recipe laid them (assets/kit/tree.js: m.parts), the
-    sprigs (each its cards, four vertices a card) and the solid pieces (a tube; and whatever was laid without a part, as
-    one piece that stays), their areas, the spread order of the sprigs (turnsOf) and their classes, the impostor's frame
-    and its error, and where the crowd ends: the sprigs still there (M), the clumps that take over from them, and the
-    errors they do it at. budgetOf and crowd agree to the part. Cheap: no picture is taken (budgetOf reads it at a
-    start, crowd builds on it). */
-function headOf(m, K) {
-  const P = m.position, n = m.part.length;
-  const { lo, hi, mean, frame, sphere } = boundsOf(P, n), size = K.size ?? max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]);
-  const { sprigs, solids } = partsOf(m), N = sprigs.length, B = K.measured, { mid, sd, order } = orderOf(sprigs, P, K, B);
-  // ---- the crowd's own error, turn by turn (metres): drawing its first t turns, what leaving out the rest truly
-  // misplaces. What is left out is stood for by what stays: the kept grow about their roots, each sqrt(A / A_t) of its
-  // size (A: every sprig's leaves, A_t: the first t turns'), so the crown covers as much of its round as it did (Cook,
-  // Halstead, Planck and Ryu 2007, "Stochastic Simplification of Aggregate Detail", SIGGRAPH: what is pruned stood for by
-  // the rest, scaled up by its area). So leaving out turns t … N-1 misplaces what goes by its share error (the farthest
-  // a leaf left out lies from a leaf drawn: turnsOf) and what stays by its growth, (sqrt(A / A_t) - 1) times the
-  // farthest a kept sprig's leaf lies from its root (it was the reach of the largest left out, its leaves gone with it,
-  // nothing drawn standing for them: every sprig of a crown is about one size, so all went at once). And the kept
-  // never grow faster than the error allowed grows (over a BAND of pixels, at most a BAND of growth: a turn goes no
-  // sooner than the growth it brings over the last one's, times the error that went at). Never more as more are drawn;
-  // a crowd too few to thin (LEAST) keeps them all (Infinity: never by itself) ----
-  const thins = N > K.LEAST, withFar = K.far !== false;
-  if (withFar && !K.CELL) throw new Error('crowd: a far end is sized by its atlases (VIEWS, CELL, TILE, CLUMPS: src/detail/impostor.js atlases), and none were given');
-  const R = m.root, rootReach = (q) => { let r = 0; for (const v of q.verts) r = max(r, hypot(P[v * 3] - R[v * 3], P[v * 3 + 1] - R[v * 3 + 1], P[v * 3 + 2] - R[v * 3 + 2])); return r; };
-  const area = B ? null : Float64Array.from(order, (p) => sprigs[p].area), reach = thins && !B ? Float64Array.from(order, (p) => rootReach(sprigs[p])) : null;
-  // ---- the impostor's error (metres): its bake's texel, CELL of them over its sphere's width, and what its views'
-  // spacing misplaces, its sphere's radius times their angle (src/detail/atlas.js) ----
-  const views = withFar ? spacingOf(K.VIEWS) * sphere[3] : 0, eImp = withFar ? (2 * sphere[3]) / K.CELL + views : Infinity;
-  // ---- where the crowd ends: the rung after it, its clumps or its impostor, whichever has the lesser error. The
-  // clumps: as many chunks as cost no more than the sprigs still there where the crowd ends (first all of them, then
-  // those its clumps leave); a shape whose impostor is as fine as its clumps hands its crowd over to it, and has no
-  // clumps; a plant without a far end has neither, and its crowd goes by its own error to where it is gone (M 0) ----
-  const endsOf = (own) => {
-    const endAt = (e) => { let t = 0; while (t < N && own[t] > e) t++; return t; };   // (the sprigs still there where an error of e is allowed: the first so many)
-    const endOf = (M0) => {
-      let cornersM = 0; for (let t = 0; t < M0; t++) cornersM += sprigs[order[t]].cards * 4;
-      const chunks = withFar && thins ? chunksOf(sprigs, max(1, min(K.CLUMPS, floor(cornersM / 12))), K.grid) : null;
-      const eC = chunks ? clumpsErrorOf(chunks, sprigs, P, K.TILE) : Infinity, clumpy = eC < eImp, end = clumpy ? eC : eImp;
-      return { chunks: clumpy ? chunks : null, eC, end, M: withFar ? endAt(end) : 0 };
-    };
-    let E0 = endOf(N); if (E0.M < N) E0 = endOf(E0.M);
-    const { chunks, eC, end } = E0, M = withFar ? endAt(end) : 0;
-    // every sprig's go (metres; 0: never by itself): the last M (still there where the crowd ends) one by one over the
-    // FADE below the clumps' switch, the outline's last, or, with no clumps, staying till the impostor takes them; the
-    // rest at their own error
-    const go = Float32Array.from({ length: N }, (_, t) => (t < M ? (chunks ? eC * exp(FADE * (1 - (t + 0.5) / M)) : 0) : Number.isFinite(own[t]) ? own[t] : 0));
-    const win = { hi: Number.isFinite(end) ? end : 0, lo: Number.isFinite(end) ? end * exp(FADE) : 0 };   // (metres: where the crowd ends, and where its window's last part goes)
-    return { own, chunks, eC, M, go, win, grow: growthOf(go, area, M, win) };
+// ---- the far bodies ----
+const pct = (sorted, q) => sorted[min(sorted.length - 1, max(0, floor(sorted.length * q)))];
+/** A closed body round a cloud of corners (C: their places, n of them; N, AO: what each is lit with), NS corners round
+    by NR rings and two poles, about `mid`, in the cloud's own proportions (`sd`: how far it spreads along each axis,
+    taken as one): each corner as far out as REACH of the cloud's corners in its sector reach.
+    -> { count, off (its corners from mid, at reach 1), normal, ao, uv, index, NS, NR } */
+function bodyOf(C, n, N, AO, mid, sd, NS, NR, REACH) {
+  const bins = (NR + 2) * NS, of = new Uint16Array(n), L = new Float32Array(n), cnt = new Uint32Array(bins + 1), lit = new Float64Array(bins * 4);
+  const ringOf = (y) => min(NR + 1, floor((asin(max(-1, min(1, y))) / PI + 0.5) * (NR + 2)));
+  for (let i = 0, p = 0; i < n; i++, p += 3) {
+    const x = (C[p] - mid[0]) / sd[0], y = (C[p + 1] - mid[1]) / sd[1], z = (C[p + 2] - mid[2]) / sd[2], l = hypot(x, y, z) || 1e-9, b = ringOf(y / l) * NS + (floor((atan2(z, x) / (2 * PI) + 1) * NS) % NS);
+    of[i] = b; L[i] = l; cnt[b + 1]++; lit[b * 4] += N[p]; lit[b * 4 + 1] += N[p + 1]; lit[b * 4 + 2] += N[p + 2]; lit[b * 4 + 3] += AO[i];
+  }
+  for (let b = 0; b < bins; b++) cnt[b + 1] += cnt[b];
+  const by = new Float32Array(n), put = cnt.slice(0, bins); for (let i = 0; i < n; i++) by[put[of[i]]++] = L[i];
+  const middling = pct(Float32Array.from(L).sort(), 0.5), R = new Float32Array(bins);   // (a sector with next to nothing in it: as far as the cloud's corners lie on the whole)
+  for (let b = 0; b < bins; b++) { const s = by.subarray(cnt[b], cnt[b + 1]); R[b] = s.length >= 4 ? pct(s.sort(), REACH) : middling; }
+  const poleR = (ring) => { const s = by.slice(cnt[ring * NS], cnt[ring * NS + NS]); return s.length >= 4 ? pct(s.sort(), REACH) : middling; };   // (a pole: as far as all the corners of its cap reach)
+  const count = NS * NR + 2, off = new Float32Array(count * 3), normal = new Float32Array(count * 3), ao = new Float32Array(count), uv = new Float32Array(count * 2), index = [];
+  let aoAll = 0; for (let i = 0; i < n; i++) aoAll += AO[i] / max(1, n);
+  // a corner: its place, and what it is lit with: the cloud's own corners in its sector, their normals and shade averaged (none there: the way out of the cloud)
+  const set = (v, x, y, z, b0, b1, u, w) => {
+    off[v * 3] = x * sd[0]; off[v * 3 + 1] = y * sd[1]; off[v * 3 + 2] = z * sd[2];
+    let nx = 0, ny = 0, nz = 0, a = 0, c = 0; for (let b = b0; b < b1; b++) { nx += lit[b * 4]; ny += lit[b * 4 + 1]; nz += lit[b * 4 + 2]; a += lit[b * 4 + 3]; c += cnt[b + 1] - cnt[b]; }
+    let l = hypot(nx, ny, nz); if (c < 4 || l < 1e-6 * c) { nx = x / sd[0]; ny = y / sd[1]; nz = z / sd[2]; l = hypot(nx, ny, nz) || 1; }
+    normal[v * 3] = nx / l; normal[v * 3 + 1] = ny / l; normal[v * 3 + 2] = nz / l; ao[v] = c >= 4 ? a / c : aoAll; uv[v * 2] = u; uv[v * 2 + 1] = w;
   };
-  // (the vertex stage reads the growth between its knots, at most a knot's step of it over what it is: each turn's go
-  // reckoned with that much more, so what is drawn is within the dial too; that step known once the growth is, again)
-  // (a measure the build made of this shape, at this version and these atlases' numbers, is all of this: B, crowd's
-  // measure: assets/kit/measures.js)
-  let E = B ? { own: B.own, chunks: B.chunks, eC: B.eC ?? Infinity, M: B.M, go: B.go, win: B.win, grow: B.grow } : endsOf(ownOf(N, thins, order.err, area, reach, 1));
-  for (let k = 0, infl = 1; k < 3 && !B; k++) { const want = exp(E.grow.most / (RULE.AT - RULE.GROW)); if (!(want > infl)) break; infl = want; E = endsOf(ownOf(N, thins, order.err, area, reach, infl)); }
-  const { own, chunks, eC, M, go, win } = E;
-  return { lo, hi, mean, size, frame, sprigs, solids, N, M, mid, sd, order, sphere, views, errors: { clumps: chunks ? eC : null, impostor: withFar ? eImp : null, crowd: own }, chunks, win, go, grow: E.grow, far: withFar,
-    atlas: withFar ? { VIEWS: K.VIEWS, CELL: K.CELL, TILE: K.TILE, TILES: K.TILES, CLUMPS: K.CLUMPS } : null };
+  const lat = (i) => ((i + 1.5) / (NR + 2) - 0.5) * PI;
+  for (let i = 0; i < NR; i++) for (let k = 0; k < NS; k++) { const a = ((k + 0.5) / NS) * 2 * PI, b = (i + 1) * NS + k, r = R[b]; set(i * NS + k, cos(lat(i)) * cos(a) * r, sin(lat(i)) * r, cos(lat(i)) * sin(a) * r, b, b + 1, k / NS, (i + 1) / (NR + 1)); }
+  const south = NS * NR, north = south + 1; set(south, 0, -poleR(0), 0, 0, NS, 0.5, 0); set(north, 0, poleR(NR + 1), 0, (NR + 1) * NS, (NR + 2) * NS, 0.5, 1);
+  for (let k = 0; k < NS; k++) { const j = (k + 1) % NS; index.push(south, j, k, north, (NR - 1) * NS + k, (NR - 1) * NS + j); for (let i = 0; i < NR - 1; i++) index.push(i * NS + k, i * NS + j, (i + 1) * NS + j, i * NS + k, (i + 1) * NS + j, (i + 1) * NS + k); }
+  return { count, off, normal, ao, uv, index: Uint16Array.from(index), NS, NR };
 }
-/** Each turn's own error (headOf, above): the crowd without it and every turn after it, each kept sprig grown
-    sqrt(A / A_t) about its root, its growth reckoned `infl` times over (the vertex stage's knots: growthOf), never less
-    than the turn after it, nor growing faster than the error that went at (a BAND of pixels, at most a BAND of growth).
-    err: each turn's share error; area, reach: its leaves', and the farthest one lies from its root (turn order). */
-function ownOf(N, thins, err, area, reach, infl) {
-  const own = new Float64Array(N).fill(Infinity);
-  if (!thins) return own;
-  const A = area.reduce((s, a) => s + a, 0), kept = new Float64Array(N + 1), most = new Float64Array(N + 1);   // (the first t turns' leaves; the farthest a leaf of them lies from its root)
-  for (let t = 0; t < N; t++) { kept[t + 1] = kept[t] + area[t]; most[t + 1] = max(most[t], reach[t]); }
-  for (let t = N - 1, after = 0, was = 1; t >= 0; t--) { const s = kept[t] > 0 ? sqrt(A / kept[t]) : Infinity; after = kept[t] > 0 ? max(after, err[t], (s * infl - 1) * most[t], (after * s) / was) : Infinity; own[t] = after; was = s; }   // (none kept: the crowd is off by everything, its first turn's own error what no crowd stands in under, not ∞ × 0)
-  return own;
+/** Where each corner of a finer body lies on the next coarser one: its ring on the ring nearest in height, its place
+    round the ring on the nearest there, the poles on the poles. With every corner there the finer body is the coarser
+    one, triangle for triangle (the others are folded to nothing). f, c: the bodies as placed (position). */
+function placesOn(f, c) {
+  const to = new Float32Array(f.count * 3), lat = (H, i) => (i + 1.5) / (H.NR + 2), put = (v, w) => { to[v * 3] = c.position[w * 3]; to[v * 3 + 1] = c.position[w * 3 + 1]; to[v * 3 + 2] = c.position[w * 3 + 2]; };
+  const round = (k) => { let best = 0, d = 9; for (let q = 0; q < c.NS; q++) { let e = abs((k + 0.5) / f.NS - (q + 0.5) / c.NS); e = min(e, 1 - e); if (e < d - 1e-9) { d = e; best = q; } } return best; };
+  const d2 = (v, w) => (f.position[v * 3] - c.position[w * 3]) ** 2 + (f.position[v * 3 + 1] - c.position[w * 3 + 1]) ** 2 + (f.position[v * 3 + 2] - c.position[w * 3 + 2]) ** 2;
+  for (let i = 0; i < f.NR; i++) {
+    // (a ring half way between two of the coarser body's: the one its corners lie nearer to)
+    let ring = 0, best = Infinity, bestFar = Infinity;
+    for (let r = 0; r < c.NR; r++) { const e = abs(lat(f, i) - lat(c, r)); let far = 0; for (let k = 0; k < f.NS; k++) far += d2(i * f.NS + k, r * c.NS + round(k)); if (e < best - 1e-9 || (e < best + 1e-9 && far < bestFar)) { best = e; bestFar = far; ring = r; } }
+    ring = min(max(ring, i - (f.NR - c.NR)), i);   // (in step: no ring passes another, none of the coarser's is left out)
+    for (let k = 0; k < f.NS; k++) put(i * f.NS + k, ring * c.NS + round(k));
+  }
+  put(f.NS * f.NR, c.NS * c.NR); put(f.NS * f.NR + 1, c.NS * c.NR + 1);
+  return to;
 }
-/** The kept's growth (Cook et al. 2007: headOf) for the vertex stage (src/scatter/trees.js grownBy): how many times its
-    size a kept sprig is drawn where an error of e (metres) is allowed, sqrt(A / A_e), A_e the leaves still there: each
-    sprig shrinking with its leaves over the FADE under its go (grownAt), the last M as if kept (the clumps or the
-    impostor stand for those, not the crowd). Kept as where (the log of e) it reaches each of KNOTS + 1 growths evenly in
-    its log, from none (where the first goes) to its most (where the crowd ends: its window, else its last go): so the
-    knots lie where it grows, and are read back between the two it lies between. go, area: each turn's, in turn order.
-    -> { most: the log of its most growth (0: none grow), at: the knots (KNOTS + 1 logs of e) } */
-function growthOf(go, area, M, win) {
-  const N = go.length, KN = RULE.AT - RULE.GROW, at = new Float32Array(KN + 1);
-  let e0 = Infinity, last = 0; for (let t = M; t < N; t++) if (go[t] > 0) { e0 = min(e0, go[t]); last = max(last, go[t]); }
-  const e1 = win.hi > 0 ? win.hi : last;
-  if (!(e0 < e1)) return { most: 0, at };
-  const A = area.reduce((n, a) => n + a, 0), sAt = (e) => { let Ae = 0; for (let t = 0; t < N; t++) { const g = t < M ? 1 : grownAt(go[t] / e, go[t]); Ae += area[t] * g * g; } return sqrt(A / max(Ae, 1e-12)); };
-  // (its log of growth over the log of e, finely: never less as more goes)
-  const STEPS = KN * 64, L = Float64Array.from({ length: STEPS + 1 }, (_, k) => log(sAt(e0 * (e1 / e0) ** (k / STEPS))));
-  for (let k = 1; k <= STEPS; k++) L[k] = max(L[k], L[k - 1]);
-  const most = L[STEPS], x = (k) => log(e0) + (k / STEPS) * log(e1 / e0);
-  if (!(most > 0)) return { most: 0, at };
-  for (let j = 0, k = 0; j <= KN; j++) { const want = (j / KN) * most; while (k < STEPS && L[k + 1] < want) k++; const f = L[k + 1] > L[k] ? (want - L[k]) / (L[k + 1] - L[k]) : 0; at[j] = x(k) + min(1, max(0, f)) * (x(k + 1) - x(k)); }
-  return { most, at };
+/** How far a body reaches from its middle towards a point, of the way to the point: under 1, the point lies outside
+    it. Q the body's corners, J its triangles. */
+function skinAt(Q, J, mid, x, y, z) {
+  const dx = x - mid[0], dy = y - mid[1], dz = z - mid[2]; let best = Infinity;
+  for (let t = 0; t < J.length; t += 3) {
+    const a = J[t] * 3, b = J[t + 1] * 3, c = J[t + 2] * 3, ox = mid[0] - Q[a], oy = mid[1] - Q[a + 1], oz = mid[2] - Q[a + 2];
+    const e1x = Q[b] - Q[a], e1y = Q[b + 1] - Q[a + 1], e1z = Q[b + 2] - Q[a + 2], e2x = Q[c] - Q[a], e2y = Q[c + 1] - Q[a + 1], e2z = Q[c + 2] - Q[a + 2];
+    const px = dy * e2z - dz * e2y, py = dz * e2x - dx * e2z, pz = dx * e2y - dy * e2x, det = e1x * px + e1y * py + e1z * pz; if (abs(det) < 1e-12) continue;
+    const u = (ox * px + oy * py + oz * pz) / det, qx = oy * e1z - oz * e1y, qy = oz * e1x - ox * e1z, qz = ox * e1y - oy * e1x, v = (dx * qx + dy * qy + dz * qz) / det, t1 = (e2x * qx + e2y * qy + e2z * qz) / det;
+    if (u >= -1e-6 && v >= -1e-6 && u + v <= 1 + 1e-6 && t1 > 0 && t1 < best) best = t1;
+  }
+  return best;
 }
-/** A shape's box and middle (lo, hi, mean: of its vertices), the frame its cover is reckoned in (all of it, and a little
-    round it), and the impostor's frame: the sphere round all of it, from its box's middle. */
-function boundsOf(P, n) {
+
+/** A plant's mesh as its file draws it once (assets/kit/tree.js: position, normal, uv, part, ao, cn, root, hand, twig a
+    vertex, lists of numbers or typed arrays; index its corners) -> its shape: all the engine needs to draw it at any
+    size on screen (the head of this file says what). size: metres, what its size on screen is measured by (its
+    kind's: a tree's height, a bush's largest side; not said: its largest side). Whatever else is said takes the place
+    of CROWD's number of that name (to try another): `E` said is taken, not measured; `order: 'alike'` is one order over
+    all sizes with no classes; `tip: 'corner'` a part's single outermost corner. */
+/** What every reckoning of a shape begins with: its pieces (the triangles that share corners), its card parts (the
+    cards of one root), and where a card is CARD pixels on screen (P0). Cheap: no picture is taken (budgetOf reads
+    it at a start, crowd builds on it). */
+function headOf(m, K) {
+  const P = m.position, I = m.index, n = m.part.length, R = m.root;
   const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity], mean = [0, 0, 0];
   for (let p = 0; p < n * 3; p += 3) for (let a = 0; a < 3; a++) { const x = P[p + a]; if (x < lo[a]) lo[a] = x; if (x > hi[a]) hi[a] = x; mean[a] += x / n; }
-  const centre = [0, 1, 2].map((a) => (lo[a] + hi[a]) / 2); let far = 0, r2 = 0;
-  for (let p = 0; p < n * 3; p += 3) { far = max(far, (P[p] - mean[0]) ** 2 + (P[p + 1] - mean[1]) ** 2 + (P[p + 2] - mean[2]) ** 2); r2 = max(r2, (P[p] - centre[0]) ** 2 + (P[p + 1] - centre[1]) ** 2 + (P[p + 2] - centre[2]) ** 2); }
-  return { lo, hi, mean, frame: { c: mean, r: sqrt(far) * 1.1 || 1 }, sphere: [...centre, sqrt(r2) || 1] };
-}
-/** A shape's parts as the recipe laid them (assets/kit/tree.js: m.parts): its sprigs (each its cards, four vertices a
-    card, its tip and its box) and its solid pieces (a tube; and whatever was laid without a part, as one piece that
-    stays), each with its area. */
-function partsOf(m) {
-  const P = m.position, I = m.index, sprigs = [], solids = [], mine = new Uint8Array(I.length);
-  const areaOf = (tris) => { let a = 0; for (const t of tris) { const i = I[t] * 3, j = I[t + 1] * 3, k = I[t + 2] * 3, ux = P[j] - P[i], uy = P[j + 1] - P[i + 1], uz = P[j + 2] - P[i + 2], vx = P[k] - P[i], vy = P[k + 1] - P[i + 1], vz = P[k + 2] - P[i + 2]; a += hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) / 2; } return a; };
-  const range = (a, b, step = 1) => Array.from({ length: max(0, ceil((b - a) / step)) }, (_, i) => a + i * step);
-  for (const q of m.parts ?? []) {
-    mine.fill(1, q.i0, q.i1);
-    const tris = range(q.i0, q.i1, 3), verts = range(q.v0, q.v1);
-    if (!q.tip) { solids.push({ verts, tris, foot: q.foot, area: areaOf(tris) }); continue; }
-    const box = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
-    for (const v of verts) for (let a = 0; a < 3; a++) { box[a] = min(box[a], P[v * 3 + a]); box[a + 3] = max(box[a + 3], P[v * 3 + a]); }
-    sprigs.push({ verts, tris, tip: q.tip, cards: (q.v1 - q.v0) / 4, area: areaOf(tris), box });
+  const size = K.size ?? max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]);
+  let far = 0; for (let p = 0; p < n * 3; p += 3) far = max(far, (P[p] - mean[0]) ** 2 + (P[p + 1] - mean[1]) ** 2 + (P[p + 2] - mean[2]) ** 2);
+  const frame = { c: mean, r: sqrt(far) * 1.1 || 1 };   // (what its cover is reckoned in: all of it, and a little round it)
+
+  // ---- its pieces: the triangles that share corners ----
+  const up = Int32Array.from({ length: n }, (_, i) => i), find = (x) => { while (up[x] !== x) { up[x] = up[up[x]]; x = up[x]; } return x; };
+  for (let t = 0; t < I.length; t += 3) { const a = find(I[t]), b = find(I[t + 1]), c = find(I[t + 2]); up[b] = a; up[c] = a; }
+  const name = new Int32Array(n).fill(-1), pOf = new Int32Array(n).fill(-1); let nP = 0;
+  for (let t = 0; t < I.length; t += 3) { const r = find(I[t]); if (name[r] < 0) name[r] = nP++; }
+  const pTris = new Uint32Array(nP + 1), pVerts = new Uint32Array(nP + 1), pArea = new Float64Array(nP);
+  for (let v = 0; v < n; v++) { const q = name[find(v)]; pOf[v] = q; if (q >= 0) pVerts[q + 1]++; }   // (a vertex no triangle has: of no piece, left out)
+  for (let t = 0; t < I.length; t += 3) {
+    const q = pOf[I[t]], i = I[t] * 3, j = I[t + 1] * 3, k = I[t + 2] * 3, ux = P[j] - P[i], uy = P[j + 1] - P[i + 1], uz = P[j + 2] - P[i + 2], vx = P[k] - P[i], vy = P[k + 1] - P[i + 1], vz = P[k + 2] - P[i + 2];
+    pTris[q + 1]++; pArea[q] += hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) / 2;
   }
-  const rest = range(0, I.length, 3).filter((t) => !mine[t]);
-  if (rest.length) solids.push({ verts: [...new Set(rest.flatMap((t) => [I[t], I[t + 1], I[t + 2]]))], tris: rest, foot: [0, 0, 0], stays: true, area: areaOf(rest) });
-  return { sprigs, solids };
-}
-/** The spread order of a crowd's sprigs: by size into classes (each half the area of the one before, the largest first;
-    one where the shape asks them alike), the farthest from all taken before within a class (turnsOf). -> { mid, sd:
-    their spread, order } */
-function orderOf(sprigs, P, K, B = null) {
-  const N = sprigs.length, mid = [0, 0, 0], sd = [0, 0, 0], X = new Float64Array(N), Y = new Float64Array(N), Z = new Float64Array(N); let nC = 0;
-  sprigs.forEach((q, p) => { for (const v of q.verts) { X[p] += P[v * 3] / q.verts.length; Y[p] += P[v * 3 + 1] / q.verts.length; Z[p] += P[v * 3 + 2] / q.verts.length; for (let a = 0; a < 3; a++) mid[a] += P[v * 3 + a]; nC++; } });
-  for (let a = 0; a < 3; a++) mid[a] /= max(1, nC);
-  for (const q of sprigs) for (const v of q.verts) for (let a = 0; a < 3; a++) sd[a] += (P[v * 3 + a] - mid[a]) ** 2;
-  for (let a = 0; a < 3; a++) sd[a] = sqrt(sd[a] / max(1, nC)) || 1e-9;
-  let amax = 0; for (const q of sprigs) amax = max(amax, q.area);
-  const cls = Uint8Array.from(sprigs, (q) => (K.order === 'alike' ? 0 : min(K.CLASSES - 1, floor(log2(amax / q.area) + 1e-6))));
-  return { mid, sd, order: B ? B.order : turnsOf(leavesOf(sprigs, P, X, Y, Z), cls, mid) };   // (B: a measure the build made: its order)
-}
-/** Where a crowd's sprigs' leaves are, as turnsOf takes them: each card (four vertices, as the kit lays it: a rectangle,
-    its corner 0 and its sides to corners 1 and 3, at right angles; a card that is none is an error of the kit's), its
-    middle and how far its corners reach from it, and its sides' lengths; each sprig's middle and how far its corners
-    reach from it. */
-function leavesOf(sprigs, P, X, Y, Z) {
-  const N = sprigs.length, gfrom = new Uint32Array(N + 1), R = new Float64Array(N);
-  for (let p = 0; p < N; p++) gfrom[p + 1] = gfrom[p] + sprigs[p].cards;
-  const nG = gfrom[N], rounds = new Float64Array(nG * 4), cards = new Float64Array(nG * 11), sides = new Float64Array(nG * 2);
-  sprigs.forEach((q, p) => {
-    for (const v of q.verts) R[p] = max(R[p], hypot(P[v * 3] - X[p], P[v * 3 + 1] - Y[p], P[v * 3 + 2] - Z[p]));
-    for (let c = 0; c < q.cards; c++) {
-      const g = gfrom[p] + c, v = q.verts[c * 4], K = [0, 1, 2, 3].map((k) => [0, 1, 2].map((a) => P[(v + k) * 3 + a])), m = [0, 1, 2].map((a) => (K[0][a] + K[1][a] + K[2][a] + K[3][a]) / 4);
-      const e1 = [0, 1, 2].map((a) => K[1][a] - K[0][a]), e2 = [0, 1, 2].map((a) => K[3][a] - K[0][a]), l1 = hypot(...e1), l2 = hypot(...e2), off = hypot(...[0, 1, 2].map((a) => K[2][a] - K[1][a] - e2[a]));
-      if (abs(e1[0] * e2[0] + e1[1] * e2[1] + e1[2] * e2[2]) > 1e-6 * l1 * l2 || off > 1e-6 * (l1 + l2)) throw new Error('crowd: a card is laid as a rectangle (assets/kit/tree.js lay), its corners 0 1 2 3 round it, and this one is none');
-      rounds.set([...m, max(...K.map((k) => hypot(k[0] - m[0], k[1] - m[1], k[2] - m[2])))], g * 4);
-      cards.set([...K[0], ...e1, ...e2, 1 / max(l1 * l1, 1e-24), 1 / max(l2 * l2, 1e-24)], g * 11);
-      sides.set([l1, l2], g * 2);
-    }
-  });
-  return { X, Y, Z, R, gfrom, cards, rounds, sides };
-}
-// the ways the eye can see a chunk's planes from: each plane's error and share depend on |v.x|, |v.y|, |v.z| alone, so
-// one eighth of the sphere is all of them (a triangle's grid of 325), each as its three planes' weights: plane a draws a
-// point |p_a - m_a| sqrt(1 - v_a²) off, and is |v_a| / (|v.x| + |v.y| + |v.z|) of what is drawn of the chunk
-const OCTANT = (() => {
-  const out = [], n = 24;
-  for (let i = 0; i <= n; i++) for (let j = 0; j <= n - i; j++) { const l = hypot(i, j, n - i - j), u = [i / l, j / l, (n - i - j) / l], s = u[0] + u[1] + u[2]; out.push(u.map((x) => (x * sqrt(1 - x * x)) / s)); }
-  return out;
-})();
-// (the ways in groups of neighbours, each with its weights at their most: a point a group's most takes no further than
-// is reached already is taken no further by any way of it. Flat arrays: the ways' weights (WAYS), each group's most
-// (MOSTS) and where its ways begin and end (SPANS); OCTANT_MOST, every way's)
-const { WAYS, MOSTS, SPANS, OCTANT_MOST } = (() => {
-  const by = new Map();
-  OCTANT.forEach((w) => { const k = `${Math.round(w[0] * 6)} ${Math.round(w[1] * 6)}`; if (!by.has(k)) by.set(k, []); by.get(k).push(w); });
-  const groups = [...by.values()], WAYS = new Float64Array(OCTANT.length * 3), MOSTS = new Float64Array(groups.length * 3), SPANS = new Uint32Array(groups.length + 1);
-  let at = 0;
-  groups.forEach((ws, g) => { SPANS[g] = at; for (const w of ws) { WAYS.set(w, at * 3); at++; for (let a = 0; a < 3; a++) MOSTS[g * 3 + a] = Math.max(MOSTS[g * 3 + a], w[a]); } });
-  SPANS[groups.length] = at;
-  return { WAYS, MOSTS, SPANS, OCTANT_MOST: [0, 1, 2].map((a) => Math.max(...OCTANT.map((w) => w[a]))) };
-})();
-/** The clumps' error (metres): where their planes draw each chunk's leaves, at the worst leaf and way (OCTANT), and the
-    planes' bake's texel on top (TILE of them over the chunk's largest side); the worst chunk's. The leaves of a chunk are
-    its sprigs' corners, as the GPU bakes it (its parts: chunksOf). */
-function clumpsErrorOf(chunks, sprigs, P, TILE) {
-  let worst = 0;
-  for (const C of chunks) {
-    const b = C.box, m = [(b[0] + b[3]) / 2, (b[1] + b[4]) / 2, (b[2] + b[5]) / 2], side = max(b[3] - b[0], b[4] - b[1], b[5] - b[2]), D = [];
-    for (const p of C.parts) for (const v of sprigs[p].verts) D.push(abs(P[v * 3] - m[0]), abs(P[v * 3 + 1] - m[1]), abs(P[v * 3 + 2] - m[2]));
-    // (every way's weights are nought or more, so no way takes a point further than its bound, each weight at its most
-    // (OCTANT_MOST): a point bound to no more than is reached already is passed by, the rest looked at every way. The
-    // same worst, exactly: what the bound passes by reaches no further. The start reckoned every leaf every way, 325 of
-    // them, for every shape: half the scatter's 5 s, 2026-11-19)
-    let e = 0, at = 0, most = -1;
-    for (let i = 0; i < D.length; i += 3) { const u = OCTANT_MOST[0] * D[i] + OCTANT_MOST[1] * D[i + 1] + OCTANT_MOST[2] * D[i + 2]; if (u > most) { most = u; at = i; } }
-    const reach = (i) => {
-      const x = D[i], y = D[i + 1], z = D[i + 2];
-      for (let g = 0; g + 1 < SPANS.length; g++) {
-        if (MOSTS[g * 3] * x + MOSTS[g * 3 + 1] * y + MOSTS[g * 3 + 2] * z <= e) continue;
-        for (let w = SPANS[g] * 3; w < SPANS[g + 1] * 3; w += 3) { const r = WAYS[w] * x + WAYS[w + 1] * y + WAYS[w + 2] * z; if (r > e) e = r; }
-      }
-    };
-    if (D.length) reach(at);   // (the likeliest farthest first: what it reaches passes most of the rest by)
-    for (let i = 0; i < D.length; i += 3) if (OCTANT_MOST[0] * D[i] + OCTANT_MOST[1] * D[i + 1] + OCTANT_MOST[2] * D[i + 2] > e) reach(i);
-    worst = max(worst, e + side / TILE);
+  for (let q = 0; q < nP; q++) { pTris[q + 1] += pTris[q]; pVerts[q + 1] += pVerts[q]; }
+  const tris = new Uint32Array(I.length / 3), verts = new Uint32Array(pVerts[nP]);   // (a piece's triangles, by their first corner's place in the list, and its vertices)
+  { const a = pTris.slice(0, nP), b = pVerts.slice(0, nP); for (let t = 0; t < I.length; t += 3) tris[a[pOf[I[t]]]++] = t; for (let v = 0; v < n; v++) if (pOf[v] >= 0) verts[b[pOf[v]]++] = v; }
+  const cardP = (q) => m.part[verts[pVerts[q]]] === 1, quadP = (q) => pVerts[q + 1] - pVerts[q] === 4 && pTris[q + 1] - pTris[q] === 2;
+
+  // ---- its card parts: the cards of one root ----
+  const partOf = new Int32Array(nP).fill(-1), byRoot = new Map(); let N = 0, cardPieces = 0, was = -1;
+  for (let q = 0; q < nP; q++) if (cardP(q)) {
+    const v = verts[pVerts[q]] * 3, w = was * 3; cardPieces++;
+    if (was >= 0 && R[v] === R[w] && R[v + 1] === R[w + 1] && R[v + 2] === R[w + 2]) { partOf[q] = N - 1; continue; }   // (the card before it was of the same root: most are laid one after another)
+    const key = `${R[v]},${R[v + 1]},${R[v + 2]}`; let p = byRoot.get(key); if (p === undefined) { byRoot.set(key, (p = N++)); was = v / 3; } else was = -1;
+    partOf[q] = p;
   }
-  return worst;
-}
-/** A crowd's sprigs in chunks: split by their boxes, the chunk of the largest box first, at the middle of its sprigs'
-    tips along its longest side, until there are `want` of them (or none can be split). A chunk is whole sprigs: its
-    cell, where their tips lie (each side [lo, hi), the tips as the GPU reads them back: grid), says which are its own
-    where the GPU bakes it (src/detail/impostor.js); its box, where their corners lie, is its planes' frame. */
-function chunksOf(sprigs, want, grid) {
-  const N = sprigs.length, box = new Float64Array(N * 6), T = new Float64Array(N * 3);
-  sprigs.forEach((q, p) => { box.set(q.box, p * 6); for (let a = 0; a < 3; a++) T[p * 3 + a] = grid ? grid(q.tip[a], a) : q.tip[a]; });
-  const chunk = (parts, cell) => {
-    const b = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
-    for (const p of parts) for (let a = 0; a < 3; a++) { b[a] = min(b[a], box[p * 6 + a]); b[a + 3] = max(b[a + 3], box[p * 6 + 3 + a]); }
-    return { parts, cell, box: b, err: max(b[3] - b[0], b[4] - b[1], b[5] - b[2]) };
-  };
-  const all = [chunk(Array.from({ length: N }, (_, p) => p), [-1e4, -1e4, -1e4, 1e4, 1e4, 1e4])];
-  while (all.length < want) {
-    let w = -1; for (let c = 0; c < all.length; c++) if (all[c].parts.length > 1 && all[c].err > 0 && (w < 0 || all[c].err > all[w].err)) w = c;
-    if (w < 0) break;
-    const C = all[w], b = C.box, axes = [0, 1, 2].sort((x, y) => b[y + 3] - b[y] - (b[x + 3] - b[x]));
-    let split = null, ax = 0;
-    for (const a of axes) {   // (along its longest side, half way between the middle tip and the next that differs; else the next longest)
-      const vals = C.parts.map((p) => T[p * 3 + a]).sort((x, y) => x - y), h = vals.length >> 1;
-      let k = h; while (k > 0 && vals[k - 1] === vals[k]) k--;
-      if (!k) { k = h; while (k < vals.length && vals[k] === vals[h]) k++; }
-      if (k > 0 && k < vals.length) { split = (vals[k - 1] + vals[k]) / 2; ax = a; break; }
-    }
-    if (split === null) { C.err = 0; continue; }
-    const cl = C.cell.slice(), cr = C.cell.slice(); cl[ax + 3] = split; cr[ax] = split;
-    all.splice(w, 1, chunk(C.parts.filter((p) => T[p * 3 + ax] < split), cl), chunk(C.parts.filter((p) => T[p * 3 + ax] >= split), cr));
-  }
-  return all;
+  if (N === 1 && cardPieces >= 2 * K.LEAST) { N = 0; for (let q = 0; q < nP; q++) if (cardP(q)) partOf[q] = N++; }   // (a mesh whose cards carry no roots: every card a part of its own)
+  let cardS = 0, cardN = 0, most = 0; { const c = new Uint32Array(N), a = new Float64Array(N); for (let q = 0; q < nP; q++) if (partOf[q] >= 0) { c[partOf[q]]++; a[partOf[q]] += pArea[q]; } for (let p = 0; p < N; p++) { cardS += sqrt(a[p] / c[p]) * c[p]; cardN += c[p]; most = max(most, c[p]); } }
+  // P0: where a card (the square its area makes, the crowd's mean) is CARD pixels on screen; a thing of no cards: where it is itself
+  const P0 = (K.CARD * size) / (cardPieces ? cardS / cardPieces : size);
+  return { lo, hi, mean, size, frame, up, find, name, pOf, nP, pTris, pVerts, pArea, tris, verts, cardP, quadP, partOf, N, cardPieces, P0, most };
 }
 
 /** What a shape may submit at most at each of the sizes on screen `his` (pixels; Infinity: all of it), without
     building it: a level's room in the heap (src/scatter/trees.js). -> [{ verts, tris }] (its first vertex is its
     numbers: assets/kit/plant.js) */
 export function budgetOf(m, opts = {}, his = [Infinity]) {
-  const K = { ...CROWD, ...opts }, H = headOf(m, K), go = H.go;
-  let sv = 0, st = 0; for (const q of H.solids) { sv += q.verts.length; st += q.tris.length; }
-  // (its finest level carries its far data, every other its chunks' planes where they can come; a level wholly under
-  // far.lo nothing but its numbers)
-  const farLo = farLoOf(H), p = H.chunks ? H.chunks.length * 3 : 0, fv = H.far ? Math.ceil(farLength(H.chunks ? H.chunks.length : 0) / 8) : 0;
-  return Object.assign(his.map((hi) => {
-    if (hi <= farLo) return { verts: 1, tris: 0 };
-    let cards = 0; for (let t = 0; t < H.N; t++) if (drawnUnder(go[t], H.size, hi)) cards += H.sprigs[H.order[t]].cards;
-    return { verts: 1 + (hi === Infinity ? fv : 0) + cards * 4 + sv + p * 4, tris: cards * 2 + st + p * 2 };
-  }), { chunks: H.chunks ? H.chunks.length : 0, far: farDataOf(H, H.chunks ? { n: H.chunks.length, cells: Float32Array.from(H.chunks.flatMap((C) => C.cell)), boxes: Float32Array.from(H.chunks.flatMap((C) => C.box)) } : null) });   // (and how many chunks its clumps are, and its far data as its finest level carries it: a far end baked from the outline, src/scatter/trees.js farOf)
+  const K = { ...CROWD, ...opts }, H = headOf(m, K);
+  let sv = 0, st = 0, quads = 0;
+  for (let q = 0; q < H.nP; q++) { const v = H.pVerts[q + 1] - H.pVerts[q], t = H.pTris[q + 1] - H.pTris[q]; if (H.partOf[q] >= 0 && H.quadP(q)) quads++; else { sv += v; st += t; } }
+  const bodies = K.HULLS.reduce((s, [a, b]) => [s[0] + a * b + 2, s[1] + 2 * a * b], [8, 6]);   // (every far body and the post)
+  const baked = K.baked ? bakedVerts(K) : 0;   // (the crown baked, where a level carries it)
+  return his.map((hi) => { const share = H.N ? min(1, shareAt(hi * K.WIN, H.P0, K.A)) : 0, cards = min(quads, ceil(share * H.N) * H.most); return { verts: 1 + baked + cards * 4 + sv + bodies[0], tris: cards * 2 + st + bodies[1] }; });
 }
-/** How many numbers a far end's data is (crowd: far.data), its clumps `n` chunks: eight, then twelve a chunk. Its finest
-    level carries it after its vertices, eight numbers a vertex (assets/kit/plant.js). */
-const farLength = (n) => 8 + n * 12;
-/** Whether a part that goes at `go` (metres; 0: never by itself) on a shape `size` metres large is drawn anywhere at or
-    under hi pixels (at the dial at rest): it is there down to a FADE under its switch. */
-const drawnUnder = (go, size, hi) => !(go > 0) || switchOf(go, size) * exp(-FADE) < hi;
-/** Under these pixels (at the dial at rest) nothing but a shape's impostor is drawn: where every plant's hand-over to it
-    is through, the BAND under its switch (src/scatter/trees.js meshShare). A plant without a far end: never. */
-const farLoOf = (H) => (H.far ? switchOf(H.errors.impostor * BAND, H.size) : 0);
 
 export function crowd(m, opts = {}) {
-  const K = { ...CROWD, ...opts }, P = m.position, I = m.index, n = m.part.length, R = m.root;
-  const H = headOf(m, K), { size, frame, sprigs, solids, N, M, mid, sd: spread, order, sphere, win, go } = H;
-  // how much of its pictures the plant covers
-  const cover = coverFor(m, K, N, frame);
+  const K = { ...CROWD, ...opts }, P = m.position, I = m.index, n = m.part.length, R = m.root, UV = m.uv;
+  const Hd = headOf(m, K), { lo, hi, mean, size, frame, up, find, name, pOf, nP, pTris, pVerts, pArea, tris, verts, cardP, quadP, partOf, cardPieces, P0 } = Hd; let N = Hd.N;
+  // the crowd's middle and how far it spreads along each axis: the crown's own proportions, in which "outermost" and the far bodies are reckoned
+  const mid = [0, 0, 0], sd = [0, 0, 0]; let nC = 0;
+  for (let q = 0; q < nP; q++) if (partOf[q] >= 0) for (let i = pVerts[q]; i < pVerts[q + 1]; i++) { const v = verts[i] * 3; mid[0] += P[v]; mid[1] += P[v + 1]; mid[2] += P[v + 2]; nC++; }
+  for (let a = 0; a < 3; a++) mid[a] /= max(1, nC);
+  for (let q = 0; q < nP; q++) if (partOf[q] >= 0) for (let i = pVerts[q]; i < pVerts[q + 1]; i++) { const v = verts[i] * 3; for (let a = 0; a < 3; a++) sd[a] += (P[v + a] - mid[a]) ** 2; }
+  for (let a = 0; a < 3; a++) sd[a] = sqrt(sd[a] / max(1, nC)) || 1e-9;
+  // a part: its pieces, its area, its middle, its tip
+  const pp = new Uint32Array(N + 1), area = new Float64Array(N), X = new Float64Array(N), Y = new Float64Array(N), Z = new Float64Array(N), nv = new Uint32Array(N), tip = new Float64Array(N * 3);
+  for (let q = 0; q < nP; q++) { const p = partOf[q]; if (p < 0) continue; pp[p + 1]++; area[p] += pArea[q]; for (let i = pVerts[q]; i < pVerts[q + 1]; i++) { const v = verts[i] * 3; X[p] += P[v]; Y[p] += P[v + 1]; Z[p] += P[v + 2]; nv[p]++; } }
+  for (let p = 0; p < N; p++) { pp[p + 1] += pp[p]; X[p] /= nv[p]; Y[p] /= nv[p]; Z[p] /= nv[p]; }
+  const pieces = new Uint32Array(pp[N]); { const a = pp.slice(0, N); for (let q = 0; q < nP; q++) if (partOf[q] >= 0) pieces[a[partOf[q]]++] = q; }
+  { // its tip: the middle of the outer half of its corners (or its one outermost), "out" reckoned from the crowd's middle in the crown's proportions
+    const out = new Float64Array(64), ids = new Int32Array(64);
+    for (let p = 0; p < N; p++) {
+      let c = 0;
+      for (let j = pp[p]; j < pp[p + 1]; j++) for (let i = pVerts[pieces[j]]; i < pVerts[pieces[j] + 1]; i++) {
+        const v = verts[i], d = ((P[v * 3] - mid[0]) / sd[0]) ** 2 + ((P[v * 3 + 1] - mid[1]) / sd[1]) ** 2 + ((P[v * 3 + 2] - mid[2]) / sd[2]) ** 2;
+        let k = min(c, 63); if (c >= 64 && out[63] >= d) continue; while (k > 0 && out[k - 1] < d) { out[k] = out[k - 1]; ids[k] = ids[k - 1]; k--; } out[k] = d; ids[k] = v; c++;   // (the farthest first; of a part of many corners the 64 farthest are looked at)
+      }
+      const take = K.tip === 'corner' ? 1 : min(64, ceil(c / 2));
+      for (let k = 0; k < take; k++) for (let a = 0; a < 3; a++) tip[p * 3 + a] += P[ids[k] * 3 + a] / take;
+    }
+  }
 
-  // ---- its solid pieces: how wide each is, its go (widthsOf). Thick wood, what is still there where the crowd ends, is
-  // never gone by itself (go 0): the impostor takes it; so is what was laid without a part ----
-  const widths = widthsFor(solids, K, P, m.normal, I);   // (what is kept of them: before the crowd's end keeps its thick wood)
-  const outlasts = (q) => win.hi > 0 && q.go > win.hi;   // (still there where the crowd ends)
-  const there = N > 0 || solids.some(outlasts);   // (a thing of sticks only, all gone before: nothing stays)
-  if (!there) win.hi = win.lo = 0;
-  for (const q of solids) if (there && outlasts(q)) q.go = 0;
+  // ---- the order, and each part's go ----
+  let amax = 0, atot = 0; for (let p = 0; p < N; p++) { amax = max(amax, area[p]); atot += area[p]; }
+  const cls = Uint8Array.from({ length: N }, (_, p) => (K.order === 'alike' ? 0 : min(K.CLASSES - 1, floor(log2(amax / area[p]) + 1e-6))));
+  const order = turnsOf(X, Y, Z, cls, mid), meta = new Float32Array(16), classes = [];
+  { let s = 0, a = 0, at = 0; for (let c = 1; c < 4; c++) { while (at < N && cls[order[at]] < c) { s++; a += area[order[at++]]; } classes.push([N ? s / N : 1, atot ? a / atot : 1]); meta.set(classes[c - 1], META.CLASSES + (c - 1) * 2); } }
+  // how much of its pictures the plant covers, and its cards by themselves
+  const stop = Float32Array.from({ length: n }, (_, v) => (m.part[v] === 1 ? K.STOPS : 1)), [cover, coverCards] = N ? coverOf(P, n, I, stop, frame, K.PIC, Uint8Array.from({ length: n }, (_, v) => (m.part[v] === 1 ? 1 : 0))) : [0, 0];
+  // E, measured: a first tenth of the turns, drawn as the engine draws them (the last of them still growing), is enlarged until the crowd by itself covers what all of it covered
+  let E = K.E;
+  // (measured at a tenth of the cards; where that finds the least E there is, again at as few as K.FIT, where the last of
+  // them must still hold the crown before the far body comes, and the larger taken: a shrub whose cards hold its outline
+  // at a tenth but thin under it)
+  if (opts.E == null && N > K.LEAST) for (const s of [max(0.1, K.LEAST / N), max(K.FIT, K.LEAST / N)]) {
+    if (s !== max(0.1, K.LEAST / N) && (s >= max(0.1, K.LEAST / N) || E > K.EMIN)) break;
+    const px = P0 * pow(s, 1 / K.A), a = areaAt(s, meta), ids = [], of = [], J = [], at = new Map();
+    for (let t = 0; t < N; t++) {
+      const g = grownAt(px, P0 * pow((t + 0.5) / N, 1 / K.A), K.GROW); if (g <= 0) break;
+      for (let j = pp[order[t]]; j < pp[order[t] + 1]; j++) { const q = pieces[j]; for (let i = pVerts[q]; i < pVerts[q + 1]; i++) { at.set(verts[i], ids.length); ids.push(verts[i]); of.push(order[t], g); } for (let i = pTris[q]; i < pTris[q + 1]; i++) J.push(at.get(I[tris[i]]), at.get(I[tris[i] + 1]), at.get(I[tris[i] + 2])); }
+    }
+    const Q = new Float32Array(ids.length * 3), st = new Float32Array(ids.length).fill(K.STOPS);
+    const k = a < 0.7 && coverCards > 0 ? reaching((k) => {
+      for (let i = 0; i < ids.length; i++) { const v = ids[i] * 3, p = of[i * 2] * 3, g = of[i * 2 + 1]; for (let c = 0; c < 3; c++) { const T = tip[p + c], r = T + (R[v + c] - T) * k; Q[i * 3 + c] = r + (T + (P[v + c] - T) * k - r) * g; } }
+      return coverOf(Q, ids.length, J, st, frame, K.PIC);
+    }, coverCards, pow(a, -K.E), 1.2) : 0;
+    if (k > 1) E = max(s === max(0.1, K.LEAST / N) ? K.EMIN : E, min(K.EMAX, max(K.EMIN, -log(k) / log(a))));
+  }
+  meta[META.P0] = P0; meta[META.E] = E; meta[META.SIZE] = size; meta[META.PARTS] = N; meta.set(mid, META.MID);
+  // where the far body takes over: the cards would be enlarged more than KMAX times, or fewer than LEAST parts would stay; the M parts still there go one by one over its window
+  let M = N;
+  if (N > K.LEAST) { const aK = pow(K.KMAX, -1 / E); let a = 0, b = 1; for (let i = 0; i < 40; i++) { const s = (a + b) / 2; if (areaAt(s, meta) < aK) a = s; else b = s; } M = min(N, max(K.LEAST, ceil(b * N - 1e-9))); }
+  const hull = { hi: P0 * pow(N ? M / N : 1, 1 / K.A), lo: 0 };
+  if (N > K.LEAST && hull.hi < K.FAR * K.WIN) { hull.hi = K.FAR * K.WIN; M = min(N, max(K.LEAST, ceil(shareAt(hull.hi, P0, K.A) * N - 1e-9))); }   // (no later than FAR: fewer parts go one by one over its window, from a larger share)
+  hull.lo = hull.hi / K.WIN;
+  const go = Float32Array.from({ length: N }, (_, t) => (t < M ? hull.lo * pow(K.WIN, (t + 0.5) / M) : P0 * pow((t + 0.5) / N, 1 / K.A)));
 
-  // ---- the new order of its vertices: the cards by turn, then the solids, thick first (those that never go, then the
-  // last to go: a first share of the list is what is still there) ----
-  const last = (q) => (q.go > 0 ? q.go : Infinity), listed = solids.slice().sort((a, b) => last(b) - last(a) || b.w - a.w);
-  let cards = 0; for (const q of sprigs) cards += q.cards;
-  const count = cards * 4 + listed.reduce((t, q) => t + q.verts.length, 0), from = new Int32Array(count), at = new Int32Array(n).fill(-1);
-  const S = { go: new Float32Array(count), tip: new Float32Array(count * 3) };
-  const index = new Uint32Array(listed.reduce((t, q) => t + q.tris.length * 3, 0)), steps = { go: new Float32Array(listed.length), corners: new Uint32Array(listed.length), verts: new Uint32Array(listed.length) };
-  const turns = { go, cards: new Uint32Array(N + 1) };
+  // ---- its solid pieces: how wide each is, its foot, its go ----
+  const solid = []; for (let q = 0; q < nP; q++) if (partOf[q] < 0) solid.push(q);
+  const sW = new Float64Array(nP), sL = new Float64Array(nP), sGo = new Float64Array(nP), foot = new Float64Array(nP * 3), one = new Int32Array(n).fill(-1), near = 1e-5 * size;   // (one: corners at one place taken as one, a tube's seam)
+  for (const q of solid) {
+    const v0 = pVerts[q], v1 = pVerts[q + 1], c = [0, 0, 0]; for (let i = v0; i < v1; i++) { const v = verts[i] * 3; c[0] += P[v]; c[1] += P[v + 1]; c[2] += P[v + 2]; } for (let a = 0; a < 3; a++) c[a] /= v1 - v0;
+    // how long it is: between its two corners farthest apart (the farthest from its middle, and the farthest from that). How wide: it is
+    // taken as a body a ray passes twice, whose area over pi times its length is its mean width seen from the side (a tube's: its girth)
+    const farFrom = (x, y, z) => { let at = verts[v0], d = -1; for (let i = v0; i < v1; i++) { const v = verts[i] * 3, e = (P[v] - x) ** 2 + (P[v + 1] - y) ** 2 + (P[v + 2] - z) ** 2; if (e > d) { d = e; at = verts[i]; } } return at; };
+    const a = farFrom(c[0], c[1], c[2]), b = farFrom(P[a * 3], P[a * 3 + 1], P[a * 3 + 2]), L = hypot(P[b * 3] - P[a * 3], P[b * 3 + 1] - P[a * 3 + 1], P[b * 3 + 2] - P[a * 3 + 2]) || 1e-9, w = pArea[q] / (PI * L);
+    sW[q] = w; sL[q] = L; sGo[q] = (K.TWIG * size) / max(w, 1e-9);
+    // its foot: the middle of its widest rim (a rim: the edges only one triangle has, corners at one place taken as one:
+    // a tube's two ends); as wide: the one nearer the plant's own foot; no rim, a closed body: its own middle
+    const ord = Array.from(verts.subarray(v0, v1)).sort((x, y) => P[x * 3] - P[y * 3]), edges = new Map();
+    for (let i = 0; i < ord.length; i++) { const x = ord[i]; if (one[x] < 0) one[x] = x; for (let j = i + 1; j < ord.length && P[ord[j] * 3] - P[x * 3] <= near; j++) { const y = ord[j]; if (one[y] < 0 && abs(P[y * 3 + 1] - P[x * 3 + 1]) <= near && abs(P[y * 3 + 2] - P[x * 3 + 2]) <= near) one[y] = one[x]; } }
+    for (let j = pTris[q]; j < pTris[q + 1]; j++) { const t = tris[j]; for (let e = 0; e < 3; e++) { const x = one[I[t + e]], y = one[I[t + ((e + 1) % 3)]]; if (x !== y) { const key = x < y ? x * n + y : y * n + x; edges.set(key, (edges.get(key) || 0) + 1); } } }
+    const next = new Map(); for (const [key, k] of edges) if (k === 1) { const x = floor(key / n), y = key % n; (next.get(x) ?? next.set(x, []).get(x)).push(y); (next.get(y) ?? next.set(y, []).get(y)).push(x); }
+    let best = null;
+    for (const start of next.keys()) {
+      if (!next.get(start)) continue;
+      const ring = []; for (const todo = [start]; todo.length;) { const x = todo.pop(), to = next.get(x); if (!to) continue; next.set(x, null); ring.push(x); todo.push(...to); }
+      const e = [0, 0, 0, 0]; for (const v of ring) for (let k = 0; k < 3; k++) e[k] += P[v * 3 + k] / ring.length; for (const v of ring) e[3] += hypot(P[v * 3] - e[0], P[v * 3 + 1] - e[1], P[v * 3 + 2] - e[2]) / ring.length;
+      if (!best || e[3] > best[3] * 1.02 || (e[3] > best[3] * 0.98 && hypot(e[0], e[1], e[2]) < hypot(best[0], best[1], best[2]))) best = e;
+    }
+    foot.set(best ? best.slice(0, 3) : c, q * 3);
+  }
+  // thick wood: what is still there where the far body takes over. It is never gone by itself (go 0)
+  const there = N > 0 || solid.some((q) => sGo[q] < hull.hi);   // (a thing of sticks only, all gone before: it has no far body)
+  if (!there) hull.hi = hull.lo = 0;
+  for (const q of solid) if (there && sGo[q] < hull.hi) sGo[q] = 0;
+
+  // ---- the new order of its vertices: the cards by turn, then what is drawn by corners (the solids, and any card that is no quad), thick first ----
+  const odd = []; let cards = 0; for (let s = 0; s < N; s++) for (let j = pp[order[s]]; j < pp[order[s] + 1]; j++) if (quadP(pieces[j])) cards++; else odd.push([pieces[j], s]);
+  const listed = [...solid.map((q) => [q, -1]), ...odd].sort((a, b) => (a[1] < 0 ? sGo[a[0]] : go[a[1]]) - (b[1] < 0 ? sGo[b[0]] : go[b[1]]) || sW[b[0]] - sW[a[0]] || a[0] - b[0]);
+  const count = cards * 4 + listed.reduce((t, [q]) => t + pVerts[q + 1] - pVerts[q], 0), from = new Int32Array(count), at = new Int32Array(n).fill(-1);
+  const S = { go: new Float32Array(count), tip: new Float32Array(count * 3), tipUv: new Float32Array(count * 2), cls: new Float32Array(count) };
+  const index = new Uint32Array(listed.reduce((t, [q]) => t + (pTris[q + 1] - pTris[q]) * 3, 0)), steps = { go: new Float32Array(listed.length), corners: new Uint32Array(listed.length), verts: new Uint32Array(listed.length) };
+  const turns = { go: go, cls: new Uint8Array(N), cards: new Uint32Array(N + 1) };
+  // where on a card's painting a point lies: the point laid into the card's plane, by the painting's lie on the card's first triangle
+  const uvAt = (q, x, y, z) => {
+    const t = tris[pTris[q]], a = I[t], b = I[t + 1], c = I[t + 2], ax = P[b * 3] - P[a * 3], ay = P[b * 3 + 1] - P[a * 3 + 1], az = P[b * 3 + 2] - P[a * 3 + 2], bx = P[c * 3] - P[a * 3], by = P[c * 3 + 1] - P[a * 3 + 1], bz = P[c * 3 + 2] - P[a * 3 + 2], wx = x - P[a * 3], wy = y - P[a * 3 + 1], wz = z - P[a * 3 + 2];
+    const d11 = ax * ax + ay * ay + az * az, d12 = ax * bx + ay * by + az * bz, d22 = bx * bx + by * by + bz * bz, w1 = wx * ax + wy * ay + wz * az, w2 = wx * bx + wy * by + wz * bz, det = d11 * d22 - d12 * d12 || 1e-12, s = (w1 * d22 - w2 * d12) / det, r = (w2 * d11 - w1 * d12) / det;
+    return [UV[a * 2] + s * (UV[b * 2] - UV[a * 2]) + r * (UV[c * 2] - UV[a * 2]), UV[a * 2 + 1] + s * (UV[b * 2 + 1] - UV[a * 2 + 1]) + r * (UV[c * 2 + 1] - UV[a * 2 + 1])];
+  };
   let o = 0;
-  const put = (v, g, T) => { from[o] = v; S.go[o] = g; S.tip[o * 3] = T[0]; S.tip[o * 3 + 1] = T[1]; S.tip[o * 3 + 2] = T[2]; o++; };
-  for (let s = 0; s < N; s++) {   // (a sprig's cards as it laid them: four vertices each, in the one order every run is drawn by, 0 1 2, 0 2 3)
-    const q = sprigs[order[s]]; turns.cards[s] = o / 4;
-    for (const v of q.verts) put(v, go[s], q.tip);
+  const put = (v, g, x, y, z, u, w, c) => { from[o] = v; S.go[o] = g; S.tip[o * 3] = x; S.tip[o * 3 + 1] = y; S.tip[o * 3 + 2] = z; S.tipUv[o * 2] = u - UV[v * 2]; S.tipUv[o * 2 + 1] = w - UV[v * 2 + 1]; S.cls[o++] = c; };
+  for (let s = 0; s < N; s++) {
+    const p = order[s], x = tip[p * 3], y = tip[p * 3 + 1], z = tip[p * 3 + 2]; turns.cls[s] = cls[p]; turns.cards[s] = o / 4;
+    for (let j = pp[p]; j < pp[p + 1]; j++) {
+      const q = pieces[j]; if (!quadP(q)) continue;
+      // a card's corners in the one order every run is drawn by: 0 1 2, 0 2 3 (0 and 2 are the two its triangles share)
+      const t0 = tris[pTris[q]], t1 = tris[pTris[q] + 1], A = [I[t0], I[t0 + 1], I[t0 + 2]], B = [I[t1], I[t1 + 1], I[t1 + 2]], k = A.findIndex((v) => !B.includes(v)), d = B.find((v) => !A.includes(v)), [u, w] = uvAt(q, x, y, z);
+      put(A[(k + 2) % 3], go[s], x, y, z, u, w, cls[p]); put(A[k], go[s], x, y, z, u, w, cls[p]); put(A[(k + 1) % 3], go[s], x, y, z, u, w, cls[p]); put(d, go[s], x, y, z, u, w, cls[p]);
+    }
   }
   turns.cards[N] = cards;
   let ic = 0;
-  listed.forEach((q, i) => {
-    for (const v of q.verts) { at[v] = o; put(v, q.go, q.foot); }
-    for (const t of q.tris) { index[ic++] = at[I[t]]; index[ic++] = at[I[t + 1]]; index[ic++] = at[I[t + 2]]; }
-    steps.go[i] = q.go; steps.corners[i] = ic; steps.verts[i] = o - cards * 4;
+  listed.forEach(([q, s], i) => {
+    const T = s < 0 ? foot.subarray(q * 3, q * 3 + 3) : tip.subarray(order[s] * 3, order[s] * 3 + 3), g = s < 0 ? sGo[q] : go[s], tu = s < 0 ? null : uvAt(q, T[0], T[1], T[2]);
+    for (let j = pVerts[q]; j < pVerts[q + 1]; j++) { const v = verts[j]; at[v] = o; put(v, g, T[0], T[1], T[2], tu ? tu[0] : UV[v * 2], tu ? tu[1] : UV[v * 2 + 1], s < 0 ? 0 : cls[order[s]]); }
+    for (let j = pTris[q]; j < pTris[q + 1]; j++) { const t = tris[j]; index[ic++] = at[I[t]]; index[ic++] = at[I[t + 1]]; index[ic++] = at[I[t + 2]]; }
+    steps.go[i] = g; steps.corners[i] = ic; steps.verts[i] = o - cards * 4;
   });
   // every number the mesh carries a vertex, as it is, in the new order
   const out = {};
-  for (const [key, a] of Object.entries(m)) { if (key === 'index' || key === 'parts' || key === 'body' || !(Array.isArray(a) || ArrayBuffer.isView(a)) || !a.length || a.length % n) continue; const w = a.length / n, b = new Float32Array(count * w); for (let i = 0; i < count; i++) for (let k = 0; k < w; k++) b[i * w + k] = a[from[i] * w + k]; out[key] = b; }
-  for (let i = cards * 4, j = 0; j < listed.length; j++) for (const _ of listed[j].verts) { if (out.part[i] !== 1) out.root.set(listed[j].foot, i * 3); i++; }   // (a solid's root: its foot)
+  for (const [key, a] of Object.entries(m)) { if (key === 'index' || !(Array.isArray(a) || ArrayBuffer.isView(a)) || !a.length || a.length % n) continue; const w = a.length / n, b = new Float32Array(count * w); for (let i = 0; i < count; i++) for (let k = 0; k < w; k++) b[i * w + k] = a[from[i] * w + k]; out[key] = b; }
+  for (let i = cards * 4; i < count; i++) if (out.part[i] !== 1) out.root.set(foot.subarray(pOf[from[i]] * 3, pOf[from[i]] * 3 + 3), i * 3);   // (a solid's root: its foot)
 
-  // ---- the far end: its leaves in clumps ----
-  const clumps = H.chunks && there ? clumpsOf(H.chunks) : null;
-  /** Its chunks as the engine draws them: each comes in where the first of its own sprigs goes, where one of them is
-      among the last M to go; else at its place in an order spread over the crown, over the clumps' window (metres). */
-  function clumpsOf(all) {
-    const aoP = new Float64Array(N * 2), turnOf = new Int32Array(N).fill(-1);
-    sprigs.forEach((q, p) => { for (const v of q.verts) { aoP[p * 2] += m.ao[v]; aoP[p * 2 + 1]++; } });
-    const Mc = all.length, X = new Float64Array(Mc), Y = new Float64Array(Mc), Z = new Float64Array(Mc), rank = new Uint32Array(Mc);
-    all.forEach((C, c) => { X[c] = (C.box[0] + C.box[3]) / 2; Y[c] = (C.box[1] + C.box[4]) / 2; Z[c] = (C.box[2] + C.box[5]) / 2; });
-    turnsOf(pointsOf(X, Y, Z), new Uint8Array(Mc), mid).forEach((c, i) => (rank[c] = i));
-    for (let t = 0; t < N; t++) turnOf[order[t]] = t;
-    const cells = new Float32Array(Mc * 6), boxes = new Float32Array(Mc * 6), cgo = new Float32Array(Mc), ao = new Float32Array(Mc);
-    all.forEach((C, c) => {
-      cells.set(C.cell, c * 6); boxes.set(C.box, c * 6);
-      let g = Infinity, a = 0, k = 0; for (const p of C.parts) { if (turnOf[p] < M) g = min(g, go[turnOf[p]]); a += aoP[p * 2]; k += aoP[p * 2 + 1]; }
-      cgo[c] = Number.isFinite(g) ? g : win.hi * exp(FADE * (1 - (rank[c] + 0.5) / Mc)); ao[c] = k ? a / k : 1;
+  // ---- the far bodies: round the crown (a thing of no cards: round its thick pieces), sized to the plant's cover ----
+  let hulls = [], post = null, bm = mid, bs = sd;
+  if (there) {
+    // the cloud the bodies are laid round, and what each of its corners is lit with
+    const ids = []; for (let q = 0; q < nP; q++) if (N ? partOf[q] >= 0 : sGo[q] === 0) for (let i = pVerts[q]; i < pVerts[q + 1]; i++) ids.push(verts[i]);
+    const C = new Float32Array(ids.length * 3), CN = new Float32Array(ids.length * 3), CA = new Float32Array(ids.length); let wood = 0;
+    ids.forEach((v, i) => { for (let a = 0; a < 3; a++) { C[i * 3 + a] = P[v * 3 + a]; CN[i * 3 + a] = m.normal[v * 3 + a]; } CA[i] = m.ao[v]; wood += m.part[v] === 0 ? 1 : 0; });
+    if (!N) { bm = [0, 0, 0]; bs = [0, 0, 0]; for (let i = 0; i < C.length; i++) bm[i % 3] += C[i] / ids.length; for (let i = 0; i < C.length; i++) bs[i % 3] += (C[i] - bm[i % 3]) ** 2 / ids.length; bs = bs.map((x) => sqrt(x) || 1e-9); meta.set(bm, META.MID); }
+    const placed = (H, reach) => Float32Array.from(H.off, (x, i) => bm[i % 3] + x * reach);
+    hulls = K.HULLS.map(([NS, NR]) => { const H = bodyOf(C, ids.length, CN, CA, bm, bs, NS, NR, K.REACH); return { ...H, tris: H.index.length / 3, part: N || wood * 2 < ids.length ? 2 : 0, reach: 1, position: placed(H, 1) }; });
+    post = N ? postOf() : null;
+    // each body sized so that, with the post, the thing covers as much as it did
+    const want = N ? cover : coverOf(P, n, I, stop, frame, K.PIC), ones = new Float32Array(64).fill(1);
+    const crown = K.enclose ? crownSeen(P, n, I, m.part, bm) : null;
+    hulls.forEach((H, i) => {
+      const P2 = post && i < 2 ? post : null, nq = H.count + (P2 ? P2.count : 0), Q = new Float32Array(nq * 3), J = new Uint16Array(H.index.length + (P2 ? P2.index.length : 0));
+      J.set(H.index); if (P2) { Q.set(P2.position, H.count * 3); J.set(P2.index.map((v) => v + H.count), H.index.length); }
+      // (a body that wears its crown baked encloses it: the bake's gaps say what it covers. Each, the coarse ones too, as far
+      // out as it must be to hold what the crown's leaves cover from every side it is baked from, and never less than
+      // `enclose`: what it shows is the bake, cut by its own outline, so one smaller than the crown cuts the crown)
+      H.reach = K.enclose ? max(K.enclose, enclosing(crown, H, (r) => placed(H, r))) : reaching((r) => { Q.set(placed(H, r)); return coverOf(Q, nq, J, ones, frame, K.PIC); }, want, 1, 2);
+      H.position = placed(H, H.reach);
     });
-    return { n: Mc, cells, boxes, go: cgo, ao, err: max(...all.map((C) => C.err)) };
+    hulls.forEach((H, i) => { H.to = i + 1 < hulls.length ? placesOn(H, hulls[i + 1]) : Float32Array.from({ length: H.count * 3 }, (_, j) => bm[j % 3]); });
+    hulls = hulls.map(({ off, NS, NR, ...H }) => H);
   }
-  return { count, cards, parts: N, solids: listed.length, ...out, ...S, index, steps, turns, size, mid, spread, win, grow: H.grow, cover, sphere, clumps,
-    atlas: H.atlas, errors: H.errors, far: { lo: farLoOf(H), data: farDataOf(H, clumps) },
-    // (what of it the build keeps, so a start reckons none of it: assets/kit/measures.js, tools/outlines.js)
-    measure: { order: H.order, own: H.errors.crowd, go: H.go, M: H.M, win: H.win, grow: H.grow, chunks: H.chunks, eC: H.errors.clumps, cover, solids: widths } };
-}
-/** Each solid piece's width and its go (metres). How wide: where it is widest, as any side shows it there (a branch is
-    thickest at its foot: its mean width would let its foot go a pixel and more wide), its widest ring (ringsOf); a
-    piece with no cross-section to measure, its area over pi times its length (its mean width seen from the side).
-    Leaving a piece out differs by its width, and by what goes with it where it meets another (togetherOf): it goes
-    where that is within the dial (its go; what was laid without a part stays). N its corners' normals, I the mesh's
-    corners. */
-/** Each solid piece's width and go: what the build measured (K.measured), else measured here (widthsOf). -> both, two
-    numbers a piece, as they are kept. */
-function widthsFor(solids, K, P, N, I) {
-  const B = K.measured?.solids;
-  if (B) solids.forEach((q, i) => { q.w = B[i * 2]; q.go = B[i * 2 + 1]; }); else widthsOf(solids, P, N, I);
-  return Float64Array.from(solids.flatMap((q) => [q.w, q.go]));
-}
-function widthsOf(solids, P, N, I) {
-  for (const q of solids) {
-    if (q.stays) { q.w = 0; q.go = 0; q.rings = null; continue; }
-    const c = [0, 0, 0]; for (const v of q.verts) for (let a = 0; a < 3; a++) c[a] += P[v * 3 + a] / q.verts.length;
-    const farFrom = (x, y, z) => { let at = q.verts[0], d = -1; for (const v of q.verts) { const e = (P[v * 3] - x) ** 2 + (P[v * 3 + 1] - y) ** 2 + (P[v * 3 + 2] - z) ** 2; if (e > d) { d = e; at = v; } } return at; };
-    const a = farFrom(c[0], c[1], c[2]), b = farFrom(P[a * 3], P[a * 3 + 1], P[a * 3 + 2]), L = hypot(P[b * 3] - P[a * 3], P[b * 3 + 1] - P[a * 3 + 1], P[b * 3 + 2] - P[a * 3 + 2]) || 1e-9;
-    q.rings = ringsOf(q, P, N, I, L);
-    let w = 0; for (let r = 3; r < q.rings.length; r += 4) w = max(w, q.rings[r]);
-    q.w = w || q.area / (PI * L); q.go = q.w;
-  }
-  togetherOf(solids);
-}
-/** A piece's rings: its cross-sections (a tube's: as wide as any side shows it there, its corners and its flats alike),
-    each its middle and its most distance across, four numbers a ring. A corner's cross-section is the plane through it
-    across the piece, at right angles to `way`: its normal crossed with that of its neighbour round it (of the corners it
-    shares an edge with, the one whose normal is turned the most from its own: a tube's rings lie flat across it, each
-    corner's normal in its ring's plane), and the corners in that plane are its ring. L: the piece's length (what lies in
-    the plane is within a millionth of it, as numbers hold it). */
-function ringsOf(q, P, N, I, L) {
-  const v0 = q.verts[0], n = q.verts.length, turn = new Float64Array(n), way = new Float64Array(n * 3), tol = L * 1e-6, seen = new Uint8Array(n), out = [];
-  const pair = (a, b) => {
-    const i = a - v0, ax = N[a * 3], ay = N[a * 3 + 1], az = N[a * 3 + 2], bx = N[b * 3], by = N[b * 3 + 1], bz = N[b * 3 + 2];
-    const cx = ay * bz - az * by, cy = az * bx - ax * bz, cz = ax * by - ay * bx, m = sqrt(cx * cx + cy * cy + cz * cz);
-    if (m > turn[i]) { turn[i] = m; way[i * 3] = cx / m; way[i * 3 + 1] = cy / m; way[i * 3 + 2] = cz / m; }
-  };
-  for (const t of q.tris) { const i = I[t], j = I[t + 1], k = I[t + 2]; pair(i, j); pair(j, i); pair(j, k); pair(k, j); pair(k, i); pair(i, k); }
-  for (let i = 0; i < n; i++) {
-    if (seen[i] || !(turn[i] > 0)) continue;
-    const v = v0 + i, x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2], tx = way[i * 3], ty = way[i * 3 + 1], tz = way[i * 3 + 2], ring = [];
-    for (let j = 0; j < n; j++) { const u = v0 + j; if (abs((P[u * 3] - x) * tx + (P[u * 3 + 1] - y) * ty + (P[u * 3 + 2] - z) * tz) <= tol) { ring.push(u); seen[j] = 1; } }   // (in its cross-section)
-    const m = [0, 1, 2].map((a) => ring.reduce((sum, u) => sum + P[u * 3 + a], 0) / ring.length);
-    let d = 0; for (const u of ring) for (const w of ring) d = max(d, (P[u * 3] - P[w * 3]) ** 2 + (P[u * 3 + 1] - P[w * 3 + 1]) ** 2 + (P[u * 3 + 2] - P[w * 3 + 2]) ** 2);
-    out.push(...m, sqrt(d));
-  }
-  return Float64Array.from(out);
-}
-/** Pieces that go together. Where two pieces meet (a ring of one and a ring of the other overlapping: a branch's foot in
-    its limb, two limbs leaving their fork side by side), leaving both out leaves out what both covered there, as wide as
-    their rings across, together: so a piece goes no sooner than its widest meeting, its ring's width and those of every
-    piece it meets there that goes no later, which is all gone when it goes (a limb with the limbs of its fork, not alone
-    under them). Raised till none is (each only ever later: what it meets going later is still drawn, and stands for the
-    meeting). What stays (go 0) is no piece that goes. */
-function togetherOf(solids) {
-  const pieces = solids.filter((q) => q.rings && q.go > 0), all = [];
-  let most = 0; pieces.forEach((q, k) => { for (let r = 0; r < q.rings.length; r += 4) { all.push([k, r]); most = max(most, q.rings[r + 3]); } });
-  if (pieces.length < 2) return;
-  // (the rings in a grid as wide as the widest: two that overlap lie in neighbouring cells)
-  const S = max(most, 1e-6), grid = new Map(), keyOf = (i, j, l) => (i * 4096 + j) * 4096 + l, cellOf = (q, r) => [floor(q.rings[r] / S), floor(q.rings[r + 1] / S), floor(q.rings[r + 2] / S)];
-  for (const [k, r] of all) { const [i, j, l] = cellOf(pieces[k], r), key = keyOf(i, j, l); if (!grid.has(key)) grid.set(key, []); grid.get(key).push([k, r]); }
-  // each ring's meetings: of every other piece, the widest of its rings that overlaps this one
-  const meets = new Map();
-  for (const [k, r] of all) {
-    const q = pieces[k], [i, j, l] = cellOf(q, r), widest = new Map();
-    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) for (const [k2, r2] of grid.get(keyOf(i + a, j + b, l + c)) ?? []) {
-      if (k2 === k) continue;
-      const o = pieces[k2], d = hypot(q.rings[r] - o.rings[r2], q.rings[r + 1] - o.rings[r2 + 1], q.rings[r + 2] - o.rings[r2 + 2]);
-      if (d <= (q.rings[r + 3] + o.rings[r2 + 3]) / 2) widest.set(k2, max(widest.get(k2) ?? 0, o.rings[r2 + 3]));
+  /** The post: the thick wood that stands out of the first far body, as one three-sided post from its far end into the body. */
+  function postOf() {
+    const H = hulls[0], thick = solid.filter((q) => sGo[q] === 0), outV = new Uint8Array(n), dist = (v) => hypot(P[v * 3] - bm[0], P[v * 3 + 1] - bm[1], P[v * 3 + 2] - bm[2]);
+    let dmax = -1, fq = -1;
+    for (const q of thick) for (let i = pVerts[q]; i < pVerts[q + 1]; i++) { const v = verts[i]; if (skinAt(H.position, H.index, bm, P[v * 3], P[v * 3 + 1], P[v * 3 + 2]) < 1) { outV[v] = 1; if (dist(v) > dmax) { dmax = dist(v); fq = q; } } }
+    if (fq < 0) return null;
+    // its foot: the middle of the corners that lie farthest out (within the piece's own width of the farthest); its way: from there to the body's middle
+    const F = [0, 0, 0]; let k = 0; for (const q of thick) for (let i = pVerts[q]; i < pVerts[q + 1]; i++) { const v = verts[i]; if (outV[v] && dist(v) >= dmax - sW[fq]) { F[0] += P[v * 3]; F[1] += P[v * 3 + 1]; F[2] += P[v * 3 + 2]; k++; } }
+    for (let a = 0; a < 3; a++) F[a] /= k;
+    const h = skinAt(H.position, H.index, bm, F[0], F[1], F[2]), In = F.map((x, a) => bm[a] + (x - bm[a]) * h), Lp = hypot(In[0] - F[0], In[1] - F[1], In[2] - F[2]), ax = In.map((x, a) => (x - F[a]) / (Lp || 1));   // (In: where it meets the body's skin)
+    // how wide the wood out there is, towards its foot and towards the body: its area over each half of the post's length
+    let a0 = 0, a1 = 0, aoS = 0;
+    for (const q of thick) for (let j = pTris[q]; j < pTris[q + 1]; j++) {
+      const t = tris[j], a = I[t], b = I[t + 1], c = I[t + 2]; if (!(outV[a] && outV[b] && outV[c])) continue;
+      const ux = P[b * 3] - P[a * 3], uy = P[b * 3 + 1] - P[a * 3 + 1], uz = P[b * 3 + 2] - P[a * 3 + 2], vx = P[c * 3] - P[a * 3], vy = P[c * 3 + 1] - P[a * 3 + 1], vz = P[c * 3 + 2] - P[a * 3 + 2], ar = hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) / 2;
+      const along = [0, 1, 2].reduce((s, e) => s + ((P[a * 3 + e] + P[b * 3 + e] + P[c * 3 + e]) / 3 - F[e]) * ax[e], 0) / (Lp || 1);
+      if (along < 0.5) a0 += ar; else a1 += ar; aoS += m.ao[a] * ar;
     }
-    if (widest.size) meets.set(k * 1e6 + r, widest);
-  }
-  for (let moved = true; moved; ) {
-    moved = false;
-    for (const [key, widest] of meets) {
-      const k = floor(key / 1e6), r = key - k * 1e6, q = pieces[k];
-      let J = q.rings[r + 3]; for (const [k2, w] of widest) if (pieces[k2].go <= q.go) J += w;
-      if (J > q.go) { q.go = J; moved = true; }
+    if (!(Lp > 0.02 * size) || !(a0 + a1 > 0)) return null;
+    // (three-sided, a post shows 1.65 times its corners' reach from the side on average: so it is as wide as the wood it stands for)
+    const w0 = a0 / (PI * Lp * 0.5), w1 = a1 / (PI * Lp * 0.5), wm = (w0 + w1) / 2, rOf = (w) => (min(3 * wm, max(0.3 * wm, w)) * PI) / (3 * sqrt(3)), r = [rOf(1.5 * w0 - 0.5 * w1), rOf(1.5 * w1 - 0.5 * w0)];
+    const top = In.map((x, a) => x + (bm[a] - x) * 0.35), ends = [F, top], Lt = hypot(top[0] - F[0], top[1] - F[1], top[2] - F[2]);   // (it ends a third of the way into the body: no gap at any reach)
+    const e = abs(ax[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]; let n1 = [ax[1] * e[2] - ax[2] * e[1], ax[2] * e[0] - ax[0] * e[2], ax[0] * e[1] - ax[1] * e[0]]; const nl = hypot(...n1); n1 = n1.map((x) => x / nl); const n2 = [ax[1] * n1[2] - ax[2] * n1[1], ax[2] * n1[0] - ax[0] * n1[2], ax[0] * n1[1] - ax[1] * n1[0]];
+    // its bark as the piece's it stands for: as many times round, as many tiles a metre along
+    let umax = 0, vmax = -Infinity, vmin = Infinity; for (let i = pVerts[fq]; i < pVerts[fq + 1]; i++) { const v = verts[i]; umax = max(umax, UV[v * 2]); vmax = max(vmax, UV[v * 2 + 1]); vmin = min(vmin, UV[v * 2 + 1]); }
+    const G = { count: 8, position: new Float32Array(24), normal: new Float32Array(24), uv: new Float32Array(16), ao: new Float32Array(8).fill(aoS / (a0 + a1)), to: new Float32Array(24), index: Uint16Array.from([0, 4, 5, 0, 5, 1, 1, 5, 6, 1, 6, 2, 2, 6, 7, 2, 7, 3]) };
+    for (let i = 0; i < 2; i++) for (let s = 0; s <= 3; s++) {
+      const a = (s / 3) * 2 * PI, v = i * 4 + s;
+      for (let j = 0; j < 3; j++) { const d = n1[j] * cos(a) + n2[j] * sin(a); G.position[v * 3 + j] = ends[i][j] + d * r[i]; G.normal[v * 3 + j] = d; G.to[v * 3 + j] = ends[i][j]; }
+      G.uv[v * 2] = (s / 3) * max(1, round(umax)); G.uv[v * 2 + 1] = (i * Lt * (vmax - vmin)) / sL[fq];
     }
+    return G;
   }
-}
-/** What the GPU bakes a far end from (src/detail/impostor.js), carried after its finest level's vertices
-    (assets/kit/plant.js): [chunks, the sphere (4), its size, its impostor's error (metres: its views' texel, their
-    spacing and its parallax: what src/scatter/trees.js holds against the dial), its views' texels a side, then a
-    chunk's cell and box (12)]. A plant without a far end carries none. */
-function farDataOf(H, clumps) {
-  if (!H.far) return null;
-  const n = clumps ? clumps.n : 0, data = new Float32Array(farLength(n));
-  data.set([n, ...H.sphere, H.size, H.errors.impostor, H.atlas.CELL]);
-  for (let c = 0; c < n; c++) { data.set(clumps.cells.subarray(c * 6, c * 6 + 6), 8 + c * 12); data.set(clumps.boxes.subarray(c * 6, c * 6 + 6), 8 + c * 12 + 6); }
-  return data;
+  meta[META.HI] = hull.hi; meta[META.LO] = hull.lo; meta[META.CARDS] = cards;
+  return { count, cards, parts: N, solids: listed.length, ...out, ...S, index, steps, turns, meta, P0, E, A: K.A, KMAX: K.KMAX, size, mid: bm, spread: bs, classes, hull, cover: N ? cover : 0, hulls, post };
 }
 
 // ---- a shape as the engine draws it between two sizes on screen ----
-/** Where each of a level's sixteen numbers lies (levelOf: `rule`): what the one rule reads of its shape. E: its kept's
-    growth (growthOf): the log of its most, and its first knot; HI, LO: the errors (metres) at which its crowd ends and
-    its window's last part goes; GROW: the rest of its knots, up to AT; AT: where its far data begins (its finest
-    level's: assets/kit/plant.js; a vertex's number, x 1024 and the rest, two slots). */
-const SLOTS = ['most', 'from', 'hi', 'lo', 'k1', 'k2', 'k3', 'k4', 'k5', 'k6', 'k7', 'k8', 'k9', 'k10', 'at', 'at2'];   // (in order: four vec4, as the GPU reads them: src/scatter/trees.js ruleOf)
-export const RULE = { E: SLOTS.indexOf('most'), HI: SLOTS.indexOf('hi'), LO: SLOTS.indexOf('lo'), GROW: SLOTS.indexOf('k1'), AT: SLOTS.indexOf('at') };
-/** Where a chunk's planes lie in a shape's layer of clumps (src/detail/impostor.js): plane a (0: across x, 1: across y,
-    2: across z) of chunk c is tile 3c + a, TILES a row. The plane's own two axes: [u, v]. Its corners' uv lie a step of
-    the packing (assets/kit/plant.js: 1024ths) inside its tile, so no pixel at its edge reads the next one (IN). */
-export const PLANE = [[2, 1], [0, 2], [0, 1]], IN = 1 / 1024;
-/** What a shape submits to be drawn anywhere between lo and hi pixels (at the dial at rest; hi: Infinity, every size
-    above lo): its first cards in turn order, its solids not yet gone and, where the clumps can come in that band (under
-    their switch), its chunks' planes; nothing of it in a band wholly under far.lo, where its impostor is all there is.
-    Every vertex as the kit made it (position normal uv part ao cn root twig) and, a vertex, what the rule moves it by:
-      go     a card's or a solid's: the error (metres) at which it goes (0: never by itself); a plane's: at which its
-             chunk comes
-      tip    a plane's: its chunk's middle, which it grows from (a card's: its sprig's tip; a solid's: its foot)
-    a plane's part is 2, its uv its place in its shape's layer of clumps (in tiles: TILES a side, rows from the top);
-    and `rule`, its shape's sixteen numbers (RULE); its finest level (hi Infinity) carries `far`, what the GPU bakes its
-    far end from. The same shape at two levels is the same thing at the size where they meet: the coarser one holds a
-    first share of what the finer one holds, and the rest is gone there. keep: the last parts stay (the library's plant,
-    which wears no clumps). */
-/** What a level between lo and hi dial pixels holds of a shape: its first nc cards' corners (a first share of the turns),
-    its first solids (sv vertices, sc corners: thick first), its chunks' planes (C) where its band reaches under where
-    its crowd ends. Under far.lo nothing but the impostor. */
-const pickOf = (S, lo, hi, clumps = true) => {
-  const near = hi > S.far.lo;   // (a band wholly under it holds nothing but the impostor)
-  let t = 0; if (near) while (t < S.parts && drawnUnder(S.turns.go[t], S.size, hi)) t++;
-  let i = 0; if (near) while (i < S.solids && drawnUnder(S.steps.go[i], S.size, hi)) i++;
-  return { nc: !near ? 0 : t < S.parts ? S.turns.cards[t] : S.cards, sv: i ? S.steps.verts[i - 1] : 0, sc: i ? S.steps.corners[i - 1] : 0, C: clumps && near && S.clumps && lo < switchOf(S.win.hi, S.size) ? S.clumps : null };
-};
-/** A level's corners (lo … hi dial pixels, as levelOf picks them) into its shape's whole block, levelOf(S, 0, Infinity):
-    every card, every solid and the chunks' planes, in that order, which every level of a shape is a first share of. So a
-    shape's vertices are kept once and each level is only its corners into them (src/scatter/drawer.js: a make's levels
-    that share their finest's). -> Uint32Array */
-export function cornersIn(S, lo = 0, hi = Infinity, { clumps = true } = {}) {
-  const { nc, sc, C } = pickOf(S, lo, hi, clumps), all = S.solids ? S.steps.verts[S.solids - 1] : 0, out = new Uint32Array(nc * 6 + sc + (C ? C.n * 18 : 0));
-  let o = 0;
-  for (let c = 0; c < nc; c++) for (const q of [0, 1, 2, 0, 2, 3]) out[o++] = 4 * c + q;
-  for (let j = 0; j < sc; j++) out[o++] = S.index[j];   // (the solids where the block keeps them: after every card)
-  for (let c = 0, b = S.cards * 4 + all; C && c < C.n; c++) for (let a = 0; a < 3; a++, b += 4) for (const q of [0, 1, 2, 0, 2, 3]) out[o++] = b + q;
-  return out;
-}
-export function levelOf(S, lo = 0, hi = Infinity, { keep = false, clumps = true } = {}) {
-  const { nc, sv, sc, C } = pickOf(S, lo, hi, clumps), nk = C ? C.n * 12 : 0;
-  const count = nc * 4 + sv + nk;
-  const out = { count, position: new Float32Array(count * 3), normal: new Float32Array(count * 3), uv: new Float32Array(count * 2), part: new Float32Array(count), ao: new Float32Array(count), cn: new Float32Array(count * 3), root: new Float32Array(count * 3), twig: new Float32Array(count),
-    go: new Float32Array(count), tip: new Float32Array(count * 3) };
+/** Where each of a level's sixteen numbers lies (levelOf: `rule`): what the one rule reads of its shape. X: under how many
+    pixels the wood has given way to the post (half way through the far body's coming). */
+export const RULE = { P0: 0, E: 1, HI: 2, LO: 3, CLASSES: 4, A: 10, X: 11, KMAX: 12, BAKED: 13, AT: 14 };   // AT: the vertex its bake begins at (x 1024, and the rest: two slots)   // BAKED: the baked crown's half width (bakeOf: r), 0 where the level carries none
+/** What a shape submits to be drawn anywhere between lo and hi pixels (hi: Infinity, every size above lo): its first
+    cards in turn order, its solids not yet gone, the far bodies and the post where they show; every vertex as the kit
+    made it (position normal uv part ao cn root hand twig) and, a vertex, what the rule moves it by:
+      go     the size on screen under which its part is gone (0: never by itself)
+      tip    the point a card is enlarged about (a solid's: its foot)
+      tipUv  from its place on its card's painting to the tip's
+      to     a far body's corner: its place on the next coarser (the post's: its own middle line)
+      body   0 none, 1 2 3 the far bodies finest first, 4 the post
+    and `rule`, its shape's sixteen numbers (RULE). The same shape at two levels is the same thing at the size where
+    they meet: the coarser one holds a first share of what the finer one holds, and the rest is gone there. */
+export function levelOf(S, lo = 0, hi = Infinity, K = CROWD) {
+  const HI = S.hull.hi, LO = S.hull.lo, X = HI > 0 ? sqrt(HI * LO) : 0, far = HI > 0;
+  let t = 0; while (t < S.parts && S.turns.go[t] < hi) t++;
+  const nc = t < S.parts ? S.turns.cards[t] : S.cards;
+  let i = 0; if (!far || hi > X) while (i < S.solids && S.steps.go[i] < hi) i++;
+  const sv = i ? S.steps.verts[i - 1] : 0, sc = i ? S.steps.corners[i - 1] : 0;
+  const meets = (a, b) => far && max(a, lo) < min(b, hi, HI);   // (a body shows between a and b pixels, and under HI)
+  const T0 = K.TURN[0][1], T1 = K.TURN[1][1], bodies = [];
+  if (meets(T0, Infinity)) bodies.push([S.hulls[0], 1]);
+  if (meets(T1, T0)) bodies.push([S.hulls[1], 2]);
+  if (meets(0, T1)) bodies.push([S.hulls[2], 3]);
+  if (S.post && meets(T1, X)) bodies.push([S.post, 4]);
+  const count = nc * 4 + sv + bodies.reduce((s, [B]) => s + B.count, 0);
+  const out = { count, position: new Float32Array(count * 3), normal: new Float32Array(count * 3), uv: new Float32Array(count * 2), part: new Float32Array(count), ao: new Float32Array(count), cn: new Float32Array(count * 3), root: new Float32Array(count * 3), hand: new Float32Array(count * 2), twig: new Float32Array(count),
+    go: new Float32Array(count), tip: new Float32Array(count * 3), tipUv: new Float32Array(count * 2), to: new Float32Array(count * 3), body: new Float32Array(count) };
   // the cards and the solids: as the shape holds them, the solids moved down to where the cards end
   const copy = (from, n, to) => {
-    for (const [k, w] of [['position', 3], ['normal', 3], ['uv', 2], ['part', 1], ['ao', 1], ['cn', 3], ['root', 3], ['twig', 1], ['go', 1], ['tip', 3]]) if (S[k]) out[k].set(S[k].subarray(from * w, (from + n) * w), to * w);
+    for (const [k, w] of [['position', 3], ['normal', 3], ['uv', 2], ['part', 1], ['ao', 1], ['cn', 3], ['root', 3], ['hand', 2], ['twig', 1], ['go', 1], ['tip', 3], ['tipUv', 2]]) if (S[k]) out[k].set(S[k].subarray(from * w, (from + n) * w), to * w);
   };
   copy(0, nc * 4, 0); copy(S.cards * 4, sv, nc * 4);
-  if (keep && S.win.hi > 0) for (let v = 0; v < nc * 4; v++) if (out.go[v] >= S.win.hi) out.go[v] = 0;   // (what the crowd's end would take: kept)
   const index = [];
   for (let c = 0; c < nc; c++) index.push(4 * c, 4 * c + 1, 4 * c + 2, 4 * c, 4 * c + 2, 4 * c + 3);
   const shift = (S.cards - nc) * 4; for (let j = 0; j < sc; j++) index.push(S.index[j] - shift);
-  // a chunk's three planes, each through its box's middle across one axis, as wide as its box the other two ways
-  for (let c = 0, o = nc * 4 + sv; C && c < C.n; c++) {
-    const b = C.boxes.subarray(c * 6, c * 6 + 6), m = [0, 1, 2].map((a) => (b[a] + b[a + 3]) / 2);
-    for (let a = 0; a < 3; a++, o += 4) {
-      const [U, V] = PLANE[a], tile = c * 3 + a, tx = tile % S.atlas.TILES, ty = floor(tile / S.atlas.TILES);
-      [[0, 0], [1, 0], [1, 1], [0, 1]].forEach(([cu, cv], j) => {
-        const v = o + j, p = m.slice(); p[U] = cu ? b[U + 3] : b[U]; p[V] = cv ? b[V + 3] : b[V];
-        out.position.set(p, v * 3); out.normal[v * 3 + a] = 1; out.cn[v * 3 + a] = 1; out.root.set(m, v * 3); out.tip.set(m, v * 3);
-        out.uv[v * 2] = tx + IN + cu * (1 - 2 * IN); out.uv[v * 2 + 1] = ty + IN + (1 - cv) * (1 - 2 * IN); out.part[v] = 2; out.ao[v] = C.ao[c]; out.go[v] = C.go[c];
-      });
-      index.push(o, o + 1, o + 2, o, o + 2, o + 3);
-    }
+  let o = nc * 4 + sv;
+  for (const [B, code] of bodies) {
+    out.position.set(B.position, o * 3); out.normal.set(B.normal, o * 3); out.uv.set(B.uv, o * 2); out.ao.set(B.ao, o); out.to.set(B.to, o * 3);
+    for (let v = 0; v < B.count; v++) { out.part[o + v] = code === 4 ? 0 : B.part; out.body[o + v] = code; out.root.set(code === 4 ? B.position.subarray(v * 3, v * 3 + 3) : S.mid, (o + v) * 3); }
+    for (const x of B.index) index.push(x + o);
+    o += B.count;
   }
-  const rule = new Float32Array(SLOTS.length); rule[RULE.HI] = S.win.hi; rule[RULE.LO] = S.win.lo;
-  rule[RULE.E] = S.grow.most; rule[RULE.E + 1] = S.grow.at[0]; rule.set(S.grow.at.subarray(1), RULE.GROW);   // (its kept's growth: growthOf)
-  return { ...out, index: Uint32Array.from(index), rule, far: hi === Infinity ? S.far.data : null };
+  const rule = new Float32Array(16); rule[RULE.P0] = S.P0; rule[RULE.E] = S.E; rule[RULE.HI] = HI; rule[RULE.LO] = LO; rule.set(S.meta.subarray(META.CLASSES, META.CLASSES + 6), RULE.CLASSES); rule[RULE.A] = S.A; rule[RULE.X] = X; rule[RULE.KMAX] = S.KMAX;
+  const bake = bodies.length && S.bake ? S.bake : null; if (bake) rule[RULE.BAKED] = bake.r;   // (a level with a far body carries the crown baked, after its vertices: assets/kit/plant.js)
+  return { ...out, index: Uint32Array.from(index), rule, bake };
+}
+
+// ---- the crown baked (LOD.BAKE: under `?lod=new`, `?bake=0` for none) ----
+/** The directions a crown is baked from, as the engine picks them (src/scatter/trees.js): eight round it, 30 degrees up,
+    then one from above. Each { w: towards the eye, u, v: the picture's right and up }. */
+export const BAKED = [...Array.from({ length: 8 }, (_, a) => { const z = (a * PI) / 4, e = PI / 6; return [cos(e) * cos(z), sin(e), cos(e) * sin(z)]; }), [0, 1, 0]].map((w) => {
+  const a = abs(w[1]) > 0.99 ? [0, 0, -1] : [0, 1, 0];
+  let u = [a[1] * w[2] - a[2] * w[1], a[2] * w[0] - a[0] * w[2], a[0] * w[1] - a[1] * w[0]]; const l = hypot(...u); u = u.map((x) => x / l);
+  return { w, u, v: [w[1] * u[2] - w[2] * u[1], w[2] * u[0] - w[0] * u[2], w[0] * u[1] - w[1] * u[0]] };
+});
+/** How many of a plant's vertices (32 bytes each, assets/kit/plant.js) a baked crown takes. */
+/** A number as the half float the GPU reads it as (assets/kit/plant.js packs the rule so): what the shader sees. */
+const f16 = Math.f16round ?? ((x) => { if (!(x > 0)) return x; const q = 2 ** (floor(log2(x)) - 10); return round(x / q) * q; });
+/** How many texels a side a shape's baked views have: as many as its far body is pixels tall where it comes in (HI, its
+    window's start: the next power of two, BAKEMIN … BAKE), so it never shows fewer texels than pixels. From HI as the
+    GPU reads it, so the shader reckons the same (src/scatter/trees.js). */
+export const bakeRes = (hi, K = CROWD) => { const h = f16(hi); return h > 0 ? min(K.BAKE, max(K.BAKEMIN, 2 ** ceil(log2(h)))) : K.BAKEMIN; };
+/** The texels a layer of a stand's baked views holds: a view's picture at its own size, and its smaller pictures to its
+    right (each half the one before, one under the other, down to 4 texels), BAKE x 1.5 BAKE (src/scatter/trees.js). */
+export const BAKEMIPS = (res) => { const out = [{ x: 0, y: 0, n: res }]; for (let n = res >> 1, y = 0; n >= 4; y += n, n >>= 1) out.push({ x: res, y, n }); return out; };
+export const bakedVerts = (K = CROWD) => ceil((BAKED.length * K.BAKE * K.BAKE * 4) / 32);
+/** A direction (not of length one) as two numbers 0 … 1, octahedral (src/scatter/trees.js octDecode reads it). */
+export function octOf(x, y, z) {
+  const l = abs(x) + abs(y) + abs(z); if (!(l > 0)) return [0.5, 0.5];
+  let u = x / l, v = y / l; if (z < 0) { const pu = u, pv = v; u = (1 - abs(pv)) * (pu >= 0 ? 1 : -1); v = (1 - abs(pu)) * (pv >= 0 ? 1 : -1); }
+  return [u * 0.5 + 0.5, v * 0.5 + 0.5];
+}
+/** A shape's crown as the far bodies wear it: drawn from each of BAKED's directions, RES texels a side over 2 r metres
+    about `mid`, every texel four bytes: how much of it the crown covers (a card stopping STOPS of the light, the wood all
+    of it) and how much light reaches what covers it (its corners' ao, front to back: what lies behind counts as much as
+    shows through what lies before it; darker as it lies deeper in the crown from that side, DEEP), and which way the
+    leaves face there (their normals so weighted, octahedral: octOf), so a far body is lit texel by texel as its leaves
+    are, under the live sun (src/scatter/trees.js). S: a shape (crowd's).
+    -> { res, r, bytes: Uint8Array(views x res x res x 4) } */
+export function bakeOf(S, K = CROWD) {
+  const res = bakeRes(S.hull.hi, K), mid = S.mid, P = S.position, n = S.count, I = [];
+  for (let c = 0; c < S.cards; c++) I.push(4 * c, 4 * c + 1, 4 * c + 2, 4 * c, 4 * c + 2, 4 * c + 3);
+  for (const x of S.index) I.push(x);
+  let r = 0; for (let i = 0; i < n; i++) r = max(r, hypot(P[i * 3] - mid[0], P[i * 3 + 1] - mid[1], P[i * 3 + 2] - mid[2]));
+  r *= 1.02;
+  const k = res / (2 * r), bytes = new Uint8Array(BAKED.length * res * res * 4), T = new Float32Array(res * res), A = new Float32Array(res * res), Dp = new Float32Array(res * res), Wt = new Float32Array(res * res), Nm = new Float32Array(res * res * 3), X = new Float32Array(n), Y = new Float32Array(n), Nr = S.normal;
+  const nt = I.length / 3, depth = new Float32Array(nt), order = new Uint32Array(nt);
+  BAKED.forEach(({ w, u, v }, view) => {
+    T.fill(1); A.fill(0); Dp.fill(0); Wt.fill(0); Nm.fill(0);
+    let front = -Infinity; for (let i = 0; i < n; i++) front = max(front, P[i * 3] * w[0] + P[i * 3 + 1] * w[1] + P[i * 3 + 2] * w[2]);
+    for (let i = 0; i < n; i++) { const x = P[i * 3] - mid[0], y = P[i * 3 + 1] - mid[1], z = P[i * 3 + 2] - mid[2]; X[i] = (x * u[0] + y * u[1] + z * u[2] + r) * k - 0.5; Y[i] = (x * v[0] + y * v[1] + z * v[2] + r) * k - 0.5; }
+    // (front to back: what is nearest the eye is seen first, and what lies behind it only through it)
+    for (let j = 0; j < nt; j++) { let d = 0; for (let c = 0; c < 3; c++) { const i = I[j * 3 + c] * 3; d += P[i] * w[0] + P[i + 1] * w[1] + P[i + 2] * w[2]; } depth[j] = d; order[j] = j; }
+    order.sort((a, b) => depth[b] - depth[a]);
+    for (const j of order) { const t = j * 3;
+      const a = I[t], b = I[t + 1], c = I[t + 2], X0 = X[a], Y0 = Y[a], X1 = X[b], Y1 = Y[b], X2 = X[c], Y2 = Y[c];
+      const x0 = max(0, ceil(min(X0, X1, X2))), x1 = min(res - 1, floor(max(X0, X1, X2))), y0 = max(0, ceil(min(Y0, Y1, Y2))), y1 = min(res - 1, floor(max(Y0, Y1, Y2)));
+      if (x1 < x0 || y1 < y0) continue;
+      // (its normal: its corners', turned to face this view, a leaf's two sides being one)
+      let nx = Nr[a * 3] + Nr[b * 3] + Nr[c * 3], ny = Nr[a * 3 + 1] + Nr[b * 3 + 1] + Nr[c * 3 + 1], nz = Nr[a * 3 + 2] + Nr[b * 3 + 2] + Nr[c * 3 + 2];
+      if (nx * w[0] + ny * w[1] + nz * w[2] < 0) { nx = -nx; ny = -ny; nz = -nz; }
+      const nl = hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
+      const stop = S.part[a] === 1 ? K.STOPS : 1, ao = (S.ao[a] + S.ao[b] + S.ao[c]) / 3, deep = min(1, (front - depth[j] / 3) / (2 * r)), ax = X1 - X0, ay = Y1 - Y0, bx = X2 - X1, by = Y2 - Y1, gx = X0 - X2, gy = Y0 - Y2;
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        const e0 = ax * (y - Y0) - ay * (x - X0), e1 = bx * (y - Y1) - by * (x - X1), e2 = gx * (y - Y2) - gy * (x - X2);
+        if ((e0 >= 0 && e1 >= 0 && e2 >= 0) || (e0 <= 0 && e1 <= 0 && e2 <= 0)) { const j = y * res + x, f = stop * T[j]; A[j] += ao * f; Dp[j] += deep * f; Nm[j * 3] += nx * f; Nm[j * 3 + 1] += ny * f; Nm[j * 3 + 2] += nz * f; Wt[j] += f; T[j] *= 1 - stop; }
+      }
+    }
+    // its ao as it is (darker deeper in: 0 where nothing covers it) and the leaves' normal there, in the plant's own frame
+    // (octOf): the far body is lit there as its leaves are, live (src/scatter/trees.js). (The picture's rows from its top: v up)
+    for (let y = 0; y < res; y++) for (let x = 0; x < res; x++) {
+      const j = y * res + x, o = (view * res * res + (res - 1 - y) * res + x) * 4, [ox, oy] = octOf(Nm[j * 3], Nm[j * 3 + 1], Nm[j * 3 + 2]);
+      bytes[o] = round((1 - T[j]) * 255); bytes[o + 1] = Wt[j] > 0 ? round(min(1, (A[j] / Wt[j]) * (1 - K.DEEP * (Dp[j] / Wt[j]))) * 255) : 0; bytes[o + 2] = round(ox * 255); bytes[o + 3] = round(oy * 255);
+    }
+  });
+  return { res, r, bytes };
 }

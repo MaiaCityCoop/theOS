@@ -9,7 +9,8 @@
 // it lies in (until it is painted: layer 0, a plain stand-in). Held by the world, it stays; asked for by a page
 // (the library's pictures), it may give its layer up to the next, the longest unasked first.
 //
-// Where the GPU has block compression (BC: every desktop) a material is kept compressed: 2.8 MB where it was 11, and no slower to read. Nothing compressed is downloaded: each painted tile
+// Where the GPU has block compression (BC: every desktop; `?rawtex` leaves it off, to measure against) a material is
+// kept compressed: 2.8 MB where it was 11, and no slower to read. Nothing compressed is downloaded: each painted tile
 // is packed into blocks here, by a compute pass of our own (blocksOf), and copied into its layer on the GPU. A block
 // is 4 by 4 texels:
 //   A  (BC3, 16 bytes)  its colours four steps between two it keeps (5:6:5 bits); the height eight steps between
@@ -21,34 +22,14 @@
 // from: materials of kind `noise`), is read as painted from a small array of its own: four steps a block would be
 // steps in the land. Those are always there.
 import * as THREE from 'three/webgpu';
-import { Fn, If, vec2, vec3, vec4, uv, float, uint, uvec2, uvec4, ivec2, uniform, sqrt, clamp, normalize, texture, textureLoad, property, outputStruct, instancedArray, instanceIndex, min, max, dot, round, select, uniformArray, int, renderGroup } from 'three/tsl';
-import { recipes, manifest } from '../core/registry.js';
-import { note, makeOwned, budgetOf, readBuffer, fits } from '../core/gpu.js';
-import { pace, ownGpuMs, frameShare } from '../core/pace.js';
-import { BUDGET_MB } from '../core/budget.js';
+import { Fn, If, Loop, vec2, vec3, vec4, uv, float, uint, uvec2, uvec4, ivec2, uniform, sqrt, clamp, normalize, texture, textureLoad, property, outputStruct, instancedArray, instanceIndex, min, max, dot, round, select, uniformArray, int, renderGroup, atomicAdd, atomicStore, atomicLoad } from 'three/tsl';
+import { recipes } from '../core/registry.js';
+import { note } from '../core/gpu.js';
 import { compileFor, inTurn } from '../core/compile.js';
-import { source, ready as settled } from '../core/settle.js';
-import { aboutTo } from '../core/journal.js';
-import { MiB } from '../core/physics.js';
+import { flag, flagText } from '../core/flags.js';
+import { LOD_DEFAULT } from '../../assets/kit/crowd.js';
 
-// (a tile's side, texels, and what follows from it, set once: its levels; its blocks level by level, where each lies in
-// the buffers they are written to (rows of 32 blocks at the least: a row of a copy from a buffer is a multiple of 256
-// bytes, and R's blocks are 8); a material of numbers' rows, each level's laid so too. MAC_SIDE on the Mac; a device
-// with less room for the ground, fewer: tileSide, at bakeTextures)
-const MAC_SIDE = 1024, ROWS = (s) => Math.ceil((s * 4) / 256) * 256;
-let SIZE = 0, LEVELS = 0, SIDES = [], STRIDES = [], FIRST = [], AT = [], BLOCKS = 0, ROOM = 0, DATA_AT = [], DATA_BYTES = 0;
-const sizeTo = (n) => {
-  SIZE = n; LEVELS = Math.log2(n) + 1;
-  SIDES = Array.from({ length: LEVELS }, (_, l) => Math.max(1, SIZE >> (l + 2))); STRIDES = SIDES.map((x) => Math.max(32, x)); FIRST = []; AT = []; BLOCKS = 0; ROOM = 0;
-  SIDES.forEach((x, l) => { FIRST[l] = BLOCKS; BLOCKS += x * x; AT[l] = ROOM; ROOM += STRIDES[l] * x; });
-  DATA_AT = []; DATA_BYTES = 0; for (let l = 0; l < LEVELS; l++) { DATA_AT[l] = DATA_BYTES; DATA_BYTES += ROWS(SIZE >> l) * (SIZE >> l); }
-};
-sizeTo(MAC_SIDE);
-/** A tile's side on this device: the largest power of two up to MAC_SIDE whose textures (as many layers, their painter's
-    tiles: all of it as its side's square) take no larger a share of the ground's budget here (src/core/gpu.js budgetOf,
-    at boot) than MAC_SIDE's take of the Mac's (budget.js BUDGET_MB); at least a block's side (4). */
-const tileSide = () => { const fits = budgetOf('ground') / BUDGET_MB.ground; let n = MAC_SIDE; while (n > 4 && (n / MAC_SIDE) ** 2 > fits) n /= 2; return n; };
-const PAINTER = "the world's textures: their painter's tiles";   // (what a material is painted through, while there is something to paint: painter, below)
+const SIZE = 1024, LEVELS = Math.log2(SIZE) + 1;
 
 // one material's tile, painted once, into two targets: its albedo (gamma 2) and height as the tile keeps them, and the
 // height as it was worked out with the roughness (32-bit floats), which the relief is taken from (below). The writer
@@ -62,14 +43,8 @@ function program(m) {
     return vec4(sqrt(clamp(M.col, 0, 1)), clamp(M.h, 0, 1));
   });
   const mat = new THREE.NodeMaterial(); mat.vertexNode = vec4(uv().mul(2).sub(1), 0, 1); mat.fragmentNode = outputStruct(frag(), raw); mat.depthTest = mat.depthWrite = false;
-  mat.name = `painted: ${m.name}`; mat.userData.own = true;   // (what it is, where pipelines are told apart: the compile log, the gate, the census; own: drawn as itself, straight into the painter's tile, by no pass: src/core/pass.js drawnAs)
   return mat;
 }
-/** Material m's painting program: its tile (8 bits) and its heights and roughness (floats), drawn over a quad (a tool
-    paints one alone by it: tools/paints.js). */
-export const paintingOf = program;
-/** The relief program over the heights painted into src (bumpInv: one over the material's bump), for the same tool. */
-export const reliefOf = reliefProgram;
 // The relief of a painted tile, one program for every material: the normal by the height's steps to the next texel
 // across and the next down (the tile tiles: past its last texel lies its first), the roughness beside it. The same
 // numbers as painting the material twice more a texel over (its height there), which each material's own pass did until
@@ -86,65 +61,100 @@ function reliefProgram(src) {
   return { mat, bumpInv };
 }
 
+// A tile's blocks, level by level: how many a side, and where each level lies in the buffers they are written to (rows
+// of 32 blocks at the least: a row of a copy from a buffer is a multiple of 256 bytes, and R's blocks are 8).
+const SIDES = Array.from({ length: LEVELS }, (_, l) => Math.max(1, SIZE >> (l + 2))), STRIDES = SIDES.map((s) => Math.max(32, s)), FIRST = [], AT = [];
+let BLOCKS = 0, ROOM = 0;
+SIDES.forEach((s, l) => { FIRST[l] = BLOCKS; BLOCKS += s * s; AT[l] = ROOM; ROOM += STRIDES[l] * s; });
 
-/** One channel of a block of 4 × 4 texels (v: its sixteen values, 0 … 1, row by row) as BC4 keeps it, in 8 bytes (two
-    uint nodes): its largest and its smallest as bytes, then each texel the nearest of the eight steps between the two (3
-    bits a texel: 0 the largest, 1 the smallest, 2 … 7 from the largest down). Node code, in a Fn. */
-export const steps = (v) => {
-  const lo = float(1).toVar(), hi = float(0).toVar(); for (const x of v) { lo.assign(min(lo, x)); hi.assign(max(hi, x)); }
-  const a0 = uint(round(hi.mul(255))).toVar(), a1 = uint(round(lo.mul(255))).toVar(), f1 = float(a1).div(255).toVar(), span = max(float(a0).div(255).sub(f1), 1e-6).toVar(), al = uint(0).toVar(), ah = uint(0).toVar();
-  If(a0.greaterThan(a1), () => {
-    v.forEach((x, n) => {
-      const s = uint(round(clamp(x.sub(f1).div(span), 0, 1).mul(7))), idx = s.equal(uint(7)).select(uint(0), s.equal(uint(0)).select(uint(1), uint(8).sub(s))), bit = 3 * n;
-      if (bit + 3 <= 32) al.assign(al.bitOr(idx.shiftLeft(uint(bit))));
-      else if (bit >= 32) ah.assign(ah.bitOr(idx.shiftLeft(uint(bit - 32))));
-      else { al.assign(al.bitOr(idx.bitAnd(uint((1 << (32 - bit)) - 1)).shiftLeft(uint(bit)))); ah.assign(ah.bitOr(idx.shiftRight(uint(32 - bit)))); }
-    });
-  });
-  return [a0.bitOr(a1.shiftLeft(uint(8))).bitOr(al.bitAnd(uint(0xffff)).shiftLeft(uint(16))).toVar(), al.shiftRight(uint(16)).bitOr(ah.shiftLeft(uint(16))).toVar()];
-};
-/** A block's colours (v: its sixteen rgb, 0 … 1) as BC1 keeps them, in 8 bytes (two uint nodes): the two far corners of
-    the box round them (which two: by how red and blue run against green across the block), drawn in a little (the
-    steps between then lie nearer most of them), as 5:6:5 bits; then each texel the nearest of the four steps along the
-    line between the two (2 bits a texel: 0 the first end, 1 the second, 2 and 3 between them). Node code, in a Fn. */
-export const colours = (v) => {
-  const lo = vec3(1).toVar(), hi = vec3(0).toVar(); for (const c of v) { lo.assign(min(lo, c)); hi.assign(max(hi, c)); }
-  const mid = lo.add(hi).mul(0.5), cr = float(0).toVar(), cb = float(0).toVar();
-  for (const c of v) { const t = c.sub(mid); cr.addAssign(t.r.mul(t.g)); cb.addAssign(t.b.mul(t.g)); }
-  const rUp = cr.greaterThanEqual(0), bUp = cb.greaterThanEqual(0), E0 = vec3(select(rUp, hi.r, lo.r), hi.g, select(bUp, hi.b, lo.b)), E1 = vec3(select(rUp, lo.r, hi.r), lo.g, select(bUp, lo.b, hi.b)), inset = E0.sub(E1).div(16);
-  const q565 = (c) => vec3(round(c.r.mul(31)), round(c.g.mul(63)), round(c.b.mul(31))), bits = (Q) => uint(Q.r).shiftLeft(uint(11)).bitOr(uint(Q.g).shiftLeft(uint(5))).bitOr(uint(Q.b));
-  const Q0 = q565(clamp(E0.sub(inset), 0, 1)).toVar(), Q1 = q565(clamp(E1.add(inset), 0, 1)).toVar();
-  const e1 = Q1.div(vec3(31, 63, 31)).toVar(), dir = Q0.div(vec3(31, 63, 31)).sub(e1).toVar(), dd = max(dot(dir, dir), 1e-8).toVar(), ci = uint(0).toVar();
-  v.forEach((c, n) => {
-    const s = uint(round(clamp(dot(c.sub(e1), dir).div(dd), 0, 1).mul(3)));
-    ci.assign(ci.bitOr(s.equal(uint(3)).select(uint(0), s.equal(uint(2)).select(uint(2), s.equal(uint(1)).select(uint(3), uint(1)))).shiftLeft(uint(2 * n))));
-  });
-  return [bits(Q0).bitOr(bits(Q1).shiftLeft(uint(16))).toVar(), ci];
-};
+// Foliage's cut-out kept as thick at every mip as at its finest (intent 0033; under `?lod=new` with `?mips=1`): a
+// mip of a painting is its texels averaged, so a leaf's edge fades and a sprig seen small is fainter than the leaves it
+// is, and cut where the finest is cut it thins out with distance (main's plants lower their cut far off by hand to make
+// up for it, src/scatter/trees.js). Here each mip's alpha is scaled so that as many of its texels pass the cut as of the
+// finest level's: the share over CUT of level 0 is counted, and for each level the alpha that as large a share of its
+// texels reaches (a histogram of 256 steps a level, on the GPU), and its alpha multiplied by CUT over that (at most
+// eight times). Painted tiles only, as they are packed (blocksOf).
+// Tried on the far canopy and not enough by itself (intent 0033, Build, 2026-11-17): kept for a far card or body that
+// wears its painting, which needs it.
+export const COVER = { CUT: 0.45, on: flagText('mips') === '1' && (flagText('lod') ?? LOD_DEFAULT) === 'new' };   // (only where the plants are the crowd kit's: assets/kit/crowd.js LOD_DEFAULT)
+const TEXELS = Array.from({ length: LEVELS }, (_, l) => (SIZE >> l) ** 2), TFIRST = []; let TALL = 0;
+TEXELS.forEach((n, l) => { TFIRST[l] = TALL; TALL += n; });
+function coverageOf(src) {
+  const hist = instancedArray(LEVELS * 256, 'uint').toAtomic(), scale = instancedArray(LEVELS, 'float'), cut = Math.ceil(COVER.CUT * 255);
+  const clear = Fn(() => { atomicStore(hist.element(instanceIndex), uint(0)); })().compute(LEVELS * 256);
+  const count = Fn(() => {
+    const lv = uint(0).toVar(), first = uint(0).toVar();
+    for (let l = 1; l < LEVELS; l++) If(instanceIndex.greaterThanEqual(uint(TFIRST[l])), () => { lv.assign(uint(l)); first.assign(uint(TFIRST[l])); });
+    const side = uint(SIZE).shiftRight(lv).toVar(), k = instanceIndex.sub(first), x = k.mod(side), y = k.div(side);
+    const a = src.sample(vec2(float(x).add(0.5), float(y).add(0.5)).div(float(side))).level(float(lv)).a;
+    atomicAdd(hist.element(lv.mul(uint(256)).add(uint(round(clamp(a, 0, 1).mul(255))))), uint(1));
+  })().compute(TALL);
+  const solve = Fn(() => {
+    const l = instanceIndex, c0 = uint(0).toVar();
+    Loop({ start: cut, end: 256, type: 'int' }, ({ i }) => { c0.addAssign(atomicLoad(hist.element(uint(i)))); });
+    const share = float(c0).div(SIZE * SIZE).toVar(), side = float(uint(SIZE).shiftRight(l)), n = side.mul(side), acc = float(0).toVar(), t = int(255).toVar();
+    Loop({ start: 0, end: 256, type: 'int' }, ({ i }) => { If(acc.div(n).lessThan(share), () => { const b = int(255).sub(i); acc.addAssign(float(atomicLoad(hist.element(l.mul(uint(256)).add(uint(b)))))); t.assign(b); }); });
+    scale.element(l).assign(select(l.equal(uint(0)).or(share.lessThanEqual(0)), float(1), clamp(float(COVER.CUT).div(max(float(t).div(255), 1 / 255)), 1, 8)));
+  })().compute(LEVELS);
+  return { passes: [clear, count, solve], scale };
+}
 
 // A painted tile packed into blocks, its every level in one pass: a block an instance. src: the painted tile with its
 // mips. `normals` 0: a tile of A, its sixteen bytes to `out`; 1: of N, to `out`, and of R, its eight bytes to `outR`.
-function blocksOf(src, out, outR) {
-  const normals = uniform(0);
+// cov: a foliage's mips' alpha scales (coverageOf), taken where `cover` is 1.
+function blocksOf(src, out, outR, cov = null) {
+  const normals = uniform(0), cover = uniform(0);
   const pass = Fn(() => {
     const lv = uint(0).toVar(), first = uint(0).toVar(), at = uint(0).toVar();
     for (let l = 1; l < LEVELS; l++) If(instanceIndex.greaterThanEqual(uint(FIRST[l])), () => { lv.assign(uint(l)); first.assign(uint(FIRST[l])); at.assign(uint(AT[l])); });
     const side = max(uint(SIZE >> 2).shiftRight(lv), uint(1)).toVar(), k = instanceIndex.sub(first), bx = k.mod(side).toVar(), by = k.div(side).toVar(), size = float(uint(SIZE).shiftRight(lv)), px = [];
     for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) px.push(src.sample(vec2(float(bx.mul(uint(4)).add(uint(i))).add(0.5), float(by.mul(uint(4)).add(uint(j))).add(0.5)).div(size)).level(float(lv)).toVar());
-    const isN = normals.greaterThan(0.5), fourth = steps(px.map((c) => c.a)), red = steps(px.map((c) => c.r)), green = steps(px.map((c) => c.g)), rgb = colours(px.map((c) => c.rgb));
+    // one channel of a block, in 8 bytes: its largest and its smallest as bytes, then each texel the nearest of the
+    // eight steps between the two (3 bits a texel: 0 the largest, 1 the smallest, 2 … 7 from the largest down)
+    const steps = (v) => {
+      const lo = float(1).toVar(), hi = float(0).toVar(); for (const x of v) { lo.assign(min(lo, x)); hi.assign(max(hi, x)); }
+      const a0 = uint(round(hi.mul(255))).toVar(), a1 = uint(round(lo.mul(255))).toVar(), f1 = float(a1).div(255).toVar(), span = max(float(a0).div(255).sub(f1), 1e-6).toVar(), al = uint(0).toVar(), ah = uint(0).toVar();
+      If(a0.greaterThan(a1), () => {
+        v.forEach((x, n) => {
+          const s = uint(round(clamp(x.sub(f1).div(span), 0, 1).mul(7))), idx = s.equal(uint(7)).select(uint(0), s.equal(uint(0)).select(uint(1), uint(8).sub(s))), bit = 3 * n;
+          if (bit + 3 <= 32) al.assign(al.bitOr(idx.shiftLeft(uint(bit))));
+          else if (bit >= 32) ah.assign(ah.bitOr(idx.shiftLeft(uint(bit - 32))));
+          else { al.assign(al.bitOr(idx.bitAnd(uint((1 << (32 - bit)) - 1)).shiftLeft(uint(bit)))); ah.assign(ah.bitOr(idx.shiftRight(uint(32 - bit)))); }
+        });
+      });
+      return [a0.bitOr(a1.shiftLeft(uint(8))).bitOr(al.bitAnd(uint(0xffff)).shiftLeft(uint(16))).toVar(), al.shiftRight(uint(16)).bitOr(ah.shiftLeft(uint(16))).toVar()];
+    };
+    // a block's colours, in 8 bytes: the two far corners of the box round them (which two: by how red and blue run
+    // against green across the block), drawn in a little (the steps between then lie nearer most of them), as 5:6:5
+    // bits; then each texel the nearest of the four steps along the line between the two (2 bits a texel: 0 the
+    // first end, 1 the second, 2 and 3 between them)
+    const colours = (v) => {
+      const lo = vec3(1).toVar(), hi = vec3(0).toVar(); for (const c of v) { lo.assign(min(lo, c)); hi.assign(max(hi, c)); }
+      const mid = lo.add(hi).mul(0.5), cr = float(0).toVar(), cb = float(0).toVar();
+      for (const c of v) { const t = c.sub(mid); cr.addAssign(t.r.mul(t.g)); cb.addAssign(t.b.mul(t.g)); }
+      const rUp = cr.greaterThanEqual(0), bUp = cb.greaterThanEqual(0), E0 = vec3(select(rUp, hi.r, lo.r), hi.g, select(bUp, hi.b, lo.b)), E1 = vec3(select(rUp, lo.r, hi.r), lo.g, select(bUp, lo.b, hi.b)), inset = E0.sub(E1).div(16);
+      const q565 = (c) => vec3(round(c.r.mul(31)), round(c.g.mul(63)), round(c.b.mul(31))), bits = (Q) => uint(Q.r).shiftLeft(uint(11)).bitOr(uint(Q.g).shiftLeft(uint(5))).bitOr(uint(Q.b));
+      const Q0 = q565(clamp(E0.sub(inset), 0, 1)).toVar(), Q1 = q565(clamp(E1.add(inset), 0, 1)).toVar();
+      const e1 = Q1.div(vec3(31, 63, 31)).toVar(), dir = Q0.div(vec3(31, 63, 31)).sub(e1).toVar(), dd = max(dot(dir, dir), 1e-8).toVar(), ci = uint(0).toVar();
+      v.forEach((c, n) => {
+        const s = uint(round(clamp(dot(c.sub(e1), dir).div(dd), 0, 1).mul(3)));
+        ci.assign(ci.bitOr(s.equal(uint(3)).select(uint(0), s.equal(uint(2)).select(uint(2), s.equal(uint(1)).select(uint(3), uint(1)))).shiftLeft(uint(2 * n))));
+      });
+      return [bits(Q0).bitOr(bits(Q1).shiftLeft(uint(16))).toVar(), ci];
+    };
+    const isN = normals.greaterThan(0.5), sc = cov ? select(cover.greaterThan(0.5).and(isN.not()), cov.scale.element(lv), float(1)).toVar() : null, fourth = steps(px.map((c) => (sc ? min(c.a.mul(sc), 1) : c.a))), red = steps(px.map((c) => c.r)), green = steps(px.map((c) => c.g)), rgb = colours(px.map((c) => c.rgb));
     const e = at.add(by.mul(max(side, uint(32)))).add(bx).toVar();
     out.element(e).assign(uvec4(select(isN, red[0], fourth[0]), select(isN, red[1], fourth[1]), select(isN, green[0], rgb[0]), select(isN, green[1], rgb[1])));
     outR.element(e).assign(uvec2(fourth[0], fourth[1]));
   })().compute(BLOCKS);
-  return { pass, normals };
+  return { pass, normals, cover };
 }
 
 // Every material of the library, numbered (a material's number is its place here: tex.layer)
 const ALL = recipes('material'), NUM = new Map(ALL.map((m, i) => [m.uid, i]));
 /** The materials the world wears: every material a biome or an asset names (by its uid or its recipe, anywhere in its
-    file; or only those of the recipes `of`), and those playing a part the engine asks for (a `role`). What only the
-    library holds is not among them. */
-export function usedMaterials(of = [...recipes('biome'), ...recipes('asset')]) {
+    file), and those playing a part the engine asks for (a `role`). What only the library holds is not among them. */
+export function usedMaterials() {
   const out = new Set(), seen = new Set();
   const visit = (v, depth) => {
     if (v == null || depth > 10) return;
@@ -155,105 +165,9 @@ export function usedMaterials(of = [...recipes('biome'), ...recipes('asset')]) {
     // (its own values only: a getter may build a mesh to answer, as a tree's size does)
     for (const d of Object.values(Object.getOwnPropertyDescriptors(v))) if ('value' in d) visit(d.value, depth + 1);
   };
-  for (const r of of) visit(r, 0);
+  for (const r of [...recipes('biome'), ...recipes('asset')]) visit(r, 0);
   for (const m of ALL) if (m.role) out.add(m.uid);
   return ALL.filter((m) => out.has(m.uid));
-}
-
-// ---- what was painted, kept between starts ----
-// A material's layers depend only on what paints it (registry.json `paint`: its own code and numbers, every module it
-// reads, the painter's code and three's version, one hash; the stand-in's, the painter's own) and on the pool's format.
-// Where the GPU packs blocks, what was painted is kept once the world has settled, as its layers hold it, block for
-// block (Cache Storage), and a later start lays it into its layer: no painting program built or compiled, no packing
-// pass, nothing painted (2026-11-19: 28 programs of the first view, 657 KB of WGSL, the slowest to compile). A change to
-// any of what paints it is another key, and a key no material names any more is let go. Where nothing can be kept (no
-// Cache Storage: not a secure page; no room; a refusal), it is painted, as before.
-const STORE = 'maia-painted-1', PAINTER_V = Object.values(manifest).find((r) => r.painter)?.painter;
-/** Material m's key in the store (null: nothing to key it by). */
-const keyOf = (m) => { const h = m.uid === 'stand-in' ? PAINTER_V : manifest[m.uid]?.paint; return h ? new URL(`/__painted/${m.uid}/${SIZE}/${h}`, location.href).href : null; };
-// (a layer as kept: its albedo's blocks, its relief's and its roughness's, each level where the packing lays it (AT,
-// STRIDES: rows of 32 blocks at the least, as a copy between a buffer and a texture wants them); a material of numbers,
-// its own array's texels, each level's rows laid so too)
-/** Layer i of the pool's textures (data: of the numbers' own array) level by level, as kept: { bytes, levels: [texture,
-    its level, offset, bytes a row, rows, side] }. */
-const levelsOf = (renderer, { A, Nn, Rr, Dd }, i, data) => {
-  const gpu = (x) => renderer.backend.get(x).texture, levels = [];
-  for (let l = 0; l < LEVELS; l++) {
-    if (data) { const s = SIZE >> l; levels.push([gpu(Dd), l, DATA_AT[l], ROWS(s), s, s]); continue; }
-    levels.push([gpu(A), l, AT[l] * 16, STRIDES[l] * 16, SIDES[l], SIDES[l] * 4], [gpu(Nn), l, ROOM * 16 + AT[l] * 16, STRIDES[l] * 16, SIDES[l], SIDES[l] * 4]);
-    if (l > 0) levels.push([gpu(Rr), l - 1, ROOM * 32 + AT[l] * 8, STRIDES[l] * 8, SIDES[l], SIDES[l] * 4]);
-  }
-  return { bytes: data ? DATA_BYTES : ROOM * 40, levels };
-};
-/** The store of what was painted, for the pool's textures on renderer (packed: whether the GPU packs blocks; keepWhen: a
-    promise, when what was painted is kept: the world settled, by default; pool: there(m, layer, data), whether a layer still holds what was painted
-    into it; laid(), one laid out; busy(d), what the start waits on): laidOut(jobs), of [material, layer, data], what an
-    earlier start kept laid into its layer, and the rest (a promise); keepLater(jobs), what was painted, to be kept once
-    keepWhen comes; step(), each frame: one more kept, where it may be (below); stored(), how many this start kept;
-    kept(), a promise: all of it kept (or given up); read(layer, data), a layer as kept (bytes). */
-function storeOf(renderer, textures, packed, keepWhen, pool) {
-  const dev = renderer.backend.device, cache = packed && PAINTER_V && typeof caches !== 'undefined' ? caches.open(STORE).catch(() => null) : Promise.resolve(null);
-  // (layer i's blocks copied into buf, as the store keeps them, handed to the GPU: a promise of its own time there)
-  const copyOut = (L, i, buf) => {
-    const e = dev.createCommandEncoder();
-    for (const [texture, mipLevel, offset, bytesPerRow, rowsPerImage, side] of L.levels) e.copyTextureToBuffer({ texture, mipLevel, origin: { x: 0, y: 0, z: i } }, { buffer: buf, offset, bytesPerRow, rowsPerImage }, { width: side, height: side, depthOrArrayLayers: 1 });
-    return ownGpuMs(renderer, () => dev.queue.submit([e.finish()]));
-  };
-  const read = async (i, data = false) => {
-    const L = levelsOf(renderer, textures, i, data), buf = dev.createBuffer({ label: "the world's textures: a layer read", size: L.bytes, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-    copyOut(L, i, buf);
-    try { await buf.mapAsync(GPUMapMode.READ); return buf.getMappedRange().slice(0); } finally { buf.destroy(); }
-  };
-  const layOut = (i, data, bytes) => { for (const [texture, mipLevel, offset, bytesPerRow, rowsPerImage, side] of levelsOf(renderer, textures, i, data).levels) dev.queue.writeTexture({ texture, mipLevel, origin: { x: 0, y: 0, z: i } }, bytes, { offset, bytesPerRow, rowsPerImage }, { width: side, height: side, depthOrArrayLayers: 1 }); };
-  const laidOut = async (jobs) => {
-    const c = await cache; if (!c) return jobs;
-    pool.busy(1);
-    try {
-      const kept = await Promise.all(jobs.map(async ([m]) => { const k = keyOf(m), r = k && (await c.match(k).catch(() => null)); return r ? r.arrayBuffer().catch(() => null) : null; }));
-      return jobs.filter(([, i, data], n) => { const b = kept[n]; if (!b || b.byteLength !== levelsOf(renderer, textures, i, data).bytes) return true; layOut(i, data, b); pool.laid(); return false; });
-    } finally { pool.busy(-1); }
-  };
-  // What was painted, kept: a layer a frame at the most (step, from the frame's flush: src/core/pace.js), one at a time,
-  // its buffer let go as soon as its bytes are out of it, before the next is read back; only once keepWhen has come (the
-  // world settled), while the GPU has room for that buffer in its budget (src/core/gpu.js readBuffer) and the store has
-  // room for the layer (its estimate); what no material names any more let go first. None of it at the start's peak
-  // (2026-11-19, the master: a phone dies of its page's memory just after Ready, and the layers read back at once would
-  // be the world's textures again, 87 MB at the Mac's budget). A refusal, or no room: nothing more is kept, said once.
-  const toKeep = [], P = pace(1), waiters = [];
-  let open = null, one = null, stopped = false, stored = 0;
-  const drained = () => { if (!one && !toKeep.length) for (const w of waiters.splice(0)) w(); };
-  const stop = (why, e) => { if (!stopped) console.warn(`[textures] what was painted is not kept (${why}): painted again next time`, e ?? ''); stopped = true; toKeep.length = 0; drained(); };
-  (keepWhen ?? settled).then(() => cache).then(async (c) => {
-    if (c) { const names = new Set([{ uid: 'stand-in' }, ...recipes('material')].map(keyOf)); for (const r of await c.keys()) if (r.url.includes('/__painted/') && !names.has(r.url)) await c.delete(r); }
-    return c;
-  }).catch(() => null).then((c) => { open = c; if (!c) { toKeep.length = 0; drained(); } });
-  const keepOne = async ([m, i, data]) => {
-    const key = keyOf(m), L = levelsOf(renderer, textures, i, data);
-    if (!key || !pool.there(m, i, data)) return;   // (nothing to key it by, or its layer since given to another: not kept)
-    const room = await navigator.storage?.estimate?.().catch(() => null);
-    if (room && room.quota - room.usage < L.bytes) return stop('the store has no room for it, by its estimate');
-    const buf = readBuffer('ground', L.bytes, "the world's textures: a layer kept");
-    if (!buf) return void toKeep.unshift([m, i, data]);   // (no room for its buffer in the GPU's budget now: a later frame)
-    aboutTo("the world's textures: a layer kept", L.bytes / MiB);
-    let bytes;
-    try {
-      copyOut(L, i, buf)?.then((ms) => P.measured(1, ms, frameShare('ground'))).catch(() => {});
-      await buf.mapAsync(GPUMapMode.READ);
-      bytes = new Blob([buf.getMappedRange()]);   // (copied out of it: the buffer let go at once)
-    } finally { buf.destroy(); }
-    await open.put(key, new Response(bytes)); stored++;
-  };
-  const step = () => {
-    P.tick();
-    if (!open || one || !toKeep.length || P.left < 1 || !fits('ground', levelsOf(renderer, textures, toKeep[0][1], toKeep[0][2]).bytes)) return;
-    P.left--;
-    one = keepOne(toKeep.shift()).catch((e) => stop('Cache Storage refused it', e)).finally(() => { one = null; drained(); });
-  };
-  return {
-    laidOut, read, step, stored: () => stored,
-    kept: () => (one || toKeep.length ? new Promise((res) => waiters.push(res)) : Promise.resolve()),
-    keepLater: (jobs) => { if (packed && !stopped) toKeep.push(...jobs); },
-  };
 }
 
 /** The world's textures. Returns how to read them (each a node, as any texture's: with .grad(dx, dy), .level()):
@@ -263,22 +177,19 @@ function storeOf(renderer, textures, packed, keepWhen, pool) {
     there (hold: keep it until release(material)), flush(): paint what reads asked for while shaders were built
     (each frame), used: the materials the world wears, capacity: layers in the pool, packed: whether they are kept
     compressed, ready: a promise, the start's materials painted (they are compiled side by side meanwhile) }.
-    opts: keepWhen (a promise: what was painted is kept once it is come; the world settled, by default), spare (layers beyond what the world wears, for what is asked for besides: the library's pictures); first
-    (the materials painted at the start, held: by default all the world wears; the library's stage paints the land's
-    and leaves each subject's to be painted when it is first worn: src/boot.js). A GPU without the formats gets them as
-    painted, uncompressed. */
-export function bakeTextures(renderer, { spare = 6, first = null, keepWhen } = {}) {
-  sizeTo(tileSide());   // (a tile's side on this device, set before anything of it is made)
+    opts: raw (as painted, uncompressed: what a GPU without the formats gets), spare (layers beyond what the world
+    wears, for what is asked for besides: the library's pictures). */
+export function bakeTextures(renderer, { raw = flag('rawtex'), spare = 6 } = {}) {
   // seen at a low angle a texture is filtered along the slope, several taps a read: four for the colours, two for the
   // relief (its blur is not seen), not eight for both: at eye level the ground is most of the picture and its reads most
   // of a frame's time (a walk in the forest: 23 ms at eight, 19 at four and two, at one and a half pixels a point)
   const USED = usedMaterials(), DATA = USED.filter((m) => m.kind === 'noise'), SEEN = USED.filter((m) => m.kind !== 'noise');
   const ROOM_OF = ALL.filter((m) => m.kind !== 'noise').length, CAP = 1 + Math.min(ROOM_OF, SEEN.length + spare);   // (layer 0: the stand-in)
-  const dev = renderer.backend.device, PACKED = !!dev?.features?.has('texture-compression-bc');
+  const dev = renderer.backend.device, PACKED = !raw && !!dev?.features?.has('texture-compression-bc');
   const array = (aniso, depth) => {
     const rt = new THREE.RenderTarget(SIZE, SIZE, { depth, depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace });
     Object.assign(rt.texture, { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping, anisotropy: aniso });
-    return rt.texture;   // (made on the GPU once owned, below)
+    renderer.initRenderTarget(rt); return rt.texture;
   };
   // (compressed: an array of blocks, `bytes` a block, its finest level the tile's level `from`; every level there
   // from the start, empty, filled as materials are painted)
@@ -286,29 +197,30 @@ export function bakeTextures(renderer, { spare = 6, first = null, keepWhen } = {
     const sides = SIDES.slice(from), size = SIZE >> from, zero = new Uint8Array(CAP * sides[0] * sides[0] * bytes), mips = sides.map((b, l) => ({ data: zero.subarray(0, CAP * b * b * bytes), width: size >> l, height: size >> l }));
     const t = new THREE.CompressedArrayTexture(mips, size, size, CAP, format, THREE.UnsignedByteType);
     Object.assign(t, { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, anisotropy: aniso, colorSpace: THREE.NoColorSpace, generateMipmaps: false, needsUpdate: true });
-    return t;   // (made once owned, below: sent once, empty, the page keeping none of it)
+    renderer.initTexture(t); for (const m of mips) m.data = new Uint8Array(0);   // (sent once, empty; the page keeps none of it)
+    return t;
   };
   const A = PACKED ? blocksArray(THREE.RGBA_S3TC_DXT5_Format, 16, 4) : array(4, CAP), Nn = PACKED ? blocksArray(THREE.RED_GREEN_RGTC2_Format, 16, 2) : array(2, CAP);
   const Rr = PACKED ? blocksArray(THREE.RED_RGTC1_Format, 8, 2, 1) : null, Dd = DATA.length ? array(4, DATA.length) : null;
-  makeOwned(renderer, "the world's textures (a pool of layers, and the numbers' own)", Math.round((PACKED ? (2 + 1 / 8) * CAP : 8 * CAP) * SIZE * SIZE * 4 / 3 + DATA.length * SIZE * SIZE * 16 / 3), 0, 'ground', A, Nn, Rr, Dd);   // (ground: what the land's pages are laid from; the rocks and made things wear them too)
+  note("the world's textures (a pool of layers, and the numbers' own)", Math.round((PACKED ? (2 + 1 / 8) * CAP : 8 * CAP) * SIZE * SIZE * 4 / 3 + DATA.length * SIZE * SIZE * 16 / 3), 0);
 
   // the painter: a target the tile is painted into, and (compressed) the pass that packs it and its buffers; made when
-  // there is something to paint, let go half a minute after the last (made again, its packing pass, 53 KB, is compiled
-  // again: the library's pictures, which come once its first view is complete, find it still there)
+  // there is something to paint, let go a while after the last
   let P = null, idle = 0, busy = 0;   // busy: the start's materials are being compiled for this painter's tile (paintAll)
   const painter = () => {
-    clearTimeout(idle); idle = setTimeout(() => { if (!P || busy) return; P.tmp.dispose(); P.raw.dispose(); note(PAINTER, 0, 0, 'ground'); P.relief.mat.dispose(); P.quad.geometry.dispose(); if (P.enc) { P.enc.pass.dispose(); for (const x of [P.blocks, P.blocksR]) renderer._attributes?.delete(x.value); } P = null; }, 30000);
+    clearTimeout(idle); idle = setTimeout(() => { if (!P || busy) return; P.tmp.dispose(); P.raw.dispose(); P.relief.mat.dispose(); P.quad.geometry.dispose(); if (P.enc) { P.enc.pass.dispose(); for (const x of [P.blocks, P.blocksR]) renderer._attributes?.delete(x.value); } P = null; }, 4000);
     if (P) return P;
     const tmp = new THREE.RenderTarget(SIZE, SIZE, { depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace });
     Object.assign(tmp.texture, { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping });
     // what a material is painted into: its tile (as `tmp` keeps it, without mipmaps), and its heights and roughness
     const raw = new THREE.RenderTarget(SIZE, SIZE, { count: 2, depthBuffer: false, generateMipmaps: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, colorSpace: THREE.NoColorSpace });
     Object.assign(raw.textures[1], { type: THREE.FloatType, format: THREE.RGFormat });
-    makeOwned(renderer, PAINTER, SIZE * SIZE * (4 * 4 / 3 + 4 + 8), 0, 'ground', tmp, raw);   // (made as targets now, named first: `tmp` is copied into before anything is drawn into it; its tile with mipmaps, and the raw tile and its heights)
+    renderer.initRenderTarget(tmp); renderer.initRenderTarget(raw);   // (made as targets now: `tmp` is copied into before anything is drawn into it)
     const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); quad.frustumCulled = false;
     const relief = reliefProgram(raw.textures[1]), reliefQuad = new THREE.Mesh(quad.geometry, relief.mat); reliefQuad.frustumCulled = false;
     const blocks = PACKED ? instancedArray(ROOM + 2048, 'uvec4') : null, blocksR = PACKED ? instancedArray(ROOM + 2048, 'uvec2') : null;
-    return (P = { tmp, raw, quad, relief, reliefQuad, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), blocks, blocksR, enc: PACKED ? blocksOf(texture(tmp.texture), blocks, blocksR) : null });
+    const cov = PACKED && COVER.on ? coverageOf(texture(tmp.texture)) : null;
+    return (P = { tmp, raw, quad, relief, reliefQuad, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), blocks, blocksR, cov, enc: PACKED ? blocksOf(texture(tmp.texture), blocks, blocksR, cov) : null });
   };
   const box = new THREE.Box2(), at = new THREE.Vector3();
   const copy = (dst, i) => { for (let l = 0; l < LEVELS; l++) { const s = SIZE >> l; box.min.set(0, 0); box.max.set(s, s); at.set(0, 0, i); renderer.copyTextureToTexture(P.tmp.texture, dst, box, at, l, l); } };
@@ -326,11 +238,12 @@ export function bakeTextures(renderer, { spare = 6, first = null, keepWhen } = {
   const STANDIN = { uid: 'stand-in', bump: 1, paint: () => ({ h: float(0.5), col: vec3(0.25), rough: float(0.8) }) };
   // its tile painted once (quad: its program's), its albedo copied into the tile that is packed (its mipmaps are made
   // as it is copied); then its relief, from the heights, into the same tile (its mipmaps made as the pass ends)
-  let painted = 0, laid = 0;   // (this start's: painted, and laid out as kept: counts)
   const draw = (quad, m, i, data) => {
-    const prev = renderer.getRenderTarget(); painted++;
+    const prev = renderer.getRenderTarget();
     renderer.setRenderTarget(P.raw); renderer.render(quad, P.cam); renderer.setRenderTarget(prev);
     renderer.copyTextureToTexture(P.raw.textures[0], P.tmp.texture);
+    const foliage = !!P.cov && m.kind === 'foliage'; if (P.enc) P.enc.cover.value = foliage ? 1 : 0;
+    if (foliage) renderer.compute(P.cov.passes);   // (its mips' coverage, before it is packed)
     if (data) copy(Dd, i); else if (PACKED) pack(i, false); else copy(A, i);
     if (!data) {
       P.relief.bumpInv.value = 1 / m.bump;
@@ -339,25 +252,20 @@ export function bakeTextures(renderer, { spare = 6, first = null, keepWhen } = {
     }
     quad.material.dispose();
   };
-  const paintInto = (m, i, data = false) => { painter(); P.quad.material = program(m); draw(P.quad, m, i, data); keepLater([[m, i, data]]); };
+  const paintInto = (m, i, data = false) => { painter(); P.quad.material = program(m); draw(P.quad, m, i, data); };
   // The start's materials, painted together: every program is built first and all of them are compiled side by side for
   // the targets they are painted into (a GPU that can compiles them in parallel, and the page goes on with the world
   // meanwhile), then each is painted as above. One at a time, each pass was compiled the moment it was first drawn,
   // one after another, and everything the GPU was asked after it waited (2026-11-15: 48 passes, 22 s of a start of 35
   // in a browser without a GPU). jobs: [material, layer, data].
   const paintAll = (jobs) => {
-    if (!jobs.length) return Promise.resolve();   // (all of them laid out as kept: no painter made, nothing compiled)
     painter(); busy++; const quads = [], all = new THREE.Group();
     for (const [m, i, data] of jobs) { const q = new THREE.Mesh(P.quad.geometry, program(m)); q.frustumCulled = false; all.add(q); quads.push([q, m, i, data]); }
     // (each for its own target, in turn: src/core/compile.js; the packing beside them; then the painting, in its turn too)
     const packing = P.enc ? renderer.compileComputeAsync(P.enc.pass) : null;
     for (const [target, what] of [[P.raw, all], [P.tmp, P.reliefQuad]]) compileFor(renderer, target, what, P.cam).catch(() => {});
-    return inTurn(async () => { await packing; painter(); for (const [q, m, i, data] of quads) draw(q, m, i, data); keepLater(jobs); }).finally(() => { busy--; });
+    return inTurn(async () => { await packing; painter(); for (const [q, m, i, data] of quads) draw(q, m, i, data); }).finally(() => { busy--; });
   };
-
-  // (what was painted, kept between starts: storeOf, below)
-  const store = storeOf(renderer, { A, Nn, Rr, Dd }, PACKED, keepWhen, { there: (m, i, data) => data || m === STANDIN || where[NUM.get(m.uid)] === i, laid: () => laid++, busy: (d) => (busy += d) });
-  const keepLater = store.keepLater;
 
   // the table: a material's number to the layer it lies in, four to a row (0: not there, read the stand-in)
   const rows = Array.from({ length: Math.max(1, Math.ceil(ALL.length / 4)) }, () => new THREE.Vector4()), TABLE = uniformArray(rows, 'vec4').setGroup(renderGroup);   // (sent once a frame, not once a draw)
@@ -380,14 +288,13 @@ export function bakeTextures(renderer, { spare = 6, first = null, keepWhen } = {
     const layer = where[k] || place(k); if (layer) asked[layer] = performance.now(); return layer;
   };
   const release = (ref) => { const k = numberOf(ref); if (k >= 0) held[k] = 0; };
-  const flush = () => { store.step(); if (!wanted.size) return; const list = [...wanted]; wanted.clear(); for (const k of list) if (!where[k]) want(ALL[k], true); };
-  source('textures', () => wanted.size + busy);   // (what is still to be painted: asked for and not yet flushed, or the start's being compiled: src/core/settle.js)
+  const flush = () => { if (!wanted.size) return; const list = [...wanted]; wanted.clear(); for (const k of list) if (!where[k]) want(ALL[k], true); };
 
   // the stand-in, the numbers' own, and what the world wears (held): their layers taken now, all painted together; the
   // world reads none of them before `ready`
-  const jobs = [[STANDIN, 0, false], ...DATA.map((m, i) => [m, i, true])], now = first && new Set(first.map((m) => m?.uid ?? m));
-  for (const m of SEEN) { const k = numberOf(m); if (k < 0 || where[k] || (now && !now.has(m.uid))) continue; held[k] = 1; const layer = take(k); if (layer) { asked[layer] = performance.now(); jobs.push([ALL[k], layer, false]); } }
-  const ready = store.laidOut(jobs).then((rest) => paintAll(rest));   // (what an earlier start kept, laid out; the rest painted)
+  const jobs = [[STANDIN, 0, false], ...DATA.map((m, i) => [m, i, true])];
+  for (const m of SEEN) { const k = numberOf(m); if (k < 0 || where[k]) continue; held[k] = 1; const layer = take(k); if (layer) { asked[layer] = performance.now(); jobs.push([ALL[k], layer, false]); } }
+  const ready = paintAll(jobs);
   const index = (ref) => { const k = numberOf(ref); if (k >= 0 && !isData(k) && !where[k]) wanted.add(k); return k; };   // (asked for while a shader is built: painted at the next flush)
   const tA = texture(A), tN = texture(Nn), tR = Rr ? texture(Rr) : null, tD = Dd ? texture(Dd) : null;
   const layer = (m) => { const k = m?.isNode ? int(m) : index(m); if (k === -1) return float(0); return TABLE.element(m?.isNode ? k.div(4) : int(k >> 2)).element(m?.isNode ? k.mod(4) : int(k & 3)); };   // (m: a recipe, a uid, or a material's number as a node)
@@ -396,16 +303,11 @@ export function bakeTextures(renderer, { spare = 6, first = null, keepWhen } = {
     layer: index, want, release, flush, used: USED, capacity: CAP - 1, packed: PACKED,
     /** a promise: the start's materials painted (nothing that reads them may be drawn before) */
     ready,
-    /** how many this start painted, how many it laid out as an earlier one kept them, and how many it kept; and a
-        promise: what it painted kept, a layer a frame (tools/paints.js) */
-    counts: () => ({ painted, laid, stored: store.stored() }), kept: store.kept,
-    /** the start's layers ({ uid, layer, data }), and one as kept (bytes): what tools/paints.js holds against a start's */
-    layers: () => jobs.map(([m, i, data]) => ({ uid: m.uid, layer: i, data })), read: store.read,
     /** a material's albedo + height at uv */
     a: (m, p) => (data(m) >= 0 ? tD.sample(p).depth(data(m)) : tA.sample(p).depth(layer(m))),
     /** its relief at uv: .xy the normal's x and y */
     n: (m, p) => tN.sample(p).depth(layer(m)),
-    /** its roughness at uv (dx, dy: its steps there; lv: its level, read so where no steps are, a vertex stage) */
-    r: (m, p, dx = null, dy = null, lv = null) => { const s = (tR ?? tN).sample(p).depth(layer(m)), t = lv != null ? s.level(lv) : dx ? s.grad(dx, dy) : s; return tR ? t.r : t.a; },
+    /** its roughness at uv */
+    r: (m, p, dx = null, dy = null) => { const s = (tR ?? tN).sample(p).depth(layer(m)), t = dx ? s.grad(dx, dy) : s; return tR ? t.r : t.a; },
   };
 }

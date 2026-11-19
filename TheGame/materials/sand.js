@@ -6,8 +6,8 @@ export default {
   type: 'material',
   name: "Sand",
   kind: 'ground',
-  about: 'Sand in wind ripples, dark grains in the troughs, a few pebbles.',
-  usedBy: 'the river banks; sandy patches',
+  about: "Sand in wind ripples with a steep side, dark grains gathered in their troughs, and a few pebbles.",
+  usedBy: "the river banks, the sandy patches of dry land",
   swatch: [0.5, 0.41, 0.26],
   bump: 0.007,   // how deep its relief reads in the normals: larger is flatter
   paint: (uv) => {

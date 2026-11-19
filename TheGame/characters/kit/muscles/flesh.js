@@ -2,45 +2,31 @@
 // (./build.js, ../skin/build.js), carried by the rig and drawn in the world's light. Loaded when a character with
 // muscles is first made (../bones.js): the game, which shows none, carries none of it.
 //
-//   fleshOf(data, { object, bones, eye }) -> { muscles, skin, fat, eyes, mouth, update(), level(dist), dispose(), counts }
-//     data       what the workers laid: the rows the rig moves (the muscles' strands), and each surface: a muscle's
-//                points' places in those rows, a skin's points' joints; its triangles near and far
+//   fleshOf(data, { object, bones, eye }) -> { muscles, skin, fat, eyes, update(), level(dist), dispose(), counts }
+//     data       what the workers laid: the rows the rig moves (the muscles' strands, and for a skin the bones a point of
+//                it hangs on directly), and each surface: its points' places in those rows, its triangles near and far
 //     muscles, skin, fat, eyes   the meshes (each null where it was not laid); the fat is the skin's surface drawn a
 //                skin's thickness further in, in its own colour
 //     update()   each frame, after the rig has moved: every row's points carried by their joints, into a texture the
 //                shader reads (a row a strand); each strand's belly swollen or thinned by how much shorter or longer it
 //                stands than at rest, so its volume stays what it was
-//     level(d)   the level of detail for an eye d metres away: the muscles' every ring and every point round it near,
-//                their coarse surface far; the skin's the coarsest of its three that the measure allows there
+//     level(d)   the level of detail for an eye d metres away: every ring and every point round it near, the coarse
+//                surface far
 //
-// In the shader, a muscle's point is found on its curve again, each frame: the curve through its row's points
-// (Catmull-Rom, the same numbers the workers laid it with), the frame there (along it, out, across), and the point's
-// own place in that frame, the part of it that is the muscle's own depth scaled by the belly's swell. A point of a
-// sheet lies between two rows' curves and is carried by both. A point of the skin is carried by its four joints, each
-// by its share (linear blend skinning), and lit as skin is: ../skin/light.js.
+// In the shader, a point is found on its curve again, each frame: the curve through its row's points (Catmull-Rom,
+// the same numbers the workers laid it with), the frame there (along it, out, across), and the point's own place in
+// that frame, the part of it that is the muscle's own depth scaled by the belly's swell. A point of a sheet lies between
+// two rows' curves and is carried by both. A point of the skin is carried by the four bones nearest under it, each by
+// its share (linear blend skinning: the bones' frames at rest kept in a texture of their own).
 import * as THREE from 'three/webgpu';
-import { Fn, If, Discard, attribute, varyingProperty, uniform, float, int, ivec2, vec2, vec3, vec4, textureLoad, normalize, cross, mix, max, pow, clamp, dot, length, smoothstep, sqrt, reflect, positionWorld, positionGeometry, normalWorld, modelWorldMatrix, modelWorldMatrixInverse, mx_noise_float } from 'three/tsl';
+import { Fn, If, attribute, varyingProperty, uniform, float, int, ivec2, vec3, vec4, textureLoad, normalize, cross, mix, max, pow, clamp, dot, abs, length, smoothstep, exp, positionWorld, positionGeometry, modelWorldMatrix, modelWorldMatrixInverse, mx_noise_float } from 'three/tsl';
 import { U } from '../../../src/core/uniforms.js';
 import { finish, skyLight, unlit, sunDim, cloudShade, shadowAtPulled, casterPull } from '../../../src/world/light.js';
 import { CASTS } from '../../../src/world/shadow.js';
 import { SLOTS, COLS } from './layout.js';
-import { pxOn } from '../../../src/detail/measure.js';
-import { ERROR_PX } from '../../../src/detail/error.js';
-import { carriedBy, skinMaterial, eyeOpeningNode, mouthOpeningNode } from '../skin/light.js';
-import { EYE } from '../skin/art.js';
-import { teethOf } from '../skeleton/skull.js';
-import { rigOf } from '../skeleton/pose.js';
 
 /** How far away the far level takes over (m). */
 export const FAR = 7;
-
-/** A skin's joints as numbers the skin's points read (three texels a joint), and the texture of them; none without a skin. */
-function jointsOf(J) {
-  if (!J) return { jointData: null, jointTex: null };
-  const jointData = new Float32Array(4 * 4 * J.length), jointTex = new THREE.DataTexture(jointData, 4, J.length, THREE.RGBAFormat, THREE.FloatType);
-  jointTex.magFilter = jointTex.minFilter = THREE.NearestFilter; jointTex.generateMipmaps = false; jointTex.needsUpdate = true;
-  return { jointData, jointTex };
-}
 
 export function fleshOf(D, { object, bones, eye = uniform(U.uCam.value) }) {
   const rows = D.rows, H = rows.length, data = new Float32Array(COLS * 4 * H);
@@ -53,15 +39,8 @@ export function fleshOf(D, { object, bones, eye = uniform(U.uCam.value) }) {
   for (let i = 0; i < 9; i++) { P.push(new THREE.Vector3()); Q.push(new THREE.Vector3()); }
   const put = (base, col, v) => { const o = base + col * 4; data[o] = v.x; data[o + 1] = v.y; data[o + 2] = v.z; };
   const ghost = new THREE.Vector3();
-  // (a skin's joints: each the 3 x 4 matrix from where a point stood at rest to where the joint has it now, in the
-  // body's own frame; three texels a joint, read by the skin's points: ../skin/light.js carriedBy)
-  const J = D.skin?.joints ?? null, { jointData, jointTex } = jointsOf(J), jm = new THREE.Matrix4(), jt = new THREE.Matrix4();
   function update() {
     inv.copy(object.matrixWorld).invert();
-    if (J) {
-      J.forEach(({ rig, at }, j) => { const e = jm.multiplyMatrices(inv, bones[rig].matrixWorld).multiply(jt.makeTranslation(-at[0], -at[1], -at[2])).elements; for (let r = 0; r < 3; r++) jointData.set([e[r], e[4 + r], e[8 + r], e[12 + r]], (j * 4 + r) * 4); });
-      jointTex.needsUpdate = true;
-    }
     rigs.forEach((n, i) => rel[i].multiplyMatrices(inv, bones[n].matrixWorld));
     for (let r = 0; r < H; r++) {
       const row = rows[r], keys = row.keys, n = keys.length, base = r * COLS * 4;
@@ -94,211 +73,73 @@ export function fleshOf(D, { object, bones, eye = uniform(U.uCam.value) }) {
       geo.setAttribute('place', new THREE.BufferAttribute(S.attr.place, 4));
       geo.setAttribute('pair', new THREE.BufferAttribute(S.attr.pair, 4));
       geo.setAttribute('sec', new THREE.BufferAttribute(S.attr.sec, 4));
-    } else {   // (the skin's: the four joints it hangs on and how much on each; how it curves and how thick the body is under it; the cone its light comes from; its tone)
-      for (const k of ['bone', 'weight', 'feel', 'bent', 'tone']) geo.setAttribute(k, new THREE.BufferAttribute(S.attr[k], 4));
+    } else {   // (the skin's: the four bones it hangs on, and how much on each)
+      geo.setAttribute('bone', new THREE.BufferAttribute(S.attr.bone, 4));
+      geo.setAttribute('weight', new THREE.BufferAttribute(S.attr.weight, 4));
     }
     geo.setAttribute('snor', new THREE.BufferAttribute(S.attr.nor, 3));
     geo.setAttribute('look', new THREE.BufferAttribute(S.attr.look, 4));
-    // (each coarser level the same buffers under its own faces: the skin's three, the muscles' two)
-    const levels = [S.fine, S.coarse, S.far].filter(Boolean).map((index) => { const g = geo.clone(); for (const k of Object.keys(geo.attributes)) g.setAttribute(k, geo.attributes[k]); g.setIndex(new THREE.BufferAttribute(index, 1)); g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.9, 0), 1.4); return g; });
-    const mesh = new THREE.Mesh(levels[0], mat); mesh.frustumCulled = false; mesh.layers.enable(CASTS);
+    const far = geo.clone(); for (const k of Object.keys(geo.attributes)) far.setAttribute(k, geo.attributes[k]);   // (the same buffers)
+    geo.setIndex(new THREE.BufferAttribute(S.fine, 1)); far.setIndex(new THREE.BufferAttribute(S.coarse, 1));
+    for (const g of [geo, far]) g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.9, 0), 1.4);
+    const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.layers.enable(CASTS);
     mesh.renderOrder = order;   // (what covers is drawn before what it covers, so what is hidden is never shaded)
-    mesh.userData.levels = levels; mesh.userData.faces = S.fine.length / 3; mesh.userData.off = S.off ?? null;
+    mesh.userData.levels = [geo, far]; mesh.userData.faces = S.fine.length / 3;
     return mesh;
   };
   // (a muscles' payload of its own, or a body's: its muscles and its skin)
   const M = D.skin || D.muscles?.pos ? D.muscles : D, S = D.skin ?? null;
-  const mats = [materialOf(tex, eye, 'muscle'), S && skinMaterial({ joints: jointTex, eye, maps: S.maps }), S && materialOf(tex, eye, 'fat', D.skinThick ?? 0.0018, jointTex)];
-  const muscles = meshOf(M, mats[0], -1), skin = meshOf(S, mats[1], -3), fat = meshOf(S, mats[2], -2);   // (none of what there is no payload of)
-  if (fat) { fat.geometry = skin.geometry; fat.userData.levels = skin.userData.levels; fat.userData.off = skin.userData.off; }
-  const [eyes, mouth] = S ? [eyesOf(bones, eye), mouthOf(bones, eye)] : [[], []];
-  // Which level an eye d metres away is shown. The skin's by the one measure (src/detail/measure.js): the coarsest of
-  // its levels that stands off the smooth surface by no more than ERROR_PX pixels there (its `off`, metres, measured as
-  // it was laid: ../skin/build.js). The muscles' by their distance, as they were.
-  const want = (m, d) => { const off = m.userData.off; if (!off) return d > FAR ? 1 : 0; let k = 0; while (k + 1 < off.length && pxOn(off[k + 1], d * U.uLodInv.value) <= ERROR_PX()) k++; return k; };
+  // (the skin's bones' frames as the body stands, four texels a row: its middle, along it, out, across)
+  const rest = S ? new THREE.DataTexture(S.rest, 4, H, THREE.RGBAFormat, THREE.FloatType) : null;
+  if (rest) { rest.magFilter = rest.minFilter = THREE.NearestFilter; rest.generateMipmaps = false; rest.needsUpdate = true; }
+  const mats = [materialOf(tex, eye, 'muscle'), S && materialOf(tex, eye, 'skin', 0, rest), S && materialOf(tex, eye, 'fat', D.skinThick ?? 0.0018, rest)];
+  const muscles = meshOf(M, mats[0], -1), skin = meshOf(S, mats[1], -3), fat = S ? meshOf(S, mats[2], -2) : null;
+  if (fat) { fat.geometry = skin.geometry; fat.userData.levels = skin.userData.levels; }
+  const eyes = S ? eyesOf(bones, eye) : [];
+  let lv = 0;
   return {
-    muscles, skin, fat, eyes, mouth, update,
+    muscles, skin, fat, eyes, update,
     counts: { muscles: (D.muscleList ?? M.muscles ?? []).length, strands: H, muscleFaces: muscles?.userData.faces ?? 0, skinFaces: skin?.userData.faces ?? 0 },
-    level(d) { for (const m of [muscles, skin, fat]) if (m) { const g = m.userData.levels[Math.min(m.userData.levels.length - 1, want(m, d))]; if (m.geometry !== g) m.geometry = g; } },
-    dispose() { for (const m of [muscles, skin]) if (m) for (const g of m.userData.levels) g.dispose(); tex.dispose(); jointTex?.dispose(); for (const m of mats) if (m) { for (const t of m.userData.pictures ?? []) t.dispose(); m.dispose(); } for (const e of [...eyes, ...mouth]) { e.geometry.dispose(); e.material.dispose(); } },
+    level(d) { const want = d > FAR ? 1 : 0; if (want === lv) return; lv = want; for (const m of [muscles, skin, fat]) if (m) m.geometry = m.userData.levels[want]; },
+    dispose() { for (const m of [muscles, skin]) if (m) for (const g of m.userData.levels) g.dispose(); tex.dispose(); rest?.dispose(); for (const m of mats) m?.dispose(); for (const e of eyes) { e.geometry.dispose(); e.material.dispose(); } },
   };
 }
 
-// ── the eyes (intent 0042): a ball 24 mm across in each socket, carried by the eye's own joint; and the lashes ────────
-// The ball shows through the opening the skin is cut by (../skin/light.js: the same almond, so the two edges are one
-// line). What makes an eye read as an eye, each drawn here: the white is not white, and lies in the upper lid's shade;
-// the iris sits behind the cornea's bulge (seen from the side it shifts as the eye turns from the looker), with its
-// fibres, a dark ring where it meets the white, and the pupil; the cornea mirrors the sun as one small sharp glint; a
-// wet line lies on the lower lid; the inner corner is pink. Its measures: ../skin/table.js EYE.
+// ── the eyes: a ball 24 mm across in each socket, carried by the eye's own joint ────────────────────────────────────
+// The white, a little bluish and veined towards its edge; the iris (12 mm across) brown-green, its fibres; the pupil
+// (4 mm); the cornea's gloss over them.
 function eyesOf(bones, eye) {
-  const out = [], R = EYE.r, WHITE = [0.62, 0.595, 0.565];   // (the white of the eye: off white, a little darker than paper: in a face it is seldom the brightest thing)
-  for (const [s, side] of [['L', 1], ['R', -1]]) {
+  const out = [];
+  for (const s of ['L', 'R']) {
     const b = bones['eye.' + s]; if (!b) continue;
     const m = new THREE.NodeMaterial(); m.eye = eye;
     m.fragmentNode = Fn(() => {
-      const out = vec4(0).toVar(), p = positionGeometry, o = eyeOpeningNode(vec2(p.x.mul(side), p.y));
-      Discard(o.d.lessThan(-0.0004).or(p.z.lessThan(0)));   // (under the lids, and its back: never seen)
+      const out = vec4(0).toVar();
       If(unlit().not(), () => {
-        const w = positionWorld, V = normalize(eye.sub(w)), L = U.uSunDir, Vl = normalize(modelWorldMatrixInverse.mul(vec4(eye.sub(w), 0)).xyz), rho = length(p.xy);
-        // the iris, 2 mm behind the cornea's front: looked at aslant, what is seen of it lies further along the look
-        const cornea = smoothstep(EYE.iris * 1.14, EYE.iris * 0.92, rho), at = p.xy.sub(Vl.xy.div(max(Vl.z, 0.35)).mul(cornea.mul(0.002))), ri = length(at).div(EYE.iris);
-        const iris = smoothstep(1.0, 0.95, ri), pupil = smoothstep(EYE.pupil / EYE.iris + 0.035, EYE.pupil / EYE.iris - 0.02, ri), dir = normalize(at.add(1e-6));
-        const fibre = mx_noise_float(vec3(dir.x.mul(9), dir.y.mul(9), ri.mul(2.5))).mul(0.5).add(mx_noise_float(vec3(dir.x.mul(26), dir.y.mul(26), ri.mul(6))).mul(0.3));
-        // (a second light, the eye's alone: a face turned to the day mirrors the bright sky before it, high in the
-        // cornea, whichever way the sun stands: the spark a look has. And the iris lit through the cornea from that side
-        // is brightest on its far side)
-        const upW = vec3(0, 1, 0), L2 = normalize(V.add(upW.mul(0.62)).add(normalize(cross(upW, V)).mul(0.4))), L2l = normalize(modelWorldMatrixInverse.mul(vec4(L2, 0)).xyz);
-        const far = clamp(dot(dir, normalize(L2l.xy.add(1e-6)).negate()), 0, 1), lit2 = far.mul(far).mul(smoothstep(0.3, 0.75, ri)).mul(0.7).add(1);
-        // (blue: a pale grey-blue thinning to a darker blue at its rim, a thin tawny ring round the pupil)
-        const stroma = mix(mix(vec3(0.36, 0.5, 0.62), vec3(0.14, 0.24, 0.4), smoothstep(0.35, 0.95, ri)), vec3(0.5, 0.4, 0.26), smoothstep(0.55, 0.38, ri).mul(0.55)).mul(fibre.mul(0.55).add(0.95)).mul(lit2).mul(mix(float(1), float(0.32), smoothstep(0.8, 1.0, ri)));
-        // the white: off white, veined and pinker towards the corners; the inner corner's pink flesh; the lower lid's rim
-        const vein = smoothstep(0.15, 0.75, mx_noise_float(vec3(p.x.mul(700), p.y.mul(1800), 2.3))).mul(smoothstep(0.0062, 0.011, rho)).mul(0.3);
-        let col = mix(vec3(...WHITE), vec3(0.6, 0.35, 0.32), vein);
-        col = mix(mix(col, stroma, iris), vec3(0.008), pupil);
-        col = mix(col, vec3(0.58, 0.4, 0.38), smoothstep(0.24, 0.1, o.t).mul(0.55));   // (pinker into the inner corner)
-        col = mix(col, vec3(0.55, 0.32, 0.29), smoothstep(0.0005, 0.0, o.over).mul(0.8));
-        // its light: soft on a wet ball; dimmer under the upper lid and into the corners
-        const nS = normalize(modelWorldMatrix.mul(vec4(p, 0)).xyz), nC = normalize(modelWorldMatrix.mul(vec4(p.xy.div(0.0078), sqrt(max(float(1).sub(rho.mul(rho).div(0.0078 * 0.0078)), 0.05)), 0)).xyz), n = normalize(mix(nS, nC, cornea));
-        const shade = mix(float(0.32), float(1), smoothstep(0.0002, 0.006, o.under)).mul(mix(float(0.75), float(1), smoothstep(0, 0.002, o.over))).mul(mix(float(0.6), float(1), smoothstep(0.0, 0.14, o.t).mul(smoothstep(1.0, 0.88, o.t))));
-        const sun = U.uSun.mul(sunDim().mul(cloudShade(w)).mul(shadowAtPulled(w))), diff = max(dot(nS, L).mul(0.55).add(0.45), 0);
-        // the sun's glint in the cornea, small and sharp; a broader one on the wet white; the sky mirrored at a grazing look; the wet line
-        const H = normalize(V.add(L)), ndh = max(dot(n, H), 0), ndv = max(dot(n, V), 0), fres = float(0.035).add(float(0.965).mul(pow(float(1).sub(ndv), 5)));
-        const glint = pow(ndh, 1400).mul(9).mul(cornea).add(pow(ndh, 260).mul(0.7)).mul(smoothstep(0.0, 0.0025, o.under));
-        const wet = smoothstep(0.001, 0.0002, o.over).mul(0.22);
-        // (and a small second spark low on the other side, as a window opposite gives: a look that is fond is a wet, bright one)
-        const H2 = normalize(V.add(L2)), nh2 = max(dot(n, H2), 0), H3 = normalize(V.add(normalize(V.sub(upW.mul(0.3)).sub(normalize(cross(upW, V)).mul(0.42))))), nh3 = max(dot(n, H3), 0);
-        const spark = pow(nh2, 360).mul(5).add(pow(nh2, 3500).mul(18)).add(pow(nh3, 2600).mul(6)).mul(cornea).mul(smoothstep(0.0, 0.002, o.under)).mul(smoothstep(0.0, 0.0015, o.over));
-        const lit = col.mul(skyLight(nS).mul(0.8).add(sun.mul(diff))).mul(shade).add(sun.mul(glint.add(wet))).add(skyLight(upW).mul(spark)).add(skyLight(reflect(V.negate(), n)).mul(fres).mul(shade));
-        out.assign(finish(lit, w, eye));
+        const p = normalize(positionGeometry), w = positionWorld, z = p.z, r = length(vec3(p.x, p.y, 0));
+        const iris = smoothstep(0.52, 0.5, r).mul(smoothstep(0.75, 0.85, z)), pupil = smoothstep(0.19, 0.17, r).mul(smoothstep(0.9, 0.95, z));
+        const fib = mx_noise_float(vec3(p.x.mul(60), p.y.mul(60), 0.3)).mul(0.15).add(1);
+        const white = mix(vec3(0.86, 0.84, 0.82), vec3(0.8, 0.62, 0.6), smoothstep(0.5, -0.2, z).mul(0.5));
+        const col = mix(mix(white, vec3(0.32, 0.24, 0.13).mul(fib), iris), vec3(0.02), pupil);
+        const n = normalize(modelWorldMatrix.mul(vec4(p, 0)).xyz), V = normalize(eye.sub(w)), L = U.uSunDir, ndl = dot(n, L), Hh = normalize(V.add(L));
+        const sun = U.uSun.mul(sunDim().mul(cloudShade(w)).mul(shadowAtPulled(w)));
+        const spec = pow(max(dot(n, Hh), 0), 300).mul(2);
+        out.assign(finish(col.mul(skyLight(n).mul(0.6).add(sun.mul(max(ndl, 0)).mul(0.8))).add(sun.mul(spec)), w, eye));
       });
       return out;
     })();
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(R, 40, 28), m);
-    // (and behind it the socket's own: the opening is 30 mm long, the globe 24 across, so at its corners the look goes
-    // past the globe: onto the white going on round it, in the lids' shade, and at the inner corner onto the small
-    // pink mound of flesh there, not into the head)
-    const behind = (off, r, pink) => {
-      const mat = new THREE.NodeMaterial(); mat.eye = eye;
-      mat.fragmentNode = Fn(() => {
-        const out = vec4(0).toVar(), p = positionGeometry.add(vec3(...off)), o = eyeOpeningNode(vec2(p.x.mul(side), p.y));
-        Discard(positionGeometry.z.lessThan(0));   // (not cut along the lids' edges as the globe is: it lies behind the lids, and looked at from the side what is seen past a lid's edge lies outside the opening as drawn from the front)
-        If(unlit().not(), () => {
-          // (the white going on: lit as the globe is where they meet, so no line shows there; the mound by its own round)
-          const w = positionWorld, n = normalize(modelWorldMatrix.mul(vec4(pink ? positionGeometry : p, 0)).xyz), sun = U.uSun.mul(sunDim().mul(cloudShade(w)).mul(shadowAtPulled(w)));
-          const shade = mix(float(0.32), float(1), smoothstep(0.0002, 0.006, o.under)).mul(mix(float(0.75), float(1), smoothstep(0, 0.002, o.over))).mul(mix(float(0.6), float(1), smoothstep(0.0, 0.14, o.t).mul(smoothstep(1.0, 0.88, o.t))));
-          const col = pink ? vec3(0.56, 0.29, 0.27) : vec3(...WHITE);
-          out.assign(finish(col.mul(skyLight(n).mul(0.8).add(sun.mul(max(dot(n, U.uSunDir).mul(0.55).add(0.45), 0)))).mul(shade), w, eye));
-        });
-        return out;
-      })();
-      const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 28, 18), mat); mesh.position.set(...off); return mesh;
-    };
-    const bed = behind([0, 0, -0.00975], 0.0178, false), mound = behind([side * -0.0148, -0.0013, 0.0015], 0.0042, true);
-    b.add(mesh, bed, mound); out.push(mesh, bed, mound, lashesOf(b, side, eye));
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.012, 24, 16), m);
+    b.add(mesh); out.push(mesh);
   }
   return out;
 }
 
-// The smile's teeth and the dark of the mouth behind them, seen through the lips' opening (../skin/light.js cuts it; the
-// skin there stands back on the teeth's faces, ../skin/head.js). The upper row's ten front teeth and the lower's eight
-// (of which a smile shows their edges at most), each with its gum, each a crown where
-// the skull's tooth stands (../skeleton/skull.js teethOf: the skeleton itself is not drawn under the skin): its neck's
-// round section widening to its edge, a cutting tooth thinned there to a blade, the canine drawn to a point. They ride
-// on the head's joint, written where they stand at rest. (Their necks are drawn fuller than the skull's teeth are, so
-// that they stand shoulder to shoulder as teeth in their gum do.)
-function mouthOf(bones, eye) {
-  const b = bones.head; if (!b) return [];
-  const rest = rigOf().head.at, pos = [], idx = [], uv = [], N = 16;
-  // [how far from the neck to the edge (before the neck: under the gum), the share of its half-length along the row, of
-  // its half-thickness across it]: a cutting tooth, a canine, a grinding tooth. Each begins as a collar under the gum,
-  // broad enough to meet its neighbours': the gum is drawn on it (below)
-  const GUM = [[-0.8, 1.12, 1.15], [-0.3, 1.08, 1.04]];
-  const SECT = [
-    [...GUM, [0, 0.9, 0.82], [0.3, 0.97, 0.94], [0.6, 1.02, 0.86], [0.85, 1.03, 0.5], [0.96, 1.0, 0.24], [1.0, 0.93, 0.1]],
-    [...GUM, [0, 0.86, 0.8], [0.3, 0.96, 0.96], [0.6, 1.02, 1.0], [0.82, 0.88, 0.78], [0.96, 0.46, 0.4], [1.0, 0.18, 0.16]],
-    [...GUM, [0, 0.88, 0.74], [0.35, 0.96, 0.88], [0.7, 1.02, 1.0], [0.93, 0.94, 0.88], [1.0, 0.58, 0.5]],
-  ];
-  for (const T of [...teethOf('U').slice(0, 5), ...teethOf('L').slice(0, 4)]) for (const sx of [1, -1]) {
-    const base = pos.length / 3, S = SECT[T.kind], m = (v) => [sx * v[0], v[1], v[2]], ax = m(T.ax), o = m(T.o), t = m(T.t);
-    // (no two grown teeth stand alike: each a hair further out or in, a hair longer or shorter, by its place in the row)
-    const odd = (k) => { const x = Math.sin((T.neck[0] * 9173 + T.neck[1] * 311 + sx * 1.7 + k) * 43.7) * 9999; return (x - Math.floor(x)) * 2 - 1; }, neck = m(T.neck).map((c, i) => c + o[i] * odd(1) * 0.00012 + ax[i] * odd(2) * 0.00012);
-    for (const [f, wl, wt] of S) for (let j = 0; j < N; j++) {
-      const a = (j / N) * 2 * Math.PI, c = Math.cos(a), sn = Math.sin(a), e = 2 / 2.6, cu = Math.sign(c) * Math.abs(c) ** e, u = cu * (T.len / 2) * wl, w = Math.sign(sn) * Math.abs(sn) ** e * (T.thick / 2) * wt;
-      pos.push(neck[0] + ax[0] * T.tall * f + t[0] * u + o[0] * w, neck[1] + ax[1] * T.tall * f + t[1] * u + o[1] * w, neck[2] + ax[2] * T.tall * f + t[2] * u + o[2] * w); uv.push(cu, f);
-    }
-    const tip = pos.length / 3; pos.push(neck[0] + ax[0] * T.tall, neck[1] + ax[1] * T.tall, neck[2] + ax[2] * T.tall); uv.push(0, 1);
-    const quad = (p, q, r, s2) => (sx > 0 ? idx.push(p, q, r, p, r, s2) : idx.push(p, r, q, p, s2, r));
-    for (let k = 0; k < S.length - 1; k++) for (let j = 0; j < N; j++) quad(base + k * N + j, base + k * N + (j + 1) % N, base + (k + 1) * N + (j + 1) % N, base + (k + 1) * N + j);
-    for (let j = 0; j < N; j++) { const p = base + (S.length - 1) * N + j, q = base + (S.length - 1) * N + (j + 1) % N; sx > 0 ? idx.push(p, q, tip) : idx.push(q, p, tip); }
-  }
-  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('tooth', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
-  const lit = (colour, gloss) => {
-    const mat = new THREE.NodeMaterial(); mat.eye = eye;
-    mat.fragmentNode = Fn(() => {
-      const out = vec4(0).toVar();
-      If(unlit().not(), () => {
-        const P = positionGeometry, o = mouthOpeningNode(vec2(P.x.abs(), P.y)), w = positionWorld, n = normalize(normalWorld), V = normalize(eye.sub(w)), L = U.uSunDir;
-        // (in the mouth: under the upper lip's shade, darker towards the corners and further in)
-        const shade = mix(float(0.42), float(1), smoothstep(-0.0005, 0.0045, o.under)).mul(mix(float(1), float(0.4), smoothstep(0.012, 0.026, P.x.abs()))).mul(mix(float(0.75), float(1), smoothstep(-0.0005, 0.002, o.over)));
-        const sun = U.uSun.mul(sunDim().mul(cloudShade(w)).mul(shadowAtPulled(w))), diff = max(dot(n, L).mul(0.6).add(0.4), 0);
-        const col = colour(P);
-        const H = normalize(V.add(L)), fres = float(0.04).add(float(0.96).mul(pow(float(1).sub(max(dot(n, V), 0)), 5)));
-        // (enamel is wet and hard: the sun's glint on it, and the bright sky before the face, as in the eyes)
-        const upW = vec3(0, 1, 0), H2 = normalize(V.add(normalize(V.add(upW.mul(0.62)).add(normalize(cross(upW, V)).mul(0.4))))), spark = pow(max(dot(n, H2), 0), 220).mul(0.9);
-        out.assign(finish(col.mul(skyLight(n).mul(0.85).add(sun.mul(diff))).mul(shade).add(sun.mul(pow(max(dot(n, H), 0), 300)).mul(gloss).mul(shade)).add(skyLight(upW).mul(spark).mul(gloss).mul(shade)).add(skyLight(reflect(V.negate(), n)).mul(fres).mul(gloss).mul(shade)), w, eye));
-      });
-      return out;
-    })();
-    return mat;
-  };
-  // (a tooth by where on it: its enamel ivory, warmer towards the neck, a little clearer and cooler at its edge, in
-  // shade where it turns to its neighbour; and the gum, which comes down between two teeth as a point and stands back
-  // at a tooth's middle, drawn on the tooth's own collar)
-  const teeth = new THREE.Mesh(g, lit(() => {
-    const tv = attribute('tooth', 'vec2'), au = tv.x.abs(), f = tv.y, line = pow(au, 2.4).mul(0.26).sub(0.03), gum = smoothstep(line.add(0.04), line.sub(0.02), f);
-    const enamel = mix(mix(vec3(0.7, 0.63, 0.49), vec3(0.72, 0.69, 0.6), smoothstep(0.08, 0.55, f)), vec3(0.64, 0.67, 0.68), smoothstep(0.84, 1.0, f).mul(0.3)).mul(mix(float(0.5), float(1), smoothstep(1.03, 0.62, au)));
-    return mix(enamel, vec3(0.62, 0.3, 0.3), gum);
-  }, 1));
-  // (the dark behind them: the mouth's inside, never seen but as what is not teeth)
-  const bag = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 18).scale(0.045, 0.024, 0.047).translate(0, 1.609, 0.04), lit(() => vec3(0.09, 0.025, 0.025), 0));
-  for (const mesh of [teeth, bag]) { mesh.position.set(-rest[0], -rest[1], -rest[2]); mesh.frustumCulled = false; b.add(mesh); }
-  return [teeth, bag];
-}
-
-// The lashes: fine hairs along the lids' edges, each a slim three-sided strand from the lid's rim out and curling (the
-// upper ones up, longer in the middle and outwards; the lower ones short, down). They hang on the eye's joint.
-function lashesOf(bone, side, eye) {
-  const pos = [], idx = [], Rl = EYE.r + EYE.lid, rnd = (i) => { const x = Math.sin(i * 127.1 + side * 3.7) * 43758.5453; return x - Math.floor(x); };
-  const add3 = (a, b, k) => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k], unit = (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
-  const strand = (pts, radii) => {
-    const base = pos.length / 3;
-    pts.forEach((c, i) => { const along = unit(i < pts.length - 1 ? [pts[i + 1][0] - c[0], pts[i + 1][1] - c[1], pts[i + 1][2] - c[2]] : [c[0] - pts[i - 1][0], c[1] - pts[i - 1][1], c[2] - pts[i - 1][2]]), e1 = unit([along[1], -along[0], 0.001]), e2 = [along[1] * e1[2] - along[2] * e1[1], along[2] * e1[0] - along[0] * e1[2], along[0] * e1[1] - along[1] * e1[0]];
-      for (let k = 0; k < 3; k++) { const a = (k / 3) * 2 * Math.PI; pos.push(c[0] + (e1[0] * Math.cos(a) + e2[0] * Math.sin(a)) * radii[i], c[1] + (e1[1] * Math.cos(a) + e2[1] * Math.sin(a)) * radii[i], c[2] + (e1[2] * Math.cos(a) + e2[2] * Math.sin(a)) * radii[i]); } });
-    for (let i = 0; i < pts.length - 1; i++) for (let k = 0; k < 3; k++) { const a = base + i * 3 + k, b = base + i * 3 + (k + 1) % 3; idx.push(a, b, a + 3, b, b + 3, a + 3); }
-  };
-  const row = (count, upper) => {
-    for (let i = 0; i < count; i++) {
-      const t = 0.1 + 0.87 * ((i + rnd(i + (upper ? 0 : 500))) / count), u = EYE.inner[0] + (EYE.outer[0] - EYE.inner[0]) * t, tc = Math.min(0.999, Math.max(0.001, t)), base = EYE.inner[1] + (EYE.outer[1] - EYE.inner[1]) * t;
-      const bump = (p) => Math.pow(tc / p, 1.15 * p) * Math.pow((1 - tc) / (1 - p), 1.15 * (1 - p)), v = upper ? base + EYE.upper[0] * bump(EYE.upper[1]) + 0.0002 : base - EYE.lower[0] * bump(EYE.lower[1]) - 0.0002;
-      const root = [u * side, v, Math.sqrt(Math.max(1e-8, Rl * Rl - u * u - v * v))], n = unit(root), fan = (t - 0.45) * side;
-      const len = (upper ? 0.0088 : 0.0046) * (0.5 + 0.5 * Math.sin(Math.PI * Math.min(1, Math.max(0, (t - 0.02) / 0.98)))) * (0.8 + 0.4 * rnd(i * 3 + 1));
-      const d0 = unit(upper ? [n[0] * 0.5 + fan * 0.9, n[1] * 0.5 - 0.2, n[2] * 0.5 + 0.8] : [n[0] * 0.5 + fan * 0.8, n[1] * 0.5 - 0.75, n[2] * 0.5 + 0.55]), mid = add3(root, d0, len * 0.55);
-      const tip = add3(mid, unit(upper ? [d0[0], d0[1] + 1.15, d0[2] + 0.1] : [d0[0], d0[1] - 0.25, d0[2] + 0.35]), len * 0.5);
-      strand([root, mid, tip], [0.00013, 0.0001, 0.00003]);
-    }
-  };
-  row(78, true); row(34, false);
-  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(Float32Array.from(pos), 3)); geo.setIndex(idx);
-  const m = new THREE.NodeMaterial(); m.eye = eye; m.side = THREE.DoubleSide;
-  m.fragmentNode = Fn(() => { const out = vec4(0).toVar(); If(unlit().not(), () => { const w = positionWorld; out.assign(finish(vec3(0.022, 0.014, 0.01).mul(skyLight(vec3(0, 1, 0)).add(U.uSun.mul(sunDim().mul(cloudShade(w))).mul(0.5))), w, eye)); }); return out; })();
-  const mesh = new THREE.Mesh(geo, m); mesh.frustumCulled = false; bone.add(mesh); return mesh;
-}
-
 // ── the looks ────────────────────────────────────────────────────────────────────────────────────────────────────────
 // Muscle red, darker and browner where its fibres part, a wet sheen; tendon and aponeurosis a bluish pearl white,
-// glossier. Fat a lobed yellow, drawn on the skin's own surface a skin's thickness in. (The skin's: ../skin/light.js.)
-// In the light as every surface of the world is (src/world/light.js), as the bones are (../bones.js).
-function materialOf(tex, eye, kind, inset = 0, joints = null) {
+// glossier. Fat a lobed yellow. Skin: a warm tone, mottled a little, its light passing a little under it (warmer at the
+// edge of its shade), an oily sheen; the lips red, the areolae darker, the nails pale and glossy. In the light as every
+// surface of the world is (src/world/light.js), as the bones are (../bones.js).
+function materialOf(tex, eye, kind, inset = 0, rest = null) {
   const m = new THREE.NodeMaterial(); m.eye = eye;
   const at = (col, row) => textureLoad(tex, ivec2(col, row));
   const curve = (row, i, t) => {
@@ -309,7 +150,24 @@ function materialOf(tex, eye, kind, inset = 0, joints = null) {
     return { C, T: normalize(dC), o, k };
   };
   const vN = varyingProperty('vec3', 'vFleshN');
-  if (joints) m.positionNode = carriedBy(joints, inset);   // (the fat: the skin's own points, a skin's thickness in)
+  if (rest) m.positionNode = Fn(() => {
+    // the skin, as a game's is: each of its four bones carries the point and its normal from where that bone stands at
+    // rest to where it stands now, and the point is where they carry it, each by its share
+    const bone = attribute('bone', 'vec4'), wt = attribute('weight', 'vec4'), p0 = positionGeometry, n0 = attribute('snor', 'vec3');
+    const p = vec3(0).toVar(), n = vec3(0).toVar(), R = (k, r) => textureLoad(rest, ivec2(k, r)).xyz;
+    for (const c of ['x', 'y', 'z', 'w']) {
+      If(wt[c].greaterThan(0), () => {
+        const r = int(bone[c]), F = curve(r, int(0), float(0.5)), O = normalize(F.o.sub(F.T.mul(dot(F.o, F.T)))), B = cross(F.T, O);
+        const Tr = R(1, r), Or = R(2, r), Br = R(3, r), d = p0.sub(R(0, r));
+        p.addAssign(F.C.add(O.mul(dot(d, Or))).add(B.mul(dot(d, Br))).add(F.T.mul(dot(d, Tr))).mul(wt[c]));
+        n.addAssign(O.mul(dot(n0, Or)).add(B.mul(dot(n0, Br))).add(F.T.mul(dot(n0, Tr))).mul(wt[c]));
+      });
+    }
+    const nn = normalize(n);
+    vN.assign(normalize(modelWorldMatrix.mul(vec4(nn, 0)).xyz));
+    const q = inset ? p.sub(nn.mul(inset)) : p;   // (the fat: under the skin by the skin's thickness)
+    return q.add(normalize(modelWorldMatrixInverse.mul(vec4(U.uSunDir, 0)).xyz).mul(casterPull().mul(U.uShadowPass)));
+  })();
   else m.positionNode = Fn(() => {
     const place = attribute('place', 'vec4'), pair = attribute('pair', 'vec4'), sec = attribute('sec', 'vec4'), sn = attribute('snor', 'vec3');
     const row = int(place.x), A = curve(row, int(place.y), place.z);
@@ -320,7 +178,8 @@ function materialOf(tex, eye, kind, inset = 0, joints = null) {
     });
     const O = normalize(o.sub(T.mul(dot(o, T)))), B = cross(T, O), kv = mix(float(1), k, place.w);
     const n = normalize(O.mul(sn.x).add(B.mul(sn.y)).add(T.mul(sn.z)));
-    const p = C.add(O.mul(sec.x.mul(kv).add(sec.w))).add(B.mul(sec.y.mul(kv))).add(T.mul(sec.z));
+    let p = C.add(O.mul(sec.x.mul(kv).add(sec.w))).add(B.mul(sec.y.mul(kv))).add(T.mul(sec.z));
+    if (inset) p = p.sub(n.mul(inset));   // (the fat: under the skin by the skin's thickness)
     vN.assign(normalize(modelWorldMatrix.mul(vec4(n, 0)).xyz));
     // (drawn for the shadow, pulled towards the sun as every caster is)
     return p.add(normalize(modelWorldMatrixInverse.mul(vec4(U.uSunDir, 0)).xyz).mul(casterPull().mul(U.uShadowPass)));
@@ -345,6 +204,40 @@ function materialOf(tex, eye, kind, inset = 0, joints = null) {
         const col = vec3(0.86, 0.66, 0.26).mul(float(0.82).add(lobe.mul(0.22)).add(fine.mul(0.05))).mul(mix(vec3(0.6, 0.5, 0.4), vec3(1), open));
         const diff = max(ndl.add(0.3).div(1.3), 0), spec = pow(ndh, 60).mul(0.25);
         out.assign(finish(col.mul(skyLight(n).mul(open.mul(open)).add(sun.mul(diff))).add(sun.mul(spec).mul(max(ndl, 0))), w, eye));
+      } else {
+        const is = (k) => clamp(k === 1 ? look.y : k === 2 ? look.w : look.z, 0, 1), Q = vec3(abs(P.x), P.y, P.z);   // (how much of a lip, an areola, a nail)
+        const near = (c, r) => exp(length(Q.sub(vec3(...c))).div(r).pow(2).negate());   // (a place of the body, softly)
+        // its relief, finer than its points: pores (about a millimetre) and the skin's fine grain, faded with distance
+        const fade = clamp(float(1).sub(length(eye.sub(w)).div(2.5)), 0, 1), bump = (f, e) => { const c = mx_noise_float(P.mul(f)); return vec3(mx_noise_float(P.add(vec3(e, 0, 0)).mul(f)).sub(c), mx_noise_float(P.add(vec3(0, e, 0)).mul(f)).sub(c), mx_noise_float(P.add(vec3(0, 0, e)).mul(f)).sub(c)).div(e); };
+        const g0 = bump(900, 0.0002).mul(0.00007).add(bump(360, 0.0005).mul(0.00004)).add(bump(60, 0.003).mul(0.00012)), gw = modelWorldMatrix.mul(vec4(g0, 0)).xyz.mul(fade.mul(is(3).oneMinus()));
+        const nb = normalize(n.sub(gw.sub(n.mul(dot(gw, n)))));
+        // its colour: a fair skin, mottled; the blood nearer the surface on the cheeks, the nose, the ears, the
+        // knuckles, the elbows, the knees and the feet; the soles paler; veins faint and bluish on the forearm's
+        // inside, the backs of the hands and the tops of the feet; the lips, the areolae, the nails their own
+        const mottle = mx_noise_float(P.mul(40)).mul(0.5).add(0.5), blot = mx_noise_float(P.mul(9).add(3.7)).mul(0.5).add(0.5), pore = mx_noise_float(P.mul(1600));
+        const flush = near([0.045, 1.635, 0.085], 0.03).mul(0.55).add(near([0, 1.634, 0.12], 0.02).mul(0.6)).add(near([0.077, 1.665, -0.02], 0.03).mul(0.6))
+          .add(near([0.225, 0.77, -0.01], 0.05).mul(0.35)).add(near([0.19, 1.14, -0.08], 0.035).mul(0.35)).add(near([0.085, 0.5, 0.08], 0.045).mul(0.35)).add(near([0.08, 0.03, 0.06], 0.07).mul(0.3)).add(blot.mul(0.12));
+        const vmask = near([0.215, 1.0, 0.0], 0.09).add(near([0.23, 0.82, -0.02], 0.05)).add(near([0.085, 0.05, 0.07], 0.06)), ridge = float(1).sub(abs(mx_noise_float(P.mul(vec3(70, 14, 70)))));
+        const vein = smoothstep(0.93, 0.985, ridge).mul(clamp(vmask, 0, 1)).mul(0.55);
+        let base = vec3(0.6, 0.39, 0.28).mul(float(0.93).add(mottle.mul(0.1)).add(pore.mul(0.025)));
+        base = mix(base, base.mul(vec3(1.06, 0.8, 0.78)), clamp(flush, 0, 1));
+        base = mix(base, base.mul(vec3(0.82, 0.88, 1.08)), vein);
+        // (a few freckles, darker and browner, scattered in loose clusters)
+        const freckle = smoothstep(0.5, 0.68, mx_noise_float(P.mul(230))).mul(smoothstep(0.15, 0.55, mx_noise_float(P.mul(6).add(11.3))));
+        base = mix(base, base.mul(vec3(0.74, 0.62, 0.55)), freckle.mul(0.45));
+        base = mix(base, base.mul(vec3(1.08, 1.05, 1.02)), smoothstep(0.012, 0.0, P.y));
+        const col = mix(mix(mix(base, vec3(0.56, 0.24, 0.22), is(1)), vec3(0.36, 0.2, 0.16), is(2)), vec3(0.66, 0.46, 0.42), is(3).mul(0.85)).mul(mix(vec3(0.6, 0.48, 0.44), vec3(1), open));
+        // (the light under the skin: a wrapped diffuse that wraps further in the red, so the shade's edge is warm; and
+        // where the skin is thin, the ears and the nose, the light from behind comes through red)
+        const nl = dot(nb, L), ng = dot(n, L), diff = max(vec3(mix(nl, ng, 0.6), nl, nl).add(vec3(0.32, 0.14, 0.1)).div(vec3(1.32, 1.14, 1.1)), 0);   // (the red from deeper, so from a smoother surface: the pores' and the grain's shade is bluish-grey, not red)
+        const thin = near([0.077, 1.665, -0.02], 0.025).add(near([0, 1.634, 0.12], 0.012).mul(0.5)), through = pow(clamp(dot(V, L.negate()), 0, 1), 4).mul(thin).mul(0.6);
+        // (its sheen: the oil on the skin, two lobes, the sharper on the forehead, the nose and the lips; stronger at a
+        // grazing angle, as every surface's is, F0 = 0.028)
+        const hh = max(dot(nb, Hh), 0), fres = float(0.028).add(float(0.972).mul(pow(float(1).sub(max(dot(nb, V), 0)), 5)));
+        const oily = clamp(near([0, 1.72, 0.1], 0.04).add(near([0, 1.64, 0.115], 0.025)).add(is(1)), 0, 1), sharp = mix(float(60), float(160), oily).mul(mx_noise_float(P.mul(45)).mul(0.3).add(1));   // (and patchy, as the oil lies)
+        const spec = fres.mul(pow(hh, sharp).mul(sharp.add(8).div(25)).add(pow(hh, 14).mul(0.9))).mul(mix(float(0.7), float(1.3), oily)).mul(is(3).mul(1.5).add(1));
+        const lit = col.mul(skyLight(nb).mul(open.mul(open)).add(sun.mul(diff))).add(sun.mul(vec3(0.9, 0.25, 0.12)).mul(through)).add(sun.mul(spec).mul(max(nl, 0)));
+        out.assign(finish(lit, w, eye));
       }
     });
     return out;

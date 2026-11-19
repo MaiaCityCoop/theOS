@@ -6,7 +6,7 @@ export default {
   type: 'material',
   name: "Water",
   kind: 'water',
-  about: 'Ripples and foam: the surface of the river.',
+  about: "Ripples, and foam in the albedo: the river's surface.",
   usedBy: "the river",
   swatch: [0.35, 0.45, 0.5],
   bump: 0.02,   // how deep its relief reads in the normals: larger is flatter

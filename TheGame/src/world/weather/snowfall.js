@@ -7,15 +7,15 @@ import { Fn, float, vec3, vec4, uv, instanceIndex, varyingProperty, positionGeom
 import FALL from '../../../world/snowfall.js';
 import { U } from '../../core/uniforms.js';
 import { rnd } from '../noise.nodes.js';
-import { lit, SNOW } from '../light.js';
+import { finish, skyLight, SNOW } from '../light.js';
 
 const nameOf = (a) => FALL.names.filter(([at]) => a >= at).at(-1)[1];
 
 function flakes(scene) {
   const N = FALL.flakes, B = FALL.box, g = new THREE.InstancedBufferGeometry().copy(new THREE.PlaneGeometry(1, 1)); g.instanceCount = N;   // (an instanced geometry: a plain one draws one)
   const m = new THREE.NodeMaterial(); m.transparent = true; m.depthWrite = false;
-  // (the picture built over time, src/core/temporal.js: a flake moves by itself and says no motion, so it says that what
-  // is kept may not be trusted: the fourth number of its pixels lowered by as much as it covers them, the reactive mask)
+  // (the picture built over time, src/core/temporal.js: a flake moves by itself, and says so as everything that does: the
+  // fourth number of its pixels lowered by as much as it covers them)
   Object.assign(m, { blending: THREE.CustomBlending, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor });
   const i = instanceIndex.toInt(), vCol = varyingProperty('vec3', 'fCol'), r = (s) => rnd(i, i.mul(7).add(13), uint(s));
   // where it is now: hashed in the box, fallen and carried since the start, wrapped round the camera
@@ -30,7 +30,7 @@ function flakes(scene) {
   m.vertexNode = Fn(() => {
     const out = vec4(2, 2, 2, 1).toVar();   // off screen: past the share that falls
     If(float(i).lessThan(U.uSnowFall.mul(N)), () => {
-      vCol.assign(lit({ colour: SNOW, n: vec3(0, 1, 0), w: world, ndl: float(0.4), sun: float(1) }).rgb);   // a flake's light and haze, once per flake: its pixels only draw its dot
+      vCol.assign(finish(SNOW.mul(skyLight(vec3(0, 1, 0)).add(U.uSun.mul(0.4))), world).rgb);   // a flake's light and haze, once per flake: its pixels only draw its dot
       const v = cameraViewMatrix.mul(vec4(world, 1));
       const s = max(size, v.z.negate().mul(0.0035)).min(v.z.negate().mul(0.05));   // (and never a blot over the lens)   // never smaller than a pixel or two: far flakes are specks, not nothing
       out.assign(cameraProjectionMatrix.mul(vec4(v.xy.add(positionGeometry.xy.mul(s)), v.z, 1)));
