@@ -389,12 +389,15 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, off
     }
     sizeTo(D, run.add(uint(WG - 1)).div(uint(WG)));
   })().compute(1);
-  // then each thing it packed: its box, into the arena (a workgroup's 64 of them, whatever bucket each is in)
+  // then each thing it packed: its box, into the arena (a workgroup's 64 of them, whatever bucket each is in). Its
+  // buckets and its rows, uniforms: every culled tier whose boxes are reckoned alike is one pipeline, however many
+  // draws it has (2026-11-19: twelve tiers were twelve compiles at the start, four kinds of box)
+  const uK = uniform(K, 'uint'), uSteps = uniform(stepsOf(K), 'uint'), uS = uniform(S, 'uint');
   const boxes = Fn(() => {
     A.build();
-    const t = wgOf().mul(uint(WG)).add(localId.x), g = lastAtMost((q) => A.at(q, PRE), uG0, uint(K), t, stepsOf(K)).toVar(), k = g.sub(uG0), i = t.sub(A.at(g, PRE));
+    const t = wgOf().mul(uint(WG)).add(localId.x), g = lastAtMost((q) => A.at(q, PRE), uG0, uK, t, uSteps).toVar(), k = g.sub(uG0), i = t.sub(A.at(g, PRE));
     If(i.lessThan(A.at(g, PACK)), () => {
-      const s = offAt ? offAt(k).add(i) : A.at(g, BASE).sub(uBase).add(i), e = s.mul(uint(S)), B = box(data.element(e), data.element(e.add(uint(1))), k), o = A.at(g, BASE).add(i);   // (s: where the packing put it; o: its place in the arena)
+      const s = offAt ? offAt(k).add(i) : A.at(g, BASE).sub(uBase).add(i), e = s.mul(uS), B = box(data.element(e), data.element(e.add(uint(1))), k), o = A.at(g, BASE).add(i);   // (s: where the packing put it; o: its place in the arena)
       A.BOX.element(o).assign(boxOf(B));
     });
   })().compute(MANY, [WG]);
