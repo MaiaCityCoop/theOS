@@ -14,7 +14,9 @@
 //                                the least a frame (a piece, a page, a window), on a time heard on the page's thread
 //                                (ownGpuMs: a busy frame holds it back, and charges its stall to what was handed over
 //                                before it); fewer only on the GPU's own time of it (exact: its timestamps, or the
-//                                frame held), down to one
+//                                frame held), down to one. And most(least): as many as one submission may hold,
+//                                SUBMIT_MS (budget.js) at what one of them took last (each), never fewer than `least`
+//                                (a piece's own least, not the frame's unit: a stall makes pieces smaller)
 //   passBegins(name)             a pass named `name` begins (src/core/gpu.js mark; null: none): the one before ends, and
 //                                its own time on the GPU is added to its name's, as ownGpuMs takes it (from when it
 //                                began, or the GPU was done with all handed before, to when it is done)
@@ -25,7 +27,7 @@
 //                                own time on the GPU, its passes' together, once they are done (null where there is no
 //                                queue to ask): what the governor judges (src/core/governor.js)
 
-import { FRAME_MS, FRAME_MS_BY_CLASS } from './budget.js';
+import { FRAME_MS, FRAME_MS_BY_CLASS, SUBMIT_MS } from './budget.js';
 import { ready } from './settle.js';
 
 // ---- a class's share of the frame ----
@@ -85,12 +87,17 @@ export function spentSince(reader, names) {
     Fewer only where the time is the GPU's own (exact: its timestamps, or the frame held): down to one. */
 export function pace(unit = 1) {
   const P = {
-    n: unit, left: unit, frame: 0, grew: -1,
+    n: unit, left: unit, frame: 0, grew: -1, each: 0,   // (each: what one of them took, ms, as the last of them was measured)
     /** A frame begins: as many as the pace says. */
     tick() { P.frame++; P.left = P.n; },
+    /** As many as one submission may hold: SUBMIT_MS at what one took last (all it is asked, before any is measured),
+        never fewer than `least`, a piece's own least (the ground's maps: a page of texels; the growth map: a
+        workgroup's, its frame's unit a whole window): a stall makes pieces smaller. */
+    most: (least = 1) => (P.each > 0 ? Math.max(least, Math.floor(SUBMIT_MS / P.each)) : Infinity),
     /** `count` of them took `ms` on the GPU (exact: its own time, not one heard on the page's thread), of `budget` ms a
         frame: as many a frame as fit it. */
     measured(count, ms, budget, exact = false) {
+      P.each = ms / count;
       const fit = Math.max(exact ? 1 : unit, Math.floor((budget * count) / ms));
       if (fit < P.n) P.n = fit;
       else if (P.grew !== P.frame) { P.n = Math.min(fit, 2 * P.n); P.grew = P.frame; }   // (more at most once a frame, twice as many at most)
