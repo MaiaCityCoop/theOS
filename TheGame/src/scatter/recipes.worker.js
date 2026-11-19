@@ -20,6 +20,7 @@
 import { meshOf, bandOf, skinOf, bonesOf, herdRooms } from '../../assets/zoo/index.js';
 import { keptGet, keptPut } from '../core/kept.js';
 import { recipe } from '../core/registry.js';
+import '../core/outlines.js';   // (what the build measured of the plants, handed to their kit as the page has it: the page and the workers cut a plant's levels by the same numbers)
 import { BONES } from '../../assets/kit/solid.js';
 import { useBuilder } from '../../assets/kit/surface.js';
 import { build, tailFrom, ready as built } from '../../assets/kit/clusters.js';

@@ -11,20 +11,23 @@ import * as repo from '../server/repo.js';
 
 const ROOT = import.meta.dirname;
 // the registry's manifest (registry.json, tools/registry.js): made at the start, and again whenever a recipe, or what
-// every recipe builds with (SHARED: the dice, the measure), changes; and after it the solids' rooms (rooms.json,
-// tools/rooms.js: measured from their hierarchies, those whose version changed), in a process of their own, one run at
-// a time (a change while one runs: one more after it)
+// every recipe builds with (SHARED: the dice, the measure), changes; and after it what is measured of the recipes, each
+// in a process of its own: the solids' rooms (rooms.json, tools/rooms.js: measured from their hierarchies, those whose
+// version changed) and the plants' outlines (outlines.json, tools/outlines.js: what the page must know of each plant
+// before any of its meshes is made); one run at a time (a change while one runs: one more after it)
+const MEASURES = ['tools/rooms.js', 'tools/outlines.js'];
 let measuring = null, again = false;
-const rooms = () => {
+const measure = () => {
   if (measuring) { again = true; return measuring; }
-  return (measuring = new Promise((res) => spawn(process.execPath, [resolve(ROOT, 'tools/rooms.js')], { stdio: 'inherit' }).on('exit', res)).then(() => { measuring = null; if (again) { again = false; return rooms(); } }));
+  const run = (f) => new Promise((res) => spawn(process.execPath, [resolve(ROOT, f)], { stdio: 'inherit' }).on('exit', res));
+  return (measuring = Promise.all(MEASURES.map(run)).then(() => { measuring = null; if (again) { again = false; return measure(); } }));
 };
 const registry = {
   name: 'registry',
-  async buildStart() { buildRegistry(ROOT); await rooms(); },
+  async buildStart() { buildRegistry(ROOT); await measure(); },
   configureServer(server) {
-    buildRegistry(ROOT); rooms();
-    server.watcher.on('all', (_, file) => { if (FOLDERS.some((d) => file.startsWith(resolve(ROOT, d) + '/')) || SHARED.some((f) => file === resolve(ROOT, f))) { try { buildRegistry(ROOT); rooms(); } catch (e) { console.error('[registry]', e.message); } } });
+    buildRegistry(ROOT); measure();
+    server.watcher.on('all', (_, file) => { if (FOLDERS.some((d) => file.startsWith(resolve(ROOT, d) + '/')) || SHARED.some((f) => file === resolve(ROOT, f))) { try { buildRegistry(ROOT); measure(); } catch (e) { console.error('[registry]', e.message); } } });
   },
 };
 

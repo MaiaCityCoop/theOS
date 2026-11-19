@@ -7,6 +7,7 @@
 // `bun tools/registry.js`.
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import { resolve, join, dirname, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { blake3 } from '@noble/hashes/blake3.js';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 
@@ -56,8 +57,20 @@ export function buildRegistry(root) {
     const { type, name, file, uses } = found[uid]; out[uid] = { type, name, file, version: version(uid), uses };
   }
   const path = resolve(root, 'registry.json'), text = JSON.stringify(out, null, 2) + '\n';
-  if (!existsSync(path) || readFileSync(path, 'utf8') !== text) writeFileSync(path, text);
+  writeIfChanged(path, text);
   return out;
+}
+
+/** Write `text` to `path` unless the file holds it already: what the build and the dev server read is not touched for
+    nothing (the dev server would read it again). The manifest's, the solids' rooms' (tools/rooms.js), the plants'
+    outlines' (tools/outlines.js). */
+export function writeIfChanged(path, text) { if (!existsSync(path) || readFileSync(path, 'utf8') !== text) writeFileSync(path, text); }
+/** A measuring tool's own run (`bun tools/x.js`, or node: not when it is imported): make(root) on the game's folder,
+    timed, and said(what it made), a line. */
+export async function runTool(url, make, said) {
+  if (!process.argv[1] || resolve(process.argv[1]) !== fileURLToPath(url)) return;
+  const t0 = performance.now(), out = await make(resolve(dirname(fileURLToPath(url)), '..'));
+  console.log(`${said(out)}, ${Math.round(performance.now() - t0)} ms`);
 }
 
 if (import.meta.main) { const m = buildRegistry(resolve(import.meta.dir, '..')); console.log(`${Object.keys(m).length} recipes`); }
