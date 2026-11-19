@@ -41,11 +41,12 @@
 import { MeshoptSimplifier as S, MeshoptClusterizer as C } from 'meshoptimizer';
 import { BAND } from '../../src/detail/error.js';
 import { RAMP } from './physics.js';
+import { MAXT } from './surface.js';
 
 /** When meshoptimizer's WebAssembly is ready: build() may be called from then on. */
 export const ready = Promise.all([S.ready, C.ready]);
 export { BAND };
-// A cluster's most triangles, MAXT: the cut draws every cluster it lists as an instance of MAXT × 3 corners (those it
+// A cluster's most triangles, MAXT (surface.js): the cut draws every cluster it lists as an instance of MAXT × 3 corners (those it
 // has not, nothing: src/scatter/cut.js), and tests and lists it as one (a thread, 16 bytes). Measured on the rocks and
 // the made things (2026-11-18): their level 0's clusters hold 95% of MAXT at 64 and at 128 alike, and fewer at 256
 // (the rocks 93%, the fire pit 82%, the tent 43%: more corners drawn for nothing), while from 64 to 128 the clusters
@@ -54,7 +55,7 @@ export { BAND };
 // (the tent's held 62% of MAXT at 192, 79% at 256). MINT: the least the clusterizer may end one at where it lies
 // better so (the fill above is with it). The grouping's own, not measured here: GS, a group's clusters; STUCK, a group
 // left with more than that share of its triangles is stuck; TAIL, the tail ends at that many triangles
-const MAXT = 128, MAXV = 256, MINT = 32, GS = 8, STUCK = 0.85, TAIL = 8;
+const MAXV = 256, MINT = 32, GS = 8, STUCK = 0.85, TAIL = 8;
 /** A normal's weight in the simplifier's error. A normal δ off where the surface is shaded is the shading of the
     surface tilted by δ there: as though it had moved, from the nearest place where it is right, δ times half the way
     (the tilt growing from none to δ). meshoptimizer weighs a change of 1/w in an attribute over a distance d as d of
@@ -69,10 +70,7 @@ const CW = NW;
 
 /** The cluster hierarchy of M (above). */
 export function build(M) {
-  const { V, pos, nor, index } = M, k = M.k ?? 0, attr = M.attr ?? new Float32Array(0), T = index.length / 3;
-  // the simplifier's view of a vertex: its normal and attributes, weighed
-  const AK = 3 + k, A = new Float32Array(V * AK), W = [NW, NW, NW, ...Array.from({ length: k }, (_, j) => M.aw?.[j] ?? CW)];
-  for (let v = 0; v < V; v++) { A.set(nor.subarray(v * 3, v * 3 + 3), v * AK); for (let j = 0; j < k; j++) A[v * AK + 3 + j] = attr[v * k + j]; }
+  const { V, pos, nor, index } = M, X = contextOf(M), { k, attr, AK, A, W, clusters, sphere, merged, make, cut } = X, T = index.length / 3;
   // where corners stand at one place (a seam: a sheet's two sides, a hard edge, a colour's edge): one place, for what
   // touches what and what is locked
   const place = S.generatePositionRemap(pos, 3);
@@ -107,22 +105,6 @@ export function build(M) {
   const held = new Uint8Array(V), sizeOf = new Int32Array(parts.size); for (let v = 0; v < V; v++) if (whole[partOf[v]]) held[v] = 1;
   for (let t = 0; t < T; t++) sizeOf[partOf[index[t * 3]]]++;   // (a part's triangles: one that lies in a group whole may go with it)
 
-  const clusters = [];
-  const sphere = (idx) => { let x = 0, y = 0, z = 0; for (let i = 0; i < idx.length; i++) { const o = idx[i] * 3; x += pos[o]; y += pos[o + 1]; z += pos[o + 2]; } x /= idx.length; y /= idx.length; z /= idx.length; let r = 0; for (let i = 0; i < idx.length; i++) { const o = idx[i] * 3; r = Math.max(r, Math.hypot(pos[o] - x, pos[o + 1] - y, pos[o + 2] - z)); } return { c: [x, y, z], r }; };
-  const merged = (ss) => {
-    if (ss.length === 1) return { c: ss[0].c, r: ss[0].r };
-    const c = new Float32Array(ss.length * 3), r = new Float32Array(ss.length); ss.forEach((s, i) => { c.set(s.c, i * 3); r[i] = s.r; });
-    const b = C.computeSphereBounds(c, 3, r, 1), o = [b.centerX, b.centerY, b.centerZ];
-    return { c: o, r: Math.max(b.radius, ...ss.map((s) => Math.hypot(s.c[0] - o[0], s.c[1] - o[1], s.c[2] - o[2]) + s.r)) };   // (it holds every one of them, exactly)
-  };
-  const make = (idx, self) => { clusters.push({ idx, self, parent: null }); return clusters.length - 1; };
-  // (a list of corners of the whole mesh cut into clusters: meshoptimizer's, its vertices numbered locally)
-  const cut = (idx, l2g) => {
-    if (idx.length / 3 <= MAXT) return [l2g ? Uint32Array.from(idx, (l) => l2g[l]) : idx];
-    const lp = l2g ? localPos(pos, l2g) : pos, b = C.buildMeshletsFlex(idx, lp, 3, MAXV, MINT, MAXT, 0, 2.0), out = [];
-    for (let i = 0; i < b.meshletCount; i++) { const vo = b.meshlets[i * 4], to = b.meshlets[i * 4 + 1], tc = b.meshlets[i * 4 + 3], c = new Uint32Array(tc * 3); for (let j = 0; j < tc * 3; j++) { const v = b.vertices[vo + b.triangles[to + j]]; c[j] = l2g ? l2g[v] : v; } out.push(c); }
-    return out;
-  };
   let pending = cut(index, null).map((idx) => make(idx, { err: 0, ...sphere(idx) }));
   const stats = { levels: 0, stuck: 0, gone: 0, whole: whole.filter(Boolean).length, parts: parts.size };
   const groupOfV = new Int32Array(V), lock = new Uint8Array(V), seen = new Int32Array(V).fill(-1);
@@ -195,20 +177,21 @@ export function build(M) {
     if (!made) break;
     pending = next;
   }
-  // the tail: the last cluster halved again and again, nothing locked, down to a handful of triangles
-  while (pending.length === 1) {
-    const c = clusters[pending[0]], n = c.idx.length; if (n / 3 <= TAIL) break;
-    const g2l = new Map(), l2g = [], lidx = new Uint32Array(n);
-    for (let i = 0; i < n; i++) { const v = c.idx[i]; let l = g2l.get(v); if (l === undefined) { l = l2g.length; g2l.set(v, l); l2g.push(v); } lidx[i] = l; }
-    const lp = localPos(pos, l2g), la = new Float32Array(l2g.length * AK); l2g.forEach((v, l) => la.set(A.subarray(v * AK, v * AK + AK), l * AK));
-    const [out] = S.simplifyWithAttributes(lidx, lp, 3, la, AK, W, null, Math.max(TAIL, Math.floor(n / 6)) * 3, Infinity, ['ErrorAbsolute', 'Permissive']);
-    if (out.length > n * STUCK || out.length < 6) break;
-    const far = morphs([c], out, l2g, g2l, lp, M, k, null), G = { err: Math.max(apart(lidx, out, lp, l2g, nor, attr, k, W), c.self.err * BAND, far), c: c.self.c, r: c.self.r };
-    c.parent = G; pending = [make(Uint32Array.from(out, (l) => l2g[l]), G)]; stats.levels++;
-  }
-  // what nothing replaces: its parent's error never shows
-  for (const c of clusters) if (!c.parent) { c.parent = { err: Infinity, c: c.self.c, r: c.self.r }; morphs([c], null, null, null, null, M, k, null); }
-  return { clusters: clusters.map(({ idx, self, parent, tris, verts, to }) => ({ tris, verts, to, self, parent, n: idx.length / 3 })), V, k, M, stats };
+  // the tail: the last cluster halved again and again (tail)
+  if (pending.length === 1) tail(X, pending, stats);
+  roots(X);
+  return { clusters: records(clusters), V, k, M, stats };
+}
+
+/** The rest of a hierarchy from clusters that are the whole of a surface (start: each { idx: its corners, numbers of
+    M's vertices; self }), as build's ends: made coarser as one group, nothing locked, down to a handful of triangles
+    (tail). { clusters: the start's records first (each with its way to the first made: morphs), then those made }. A
+    hierarchy built by other means hands its coarse end here: assets/kit/diamonds.js. */
+export function tailFrom(M, start) {
+  const X = contextOf(M), stats = { levels: 0 };
+  tail(X, start.map((c) => X.make(c.idx, c.self)), stats);
+  roots(X);
+  return { clusters: records(X.clusters), stats };
 }
 
 /** The clusters of a DAG (build's) any cut between errors lo and hi draws: whose own error is at most hi and whose
@@ -216,6 +199,50 @@ export function build(M) {
 export const bandOf = (D, lo, hi) => D.clusters.filter((c) => c.self.err <= hi && c.parent.err > lo);
 
 // ---- what the build works with ----
+/** M as the simplifier weighs it (a vertex: its normal and attributes, weighed: A, AK a vertex, W), the clusters made
+    so far, and how a cluster is made, cut into clusters and bounded. */
+function contextOf(M) {
+  const { V, pos, nor } = M, k = M.k ?? 0, attr = M.attr ?? new Float32Array(0), clusters = [];
+  const AK = 3 + k, A = new Float32Array(V * AK), W = [NW, NW, NW, ...Array.from({ length: k }, (_, j) => M.aw?.[j] ?? CW)];
+  for (let v = 0; v < V; v++) { A.set(nor.subarray(v * 3, v * 3 + 3), v * AK); for (let j = 0; j < k; j++) A[v * AK + 3 + j] = attr[v * k + j]; }
+  const sphere = (idx) => { let x = 0, y = 0, z = 0; for (let i = 0; i < idx.length; i++) { const o = idx[i] * 3; x += pos[o]; y += pos[o + 1]; z += pos[o + 2]; } x /= idx.length; y /= idx.length; z /= idx.length; let r = 0; for (let i = 0; i < idx.length; i++) { const o = idx[i] * 3; r = Math.max(r, Math.hypot(pos[o] - x, pos[o + 1] - y, pos[o + 2] - z)); } return { c: [x, y, z], r }; };
+  const merged = (ss) => {
+    if (ss.length === 1) return { c: ss[0].c, r: ss[0].r };
+    const c = new Float32Array(ss.length * 3), r = new Float32Array(ss.length); ss.forEach((s, i) => { c.set(s.c, i * 3); r[i] = s.r; });
+    const b = C.computeSphereBounds(c, 3, r, 1), o = [b.centerX, b.centerY, b.centerZ];
+    return { c: o, r: Math.max(b.radius, ...ss.map((s) => Math.hypot(s.c[0] - o[0], s.c[1] - o[1], s.c[2] - o[2]) + s.r)) };   // (it holds every one of them, exactly)
+  };
+  const make = (idx, self) => { clusters.push({ idx, self, parent: null }); return clusters.length - 1; };
+  // (a list of corners of the whole mesh cut into clusters: meshoptimizer's, its vertices numbered locally)
+  const cut = (idx, l2g) => {
+    if (idx.length / 3 <= MAXT) return [l2g ? Uint32Array.from(idx, (l) => l2g[l]) : idx];
+    const lp = l2g ? localPos(pos, l2g) : pos, b = C.buildMeshletsFlex(idx, lp, 3, MAXV, MINT, MAXT, 0, 2.0), out = [];
+    for (let i = 0; i < b.meshletCount; i++) { const vo = b.meshlets[i * 4], to = b.meshlets[i * 4 + 1], tc = b.meshlets[i * 4 + 3], c = new Uint32Array(tc * 3); for (let j = 0; j < tc * 3; j++) { const v = b.vertices[vo + b.triangles[to + j]]; c[j] = l2g ? l2g[v] : v; } out.push(c); }
+    return out;
+  };
+  return { M, pos, nor, attr, k, AK, A, W, clusters, sphere, merged, make, cut };
+}
+/** The tail: what is left (pending: its clusters, the whole surface) made coarser as one group again and again,
+    nothing locked, down to a handful of triangles; each level's error never less than BAND times what it was made of,
+    its sphere holding theirs. */
+function tail(X, pending, stats) {
+  const { M, pos, nor, attr, k, AK, A, W, clusters } = X;
+  for (;;) {
+    const cs = pending.map((ci) => clusters[ci]), n = cs.reduce((s, c) => s + c.idx.length, 0); if (n / 3 <= TAIL) break;
+    const g2l = new Map(), l2g = [], lidx = new Uint32Array(n); let o = 0;
+    for (const c of cs) for (let i = 0; i < c.idx.length; i++) { const v = c.idx[i]; let l = g2l.get(v); if (l === undefined) { l = l2g.length; g2l.set(v, l); l2g.push(v); } lidx[o++] = l; }
+    const lp = localPos(pos, l2g), la = new Float32Array(l2g.length * AK); l2g.forEach((v, l) => la.set(A.subarray(v * AK, v * AK + AK), l * AK));
+    const [out] = S.simplifyWithAttributes(lidx, lp, 3, la, AK, W, null, Math.max(TAIL, Math.floor(n / 6)) * 3, Infinity, ['ErrorAbsolute', 'Permissive']);
+    if (out.length > n * STUCK || out.length < 6) break;
+    const far = morphs(cs, out, l2g, g2l, lp, M, k, null), G = { err: Math.max(apart(lidx, out, lp, l2g, nor, attr, k, W), ...cs.map((c) => c.self.err * BAND), far), ...X.merged(cs.map((c) => c.self)) };
+    for (const c of cs) c.parent = G;
+    pending = X.cut(out, l2g).map((idx) => X.make(idx, G)); stats.levels++;
+  }
+}
+// what nothing replaces: its parent's error never shows
+const roots = (X) => { for (const c of X.clusters) if (!c.parent) { c.parent = { err: Infinity, c: c.self.c, r: c.self.r }; morphs([c], null, null, null, null, X.M, X.k, null); } };
+// the clusters as the record holds them (above)
+const records = (cs) => cs.map(({ idx, self, parent, tris, verts, to }) => ({ tris, verts, to, self, parent, n: idx.length / 3 }));
 const localPos = (pos, l2g) => { const p = new Float32Array(l2g.length * 3); for (let l = 0; l < l2g.length; l++) { const v = l2g[l] * 3; p[l * 3] = pos[v]; p[l * 3 + 1] = pos[v + 1]; p[l * 3 + 2] = pos[v + 2]; } return p; };
 const dropParts = (out, l2g, partOf, gone) => { const keep = []; for (let i = 0; i < out.length; i += 3) if (!gone.has(partOf[l2g[out[i]]])) keep.push(out[i], out[i + 1], out[i + 2]); return Uint32Array.from(keep); };
 
@@ -299,8 +326,9 @@ function lostFrom(out, lp, n) {
   for (let l = 0; l < n; l++) if (!kept[l]) { nearest(G, lp, out, lp[l * 3], lp[l * 3 + 1], lp[l * 3 + 2], R); far = Math.max(far, Math.sqrt(R[0])); }
   return far;
 }
-// a grid over a group's triangles, for the nearest of them to a point
-function gridOf(out, lp) {
+/** A grid over triangles (out: their corners, numbers of the vertices lp holds), for the nearest of them to a point
+    (nearest; tools/hierarchies.js measures a hierarchy by it too). */
+export function gridOf(out, lp) {
   const T = out.length / 3, lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
   for (let i = 0; i < out.length; i++) for (let a = 0; a < 3; a++) { const x = lp[out[i] * 3 + a]; if (x < lo[a]) lo[a] = x; if (x > hi[a]) hi[a] = x; }
   const n = Math.max(1, Math.min(24, Math.round(Math.cbrt(T) * 1.5))), sz = [0, 1, 2].map((a) => Math.max(1e-9, (hi[a] - lo[a]) / n)), cells = new Map();
@@ -315,7 +343,7 @@ function gridOf(out, lp) {
 // three corners]; the cells round the point's, ring by ring, until no nearer one can be left: a triangle in no cell
 // looked at lies wholly outside the block of them, so at least as far as the point is from that block's nearest side
 // (a side at the grid's edge has nothing past it)
-function nearest(G, lp, out, x, y, z, R) {
+export function nearest(G, lp, out, x, y, z, R) {
   const p = [x, y, z], c = [G.at(x, 0), G.at(y, 1), G.at(z, 2)], B = [0, 0, 0]; let best = -1, bd = Infinity;
   const look = (t) => { const d = toTriangle(x, y, z, lp, out[t * 3], out[t * 3 + 1], out[t * 3 + 2], B); if (d < bd) { bd = d; best = t; R[1] = B[0]; R[2] = B[1]; R[3] = B[2]; } };
   for (let r = 0; r <= G.n; r++) {
