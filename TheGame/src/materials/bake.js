@@ -22,10 +22,10 @@
 // steps in the land. Those are always there.
 import * as THREE from 'three/webgpu';
 import { Fn, If, vec2, vec3, vec4, uv, float, uint, uvec2, uvec4, ivec2, uniform, sqrt, clamp, normalize, texture, textureLoad, property, outputStruct, instancedArray, instanceIndex, min, max, dot, round, select, uniformArray, int, renderGroup } from 'three/tsl';
-import { recipes } from '../core/registry.js';
+import { recipes, manifest } from '../core/registry.js';
 import { note, makeOwned } from '../core/gpu.js';
 import { compileFor, inTurn } from '../core/compile.js';
-import { source } from '../core/settle.js';
+import { source, ready as settled } from '../core/settle.js';
 
 const SIZE = 1024, LEVELS = Math.log2(SIZE) + 1;
 const PAINTER = "the world's textures: their painter's tiles";   // (what a material is painted through, while there is something to paint: painter, below)
@@ -145,6 +145,70 @@ export function usedMaterials(of = [...recipes('biome'), ...recipes('asset')]) {
   return ALL.filter((m) => out.has(m.uid));
 }
 
+// ---- what was painted, kept between starts ----
+// A material's layers depend only on what paints it (registry.json `paint`: its own code and numbers, every module it
+// reads, the painter's code and three's version, one hash; the stand-in's, the painter's own) and on the pool's format.
+// Where the GPU packs blocks, what was painted is kept once the world has settled, as its layers hold it, block for
+// block (Cache Storage), and a later start lays it into its layer: no painting program built or compiled, no packing
+// pass, nothing painted (2026-11-19: 28 programs of the first view, 657 KB of WGSL, the slowest to compile). A change to
+// any of what paints it is another key, and a key no material names any more is let go. Where nothing can be kept (no
+// Cache Storage: not a secure page; no room; a refusal), it is painted, as before.
+const STORE = 'maia-painted-1', PAINTER_V = Object.values(manifest).find((r) => r.painter)?.painter;
+/** Material m's key in the store (null: nothing to key it by). */
+const keyOf = (m) => { const h = m.uid === 'stand-in' ? PAINTER_V : manifest[m.uid]?.paint; return h ? new URL(`/__painted/${m.uid}/${SIZE}/${h}`, location.href).href : null; };
+// (a layer as kept: its albedo's blocks, its relief's and its roughness's, each level where the packing lays it (AT,
+// STRIDES: rows of 32 blocks at the least, as a copy between a buffer and a texture wants them); a material of numbers,
+// its own array's texels, each level's rows laid so too)
+const ROWS = (s) => Math.ceil((s * 4) / 256) * 256, DATA_AT = [];
+let DATA_BYTES = 0;
+for (let l = 0; l < LEVELS; l++) { DATA_AT[l] = DATA_BYTES; DATA_BYTES += ROWS(SIZE >> l) * (SIZE >> l); }
+/** Layer i of the pool's textures (data: of the numbers' own array) level by level, as kept: { bytes, levels: [texture,
+    its level, offset, bytes a row, rows, side] }. */
+const levelsOf = (renderer, { A, Nn, Rr, Dd }, i, data) => {
+  const gpu = (x) => renderer.backend.get(x).texture, levels = [];
+  for (let l = 0; l < LEVELS; l++) {
+    if (data) { const s = SIZE >> l; levels.push([gpu(Dd), l, DATA_AT[l], ROWS(s), s, s]); continue; }
+    levels.push([gpu(A), l, AT[l] * 16, STRIDES[l] * 16, SIDES[l], SIDES[l] * 4], [gpu(Nn), l, ROOM * 16 + AT[l] * 16, STRIDES[l] * 16, SIDES[l], SIDES[l] * 4]);
+    if (l > 0) levels.push([gpu(Rr), l - 1, ROOM * 32 + AT[l] * 8, STRIDES[l] * 8, SIDES[l], SIDES[l] * 4]);
+  }
+  return { bytes: data ? DATA_BYTES : ROOM * 40, levels };
+};
+/** The store of what was painted, for the pool's textures on renderer (packed: whether the GPU packs blocks; keepWhen: a
+    promise, when what was painted is kept: the world settled, by default; pool: there(m, layer, data), whether a layer still holds what was painted
+    into it; laid(), one laid out; busy(d), what the start waits on): laidOut(jobs), of [material, layer, data], what an
+    earlier start kept laid into its layer, and the rest (a promise); keepLater(jobs), what was painted, kept once
+    keepWhen comes; kept(), a promise: all of it kept; read(layer, data), a layer as kept (bytes). */
+function storeOf(renderer, textures, packed, keepWhen, pool) {
+  const dev = renderer.backend.device, cache = packed && PAINTER_V && typeof caches !== 'undefined' ? caches.open(STORE).catch(() => null) : Promise.resolve(null);
+  const read = async (i, data = false) => {
+    const L = levelsOf(renderer, textures, i, data), buf = dev.createBuffer({ label: "the world's textures: a layer kept", size: L.bytes, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }), e = dev.createCommandEncoder();
+    for (const [texture, mipLevel, offset, bytesPerRow, rowsPerImage, side] of L.levels) e.copyTextureToBuffer({ texture, mipLevel, origin: { x: 0, y: 0, z: i } }, { buffer: buf, offset, bytesPerRow, rowsPerImage }, { width: side, height: side, depthOrArrayLayers: 1 });
+    dev.queue.submit([e.finish()]);
+    try { await buf.mapAsync(GPUMapMode.READ); return buf.getMappedRange().slice(0); } finally { buf.destroy(); }
+  };
+  const layOut = (i, data, bytes) => { for (const [texture, mipLevel, offset, bytesPerRow, rowsPerImage, side] of levelsOf(renderer, textures, i, data).levels) dev.queue.writeTexture({ texture, mipLevel, origin: { x: 0, y: 0, z: i } }, bytes, { offset, bytesPerRow, rowsPerImage }, { width: side, height: side, depthOrArrayLayers: 1 }); };
+  const laidOut = async (jobs) => {
+    const c = await cache; if (!c) return jobs;
+    pool.busy(1);
+    try {
+      const kept = await Promise.all(jobs.map(async ([m]) => { const k = keyOf(m), r = k && (await c.match(k).catch(() => null)); return r ? r.arrayBuffer().catch(() => null) : null; }));
+      return jobs.filter(([, i, data], n) => { const b = kept[n]; if (!b || b.byteLength !== levelsOf(renderer, textures, i, data).bytes) return true; layOut(i, data, b); pool.laid(); return false; });
+    } finally { pool.busy(-1); }
+  };
+  // (what was painted, kept once keepWhen comes, one at a time: nothing of the start waits for it)
+  const toKeep = [];
+  let keeping = null;
+  const keepAll = async () => {
+    const c = await cache;
+    try {
+      while (c && toKeep.length) { const [m, i, data] = toKeep.shift(), key = keyOf(m); if (key && pool.there(m, i, data)) await c.put(key, new Response(await read(i, data))); }   // (nothing to key it by, or its layer since given to another: not kept)
+      if (c) { const names = new Set([{ uid: 'stand-in' }, ...recipes('material')].map(keyOf)); for (const r of await c.keys()) if (r.url.includes('/__painted/') && !names.has(r.url)) await c.delete(r); }
+    } catch (e) { toKeep.length = 0; console.warn('[textures] what was painted is not kept (Cache Storage refused it): painted again next time', e); }
+    keeping = null;
+  };
+  return { laidOut, read, kept: () => keeping ?? Promise.resolve(), keepLater: (jobs) => { if (!packed) return; toKeep.push(...jobs); keeping ||= (keepWhen ?? settled).then(keepAll); } };
+}
+
 /** The world's textures. Returns how to read them (each a node, as any texture's: with .grad(dx, dy), .level()):
     { layer(material): its number, a(material, uv): its albedo and height, n(material, uv): its relief (.xy: the
     normal's x and y, each 0 … 1), r(material, uv, dx?, dy?): its roughness (a number; dx, dy: how fast uv runs across
@@ -152,11 +216,11 @@ export function usedMaterials(of = [...recipes('biome'), ...recipes('asset')]) {
     there (hold: keep it until release(material)), flush(): paint what reads asked for while shaders were built
     (each frame), used: the materials the world wears, capacity: layers in the pool, packed: whether they are kept
     compressed, ready: a promise, the start's materials painted (they are compiled side by side meanwhile) }.
-    opts: spare (layers beyond what the world wears, for what is asked for besides: the library's pictures); first
+    opts: keepWhen (a promise: what was painted is kept once it is come; the world settled, by default), spare (layers beyond what the world wears, for what is asked for besides: the library's pictures); first
     (the materials painted at the start, held: by default all the world wears; the library's stage paints the land's
     and leaves each subject's to be painted when it is first worn: src/boot.js). A GPU without the formats gets them as
     painted, uncompressed. */
-export function bakeTextures(renderer, { spare = 6, first = null } = {}) {
+export function bakeTextures(renderer, { spare = 6, first = null, keepWhen } = {}) {
   // seen at a low angle a texture is filtered along the slope, several taps a read: four for the colours, two for the
   // relief (its blur is not seen), not eight for both: at eye level the ground is most of the picture and its reads most
   // of a frame's time (a walk in the forest: 23 ms at eight, 19 at four and two, at one and a half pixels a point)
@@ -214,8 +278,9 @@ export function bakeTextures(renderer, { spare = 6, first = null } = {}) {
   const STANDIN = { uid: 'stand-in', bump: 1, paint: () => ({ h: float(0.5), col: vec3(0.25), rough: float(0.8) }) };
   // its tile painted once (quad: its program's), its albedo copied into the tile that is packed (its mipmaps are made
   // as it is copied); then its relief, from the heights, into the same tile (its mipmaps made as the pass ends)
+  let painted = 0, laid = 0;   // (this start's: painted, and laid out as kept: counts)
   const draw = (quad, m, i, data) => {
-    const prev = renderer.getRenderTarget();
+    const prev = renderer.getRenderTarget(); painted++;
     renderer.setRenderTarget(P.raw); renderer.render(quad, P.cam); renderer.setRenderTarget(prev);
     renderer.copyTextureToTexture(P.raw.textures[0], P.tmp.texture);
     if (data) copy(Dd, i); else if (PACKED) pack(i, false); else copy(A, i);
@@ -226,20 +291,25 @@ export function bakeTextures(renderer, { spare = 6, first = null } = {}) {
     }
     quad.material.dispose();
   };
-  const paintInto = (m, i, data = false) => { painter(); P.quad.material = program(m); draw(P.quad, m, i, data); };
+  const paintInto = (m, i, data = false) => { painter(); P.quad.material = program(m); draw(P.quad, m, i, data); keepLater([[m, i, data]]); };
   // The start's materials, painted together: every program is built first and all of them are compiled side by side for
   // the targets they are painted into (a GPU that can compiles them in parallel, and the page goes on with the world
   // meanwhile), then each is painted as above. One at a time, each pass was compiled the moment it was first drawn,
   // one after another, and everything the GPU was asked after it waited (2026-11-15: 48 passes, 22 s of a start of 35
   // in a browser without a GPU). jobs: [material, layer, data].
   const paintAll = (jobs) => {
+    if (!jobs.length) return Promise.resolve();   // (all of them laid out as kept: no painter made, nothing compiled)
     painter(); busy++; const quads = [], all = new THREE.Group();
     for (const [m, i, data] of jobs) { const q = new THREE.Mesh(P.quad.geometry, program(m)); q.frustumCulled = false; all.add(q); quads.push([q, m, i, data]); }
     // (each for its own target, in turn: src/core/compile.js; the packing beside them; then the painting, in its turn too)
     const packing = P.enc ? renderer.compileComputeAsync(P.enc.pass) : null;
     for (const [target, what] of [[P.raw, all], [P.tmp, P.reliefQuad]]) compileFor(renderer, target, what, P.cam).catch(() => {});
-    return inTurn(async () => { await packing; painter(); for (const [q, m, i, data] of quads) draw(q, m, i, data); }).finally(() => { busy--; });
+    return inTurn(async () => { await packing; painter(); for (const [q, m, i, data] of quads) draw(q, m, i, data); keepLater(jobs); }).finally(() => { busy--; });
   };
+
+  // (what was painted, kept between starts: storeOf, below)
+  const store = storeOf(renderer, { A, Nn, Rr, Dd }, PACKED, keepWhen, { there: (m, i, data) => data || m === STANDIN || where[NUM.get(m.uid)] === i, laid: () => laid++, busy: (d) => (busy += d) });
+  const keepLater = store.keepLater;
 
   // the table: a material's number to the layer it lies in, four to a row (0: not there, read the stand-in)
   const rows = Array.from({ length: Math.max(1, Math.ceil(ALL.length / 4)) }, () => new THREE.Vector4()), TABLE = uniformArray(rows, 'vec4').setGroup(renderGroup);   // (sent once a frame, not once a draw)
@@ -269,7 +339,7 @@ export function bakeTextures(renderer, { spare = 6, first = null } = {}) {
   // world reads none of them before `ready`
   const jobs = [[STANDIN, 0, false], ...DATA.map((m, i) => [m, i, true])], now = first && new Set(first.map((m) => m?.uid ?? m));
   for (const m of SEEN) { const k = numberOf(m); if (k < 0 || where[k] || (now && !now.has(m.uid))) continue; held[k] = 1; const layer = take(k); if (layer) { asked[layer] = performance.now(); jobs.push([ALL[k], layer, false]); } }
-  const ready = paintAll(jobs);
+  const ready = store.laidOut(jobs).then((rest) => paintAll(rest));   // (what an earlier start kept, laid out; the rest painted)
   const index = (ref) => { const k = numberOf(ref); if (k >= 0 && !isData(k) && !where[k]) wanted.add(k); return k; };   // (asked for while a shader is built: painted at the next flush)
   const tA = texture(A), tN = texture(Nn), tR = Rr ? texture(Rr) : null, tD = Dd ? texture(Dd) : null;
   const layer = (m) => { const k = m?.isNode ? int(m) : index(m); if (k === -1) return float(0); return TABLE.element(m?.isNode ? k.div(4) : int(k >> 2)).element(m?.isNode ? k.mod(4) : int(k & 3)); };   // (m: a recipe, a uid, or a material's number as a node)
@@ -278,6 +348,11 @@ export function bakeTextures(renderer, { spare = 6, first = null } = {}) {
     layer: index, want, release, flush, used: USED, capacity: CAP - 1, packed: PACKED,
     /** a promise: the start's materials painted (nothing that reads them may be drawn before) */
     ready,
+    /** how many this start painted, and how many it laid out as an earlier one kept them; and a promise: what it painted
+        kept (tools/paints.js) */
+    counts: () => ({ painted, laid }), kept: store.kept,
+    /** the start's layers ({ uid, layer, data }), and one as kept (bytes): what tools/paints.js holds against a start's */
+    layers: () => jobs.map(([m, i, data]) => ({ uid: m.uid, layer: i, data })), read: store.read,
     /** a material's albedo + height at uv */
     a: (m, p) => (data(m) >= 0 ? tD.sample(p).depth(data(m)) : tA.sample(p).depth(layer(m))),
     /** its relief at uv: .xy the normal's x and y */

@@ -29,7 +29,6 @@ import { Fn, If, float, int, uint, vec2, ivec2, uniform, globalId, floor, clamp,
 import { gpuStorage, roomOf } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { ownGpuMs, pace, frameShare } from '../core/pace.js';
-import { SUBMIT_MS } from '../core/budget.js';
 import { source } from '../core/settle.js';
 
 /** Texels a window moves by at once; the most layers that write (a word each). */
@@ -129,8 +128,9 @@ export function createGrowth(renderer, fields) {
   // world is not complete before (settle). Without the GPU's clock to ask (the CPU's stand-in), all of it at once)
   // (its unit: a whole window a frame, every writer's fill and gather, set as the writers are (build): a time heard on the
   // page's thread never takes it under that (src/core/pace.js), so a stall charged to it never starves it, nor the
-  // world's Ready, which waits for it; and a piece never more than SUBMIT_MS by what a workgroup last took (each))
-  const jobs = [], each = { ms: 0 };   // (a job: writer n's rectangle of cells (fill) or texels, x z w h; r, c: its workgroups' rows done, and of the next row)
+  // world's Ready, which waits for it; and a piece never more than SUBMIT_MS by what a workgroup last took (P.most: a
+  // piece as small as a workgroup, the frame still a whole window))
+  const jobs = [];   // (a job: writer n's rectangle of cells (fill) or texels, x z w h; r, c: its workgroups' rows done, and of the next row)
   let P = pace(1);
   source('the growth map', () => jobs.length);
   /** Its next k workgroups at most, as a rectangle: whole rows where k holds one, else part of a row. -> [x, z, w, h, k] */
@@ -146,10 +146,9 @@ export function createGrowth(renderer, fields) {
     let clocked = true;
     while (jobs.length && (P.left > 0 || !clocked)) {
       if (!(jobs[0].w > 0 && jobs[0].h > 0)) { jobs.shift(); continue; }   // (nothing to work out)
-      const most = each.ms > 0 ? Math.max(1, Math.floor(SUBMIT_MS / each.ms)) : Infinity;   // (a piece's own time no more than SUBMIT_MS)
-      const J = jobs[0], [x0, z0, ww, hh, k] = take(J, clocked ? Math.min(P.left, most) : Infinity), kernel = J.fill ? fills[J.n] : passes[J.n], u = J.fill ? uCells : uRect;
+      const J = jobs[0], [x0, z0, ww, hh, k] = take(J, clocked ? Math.min(P.left, P.most()) : Infinity), kernel = J.fill ? fills[J.n] : passes[J.n], u = J.fill ? uCells : uRect;
       const ms = ownGpuMs(renderer, () => { u.value.set(x0, z0, ww, hh); renderer.compute(kernel, [Math.ceil(ww / 8), Math.ceil(hh / 8), 1]); });
-      if (ms) { P.left -= k; ms.then((t) => { each.ms = t / k; P.measured(k, t, frameShare('geometry')); }).catch(() => {}); } else clocked = false;
+      if (ms) { P.left -= k; ms.then((t) => P.measured(k, t, frameShare('geometry'))).catch(() => {}); } else clocked = false;
       if (J.r >= Math.ceil(J.h / 8)) jobs.shift();
     }
     if (!jobs.length && pending) { pending = false; version++; }

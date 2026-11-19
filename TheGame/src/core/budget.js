@@ -60,6 +60,18 @@ export const GPU_MB = 2048;
     1 GiB in WebKit, by the same file). unit: bytes. source: the master, 2026-11-19 (WebKit on the M2: 1.33 GiB; Samuel's
     iPhone on next killed 1-2 s past ready, asked for the Mac's 2 GB) */
 export const MAC_BUFFER = 1431655764;
+/** WebKit's clamp on an iPhone's largest buffer, the floor of a Mac's (Source/WebGPU/WebGPU/HardwareCapabilities.mm: on
+    iOS the less of 1 GiB and maxBufferLength / 3, on a Mac never less than the less of 1 GiB and maxBufferLength): an
+    adapter at or under it is a phone's (src/core/gpu.js shareOf; Chrome's lowest tiers, a phone's or a small machine's,
+    alike). It says no more of the phone above it: every iPhone of 3 GiB of buffer reads 1 GiB. unit: bytes. source:
+    WebKit's HardwareCapabilities.mm (main, 2026-11-19) */
+export const PHONE_BUFFER = 1073741824;
+/** The most of the Mac's budget a phone (PHONE_BUFFER) is held to: under where an iPhone was killed, the page's own and
+    what no pool notes beside it. An iPhone on next was closed by iOS 1.1 s past ready holding 1.07 GB on the GPU, on
+    an adapter of 1.00 GiB, which the Mac's ratio alone gave 1536 MB; this gives it 768 MB, 0.3 GB under where it died.
+    unit: a share of GPU_MB. source: Samuel's iPhone, 2026-11-19 08:51, next 6ff5627 (the start's last note: "Last start
+    closed 1.1 s after it was ready, holding 1.07 GB (geometry 0.61), on an apple GPU of 1.00 GiB, 20 frames drawn") */
+export const PHONE_SHARE = 0.375;
 /** GPU_MB shared out by the frame's classes (src/core/classes.js), what each class's pools may hold together:
       geometry: the plants' and the rocks' meshes, their far ends' atlases (a quarter of it: src/core/classes.js
         SHARE_MB), what the tiers pack and what the culling keeps of it, the growth map the placing reads, the picture
