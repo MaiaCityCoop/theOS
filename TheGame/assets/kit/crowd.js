@@ -237,6 +237,18 @@ const OCTANT = (() => {
   for (let i = 0; i <= n; i++) for (let j = 0; j <= n - i; j++) { const l = hypot(i, j, n - i - j), u = [i / l, j / l, (n - i - j) / l], s = u[0] + u[1] + u[2]; out.push(u.map((x) => (x * sqrt(1 - x * x)) / s)); }
   return out;
 })();
+// (the ways in groups of neighbours, each with its weights at their most: a point a group's most takes no further than
+// is reached already is taken no further by any way of it. Flat arrays: the ways' weights (WAYS), each group's most
+// (MOSTS) and where its ways begin and end (SPANS); OCTANT_MOST, every way's)
+const { WAYS, MOSTS, SPANS, OCTANT_MOST } = (() => {
+  const by = new Map();
+  OCTANT.forEach((w) => { const k = `${Math.round(w[0] * 6)} ${Math.round(w[1] * 6)}`; if (!by.has(k)) by.set(k, []); by.get(k).push(w); });
+  const groups = [...by.values()], WAYS = new Float64Array(OCTANT.length * 3), MOSTS = new Float64Array(groups.length * 3), SPANS = new Uint32Array(groups.length + 1);
+  let at = 0;
+  groups.forEach((ws, g) => { SPANS[g] = at; for (const w of ws) { WAYS.set(w, at * 3); at++; for (let a = 0; a < 3; a++) MOSTS[g * 3 + a] = Math.max(MOSTS[g * 3 + a], w[a]); } });
+  SPANS[groups.length] = at;
+  return { WAYS, MOSTS, SPANS, OCTANT_MOST: [0, 1, 2].map((a) => Math.max(...OCTANT.map((w) => w[a]))) };
+})();
 /** The clumps' error (metres): where their planes draw each chunk's leaves, at the worst leaf and way (OCTANT), and the
     planes' bake's texel on top (TILE of them over the chunk's largest side); the worst chunk's. The leaves of a chunk are
     its sprigs' corners, as the GPU bakes it (its parts: chunksOf). */
@@ -245,8 +257,21 @@ function clumpsErrorOf(chunks, sprigs, P, TILE) {
   for (const C of chunks) {
     const b = C.box, m = [(b[0] + b[3]) / 2, (b[1] + b[4]) / 2, (b[2] + b[5]) / 2], side = max(b[3] - b[0], b[4] - b[1], b[5] - b[2]), D = [];
     for (const p of C.parts) for (const v of sprigs[p].verts) D.push(abs(P[v * 3] - m[0]), abs(P[v * 3 + 1] - m[1]), abs(P[v * 3 + 2] - m[2]));
-    let e = 0;
-    for (const [cx, cy, cz] of OCTANT) for (let i = 0; i < D.length; i += 3) { const x = cx * D[i] + cy * D[i + 1] + cz * D[i + 2]; if (x > e) e = x; }
+    // (every way's weights are nought or more, so no way takes a point further than its bound, each weight at its most
+    // (OCTANT_MOST): a point bound to no more than is reached already is passed by, the rest looked at every way. The
+    // same worst, exactly: what the bound passes by reaches no further. The start reckoned every leaf every way, 325 of
+    // them, for every shape: half the scatter's 5 s, 2026-11-19)
+    let e = 0, at = 0, most = -1;
+    for (let i = 0; i < D.length; i += 3) { const u = OCTANT_MOST[0] * D[i] + OCTANT_MOST[1] * D[i + 1] + OCTANT_MOST[2] * D[i + 2]; if (u > most) { most = u; at = i; } }
+    const reach = (i) => {
+      const x = D[i], y = D[i + 1], z = D[i + 2];
+      for (let g = 0; g + 1 < SPANS.length; g++) {
+        if (MOSTS[g * 3] * x + MOSTS[g * 3 + 1] * y + MOSTS[g * 3 + 2] * z <= e) continue;
+        for (let w = SPANS[g] * 3; w < SPANS[g + 1] * 3; w += 3) { const r = WAYS[w] * x + WAYS[w + 1] * y + WAYS[w + 2] * z; if (r > e) e = r; }
+      }
+    };
+    if (D.length) reach(at);   // (the likeliest farthest first: what it reaches passes most of the rest by)
+    for (let i = 0; i < D.length; i += 3) if (OCTANT_MOST[0] * D[i] + OCTANT_MOST[1] * D[i + 1] + OCTANT_MOST[2] * D[i + 2] > e) reach(i);
     worst = max(worst, e + side / TILE);
   }
   return worst;
