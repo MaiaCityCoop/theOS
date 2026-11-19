@@ -12,8 +12,9 @@ import { BAND } from '../detail/error.js';
 import { camDist, riverInfo, riverNear, heightAt, baseB, roofAt, hashI, BASE } from '../world/land.nodes.js';
 import { OCT_LAM, OCT_AMP } from '../world/land.js';
 import { layerOf, standOf, standFade, CARPET, SLOPES, NO_STAND, SHADE_REACH, CROWNS } from './layers.js';
-import { lit, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
+import { lit, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW, glintOf } from '../world/light.js';
 import { passOf, motion } from '../core/pass.js';
+import { gWrite, lightFamily, FAMILY } from '../core/gbuffer.js';
 import { endOf, bladeLight, tuftShade, underShade, meadowSeen } from '../scatter/grass.js';
 import { reliefShares, reliefOverSnow } from './relief.js';
 import { SOIL_RELIEF } from '../world/physics.js';
@@ -188,19 +189,17 @@ export function terrainMaterial(vt) {
   // one Fn, every value worked out once into a variable and handed on by name: an expression used twice would otherwise be
   // written out twice, the river three times over at every use, which a browser's shader compiler need not fold back
   const vWorld = varyingProperty('vec3', 'tWorld'), vI = varyingProperty('vec4', 'tI'), vN = varyingProperty('vec3', 'tN'), vHill = varyingProperty('float', 'tHill'), vRel = varyingProperty('float', 'tRel');
-  const vertex = Fn((builder) => {
-    const pre = passOf(builder) === 'pre';   // (the prepass needs only where the ground is: src/core/pass.js)
-    const P = gridOf(), wp = P.wp.toVar(), L = landPoint(wp, !pre), dist = camDist(wp).toVar();
+  // (the prepass works out all of it: the land is lit where its pixels are, from what its prepass wrote: below)
+  const vertex = Fn(() => {
+    const P = gridOf(), wp = P.wp.toVar(), L = landPoint(wp, true), dist = camDist(wp).toVar();
     // the relief (src/terrain/relief.js): the ground's own height, as much as the one measure says only geometry can show
     // it (reliefShares), the soil's (not the grass's carpet: its blades stand over it), what of it stands out of the
     // snow; read at the mesh's own spacing there (morphed: what the coarser node's vertex at that point reads, so the
     // levels meet), the same in every pass (the colour pass draws where the prepass's depth is)
     const share = reliefShares(dist, PSTEPS).geometry.toVar(), raise = float(0).toVar();
-    if (pre) vN.assign(vec3(0, 1, 0));
     If(share.greaterThan(0), () => {
       const sp = P.cell.mul(P.k.add(1)), G = vt.read(wp, vec2(sp, 0), vec2(0, sp), dist, { lod: true });
       raise.assign(G.h.sub(0.5).mul(SOIL_RELIEF).mul(share).mul(float(1).sub(G.cv)).mul(reliefOverSnow(snowDepth)));
-      if (pre) vN.assign(landPoint(wp, true).N);   // (the prepass's asks go by the smooth land under it: its normal)
     });
     // past the meadow's blades, its mean top (src/scatter/grass.js meanTop: U.uMeadowTop): the land's own vertices raised
     // by it as much as the meadow covers (the carpet's share, the page's), so what stands there sinks into it as it did
@@ -212,7 +211,7 @@ export function terrainMaterial(vt) {
     });
     vRel.assign(share);
     const h = L.h.add(raise).toVar();
-    if (!pre) { vWorld.assign(vec3(wp.x, h, wp.y)); vI.assign(L.I); vN.assign(L.N); vHill.assign(L.hill); }   // (vWorld without the snow's depth: the light and the air do not need it)
+    vWorld.assign(vec3(wp.x, h, wp.y)); vI.assign(L.I); vN.assign(L.N); vHill.assign(L.hill);   // (vWorld without the snow's depth: the light and the air do not need it; vN the smooth land's, what the pages' asks go by where it is raised)
     // the snow lifts the ground it lies on: what stands on the land sinks into it as deep
     return vec3(wp.x, h.add(snowLiftAt(wp, L.I, L.d)), wp.y);
   });
@@ -226,13 +225,8 @@ export function terrainMaterial(vt) {
   // there: across the eye's ray a pixel's angle, along the slope that over how squarely the ray meets it)
   const smooth = (P) => { const d = length(P.sub(U.uCam)), across = d.mul(2).div(cameraProjectionMatrix.element(1).element(1).mul(U.uIn.y)).mul(U.uFine); return [vec2(across, 0), vec2(0, across.div(abs(normalize(P.sub(U.uCam)).dot(vN)).max(0.02)))]; };
   const frag = Fn((builder) => {
-    // the prepass: it stands still, only the camera moves; and in its fourth number (no other material writes one),
-    // the level of the land's pages its footprint calls for (2 more: 0 is not the land), for the pages to know what is seen
-    // (src/terrain/pages.js ask). The colour pass writes nothing beside its colour: a shader that does loses its early
-    // depth test, and the colour's equal test then misses pixels the prepass drew
     // (where it is raised, by the smooth land's steps, as much as it is raised: by its share)
     const by = (P, [sx, sy]) => { const [mx, my] = smooth(P); return [mix(sx, mx, vRel), mix(sy, my, vRel)]; };
-    if (passOf(builder) === 'pre') { const [dx, dy] = by(positionWorld, steps(positionWorld.xz)); return vec4(motion(positionWorld).xyz, vt.asks(dx, dy)); }
     const p = vWorld.xz, [dx, dy] = steps(p);
     const rdist = length(vWorld.sub(U.uCam)), dist2 = rdist.mul(U.uLodInv);   // the true distance (for the air), and the lens's (for detail)
     const d = abs(vI.x), w = vI.y;
@@ -263,18 +257,40 @@ export function terrainMaterial(vt) {
     // relief: hollows sit in shade, crowns in light (the land's slopes are its own, as far as they show: its octaves
     // are kept that far, src/world/land.nodes.js)
     const relief = mix(0.74, 1.1, smoothstep(-6, 16, vHill));
-    const sunl = max(n.dot(U.uSunDir), 0);
-    const cs = cloudShade(vWorld).toVar();
-    // (under a cloud the sky is dimmer too: the clouds' shade read once, for both; wet, it shines)
     const colour = weathered(mix(c.mul(mix(1, 0.5, wet)), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9).toVar();
-    const sun = cs.mul(sunDim()).mul(shadowAt(vWorld)).mul(float(1).sub(shade)).toVar();
-    const ground = lit({ colour, n, w: vWorld, sun, ndl: sunl, sky: cs.mul(0.3).add(0.7).mul(float(1).sub(shade.mul(0.35))), gloss: wet.mul(0.3), sharp: 48 });
-    // (past the meadow's blades the carpet is their aggregate, lit as they are where the eye meets them (meadowSeen: at
-    // their tips along the ground): src/scatter/grass.js bladeLight; the ground's own light where it is bare, under snow
-    // or under the blades)
-    return mix(ground, lit({ colour, n, w: vWorld, sun, ...bladeLight(n, seen.t) }), cv.mul(float(1).sub(blades)).mul(float(1).sub(snow)));
+    // (wet, it shines: its highlight's own share, where its way and the eye's are at hand; past the meadow's blades,
+    // how much of it is their carpet, lit as they are: landLight)
+    const V = normalize(U.uCam.sub(vWorld)), glint = glintOf(n, V, wet.mul(0.3), 48), carpet = cv.mul(float(1).sub(blades)).mul(float(1).sub(snow));
+    // the prepass: what its light needs, in the G-buffer (src/core/gbuffer.js; lit in the one pass of light: LAND); it
+    // stands still, only the camera moves; and in its motion's fourth number (no other material writes one), the level
+    // of the land's pages its footprint calls for (2 more: 0 is not the land), for the pages to know what is seen
+    // (src/terrain/pages.js ask)
+    if (passOf(builder) === 'pre') {
+      gWrite({ family: FAMILY.land, part: 0, colour, n, w: vWorld, glint, own: [carpet, seen.t, shade] });
+      const [ax, ay] = by(positionWorld, steps(positionWorld.xz));
+      return vec4(motion(positionWorld).xyz, vt.asks(ax, ay));
+    }
+    return landLight({ colour, n, w: vWorld, V, glint, carpet, up: seen.t, shade });   // (drawn with no prepass: a picture of its own)
   });
 
-  const m = new THREE.NodeMaterial(); m.positionNode = vertex(); m.fragmentNode = frag(); m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)
+  const m = new THREE.NodeMaterial(); m.positionNode = vertex(); m.fragmentNode = frag(); m.userData.pre = true; m.userData.deferred = true;   // (it takes part in the prepass, and is lit in the pass of light: no colour pass of its own, src/core/pass.js)
+  sayLight();
   return m;
 }
+
+/** The land lit, as the screen shows it (node code): its colour as its light multiplies it, its way n, where it is w,
+    the way to the eye V, its highlight's own share (glint: wet, it shines), how much of it is the meadow's carpet past
+    its blades (carpet: lit as they are where the eye meets them, meadowSeen, at `up` up them: src/scatter/grass.js
+    bladeLight; the ground's own light where it is bare, under snow or under the blades), and how much of the sun a
+    stand's crowns take from it past where their shadows are drawn (shade: laid). The sun through the clouds (their
+    shade read once: under a cloud the sky is dimmer too) and the shadow map; the sky's light, dimmer in a stand's
+    shade. One light, for the pass of light (sayLight) and for a picture drawn without a prepass. */
+function landLight({ colour, n, w, V, glint, carpet, up, shade }) {
+  const cs = cloudShade(w).toVar(), sun = cs.mul(sunDim()).mul(shadowAt(w)).mul(float(1).sub(shade)).toVar();
+  const ground = lit({ colour, n, w, V, sun, sky: cs.mul(0.3).add(0.7).mul(float(1).sub(shade.mul(0.35))), glint });
+  return mix(ground, lit({ colour, n, w, V, sun, ...bladeLight(n, up) }), carpet);
+}
+let said = false;
+/** The land's light, said once (src/core/gbuffer.js lightFamily): its pixels lit where its prepass left them, by
+    landLight, its numbers as gWrite took them (above). */
+const sayLight = () => { if (!said) { said = true; lightFamily(FAMILY.land, (f) => { const [carpet, up, shade] = f.own; return landLight({ colour: f.colour, n: f.n, w: f.w, V: f.Ve, glint: f.glint, carpet, up, shade }); }); } };
