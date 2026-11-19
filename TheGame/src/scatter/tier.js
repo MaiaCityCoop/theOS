@@ -488,9 +488,9 @@ export function ready() {
 // it took longer, at most twice as many a frame where it took less. Where a packing lets nothing go (a region filled
 // in, a piece at a time) it only adds to the store it holds: nothing is copied forward.
 // From one piece a tier, a workgroup's cells, at the start.
-const CELLS = pace(WG), FRAME = { asked: 1, asking: 0 };   // (the frame's cells; and how many tiers asked for cells the frame before, how many ask in this one)
+const CELLS = pace(WG), FRAME = {};   // (the frame's cells; and, each frame: how many tiers asked for cells the frame before, how many ask in this one)
 /** Each frame, before any tier packs (src/scatter/index.js select): the frame's cells to share out. */
-export const tick = () => { CELLS.tick(); FRAME.asked = Math.max(1, FRAME.asking); FRAME.asking = 0; };
+export const tick = () => { CELLS.tick(); FRAME.asked = Math.max(1, FRAME.asking ?? 0); FRAME.asking = 0; };
 /** A tier's share of this frame's cells. */
 const shareOf = () => CELLS.n / FRAME.asked;
 /** A packing of `cells` handed to the GPU (submit()), its own time measured: the frame's cells follow it (above).
