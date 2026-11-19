@@ -15,6 +15,14 @@ export const FPS = 60;
     4.2 s, the device lost 38 s in). tools/gate/device.js watch keeps every one over it with what it held, in the
     device's run and the walks. unit: ms. source: the master, 2026-11-19 ("no GPU submission over 50 ms") */
 export const SUBMIT_MS = 50;
+/** The longest one piece of the page's own work may hold its thread: a frame, from its begin to the next one's, with
+    what runs between the two (a worker's message, what an await resumes, a timer). Longer, the picture stops, and what
+    the GPU has done is heard late (2026-11-19, WebKit, the master's check of 969339e: submissions done 315-403 ms late
+    with no pass in them, every 0.4 s, 15-25 s past ready: the page's thread stalled, not the GPU). src/core/frames.js
+    counts the frames longer, and the gate says the slowest with their parts (tools/gate/device.js). unit: ms. source: the
+    master, 2026-11-19 (smooth walks: every frame over 50 ms, with its parts); the web's own long task (W3C Long Tasks
+    API: a task of over 50 ms) */
+export const TASK_MS = 50;
 /** The hard gate on memory: the whole browser, every process of it (the page, the GPU's, the browser's own; tools/gate.js
     paths measures it so). unit: bytes. source: Intents/0038, Define (the hard gates) */
 export const MEMORY = 8e9;

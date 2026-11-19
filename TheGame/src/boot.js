@@ -30,6 +30,7 @@ import { createGovernor } from './core/governor.js';
 import { createHud } from './core/hud.js';
 import { useGPU, askedLimits, ledger } from './core/gpu.js';
 import { taken, busy, changed } from './core/work.js';
+import { part as framePart, begin as frameBegins, enter as frameIn, end as frameEnds, now as frameSoFar, take as framesTaken } from './core/frames.js';   // where each frame's time went on the page's thread: __game.frames()
 import { settle, ready as firstView, drawn, waiting, watch, tick, partOf, leave } from './core/settle.js';
 import { bakeTextures } from './materials/bake.js';
 import { createTerrain, landMaterials } from './terrain/terrain.js';
@@ -115,7 +116,7 @@ export async function boot({ profile = 'world' } = {}) {
   // the picture built over time come to rest on it; ready: the same for the page's first view; waiting(): what is still
   // out. What the gate waits on, never a timer: src/core/settle.js)
   let shown = null; const first = new Promise((res) => (shown = res));   // (the stage's first subject in: its first view is complete once it has settled)
-  const game = (window.__game = { profile, renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 }, settle, ready: world ? firstView : first.then(() => settle()), waiting, compiles, memory: ledger });   // memory(): the GPU's memory, the one ledger (src/core/gpu.js)
+  const game = (window.__game = { profile, renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 }, settle, ready: world ? firstView : first.then(() => settle()), waiting, compiles, memory: ledger, frames: framesTaken });   // memory(): the GPU's memory, the one ledger (src/core/gpu.js); frames(): the slowest frames since it was last asked, part by part (src/core/frames.js)
   const bounds = world && flag('bounds') ? showBodies(scene) : null;   // ?bounds: what is solid round the walker drawn as lines, in every world (src/world/bodies.js)
   const U = createUniforms(camera);
   setImpostorRenderer(renderer);
@@ -186,10 +187,11 @@ export async function boot({ profile = 'world' } = {}) {
 
   // ---- a frame: place the camera, choose what to draw, draw ----
   const projScreen = new THREE.Matrix4();
-  const parts = { ctl: 0, ground: 0, terrain: 0, scatter: 0, draw: 0 };   // where a frame's time went, for the hitch log
+  // (a frame's parts on the page's thread, by name: src/core/frames.js; what it encodes is named by its passes' marks)
+  const PART = Object.fromEntries(Object.entries({ materials: 'materials', lakes: 'lakes', controls: 'controls', ground: 'ground update', terrain: 'terrain update', scatter: 'scatter select', draw: 'draw', veil: 'the veil', governor: 'governor', settle: 'settle', hud: 'hud' }).map(([k, n]) => [k, framePart(n)]));
   const live = () => !!grown?.live && (grown.into === scene || grown.into.parent === scene);   // (what grows on the land is drawn: packed, and in the world)
   function choose(dt) {
-    let t = performance.now(), u;
+    frameIn(PART.controls);
     controls?.update(dt); sky.update(dt); weather.update(dt);
     const p = camera.position, dy = (U.uDy.value = Math.max(0, p.y - heightAt(p.x, p.z) - 2, HMIN - p.y));   // how high above the ground here: lifted, the grass and stones see it far off (intent 0003)
     U.uAirH.value = Math.max(0, p.y - heightAt(p.x, p.z));   // the height fog thins along a line of sight from up here (src/world/light.js)
@@ -200,14 +202,13 @@ export async function boot({ profile = 'world' } = {}) {
     U.uLodInv.value = 1 / lod;
     measureNow();   // (the live pixel and the dial, as the governor left them: src/detail/measure.js)
     const far = farthest() * lod; if (!(Math.abs(camera.far - far) <= far * 0.01)) { camera.far = far; camera.updateProjectionMatrix(); }   // (as far as the largest thing is drawn through this lens: src/detail/extent.js)
-    u = performance.now(); parts.ctl = u - t; t = u;
+    frameIn(PART.ground);
     if (live()) grown.ground.update(p.x, p.z, dy, lod);
-    u = performance.now(); parts.ground = u - t; t = u;
+    frameIn(PART.terrain);
     terrain.update(camera, dy, 1 / lod);
-    u = performance.now(); parts.terrain = u - t; t = u;
+    frameIn(PART.scatter);
     if (live()) grown.scatter.select(p.x, p.z, heightAt(p.x, p.z), lod, dy);
     bounds?.(p.x, p.z);
-    parts.scatter = performance.now() - t;
   }
   function draw() {
     const gy = heightAt(camera.position.x, camera.position.z);
@@ -216,11 +217,17 @@ export async function boot({ profile = 'world' } = {}) {
   }
   let last = 0, wasBusy = false, veiled = false, drawnAt = -1, quiet = false;
   const veil = (game.veil = { frames: 0, drawn: 0, longest: 0 });   // (the frames behind the veil: how many, how many drawn, the longest between two, ms: __game.veil)   // (drawnAt: the turns over when the last frame behind the veil was drawn; quiet: it changed nothing)
+  /** A frame, its parts timed (src/core/frames.js). */
   function frame(now) {
     requestAnimationFrame(frame);
+    frameBegins();
+    try { step(now); } finally { frameEnds(); }
+  }
+  function step(now) {
     const ms = last ? now - last : 16.7; last = now;
     U.uTime.value = (now - t0) / 1000;
-    tex.flush();   // (materials asked for since the last frame: src/materials/bake.js)
+    frameIn(PART.materials); tex.flush();   // (materials asked for since the last frame: src/materials/bake.js)
+    frameIn(PART.lakes);
     if (lakes) { lakes.update(camera); if (lakes.version !== lakesSeen) { lakesSeen = lakes.version; grown.ground.refresh(); terrain.refresh(); quiet = false; } }   // (new lakes: the ground under the camera drawn again, and its layers)
     // (behind the veil, a frame that would be the last one drawn again is not drawn: nothing was made since it, and it
     // changed nothing. three's compile, building a material's code, yields to the page for a frame to be drawn after
@@ -237,21 +244,26 @@ export async function boot({ profile = 'world' } = {}) {
     // frame drawn for them drew the whole world, and three's next step waited for it; 263 of the 469 frames behind the
     // veil were drawn so, in Chrome on main 093a56f, the master's log, and 40 asks spent 34 s on the page's thread, of
     // some 0.5 s of building, bun's. They come in between turns, and after the veil)
+    frameIn(PART.veil);
     const M = making();
     if (veiled && drawnAt === M.ended && (quiet || M.active)) { renderer.setRenderTarget(null); renderer.clear(); tell(); return; }
     if (veiled) veil.drawn++;
+    frameIn(PART.governor);
     renderer.info.reset();
     governor.begin();
     const c0 = performance.now();
     // (a film's footage fills the picture, cine/media.js: the world under it is neither chosen nor drawn, the GPU is the video's)
-    if (!game.covered) { choose(Math.min(ms, 100) / 1000); hud?.cpu(performance.now() - c0); const d0 = performance.now(); draw(); parts.draw = performance.now() - d0; }
+    if (!game.covered) { choose(Math.min(ms, 100) / 1000); hud?.cpu(performance.now() - c0); frameIn(PART.draw); draw(); }
+    frameIn(PART.governor);
     // (the time since the last frame is that frame's: what it did besides drawing is told with it. Not behind the veil:
     // the start's frames are long for what it makes, not for its pixels, and the governor's look begins at the first
     // frame shown. A ratio it turned there changed the inside's pixels, which the land's pages take for a new view and
     // ask for again: in WebKit, 943 never laid, and the veil never lifted, 2026-11-18)
     if (!veiled) governor.end(ms, now, live() && grown.scatter.over, wasBusy);
     wasBusy = busy();
+    frameIn(PART.settle);
     if (!game.covered) tick(changed());   // (whether the world is complete: src/core/settle.js)
+    frameIn(PART.hud);
     if (veiled) { drawnAt = making().ended; quiet = !changed(); tell(); game.work = taken(); } else hitch(ms, now);   // (the start's frames, behind the veil: what they wait for told, not logged as the game's; what each did let go all the same, or every frame after the first that did anything would count as changing what is drawn, and the world would never be complete)
     hud?.frame(ms, now, controls && controls.band !== 'eye' ? `  ${controls.band} ${Math.round(controls.height)} m` : '');
   }
@@ -266,7 +278,7 @@ export async function boot({ profile = 'world' } = {}) {
     frames++; const work = (game.work = taken());   // (what the frame did besides drawing: src/core/work.js; the last frame's, read as window.__game.work)
     if (ms > HITCH && frames > 30) {
       const r = renderer.info.render, c = window.__cine, f = (v) => +v.toFixed(2);
-      hitches.push({ at: Math.round(now), ms: f(ms), ctl: f(parts.ctl), ground: f(parts.ground), terrain: f(parts.terrain), scatter: f(parts.scatter), draw: f(parts.draw),
+      hitches.push({ at: Math.round(now), ms: f(ms), parts: frameSoFar(),
         lod: f(governor.lod), cap: f(governor.cap), dpr: governor.dpr, resizes, w: innerWidth, h: innerHeight, tris: r.triangles, calls: r.drawCalls ?? r.calls, film: c?.clips?.length ? f(c.time) : null, playing: !!c?.playing, page: location.pathname + location.search, ...(Object.keys(work).length ? { work } : {}) });
     }
     if (import.meta.env.DEV && now - sentAt > 4000 && (hitches.length || frames > 0)) {
