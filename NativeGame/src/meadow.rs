@@ -33,6 +33,30 @@ struct Moon;
 #[derive(Component)]
 struct Stars;
 
+/// The image the grass world is drawn into, and the full-window picture that shows it.
+#[derive(Resource)]
+struct Frame(Handle<Image>);
+#[derive(Component)]
+struct Backdrop;
+
+/// The size the world is drawn at for a window of `w` × `h` physical pixels: 1080 rows at most, the window's shape.
+fn frame_size(w: u32, h: u32) -> UVec2 {
+    let s = (1080.0 / h.max(1) as f32).min(1.0);
+    UVec2::new(((w as f32 * s).round() as u32).max(1), ((h as f32 * s).round() as u32).max(1))
+}
+
+/// Keeps the frame the window's shape when the window is resized.
+fn reframe(frame: Option<Res<Frame>>, window: Query<&Window, With<bevy::window::PrimaryWindow>>, mut images: ResMut<Assets<Image>>) {
+    let (Some(frame), Ok(w)) = (frame, window.single()) else { return };
+    let want = frame_size(w.physical_width(), w.physical_height());
+    if let Some(img) = images.get(&frame.0)
+        && img.size() != want
+        && let Some(mut img) = images.get_mut(&frame.0)
+    {
+        img.resize(bevy::render::render_resource::Extent3d { width: want.x, height: want.y, depth_or_array_layers: 1 });
+    }
+}
+
 /// The grass world's camera.
 #[derive(Component)]
 pub struct Eye2;
@@ -47,9 +71,10 @@ struct Field {
     growing: HashMap<(i32, i32), (Task<Mesh>, i32)>,
 }
 
-/// The ring class of a chunk `ring` chunks from the camera's: rings 0 and 1 are one class (full detail).
+/// The ring class of a chunk `ring` chunks from the camera's: rings 0 and 1 are one class (full detail), rings 7 and out
+/// another.
 fn class(ring: i32) -> i32 {
-    ring.clamp(1, 5)
+    ring.clamp(1, 7)
 }
 
 /// Grows and drops chunks around the camera; at most a few new ones a frame, nearest first.
@@ -136,7 +161,7 @@ pub fn plugin(app: &mut App) {
         .add_systems(OnExit(View::Studio), leave)
         .add_systems(
             Update,
-            (stream, crate::ground::follow, crate::clouds::drift).run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio)),
+            (stream, reframe, crate::ground::follow, crate::clouds::drift).run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio)),
         )
         .add_systems(Update, (hours, sun).chain().run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio)));
 }
@@ -156,6 +181,7 @@ fn enter(
     mut plain: Query<&mut Visibility, With<Plain>>,
     mut eye: Query<(Entity, &mut Camera), With<Eye>>,
     mut walker: ResMut<Walker>,
+    window: Query<&Window, With<bevy::window::PrimaryWindow>>,
 ) {
     for mut v in &mut plain {
         *v = Visibility::Hidden;
@@ -208,14 +234,33 @@ fn enter(
     // the clouds: fair-weather cumulus 1.5 km up, drifting with the wind
     commands.spawn((GrassWorld, MEADOW, crate::clouds::layer(&mut meshes, &mut materials, &mut images, 0.45)));    // the parts that cost time, each switchable for measuring: MEADOW_NO_<PART>=1
     let off = |part: &str| std::env::var_os(format!("MEADOW_NO_{part}")).is_some();
+    // the world is drawn at 1080p (the gate), not at the window's full Retina size (about five times the pixels), into
+    // an image the interface then shows over the whole window; the interface itself stays sharp on top
+    let size = window.single().map(|w| frame_size(w.physical_width(), w.physical_height())).unwrap_or(UVec2::new(1920, 1080));
+    let frame = images.add(bevy::image::Image::new_target_texture(
+        size.x,
+        size.y,
+        bevy::render::render_resource::TextureFormat::Rgba8Unorm,
+        Some(bevy::render::render_resource::TextureFormat::Rgba8UnormSrgb),
+    ));
+    commands.insert_resource(Frame(frame.clone()));
+    commands.spawn((GrassWorld, Camera2d, Camera { order: 2, ..default() }, IsDefaultUiCamera));
+    commands.spawn((
+        GrassWorld,
+        Backdrop,
+        Pickable::IGNORE,
+        GlobalZIndex(-1),
+        ImageNode::new(frame.clone()),
+        Node { position_type: PositionType::Absolute, width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() },
+    ));
     let mut cam = commands.spawn((
         GrassWorld,
         MEADOW,
         Eye2,
         Camera3d::default(),
         Camera { order: 1, ..default() },
-        IsDefaultUiCamera,
-        Projection::Perspective(PerspectiveProjection { near: 0.05, far: 20_000.0, ..default() }),
+        bevy::camera::RenderTarget::Image(frame.into()),
+        Projection::Perspective(PerspectiveProjection { near: 0.05, far: 500_000.0, ..default() }),
         Transform::from_xyz(0.0, 1.6, 0.0),
         Exposure { ev100: 13.0 },
         // AgX keeps greens green and a bright evening sky soft; ACES pushed the grass toward yellow
@@ -255,12 +300,12 @@ fn enter(
     commands.spawn((
         GrassWorld,
         MEADOW,
-        Mesh3d(meshes.add(crate::grass::ground(8_000.0, 200))),
+        Mesh3d(meshes.add(crate::grass::ground(400_000.0, 400))),
         // the grass carpet: the blades' colours as a fine texture, so past the blades the field goes on to the horizon
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::WHITE,
             base_color_texture: Some(images.add(crate::grass::carpet())),
-            uv_transform: bevy::math::Affine2::from_scale(Vec2::splat(8_000.0 / 2.5)),
+            uv_transform: bevy::math::Affine2::from_scale(Vec2::splat(400_000.0 / 2.5)),
             perceptual_roughness: 0.9,
             ..default()
         })),
@@ -284,6 +329,7 @@ fn leave(
         commands.entity(e).despawn();
     }
     commands.remove_resource::<Field>();
+    commands.remove_resource::<Frame>();
     commands.insert_resource(GlobalAmbientLight::default());
 }
 

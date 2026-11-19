@@ -53,7 +53,7 @@ struct PlayLabel;
 
 pub fn plugin(app: &mut App) {
     app.init_resource::<Fonts>()
-        .add_systems(OnEnter(View::Home), home)
+        .add_systems(OnEnter(View::Home), (home, release))
         .add_systems(OnEnter(View::Game), game)
         .add_systems(OnEnter(View::Studio), studio)
         .add_systems(OnEnter(View::Meadow), meadow)
@@ -176,7 +176,7 @@ fn game(mut commands: Commands, f: Res<Fonts>) {
             (
                 Node { height: Val::Px(40.0), padding: UiRect::horizontal(Val::Px(18.0)), align_items: AlignItems::Center, border_radius: BorderRadius::MAX, ..default() },
                 BackgroundColor(GLASS),
-                children![text(&f.mono, 13.0, FOREST, "W A S D walk · hold the mouse to look · Shift runs · E Q rise and sink · Esc home")],
+                children![text(&f.mono, 13.0, FOREST, "click to look · W A S D walk · Shift runs · scroll to rise · Esc lets go")],
             ),
         ],
     ));
@@ -201,7 +201,7 @@ fn meadow(mut commands: Commands, f: Res<Fonts>) {
             (
                 Node { height: Val::Px(40.0), padding: UiRect::horizontal(Val::Px(18.0)), align_items: AlignItems::Center, border_radius: BorderRadius::MAX, ..default() },
                 BackgroundColor(GLASS),
-                children![text(&f.mono, 15.0, FOREST, "W A S D walk · hold the mouse to look · [ ] the hour · Esc home")],
+                children![text(&f.mono, 15.0, FOREST, "click to look · W A S D walk · Shift runs · scroll to rise · Esc lets go")],
             ),
             // the wind and the hour, top right: drag or click a bar
             (
@@ -458,9 +458,31 @@ fn hover(mut q: Query<(&Hovered, &mut Node), HoverChanged>) {
     }
 }
 
-fn escape(keys: Res<ButtonInput<KeyCode>>, state: Res<State<View>>, mut next: ResMut<NextState<View>>) {
-    if keys.just_pressed(KeyCode::Escape) && *state.get() != View::Home {
+/// Escape lets a captured mouse go first; pressed again, it goes home. Leaving a view always lets the mouse go.
+fn escape(
+    keys: Res<ButtonInput<KeyCode>>,
+    state: Res<State<View>>,
+    mut next: ResMut<NextState<View>>,
+    mut cursor: Query<&mut bevy::window::CursorOptions>,
+) {
+    if !keys.just_pressed(KeyCode::Escape) || *state.get() == View::Home {
+        return;
+    }
+    let mut was_captured = false;
+    for mut c in &mut cursor {
+        was_captured |= c.grab_mode != bevy::window::CursorGrabMode::None;
+        c.grab_mode = bevy::window::CursorGrabMode::None;
+        c.visible = true;
+    }
+    if !was_captured {
         next.set(View::Home);
+    }
+}
+
+fn release(mut cursor: Query<&mut bevy::window::CursorOptions>) {
+    for mut c in &mut cursor {
+        c.grab_mode = bevy::window::CursorGrabMode::None;
+        c.visible = true;
     }
 }
 

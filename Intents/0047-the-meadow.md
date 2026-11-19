@@ -75,6 +75,18 @@ pictures looked at by Samuel; the navigation self-test, `cargo run -- --navtest`
 - **The Studio plays a shot's hour and wind** (a value or `[from, to]`), and opens the four anchors.
 - **The disk ran full** (300 MB free); builds stopped until it was cleared in a separate session.
 
+- **1080p, not Retina:** the window was drawn at its full Retina size, about 4000 × 2500 pixels, five times the gate's
+  1080p. The grass world is now drawn at 1080 rows into an image shown over the whole window, with the interface sharp
+  on top. The likely main reason for 12 to 15 fps; not yet measured.
+- **Wind that keeps a blade's length:** a blade bends as an arc of constant curvature from its root. The push
+  sideways had stretched blades flat in strong wind (the big pale shapes). Blades keep full width over their lower half
+  and taper evenly to a fine point; five segments near, four and three further out.
+- **A softer horizon:** three more rings of sparse blades (to 72 m), each ring a little lower, so the field thins into
+  the carpet instead of ending.
+- **The legacy game's camera:** scroll to rise from 10 cm to 12 km (each notch multiplies the height), click into the
+  world to capture the mouse, Escape to let it go and again to go home; the pace grows with height. Grounds now reach
+  400 km, the horizon from 12 km.
+
 ### How the scene evolved
 
 The story of the Meadow, stage by stage, for the devlog. Every stage is a commit on `aven/0047-meadow`; checked out

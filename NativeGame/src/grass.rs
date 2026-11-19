@@ -9,11 +9,11 @@ use bevy::prelude::*;
 
 /// The grass around the camera: chunks of `CHUNK` metres, fixed to the world, `RINGS` chunks out to each side.
 pub const CHUNK: f32 = 8.0;
-pub const RINGS: i32 = 6;
+pub const RINGS: i32 = 9;
 /// Blades per square metre at full detail.
 const DENSITY: f32 = 230.0;
 /// Segments up a blade.
-const SEGS: usize = 4;
+const SEGS: usize = 5;
 
 /// A deterministic hash to a number in [0, 1).
 fn h(a: u32, b: u32, c: u32) -> f32 {
@@ -46,7 +46,8 @@ pub fn share(ring: i32) -> f32 {
         2 => 0.35,
         3 => 0.18,
         4 => 0.09,
-        _ => 0.05,
+        5 | 6 => 0.05,
+        _ => 0.025,
     }
 }
 
@@ -187,7 +188,7 @@ pub fn chunk(cx: i32, cz: i32, share: f32) -> Mesh {
     let widen = (1.0 / share).sqrt().min(3.5); // fewer blades are wider, to keep the cover
     let full = (DENSITY * CHUNK * CHUNK) as u32;
     let count = (full as f32 * share) as u32;
-    let segs = if share >= 1.0 { SEGS } else { SEGS - 1 };
+    let segs = if share >= 1.0 { SEGS } else if share >= 0.35 { SEGS - 1 } else { SEGS - 2 };
     let detail = share >= 0.35; // seed heads only where they can be seen
 
     let mut g = Geo::default();
@@ -215,7 +216,7 @@ pub fn chunk(cx: i32, cz: i32, share: f32) -> Mesh {
             continue;
         }
         // the outermost rings shrink toward the carpet, so the field melts into it instead of ending at an edge
-        let fade = if share < 0.09 { 0.55 } else if share < 0.18 { 0.8 } else { 1.0 };
+        let fade = (share * 8.0).clamp(0.35, 1.0); // smoothly lower ring by ring, out to a short sward at the edge
         let height = (0.22 + 0.45 * lush * lush + 0.15 * r(3)) * fade;
         let width = (0.006 + 0.006 * r(4)) * widen;
         let lean = 0.12 + 0.55 * r(6) * r(6);
@@ -231,7 +232,8 @@ pub fn chunk(cx: i32, cz: i32, share: f32) -> Mesh {
         for s in 0..=segs {
             let t = s as f32 / segs as f32;
             let p = Vec3::new(x, 0.0, z) + dir * (lean * height * t * t) + Vec3::Y * (height * (t - 0.35 * lean * t * t));
-            let w = width * (1.0 - t).powf(0.7);
+            // full width over the lower half, then a long even taper to a fine point, as a real blade narrows
+            let w = width * (1.0 - ((t - 0.45) / 0.55).clamp(0.0, 1.0)).powf(1.2);
             let n = (side + Vec3::Y * 1.5).normalize(); // bent toward the sky, so a field is lit evenly
             let c = if t < 0.5 { root.lerp(tip, (t / 0.5).powf(0.8)) } else { tip.lerp(tip_light, (t - 0.5) / 0.5) };
             for k in [-1.0, 1.0] {

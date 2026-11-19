@@ -20,7 +20,7 @@ pub fn plugin(app: &mut App) {
 }
 
 /// The plane's size, and the size of one tile of its pattern, in metres.
-const PLANE_M: f32 = 40_000.0;
+const PLANE_M: f32 = 400_000.0; // to the horizon from 12 km up (about 390 km away)
 const TILE_M: f32 = 6.0;
 
 fn spawn(
@@ -49,7 +49,7 @@ fn spawn(
         Eye,
         IsDefaultUiCamera,
         Camera3d::default(),
-        Projection::Perspective(PerspectiveProjection { near: 0.05, far: 30_000.0, ..default() }),
+        Projection::Perspective(PerspectiveProjection { near: 0.05, far: 500_000.0, ..default() }),
         Transform::from_xyz(0.0, 1.6, 0.0),
         DistanceFog {
             color: HAZE,
