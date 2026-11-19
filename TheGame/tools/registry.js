@@ -2,7 +2,7 @@
 // type, its name, its file, the recipes it uses, and its version: the BLAKE3 hash of its source and of the versions of
 // what it uses, so a changed material gives every biome and asset that lays it a new version too. A version never
 // changes once made; a uid never changes at all. Never kept in git (it is only ever made again, and a branch that kept
-// it met every other over it): made at every build and dev start, and on every change to a recipe (vite.config.js), by
+// it met every other over it): made at every build and dev start, and on every change to a recipe or to what paints one (vite.config.js), by
 // every tool that loads the game's modules (tools/glob.js) and by the lint (tools/lint.js), and first in CI. On its own:
 // `bun tools/registry.js`.
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
@@ -26,6 +26,30 @@ export function kitsOf(root, file, seen = new Set()) {
     seen.add(p); kitsOf(root, p, seen);
   }
   return [...seen];
+}
+
+/** Every module a file reads, followed through its imports (relative ones: the game's own, not three's), in the order
+    they are first met: what a material's painting is made of (paintOf). */
+export function importsOf(root, file, seen = new Set()) {
+  for (const m of readFileSync(file, 'utf8').matchAll(/(?:from|import|import\(|new URL\()\s*'(\.{1,2}\/[^']+\.js)'/g)) {
+    const p = resolve(dirname(file), m[1]);
+    if (seen.has(p) || !existsSync(p)) continue;
+    seen.add(p); importsOf(root, p, seen);
+  }
+  return [...seen];
+}
+/** What paints a material, as one hash each (src/materials/bake.js keeps what it painted between starts by it): `paint`,
+    its file and every module it reads, with `painter`, the painter's own (src/materials/bake.js, and the kit it paints
+    with, src/materials/paint.js, and what that reads) and three's version (what writes its programs). A change to any
+    of it is another hash: nothing painted before it is laid out again. PAINTS: every file the last hashes read, which
+    the dev server watches (vite.config.js), so that a change to any of them is another hash at once. */
+export const PAINTS = new Set();
+function paintOf(root) {
+  PAINTS.clear();
+  const read = (p) => (PAINTS.add(p), readFileSync(p, 'utf8')), three = JSON.parse(read(resolve(root, 'node_modules/three/package.json'))).version ?? '';
+  const own = [resolve(root, 'src/materials/bake.js'), ...new Set([resolve(root, 'src/materials/paint.js'), ...importsOf(root, resolve(root, 'src/materials/paint.js'))])];
+  const painter = bytesToHex(blake3(utf8ToBytes(`${own.map(read).join('\n')}\nthree ${three}`)));
+  return { painter, of: (file) => bytesToHex(blake3(utf8ToBytes(`${[file, ...importsOf(root, file)].map(read).join('\n')}\n${painter}`))) };
 }
 
 /** Read every recipe under root, version it, and write registry.json if anything changed. Returns the manifest. */
@@ -52,9 +76,9 @@ export function buildRegistry(root) {
     const deps = r.uses.map((u) => version(u, seen)).join('\n');
     return (r.version = bytesToHex(blake3(utf8ToBytes(`${r.src}\n${deps}`))));
   };
-  const out = {};
+  const out = {}, P = paintOf(root);
   for (const uid of Object.keys(found).sort((a, b) => (found[a].type + found[a].name).localeCompare(found[b].type + found[b].name))) {
-    const { type, name, file, uses } = found[uid]; out[uid] = { type, name, file, version: version(uid), uses };
+    const { type, name, file, uses } = found[uid]; out[uid] = { type, name, file, version: version(uid), uses, ...(type === 'material' ? { paint: P.of(join(root, file)), painter: P.painter } : {}) };
   }
   const path = resolve(root, 'registry.json'), text = JSON.stringify(out, null, 2) + '\n';
   writeIfChanged(path, text);

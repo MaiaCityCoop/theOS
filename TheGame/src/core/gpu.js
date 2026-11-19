@@ -21,7 +21,7 @@
 import * as THREE from 'three/webgpu';
 import { storage } from 'three/tsl';
 import { CLASS_NAMES, classOf } from './classes.js';
-import { BUDGET_MB, GPU_MB, MAC_BUFFER } from './budget.js';
+import { BUDGET_MB, GPU_MB, MAC_BUFFER, PHONE_BUFFER, PHONE_SHARE } from './budget.js';
 import { MiB } from './physics.js';
 import { passBegins, timesOn } from './pace.js';
 import { pass as framePass } from './frames.js';
@@ -74,8 +74,10 @@ export const more = (name, gpu = 0, page = 0, cls = 'other', ...owns) => { const
 let SHARE = 1;
 /** The share of the Mac's budget a device has whose adapter's largest buffer is `bytes` (its maxBufferSize): as that
     stands to the Mac's (budget.js MAC_BUFFER), never more than all of it (Chrome's tiers give the same Mac 4 GiB: a
-    larger reading is the Mac's case, not twice it); all of it where there is none (no WebGPU, the CPU's stand-in). */
-export const shareOf = (bytes) => (bytes > 0 ? Math.min(1, bytes / MAC_BUFFER) : 1);
+    larger reading is the Mac's case, not twice it), nor, on a phone (at or under PHONE_BUFFER: WebKit's iPhone clamp),
+    more than a phone's (PHONE_SHARE: under where an iPhone was killed); all of it where there is none (no WebGPU, the
+    CPU's stand-in). */
+export const shareOf = (bytes) => (bytes > 0 ? Math.min(bytes <= PHONE_BUFFER ? PHONE_SHARE : 1, bytes / MAC_BUFFER) : 1);
 /** The device's share of the Mac's budget (shareOf, at boot). */
 export const budgetShare = () => SHARE;
 /** What class `cls` may hold on the GPU of this device, MiB: its share of the Mac's (BUDGET_MB), scaled. */

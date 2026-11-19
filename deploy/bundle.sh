@@ -26,6 +26,7 @@ version() { jq -n --arg commit "$commit" --arg website "$website" --arg game "$g
 (cd "$root/TheGame" && rm -rf dist && VITE_AVEN_ISSUER="$issuer" VITE_OS="$website" bun run build)
 grep -rqF "$issuer" "$root/TheGame/dist/assets" || { echo "The game's build does not name the issuer $issuer." >&2; exit 1; }
 grep -rqF "$website" "$root/TheGame/dist/assets" || { echo "The game's build does not lead back to the website at $website." >&2; exit 1; }
+compgen -G "$root/TheGame/dist/assets/crowds-*.bin" >/dev/null || { echo "The game's build carries no crowds.bin, what it measured of the plants' crowds (TheGame/tools/outlines.js)." >&2; exit 1; }
 (cd "$root/OS" && rm -rf dist && VITE_GAME="$game" bun run build)
 grep -rqF "$game" "$root/OS/dist/assets" || { echo "The website's build does not name the game at $game." >&2; exit 1; }
 

@@ -8,8 +8,12 @@ import { manifest } from './registry.js';
 import { takeMeasures } from '../../assets/kit/plant.js';
 import { unpackMeasures } from '../../assets/kit/measures.js';
 
-/** Done once what the build measured is handed to the kit (or none was: a tool's run, a dev server before it measured). */
-export const crowdsReady = fetch(new URL('../../crowds.bin', import.meta.url)).then((r) => (r.ok ? r.arrayBuffer() : null)).then((b) => {
+// (where the build put it: the URL Vite gave the file it emitted, under the site's base and named by its content, as
+// every asset is; none where the build made none: a tool's run, the dev server before it has measured. Never a path of
+// its own: one written here was left as it was where the build had no file, and asked at the site's root)
+const [AT = null] = Object.values(import.meta.glob('../../crowds.bin', { eager: true, query: '?url', import: 'default' }));
+/** Done once what the build measured is handed to the kit (or none was). */
+export const crowdsReady = (AT ? fetch(AT) : Promise.resolve(null)).then((r) => (r?.ok ? r.arrayBuffer() : null)).then((b) => {
   if (!b) return;
   const M = unpackMeasures(b);
   takeMeasures((a, i, A) => { const v = manifest[a.uid]?.version; return (v && M.get(`${a.uid}:${a.placement?.seed ?? 1}@${v}#${i}|${A?.key ?? ''}`)) || null; });
