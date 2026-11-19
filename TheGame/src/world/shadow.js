@@ -5,7 +5,9 @@
 //
 // Their layout, all of it derived (useCascades, at the start, before any material is built):
 //   texels   S a side: a texel one dial pixel at its own cascade's edge on the output (the one measure: two of the pixels
-//            a metre covers a metre off on the output's rows, src/core/budget.js OUTPUT, which no canvas exceeds)
+//            a metre covers a metre off on the output's rows, src/core/budget.js OUTPUT, which no canvas exceeds: as many
+//            of them as the device's share of the GPU's budget leaves a canvas, src/core/output.js; so its light class's
+//            pools follow its budget, src/core/gpu.js budgetShare)
 //   the near its texel the sun's own penumbra under the lowest crown that casts (SUN_DIAMETER × CASTERS.crown: a texel finer
 //            than the narrowest penumbra a crown throws resolves nothing the sun's disc does not blur away), a third of
 //            it ahead of the eye. Read with a penumbra as wide as the sun's disc makes it: the farther the blocker from
@@ -40,7 +42,7 @@ import { U } from '../core/uniforms.js';
 import { compileFor, compileList, made, ask, pending, labelled, nearFrom } from '../core/compile.js';
 import { shown, arriving } from '../core/settle.js';
 import { twinOf, passOf } from '../core/pass.js';
-import { note, mark } from '../core/gpu.js';
+import { note, mark, budgetShare } from '../core/gpu.js';
 import { stood, moves } from '../core/work.js';
 import { pxKAt } from '../detail/measure.js';
 import { OUTPUT } from '../core/budget.js';
@@ -68,9 +70,10 @@ let C = null;
 export function useCascades({ reach, crown, top, radius }) {
   if (!(reach > 0 && crown > 0 && crown < Infinity && top > 0 && radius > 0 && radius < Infinity)) throw new Error(`the shadow cascades are laid out from what casts in the stands (reach ${reach} m, lowest crown ${crown} m, tallest ${top} m, smallest crown ${radius} m round): none of it there`);
   // a cascade's texels a side: a texel one dial pixel at its own cascade's edge (h metres from the eye, 2h / S a texel,
-  // and a metre a metre off is pxKAt(OUTPUT.height) pixels on the output, the dial at rest: what is made once is made
-  // for the most any canvas has, src/core/output.js, whatever the window at the start)
-  const S = Math.ceil(2 * pxKAt(OUTPUT.height));
+  // and a metre a metre off is pxKAt(rows) pixels on the output's rows, the dial at rest: what is made once is made for
+  // the most any canvas has on this device, src/core/output.js: OUTPUT's pixels of the device's share, its rows by its
+  // root, whatever the window at the start)
+  const S = Math.ceil(2 * pxKAt(OUTPUT.height * Math.sqrt(budgetShare())));
   const finest = (SUN_DIAMETER * crown * S) / 2;   // (the near one's half side at the most: its texel the lowest crown's penumbra)
   // as many as reach `reach`, each twice the one before; two at the least: three binds a depth texture of one layer as no
   // array, which the materials are built for
