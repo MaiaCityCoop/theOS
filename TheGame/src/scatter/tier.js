@@ -329,7 +329,7 @@ function patchPass({ K, S, data, count, own, capOff, uCap, entryOf: ofEntry }, l
 // its own besides (copy forward, visit, the gather's two), over its stores and what it packed, each tier a range of
 // them: so a pass is compiled once a kind of work, not once a tier.
 const firstStore = (store) => Math.max(WG, 2 ** Math.ceil(Math.log2(Math.max(WG, store))));   // (until its own count is known: what its engine reckons)
-const lean = (type, name, atomic = false) => { const b = gpuStorageLater(type, name, 'geometry'); if (atomic) b.node.toAtomic(); return b; };
+const lean = (type, name, atomic = false, cls = 'geometry') => { const b = gpuStorageLater(type, name, cls); if (atomic) b.node.toAtomic(); return b; };
 let GR = null;   // (what every resident tier shares: shared(), made with the first)
 const KINDS = new Map();   // (a kind of tier, by its key: its passes, its stores, its tiers)
 function shared() {
@@ -371,10 +371,10 @@ function shared() {
   return GR;
 }
 /** A kind of tier's own passes (copy forward, visit, the gather's two) and stores, made with its first tier. */
-function kindOf(key, { K, slots, found, select, twice, label }) {
+function kindOf(key, { K, slots, found, select, twice, label, cls }) {
   const G = shared(), had = KINDS.get(key);
   if (had) { if (had.K !== K || had.slots !== slots) throw new Error(`tiers of one kind with ${had.K} and ${K} draws, ${had.slots} and ${slots} rows: a kind packs one way`); return had; }
-  const S = uint(slots), { u } = G, stores = lean('vec4', `tiers: what each holds (two stores), ${label}`), leaves = lean('uint', `tiers: what each holds (two stores), ${label}`), packed = lean('vec4', `tiers: what stands, packed, ${label}`);   // (by its kind's name: which kind each is, in the ledger and in the GPU's own record of its buffers)
+  const S = uint(slots), { u } = G, stores = lean('vec4', `tiers: what each holds (two stores), ${label}`, false, cls), leaves = lean('uint', `tiers: what each holds (two stores), ${label}`, false, cls), packed = lean('vec4', `tiers: what stands, packed, ${label}`, false, cls);   // (by its kind's name: which kind each is, in the ledger and in the GPU's own record of its buffers)
   const rows = stores.node, leaf = leaves.node, data = packed.node, into = intoBuckets(K), counts = { element: (b) => G.C.element(u.kb.add(b)) };
   const wgC = workgroupArray('uint', 1).toAtomic().setName('wgTierKeepCount'), wgB = workgroupArray('uint', 1).setName('wgTierKeepAt');
   // (into the store being made (to), a thing an invocation where it has one, by one atomic a workgroup; no more than its room)
@@ -410,13 +410,13 @@ function kindOf(key, { K, slots, found, select, twice, label }) {
     p.dispatchSize = G.DG; return p;
   };
   const gcount = gather(false), gwrite = gather(true);
-  const s = { K, slots, twice, stores, leaves, packed, data, tiers: [], visit, full: [G.begin, forward, visit, G.seal, gcount, G.lay, gwrite], only: [G.gbegin, gcount, G.lay, gwrite], dirty: true, epoch: 0, asking: new Set(), wait: null };
+  const s = { K, slots, twice, cls, stores, leaves, packed, data, tiers: [], visit, full: [G.begin, forward, visit, G.seal, gcount, G.lay, gwrite], only: [G.gbegin, gcount, G.lay, gwrite], dirty: true, epoch: 0, asking: new Set(), wait: null };
   KINDS.set(key, s);
   return s;
 }
 /** A resident tier's packing: its rows in the shared ones, its range in its kind's stores, its draws and their culling. */
-function residentPackedOf(T, geos, material, { found, select, store = 0, slots = 0, bounds = null, kind = null, twice = false, label = 'a tier' }) {
-  const G = shared(), K = geos.length, S = uint(slots), s = kindOf(kind ?? T, { K, slots, found, select, twice, label });
+function residentPackedOf(T, geos, material, { found, select, store = 0, slots = 0, bounds = null, kind = null, twice = false, label = 'a tier', cls = 'geometry' }) {
+  const G = shared(), K = geos.length, S = uint(slots), s = kindOf(kind ?? T, { K, slots, found, select, twice, label, cls });   // (cls: the class its kind's memory is its share of, src/core/classes.js: the meadow's the ground's)
   const me = { T, K, zi: 3 * G.tiers.length, kb: G.KB, N: firstStore(store), base: 0, dbase: 0, uKb: uniform(G.KB, 'uint'), uBase: uniform(0, 'uint') };
   me.P = (s.twice ? 2 : 1) * me.N;   // (what it packs for its draws: until its own count is read back, as much as its store, twice where a thing of it may be drawn twice)
   const P = () => me.P;
@@ -443,11 +443,12 @@ const CULL = bytesOf('uvec4') + 2 * bytesOf('uint');   // (the culling's for a t
 function relayout(s) {
   const again = s.epoch > 0; s.dirty = false; s.wait = null; s.epoch++;
   const P = (me) => me.P, row = s.slots * bytesOf('vec4');
-  const bytes = () => s.tiers.reduce((n, me) => n + 2 * me.N * (row + bytesOf('uint')) + P(me) * (row + (me.T.culler ? CULL : 0)), 0);
+  const own = s.tiers.reduce((n, me) => n + 2 * me.N * (row + bytesOf('uint')) + P(me) * row, 0), cull = s.tiers.reduce((n, me) => n + (me.T.culler ? P(me) * CULL : 0), 0), need = own + cull;
   const most = Math.floor(Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity) / row);   // (things one binding holds)
-  const need = bytes(), room = Math.max(0, roomOf('geometry')), things = s.tiers.reduce((n, me) => n + Math.max(2 * me.N, P(me)), 0), fit = Math.min(room / need, most / things);
+  // (its stores and what it packed are its class's (its tiers say which); its culling's arena is geometry's)
+  const room = Math.max(0, roomOf(s.cls)), things = s.tiers.reduce((n, me) => n + Math.max(2 * me.N, P(me)), 0), fit = Math.min(room / own, cull ? Math.max(0, roomOf('geometry')) / cull : Infinity, most / things);
   if (fit < 1) {
-    console.warn(`tiers ${s.tiers.map((me) => `${me.T.asset ?? ''} ${me.T.level ?? ''}`.trim()).join(', ')}: they would hold ${Math.round(need / 2 ** 20)} MB, past ${room / need < most / things ? `the ${Math.round(room / 2 ** 20)} MB their class has left (geometry)` : `one binding (${most} things)`}: held to it, the rest is the dial's (the governor's)`);
+    console.warn(`tiers ${s.tiers.map((me) => `${me.T.asset ?? ''} ${me.T.level ?? ''}`.trim()).join(', ')}: they would hold ${Math.round(need / 2 ** 20)} MB, past ${room / own < most / things ? `the ${Math.round(room / 2 ** 20)} MB their class has left (${s.cls})` : `one binding (${most} things)`}: held to it, the rest is the dial's (the governor's)`);
     for (const me of s.tiers) { me.N = Math.max(WG, Math.floor((me.N * fit) / WG) * WG); me.P = Math.max(WG, Math.floor((me.P * fit) / WG) * WG); }
   }
   // (held to it, a tier is complete for what it holds: what it finds past that it asks no room for, till the measure
