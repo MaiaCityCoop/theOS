@@ -10,6 +10,13 @@
 // resolution, which is never given up: src/core/screen.js), between 1 and the screen's; and below 1, the last dial,
 // down to FLOOR: the picture a little soft, but never slower than 60 frames a second. 60 fps is the hard gate, the picture's detail the soft one.
 //
+// What it judges is the GPU's own time a frame (src/core/pace.js frameDone: its passes' together), the one thing detail
+// and pixels can buy back; where no queue can be asked (the CPU's stand-in), the time between frames. A frame the page's
+// thread held as long as the GPU took, or longer (its own time there, js), is not the GPU's: it moves no dial and is not
+// counted. A dial stepped for such a frame changes what every tier holds, and their packing again is more of the page's
+// thread, which slows the next frames: read in Samuel's walk on 2026-11-19, the detail stepping x1.58, x1.10, x1.00 while
+// he stood still, 90 to 290 ms a frame on the page's thread.
+//
 // What it goes by, since its last look: the share of frames that missed 60 fps by far (longer than SLOW ms), and the
 // mean of all its frames but the worst (MEAN ms: a screen that shows a frame whenever it is ready runs every frame a
 // little late, at 52 fps with none of them longer than SLOW). A hitch now and then (a pass made again, another
@@ -45,14 +52,26 @@ export function createGovernor(renderer, { startCap = 3, maxCap = 16, apply = (r
   let born = -1, n = 0, late = 0, share = 0, sum = 0, worst = 0, mean = 16.7;   // frames since the last look, how many of them late, that share; their times' sum and the worst, the mean without it   // frames since the last look, how many of them late, and that share
   let nb = 0, trial = null, noPixels = 0, wait = 15000;   // (nb: frames since the last look that were busy with something besides drawing)   // a step down in pixels on trial; until noPixels none is tried (wait: how long, longer each time one fails)
   let held = false, hot = 0, downAt = -1e9;   // a film playing: no turning of the dials, so its frames come out even (it plays the same every time, too)
+  /** A step up, after room for a while: pixels first, up to what had held, then the detail's stretch; only where its own
+      cost still fits, as the GPU's time a frame grows with the pixels drawn (their square) and with the stretch, so one
+      that would take the frame back over is not taken, and what a step down bought back stays bought: no going back and
+      forth between two. -> the pixel ratio to draw at */
+  const stepUp = (now) => {
+    const fits = (f) => mid * f < MEAN - 0.4;
+    if (dpr < Math.min(DPR_MAX(), ceiling)) { const up = Math.min(DPR_MAX(), ceiling, dpr + 0.125); if (!fits((up / dpr) ** 2)) return dpr; upAt = now; return up; }
+    if (cap < zoom) { const up = Math.min(maxCap, cap * 1.12); if (fits(Math.min(zoom, up) / Math.max(lod, 1e-6))) cap = up; }
+    return dpr;
+  };
   apply(dpr);
   return {
     /** Before drawing: a change of pixel ratio empties the canvas, so it is made only here. */
     begin() { if (dpr > DPR_MAX()) { dpr = DPR_MAX(); resize = true; } if (resize) { apply(dpr); resize = false; } },   // (a smaller canvas, the window made larger: the ratio within it at once)
     /** The detail factor for this camera, this frame. */
     detail(camera) { zoom = Math.max(1, lensOf(camera)); lod = Math.min(zoom, cap); return lod; },   // (the lens against the walker's: src/detail/measure.js)
-    /** After drawing: the frame's time, and whether a tier ran out of patches. */
-    end(ms, now, over, busy = false) {
+    /** After drawing: the frame's time (its own on the GPU, where it is known), whether a tier ran out of patches, and
+        how long the page's thread took over it (js, ms; none: not known). */
+    end(ms, now, over, busy = false, js = 0) {
+      if (js >= ms) return;   // (held by the page's thread, not by the GPU: what fewer pixels or less detail cannot mend)
       // (a frame that packed tiers again or put meshes on the GPU is long for that, not for its pixels: not counted. Read
       // in his Safari on 2026-11-14: a walk took the ratio from 1 to 0.625 and was no smoother for it)
       if (busy && ms < 250) nb++;
@@ -98,7 +117,7 @@ export function createGovernor(renderer, { startCap = 3, maxCap = 16, apply = (r
         calm = 0;
         if (++hot >= (urgent ? 2 : 3)) {   // (two looks even when far too slow: a jump of the view, a film's cut, is a burst of late frames, not a slow picture)
           hot = 0; downAt = now;
-          if (lod > 1.05) cap = Math.max(1, lod * (urgent ? 0.7 : 0.87));
+          if (lod > 1.05) { cap = Math.max(1, lod * (urgent ? 0.7 : 0.87)); midAvg = Math.min(midAvg, MEAN - 0.4); lateAvg = Math.min(lateAvg, 0.1); }   // (what the seconds before the step said is not held against the new detail, as a step in pixels: one step, not two)
           else if (dragging && dpr > FLOOR && now > noPixels && !trial) {
             // (under the screen's own points the picture is soft, so the way back is tried soon: ten seconds on. Slow
             // again right after a step up: that step was too much here, and is left alone twice as long each time, up to
@@ -112,7 +131,7 @@ export function createGovernor(renderer, { startCap = 3, maxCap = 16, apply = (r
         }
       } else if (share <= EASY && mid < MEAN - 0.4 && midAvg < MEAN - 0.4) {   // (room: the usual frame in time, a dropped frame or two a look allowed)
         hot = 0;
-        if (++calm >= (dpr >= DPR_MIN() ? 6 : 4) && now - downAt > 8000) { calm = 0; if (dpr < Math.min(DPR_MAX(), ceiling)) { next = Math.min(DPR_MAX(), ceiling, dpr + 0.125); upAt = now; } else if (cap < zoom) cap = Math.min(maxCap, cap * 1.12); }
+        if (++calm >= (dpr >= DPR_MIN() ? 6 : 4) && now - downAt > 8000) { calm = 0; next = stepUp(now); }
       } else { calm = 0; hot = 0; }
       if (now - ceilingAt > hold) ceiling = DPR_MAX();   // what was too much is not tried again for a while
       if (next !== dpr) { dpr = next; resize = true; n = late = sum = worst = tn = 0; }

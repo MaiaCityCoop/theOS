@@ -16,11 +16,11 @@
 //                           rule's own expectation: src/scatter/rule.js densOf) and their crowns' pattern
 //   the grass's colour      the meadow's as its blades' tips show it (the carpet's), and which two stands those are
 import * as THREE from 'three/webgpu';
-import { If, Loop, float, int, uint, vec2, vec3, abs, max, clamp, smoothstep, log2, sqrt, round, uniformArray, renderGroup } from 'three/tsl';
+import { If, Loop, float, int, uint, vec2, vec3, abs, max, clamp, smoothstep, log2, sqrt, round, uniformArray, renderGroup, array } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { byRole } from '../core/registry.js';
 import { riverInfo, biomesAt, grassFrom, groveAt, leadAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, BASE, LAID, PATH_W } from '../world/land.nodes.js';
-import { endOf, meadowTip } from '../scatter/grass.js';
+import { standsFor, meadowTip } from '../scatter/grass.js';
 import { byte, un } from '../scatter/growth.js';
 import { BAND } from '../detail/error.js';
 import { standsOf, rowsOf, densOf } from '../scatter/rule.js';
@@ -67,6 +67,9 @@ const OVER = LAID.filter((b) => !b.grass).map((b) => { if (slopes < 0 && BASE.sl
 if (slopes < 0 && BASE.slopes) slopes = lay({ ground: BASE.slopes });
 /** The base's rock on what is too steep (-1: none): not in the map, laid by the texel from its own slope. */
 export const SLOPES = slopes;
+/** Where the base's rock comes in on the land (SLOPES): from where the ground's normal's y falls under the first to
+    the second (37° to 47°), its share as the page keeps it (tools/slopecheck.js) */
+export const STEEP = [0.8, 0.68];
 /** The library's stage: its ground is the uniform's (uStageGround: a material's number and its tile; -1 the base's patches). */
 export const STAGE = lay({ ground: null });
 if (LAYERS.length > EMPTY) throw new Error(`the land lays ${LAYERS.length} layers: a byte names at most ${EMPTY}`);
@@ -120,6 +123,7 @@ for (const bio of LAID) for (const { key, P, kinds, CV, L, entries } of standsOf
   const grain = key === 'tree' ? 1 : footprintOf(kinds) / CROWNS;
   STANDS.push({ bio, P, grain, L, entries, seen, colour: CV.colour ?? null, span, fade: span ? [Math.min(...spans) / (span * BAND), 1] : [0, 0], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1, crown, radius, top });
 }
+{ let at = 0; for (const S of STANDS) { S.at = at; at += S.entries.length; } }   // (where each stand's kinds begin in STAND_C)
 if (STANDS.length >= NO_STAND) throw new Error(`the land has ${STANDS.length} stands that wear a colour: four bits name at most ${NO_STAND - 1}`);
 /** How far round the camera the shadows of the stands that cast them are drawn at the most (-1: none casts): past it, a
     stand's floor lies in its crowns' shade, the pixel's own (src/terrain/material.js). */
@@ -141,7 +145,7 @@ export const CASTERS = Object.freeze({
 
 // the layers' table: a layer's material (its number: src/materials/bake.js), its tile (metres), its pattern's size
 // (metres; 0: none), and whether it goes with the meadow's blades (1)
-let TABLE = null, STAND_T = null, STAND_K = null, crowned = 0;
+let TABLE = null, STAND_T = null, STAND_K = null, STAND_C = null, crowned = 0;
 /** The layers' and the stands' tables, made once the world's textures are there (before node code reads them). */
 export const layerTables = (tex) => {
   if (TABLE) return;
@@ -152,7 +156,13 @@ export const layerTables = (tex) => {
   // and how much of the light a metre of each stand's crowns takes (per metre): the light's own till its kinds' crowns
   // are measured (crownK, as standColours finds them)
   STAND_K = uniformArray(STANDS.map(() => CROWN_EXTINCTION), 'float').setGroup(renderGroup);
+  // and how much of its own round each of a stand's kinds' crowns covers from above: all of it till its crowns are
+  // measured (shareOf, as standColours finds them), as many as the stands have kinds
+  STAND_C = uniformArray(STANDS.flatMap((S) => S.entries.map(shareOf)).concat([1]), 'float').setGroup(renderGroup);
 };
+/** How much of its own round a kind's crown covers seen from straight above (src/detail/seen.js crownOf: its far end's
+    pictures, as they are baked), all of it while it is not measured (a kind without a far end, or not baked yet). */
+const shareOf = (e) => crownOf(e.asset) ?? 1;
 /** How much of the light a metre of a stand's crowns takes (per metre; null while none of its kinds' crowns is
     measured): each kind's from how much of its round its crown covers seen from above (seen.js crownOf), that much of
     the light taken through its depth, Beer–Lambert's (-ln(1 - cover) / depth; its depth its crown's at its oldest, at
@@ -170,27 +180,32 @@ const crownK = (S) => {
 /** How many times what a metre of the stands' crowns takes has changed (the canopy's probes are made again: src/world/
     light/canopy.js). */
 export const crownsVersion = () => crowned;
-/** How much of the ground a stand's crowns cover at a point (0 … 1): each of its things' chance to stand in a cell there
-    (D: its layer's densOf there) by its crown's round of the cell. Node code. */
-const coverOf = (T, D) => clamp(T.entries.reduce((s, e) => s.add(D[e.i].mul((Math.PI * e.reach * e.reach) / (T.L.cell * T.L.cell))), float(0)), 0, 1);
+/** How much of the ground a stand's crowns' rounds take at a point (0 … 1): each of its things' chance to stand in a
+    cell there (D: its layer's densOf there) by its crown's round of the cell. Node code. */
+const roundsOf = (T, D) => clamp(T.entries.reduce((s, e) => s.add(D[e.i].mul((Math.PI * e.reach * e.reach) / (T.L.cell * T.L.cell))), float(0)), 0, 1);
+/** How much of the ground a stand's crowns cover at a point, seen from above (0 … 1): its rounds (roundsOf), each by
+    how much of it its kind's crown covers (STAND_C: shareOf), what its plants cover where they are drawn. What the land
+    wears of the stand where they are no longer drawn: as much as they covered (src/terrain/material.js;
+    tools/covercheck.js). Node code. */
+const coverOf = (T, D) => clamp(T.entries.reduce((s, e, j) => s.add(D[e.i].mul((Math.PI * e.reach * e.reach) / (T.L.cell * T.L.cell)).mul(STAND_C ? STAND_C.element(T.at + j) : 1)), float(0)), 0, 1);
 /** How much of the light a metre of crown takes at p (per metre): each stand's (STAND_K), by how much of the ground its
-    crowns cover there (coverOf, as the layer map counts it), the light's own (physics.js CROWN_EXTINCTION) for what of
+    crowns' rounds take there (roundsOf: what a metre of crown takes is the light through its round, crownK), the light's own (physics.js CROWN_EXTINCTION) for what of
     the ground none covers. Node code, in a Fn: for the canopy's probes (src/world/light/canopy.js). */
 export function crownsAt(p) {
   if (!STAND_K) return float(CROWN_EXTINCTION);
   const I = riverInfo(p).toVar(), ctx = { p, dist: float(0), d: abs(I.x), w: I.y, b: I.z }, dens = new Map(), sum = float(0).toVar(), of = float(0).toVar();
   for (const T of STANDS) if (!dens.has(T.L)) dens.set(T.L, densOf(T.L, p, ctx));
-  STANDS.forEach((T, id) => { const c = coverOf(T, dens.get(T.L)).toVar(); sum.addAssign(c.mul(STAND_K.element(id))); of.addAssign(c); });
+  STANDS.forEach((T, id) => { const c = roundsOf(T, dens.get(T.L)).toVar(); sum.addAssign(c.mul(STAND_K.element(id))); of.addAssign(c); });
   return sum.add(max(float(1).sub(of), 0).mul(CROWN_EXTINCTION)).div(max(of, 1));
 }
 /** What a stand whose kinds have far ends shows ([r, g, b], linear albedo; null while none of them does): each kind's
     that shows (src/detail/seen.js) by how much of the ground it covers where the stand is thick, as its cover counts it
-    (layerWords): its share of the stand (its `most`, the slice of the patches it leads in: rule.js densOf) times its
-    crown's round. */
+    (coverOf): its share of the stand (its `most`, the slice of the patches it leads in: rule.js densOf) times its
+    crown's round, times how much of that its crown covers. */
 const seenColour = (S) => {
   const sum = [0, 0, 0]; let of = 0;
   for (const e of S.entries) {
-    const w = e.from ? 0 : e.most * e.reach * e.reach, c = w > 0 && seenOf(e.asset); if (!c) continue;   // (what grows from litter is none far off: densOf)
+    const w = e.from ? 0 : e.most * e.reach * e.reach * shareOf(e), c = w > 0 && seenOf(e.asset); if (!c) continue;   // (what grows from litter is none far off: densOf)
     for (let k = 0; k < 3; k++) sum[k] += w * c[k]; of += w;
   }
   return of > 0 ? sum.map((v) => v / of) : null;
@@ -205,13 +220,31 @@ export function standColours() {
   STANDS.forEach((S, i) => { const k = crownK(S); if (k != null && k !== STAND_K.array[i]) { STAND_K.array[i] = k; crowned++; } });   // (and what a metre of its crowns takes, as its kinds' crowns are measured)
   let near = Infinity;
   STANDS.forEach((S, i) => {
-    if (!S.seen) return;
-    const c = seenColour(S), v = STAND_T.array[2 * i];
-    if (!c || (c[0] === v.x && c[1] === v.y && c[2] === v.z)) return;
-    v.set(...c, S.grain);
-    near = Math.min(near, S.span > 0 ? (U.uPxK.value * S.span * S.fade[0]) / U.uErrorPx.value : 0);
+    // (how much of its round each of its kinds' crowns covers, as they are measured: what it is laid as covering)
+    let changed = false;
+    S.entries.forEach((e, j) => { const k = shareOf(e); if (k !== STAND_C.array[S.at + j]) { STAND_C.array[S.at + j] = k; changed = true; } });
+    const c = S.seen ? seenColour(S) : null, v = STAND_T.array[2 * i];
+    if (c && (c[0] !== v.x || c[1] !== v.y || c[2] !== v.z)) { v.set(...c, S.grain); changed = true; }
+    if (changed) near = Math.min(near, S.span > 0 ? (U.uPxK.value * S.span * S.fade[0]) / U.uErrorPx.value : 0);
   });
   return Number.isFinite(near) ? near : -1;
+}
+
+/** The n strongest of the layers' shares S (an array node, a share a layer, by id), strongest first: [{ id, w }] (none:
+    the id of a slot nothing took, its w 0). The shares looked through in a loop, so its body is written once, not once a
+    layer. Node code, in a Fn. */
+function strongest(n, S, none) {
+  const top = Array.from({ length: n }, () => ({ id: int(none).toVar(), w: float(0).toVar() }));
+  Loop(LAYERS.length, ({ i }) => {
+    const s = S.element(i).toVar(), id = int(i);
+    const c = top.map((t) => s.greaterThan(t.w).toVar());   // (held: the slots change as they are assigned)
+    for (let k = n - 1; k >= 0; k--) {   // (from the last: each takes what was before it, if what comes is stronger than that)
+      const fromAbove = k > 0 ? c[k - 1] : null, here = c[k];
+      if (fromAbove) { top[k].id.assign(fromAbove.select(top[k - 1].id, here.select(id, top[k].id))); top[k].w.assign(fromAbove.select(top[k - 1].w, here.select(s, top[k].w))); }
+      else { top[k].id.assign(here.select(id, top[k].id)); top[k].w.assign(here.select(s, top[k].w)); }
+    }
+  });
+  return top;
 }
 
 /** What the biomes make of the land at p: the layer map's point there, five 32-bit words (as the top of this file packs
@@ -225,8 +258,10 @@ export function layerWords(tex, p, texel) {
   const stage = stageAt(p).toVar(), bare0 = bareMask(p).toVar(), dry = Lb.dry.toVar();
   // ---- the layers, each laid over what is under it as much as its rule says (a layer's share of the ground shrinks by
   // what is laid over it) ----
-  const S = LAYERS.map(() => float(0).toVar()); S[FLOOR].assign(1);
-  const over = (id, t) => { const k = float(t).toVar(); for (const s of S) s.mulAssign(float(1).sub(k)); S[id].addAssign(k); };
+  // (each step: k of what is there replaced by what it lays, adds [[id, how much]]; worked out from the last back, each
+  // what it adds times what the steps after it leave of it: a step costs a few numbers, not one a layer)
+  const steps = [{ k: float(1), adds: [[FLOOR, float(1)]]}];
+  const over = (id, t) => { const k = float(t).toVar(); steps.push({ k, adds: [[id, k]] }); };
   // a biome's ground: its floor, its spots and its trees' litter laid over each other, then all of it over what is there
   const biome = ({ bio, groves, floor, spots, litter }) => {
     const wt = share.get(bio).mul(bio.mix ?? 1).toVar(), own = new Map([[floor, float(1)]]);
@@ -236,8 +271,7 @@ export function layerWords(tex, p, texel) {
       const lead = leadAt(p, groves).mul(0.7).add(0.15).toVar(), thick = smoothstep(0.1, 0.6, groveAt(p, groves)).toVar();
       for (const { id, slice: [a, b] } of litter) put(id, (a > 0 ? smoothstep(a - 0.06, a + 0.06, lead) : float(1)).mul(b < 1 ? float(1).sub(smoothstep(b - 0.06, b + 0.06, lead)) : float(1)).mul(thick).toVar());
     }
-    for (const s of S) s.mulAssign(float(1).sub(wt));
-    for (const [id, v] of own) S[id].addAssign(wt.mul(v));
+    steps.push({ k: wt, adds: [...own].map(([id, v]) => [id, wt.mul(v)]) });
   };
   UNDER.forEach(biome);
   over(BARE, max(bare0.sub(stage), 0).mul(float(1).sub(dry)));
@@ -245,16 +279,13 @@ export function layerWords(tex, p, texel) {
   over(PATHS, placeOff(p, pathMask(pathN(p))));
   OVER.forEach(biome);
   over(STAGE, stage);
+  const S = LAYERS.map(() => float(0).toVar()), left = float(1).toVar();
+  for (let i = steps.length - 1; i >= 0; i--) {
+    for (const [id, a] of steps[i].adds) S[id].addAssign(a.mul(left));
+    if (i > 0) left.mulAssign(float(1).sub(steps[i].k));
+  }
   // the four strongest, then in the order they are laid
-  const top = [0, 1, 2, 3].map(() => ({ id: int(EMPTY).toVar(), w: float(0).toVar() }));
-  S.forEach((s, id) => {
-    const c = top.map((t) => s.greaterThan(t.w).toVar());   // (held: the slots change as they are assigned)
-    for (let i = 3; i >= 0; i--) {   // (from the last: each takes what was before it, if what comes is stronger than that)
-      const fromAbove = i > 0 ? c[i - 1] : null, here = c[i];
-      if (fromAbove) { top[i].id.assign(fromAbove.select(top[i - 1].id, here.select(int(id), top[i].id))); top[i].w.assign(fromAbove.select(top[i - 1].w, here.select(s, top[i].w))); }
-      else { top[i].id.assign(here.select(int(id), top[i].id)); top[i].w.assign(here.select(s, top[i].w)); }
-    }
-  });
+  const top = strongest(4, array(S).toVar(), EMPTY);
   const sum = top.reduce((a, t) => a.add(t.w), float(0)).max(1e-6).toVar();
   for (const t of top) { If(t.w.lessThan(0.5 / 255), () => { t.id.assign(EMPTY); t.w.assign(0); }); }
   for (const [i, j] of [[0, 1], [2, 3], [0, 2], [1, 3], [1, 2]]) {   // (sorted by id: a network of five)
@@ -301,12 +332,14 @@ export function layerWords(tex, p, texel) {
 /** What lies at a point of the land, from the four points of the map round it: load(i) their words, i 0 … 3 for (0, 0),
     (1, 0), (0, 1), (1, 1) ({ L: the first four, M: the fifth }); f where the point lies between them (0 … 1 each way);
     ny how steep the land is there, its normal's y. The layers to lay there, at most five, in the order they are laid
-    ({ id, w }: a layer of the map's, w its share; SLOPES's w is how much of it is laid, the point's own), the carpet's
+    ({ id, w }: a layer of the map's, w its share (of the four kept, by what they share; laid() lays each by its share of
+    what is under it); SLOPES's w is how much of it is laid, the point's own), the carpet's
     cover (near, between, far), the macro variation, the grass's tint, and the two stands there ({ id (NO_STAND: none),
     c, n }). */
 export function layersFrom(load, f, ny) {
-  // what the points say, summed by their weights: the layers by id into five slots (the fifth the slope's); the stands by id into two
-  const ids = [0, 1, 2, 3].map(() => int(-1).toVar()), ws = [0, 1, 2, 3].map(() => float(0).toVar()), filled = int(0).toVar();
+  // what the points say, summed by their weights: every layer's share, by its id (each point's four: as many as sixteen);
+  // the stands by id into two
+  const LS = array(LAYERS.map(() => float(0))).toVar();
   const cv = vec3(0).toVar(), macro = float(0).toVar(), tint = vec3(0).toVar();
   const sid = [0, 1].map(() => int(-1).toVar()), sc = [0, 1].map(() => float(0).toVar()), sn = [0, 1].map(() => float(0).toVar()), sw = [0, 1].map(() => float(0).toVar());
   Loop(4, ({ i }) => {
@@ -314,14 +347,10 @@ export function layersFrom(load, f, ny) {
     const bw = tx.equal(1).select(f.x, float(1).sub(f.x)).mul(tz.equal(1).select(f.y, float(1).sub(f.y))).toVar();
     If(bw.greaterThan(0), () => {
       const P = load(i), L = P.L.toVar(), M = P.M.toVar();
-      for (let j = 0; j < 4; j++) {
-        const id = int(L.x.shiftRight(uint(8 * j)).bitAnd(uint(255))), w = un(L.y, j).mul(bw);
-        If(w.greaterThan(0.25 / 255), () => {
-          const hit = ids.map((s) => s.equal(id).toVar()), fresh = hit.reduce((a, h) => a.or(h)).not().toVar();   // (held: the slots change as they are assigned)
-          ids.forEach((s, m) => { const put = fresh.and(filled.equal(m)); ws[m].assign(put.select(w, ws[m].add(hit[m].select(w, float(0))))); s.assign(put.select(id, s)); });
-          filled.assign(fresh.and(filled.lessThan(4)).select(filled.add(1), filled));
-        });
-      }
+      Loop(4, ({ i: j }) => {   // (a point's four layers in a loop: written once, not once a layer)
+        const id = int(L.x.shiftRight(uint(j).mul(uint(8))).bitAnd(uint(255))).toVar();
+        If(id.notEqual(EMPTY), () => { LS.element(id).addAssign(un(L.y, j).mul(bw)); });
+      });
       cv.addAssign(vec3(un(L.z, 0), un(L.z, 1), un(L.z, 2)).mul(bw)); macro.addAssign(un(L.z, 3).sub(0.5).mul(bw));
       const sq = (k2) => un(M, k2).mul(un(M, k2)); tint.addAssign(vec3(sq(0), sq(1), sq(2)).mul(bw));
       for (let j = 0; j < 2; j++) {
@@ -338,9 +367,12 @@ export function layersFrom(load, f, ny) {
     });
   });
   // the base's rock where the land is too steep: the point's own slope
-  const slope = { id: int(SLOPES >= 0 ? SLOPES : 999).toVar(), w: float(SLOPES >= 0 ? smoothstep(0.8, 0.68, ny) : 0).toVar() };
-  const slots = [...ids.map((id, m) => ({ id, w: ws[m] })), slope];
-  for (const s of slots.slice(0, 4)) If(s.id.lessThan(0), () => { s.id.assign(999); });   // (an empty slot: after every layer)
+  const slope = { id: int(SLOPES >= 0 ? SLOPES : 999).toVar(), w: float(SLOPES >= 0 ? smoothstep(STEEP[0], STEEP[1], ny) : 0).toVar() };
+  // the four strongest of them, each less the fifth's share: a layer comes into the four as another leaves them, both at
+  // nothing where they cross, so the texels change their layers as smoothly as the points do, and which point is read
+  // first decides nothing (were it to, the four would change at the edges of the map's cells: a checker of its points)
+  const top = strongest(5, LS, 999), fifth = top[4].w;   // (999: an empty slot, after every layer)
+  const slots = [...top.slice(0, 4).map((t) => ({ id: t.id, w: t.w.sub(fifth).toVar() })), slope];
   for (const [a, b] of [[0, 1], [3, 4], [2, 4], [2, 3], [1, 4], [0, 3], [0, 2], [1, 3], [1, 2]]) {   // (sorted by id: a network of nine)
     const A = slots[a], B = slots[b], swap = B.id.lessThan(A.id).toVar(), ai = int(A.id).toVar(), aw = float(A.w).toVar();
     A.id.assign(swap.select(B.id, A.id)); A.w.assign(swap.select(B.w, A.w)); B.id.assign(swap.select(ai, B.id)); B.w.assign(swap.select(aw, B.w));
@@ -353,7 +385,7 @@ export function layersFrom(load, f, ny) {
     at dist2 metres off (1 near … 0 where it is let go). The library's stage wears what uStageGround says. */
 export const layerOf = (id) => {
   const row = TABLE.element(id), stage = id.equal(STAGE), g = U.uStageGround, own = g.x.lessThan(0).select(TABLE.element(BARE).x, g.x);
-  return { material: int(stage.select(own, row.x)), tile: stage.select(g.y, row.y), fade: (D, s) => row.w.greaterThan(0.5).select(endOf(D), row.z.greaterThan(0).select(smoothstep(s.mul(2 * MAPN), s.mul(2 * MAPN * BAND), row.z), float(1))) };
+  return { material: int(stage.select(own, row.x)), tile: stage.select(g.y, row.y), fade: (D, s) => row.w.greaterThan(0.5).select(standsFor(D), row.z.greaterThan(0).select(smoothstep(s.mul(2 * MAPN), s.mul(2 * MAPN * BAND), row.z), float(1))) };
 };
 /** A stand's numbers ({ colour (its x under 0: none yet), grain, span, fade [a, b], reach }: as STANDS has them), for
     the fragment. */
@@ -365,4 +397,4 @@ export const standFade = (S, dist2) => {
   const at = U.uPxK.mul(S.span).div(U.uErrorPx), last = at;   // (?truth: the dial turned down moves it out, as every other far)
   return S.span.greaterThan(0).select(smoothstep(last.mul(S.a), last.mul(S.b), dist2), float(1));
 };
-export { NO_STAND };
+export { NO_STAND, EMPTY };

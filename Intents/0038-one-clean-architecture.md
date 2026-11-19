@@ -105,14 +105,27 @@ row says what was adopted, and from whom.
 | Trees generated on the GPU each frame | Needs work graphs, which WebGPU lacks |
 | A full FSR 2 port | 5.4 ms at 4K on a GPU 2.7× an M1; its ideas instead |
 
-**Budget, 12 ms of GPU at a 4K output from about 1440p (ms):**
+**Budgets (2026-11-19; the output gate is 1920 × 1080 since 2026-11-18).** `src/core/budget.js` holds every number
+below. This table reads them and never replaces them: when the two differ, budget.js is right and this table is stale.
 
-| Land | Vegetation | Shadows | AO, GI | Air | Upscale | Post | Margin |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 2.0 | 3.4 | 2.0 | 1.0 | 0.7 | 2.0 | 0.4 | 0.5 |
+| What | Budget | Where it is held |
+| --- | --- | --- |
+| Frame | 60 fps; 12 ms of GPU a frame (`FPS`, `FRAME_MS`) at a 1920 × 1080 output (`OUTPUT`) on the Mac mini's M2 | the hourly bench |
+| Frame by class (ms) | geometry 5, light 3, ground 1.5, upscale/post 2, other 0.5 (`FRAME_MS_BY_CLASS`, sums to 12) | the hourly bench |
+| A pass | its own ceiling, set from main's measure and only ever lowered (`gate.js bench --ratchet`, `tools/gate/ceilings.json`) | the hourly bench |
+| One GPU submission | 50 ms at most, own GPU time (`SUBMIT_MS`) | the hourly device run and walks (`tools/gate/device.js`) |
+| GPU memory | 2048 MB (`GPU_MB`): geometry 1024, ground 512, light 192, upscale/post 128, other 192 (`BUDGET_MB`) | the ledger, at run time |
+| Machine memory | 8 GB (`MEMORY`), the device alive at Retina (`MACHINE`, 1512 × 945 @2×) in WebKit | the hourly device run |
+| Ready | 10 s or less, cold, at the gate's machine | the hourly device run (Ready line) |
+| Motion | nothing pops: no level's swap is seen beyond the dial (`ERROR_PX`), in the normal and the stress world | `gate.js motion --swaps` |
 
-The risk is the vegetation and the land on the bench's base M1. The stand alone measured 5.4 ms at 1440×779 in 0008.
-The governor may settle near 1080p there (a 2× upscale), and nearer 1440p on an M-Pro.
+**The rule (#299, #296).** Nothing here blocks a merge: PRs merge on green CPU CI, and the GPU judges main once an hour.
+- **A pass** fails the hour when it rises past its ceiling by more than that hour's noise. The bench runs twice; a part
+  is judged by its lower run, and its ceiling is lowered only to its higher run.
+- **A class within its share** is held to the share. **A class over its share** is held to the least it has been
+  measured at, never below the share. The board says by how much it is over, and that becomes its owner's next piece.
+- **Submissions over 50 ms** are reported per world with what they held. Once the first measured hour is in, any new
+  one that is surely over (its done not heard late behind a busy page) fails the hour, a ratchet down to none.
 
 **The address switches left are tools that measure, never dials of the look:** `bench`, `gputime`, `draws`,
 `flyby` (`secs`, `px`), `stress` (`many`, `herds`), `bounds`, `ghost`, `webgl`, `embed`, `truth`.
@@ -1808,7 +1821,18 @@ The gate does not yet keep the first frame or the bytes loaded before it, so the
 ## Todo
 
 - [ ] Samuel's reference photos (shot list under Build)
-- [ ] Later (not now): mobile Safari loads, but its first start is slow. Samuel, 2026-11-18
+- [ ] Mobile Safari (Samuel's iPhone, 2026-11-19): it runs, without the reload loop since #358, on the phone budget
+      (#347: PHONE_SHARE 0.375, sourced to its death at 1.07 GB with a 1.00 GiB adapter). Still to come: grass, water and
+      most plants, from the rest dial as the memory knob (#361; the tiers' half next), and the river's bed (#359)
+- [ ] Quality (5/6), open: the crowns' wood at sub-pixel sizes. With each pixel held to the full picture's 3×3 band
+      ± 1/32 (cards stop 45 % a sprig, wood all), large crowns at 16–32 px are not within. Wood alone beyond the band,
+      main → #316: holm oak #7 0.594 → 0.369 (32 px), 0.271 → 0.251 (16); holm oak #3 0.493 → 0.276, 0.459 → 0.236;
+      stone pine #7 0.236 → 0.136, 0.089 (16); stone pine #3 0.387 → 0.228, 0.267 (16). Young trees are within.
+      Left out after a CPU trial (2026-11-19): the kept wood thickened by the gone share's area in its region (cells of
+      1, 2 or 4 e, capped at e). It helps holm oak #3 at 16 px (0.236 → 0.093) and hurts most others (up to 0.563):
+      only 6–82 % of the gone area finds kept wood near, and a dilation is not a one-pixel shift. Two readings remain:
+      a regional stand-in for lost wood coverage where no kept wood is near (cards, or the clumps' planes, for wood),
+      or the band being the wrong test for sub-pixel wood
 - [x] Stage 1: clean ground
 - [x] Stage 2a: gate, settle, one measure, truth
 - [x] Stage 2b: prepass, motion vectors, upscale
@@ -1840,7 +1864,8 @@ The gate does not yet keep the first frame or the bytes loaded before it, so the
 - [ ] The gate finished: motion (nothing pops), the truth in tiles, real against photographs (#78; #79 merged)
   - [ ] its first job on main: the truth at 2.5 and 12 km in tiles, motion on the four paths, real at every view
   - [ ] `?truth`'s cold start: build its world at the game's pace, then draw at its finest
-  - [ ] the per-pass ceilings as a gate rule (`budgets` in Define, `gate.js bench` fails a class over its ceiling)
+  - [x] the per-pass ceilings as a gate rule (`budgets` in Define; #299: a pass over its ratcheted ceiling, or a class
+        over its share that grows, fails the hour, never a merge); seeded by the first fit-window bench
   - [x] ~~a `scale.js` ratchet counting `?truth`'s branches and unexplained thresholds~~: superseded (2026-11-18).
       `tools/health.js`'s Settings gate is the one counter of mode branches and hand-set numbers, and fails any rise
       over the base; a second counter would be the copy this intent removes

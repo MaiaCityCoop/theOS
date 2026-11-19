@@ -3,7 +3,7 @@
 // flakes of bark; moss in cushions where the earth shows. Every part has its height, so the sun models it (the normals)
 // and the hollows between are dark (the shade painted into the colour): a floor with depth, not a print.
 import { float, vec2, vec3, mix, smoothstep, max, min } from 'three/tsl';
-import { pn, pfbm, fibre, warp, pebbles } from '../src/materials/paint.js';
+import { pn, pfbm, fibre, warp, pebbles, each } from '../src/materials/paint.js';
 
 // the litter's layers, bottom to top: a direction (whole steps, so it tiles), the needles' length and thinness
 const LAYERS = [[[1, 0], 14, 260], [[0, 1], 15, 250], [[1, 1], 11, 210], [[1, -1], 11, 200], [[2, 1], 8, 160], [[1, -2], 8, 150]];
@@ -36,22 +36,22 @@ export default {
     const flake = pebbles(uv, 23, 4, 0.16, 0.9);
     col.assign(mix(col.mul(float(1).sub(flake.z.mul(0.35))), mix(vec3(0.13, 0.085, 0.055), vec3(0.23, 0.15, 0.1), flake.y), smoothstep(0.05, 0.2, flake.x))); h.assign(max(h, flake.x.mul(0.3)));
     // the needles, layer over layer: fewer where the earth shows, each layer casting a little shade on what lies under it
-    LAYERS.forEach(([[a, b], along, across], i) => {
-      const q0 = uv.add(warp(uv, 9, 40 + i, 0.05)), q = vec2(q0.x.mul(a).add(q0.y.mul(b)), q0.x.mul(-b).add(q0.y.mul(a)));
-      const up = (i + 1) / LAYERS.length, f = fibre(q.mul(vec2(along, across)), [along, across], 10 + i).mul(mix(0.25 + 0.2 * up, 1, thick));
-      const tone = pn(q.mul(vec2(along * 2, 4)), [along * 2, 4], 60 + i);
-      // rust where fresh, a greyed brown where they have lain longest (as dark as litter is: a forest's floor is not straw)
+    // (a layer's numbers: its needles' way, how many along and across, the dice of their push, of themselves and of their
+    // colour, how deep it lies: how thin it lies where the litter is, their light, their height)
+    each(LAYERS, ([[a, b], along, across], i) => { const up = (i + 1) / LAYERS.length; return { way: [a, b], cells: [along, across], dice: [40 + i, 10 + i, 60 + i], tone: along * 2, up: [0.25 + 0.2 * up, 0.5 + 0.5 * up, 0.26 + 0.34 * up] }; }, (L) => {
+      const q0 = uv.add(warp(uv, 9, L.dice.x, 0.05)), q = vec2(q0.x.mul(L.way.x).add(q0.y.mul(L.way.y)), q0.x.mul(L.way.y.negate()).add(q0.y.mul(L.way.x)));
+      const f = fibre(q.mul(L.cells), [L.cells.x, L.cells.y], L.dice.y).mul(mix(L.up.x, 1, thick));
+      const tone = pn(q.mul(vec2(L.tone, 4)), [L.tone, 4], L.dice.z);
       const needle = mix(mix(vec3(0.4, 0.21, 0.085), vec3(0.27, 0.15, 0.07), tone), vec3(0.24, 0.21, 0.17), smoothstep(0.55, 0.85, drift.add(tone.mul(0.3))));
-      col.assign(mix(col.mul(float(1).sub(f.mul(0.12))), needle.mul(0.5 + 0.5 * up), f.mul(0.92))); h.assign(max(h, f.mul(0.26 + 0.34 * up)));
-    });
-    // twigs fallen across them: round, grey-brown, lighter along their backs, the litter dark beside them
-    TWIGS.forEach(([[a, b], along, across, s]) => {
-      const q0 = uv.add(warp(uv, 5, s, 0.09)), q = vec2(q0.x.mul(a).add(q0.y.mul(b)), q0.x.mul(-b).add(q0.y.mul(a))).mul(vec2(along, across));
-      const n = pn(q, [along, across], s + 1), body = smoothstep(0.8, 0.9, n), back = smoothstep(0.86, 0.97, n);
-      const bark = mix(vec3(0.1, 0.075, 0.055), vec3(0.24, 0.19, 0.14), back).mul(pn(q.mul(vec2(30, 3)), [along * 30, across * 3], s + 2).mul(0.35).add(0.8));
+      col.assign(mix(col.mul(float(1).sub(f.mul(0.12))), needle.mul(L.up.y), f.mul(0.92))); h.assign(max(h, f.mul(L.up.z)));
+    }, 'l');
+    // (a twig's numbers: its way, how many along and across, its bark's, the dice of its push, of itself, of its bark)
+    each(TWIGS, ([[a, b], along, across, s]) => ({ way: [a, b], cells: [along, across], bark: [along * 30, across * 3], dice: [s, s + 1, s + 2] }), (T) => {
+      const q0 = uv.add(warp(uv, 5, T.dice.x, 0.09)), q = vec2(q0.x.mul(T.way.x).add(q0.y.mul(T.way.y)), q0.x.mul(T.way.y.negate()).add(q0.y.mul(T.way.x))).mul(T.cells);
+      const n = pn(q, [T.cells.x, T.cells.y], T.dice.y), body = smoothstep(0.8, 0.9, n), back = smoothstep(0.86, 0.97, n);
+      const bark = mix(vec3(0.1, 0.075, 0.055), vec3(0.24, 0.19, 0.14), back).mul(pn(q.mul(vec2(30, 3)), [T.bark.x, T.bark.y], T.dice.z).mul(0.35).add(0.8));
       col.assign(mix(col.mul(float(1).sub(smoothstep(0.7, 0.8, n).mul(0.4))), bark, body)); h.assign(max(h, body.mul(0.55).add(back.mul(0.35))));
-    });
-    // cones, whole and broken: scaled domes
+    }, 't');
     const cone = pebbles(uv, 13, 9, 0.06, 0.35), scale = pn(uv.mul(150), 150, 11);
     col.assign(mix(col.mul(float(1).sub(cone.z.mul(0.45))), mix(vec3(0.06, 0.036, 0.02), vec3(0.17, 0.1, 0.055), scale).mul(cone.x.mul(0.6).add(0.55)), smoothstep(0.08, 0.22, cone.x)));
     h.assign(max(h, cone.x.mul(0.85).add(scale.mul(0.12).mul(smoothstep(0.08, 0.22, cone.x)))));

@@ -4,6 +4,8 @@
 //   ?bench     the frame timed at the bench's views once the world is loaded, the numbers on the screen (tools/bench.js)
 //   ?gputime   the GPU's own time per pass (tools/bench.js)
 //   ?draws     every pass and draw a frame asks of the GPU, counted (tools/draws.js)
+//   ?hud       the readout in the corner shown at any width, a phone's too, with what the device made against its budget,
+//              the makes waiting for memory and whether the world has settled (src/core/hud.js)
 //   ?flyby     the camera flown by itself, to watch the levels of detail change (tools/flyby.js): `&secs=` the zoom's
 //              seconds each way, `&px=` how tall the oak stands on the screen as the camera goes round it
 //   ?stress    the stress stand, a test of the engine (src/scatter/stress.js); `?many=N` N more places round the meadow

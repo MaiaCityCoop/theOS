@@ -19,17 +19,21 @@ import { outlinesKept, keepOutlines } from './core/outlines.js';   // (first: wh
 import '../cine/cine.js';   // the virtual camera, before anything asks for a frame: it holds the game's camera wherever a page or a film says
 import '../cine/menu.js';   // the game's pill
 import * as THREE from 'three/webgpu';
-import { loadingStep, loadingSay, loadingDone } from './ui/loading.js';   // the veil is told what is being made
+import { loadingStep, loadingSay, loadingDone, loadingLast } from './ui/loading.js';   // the veil is told what is being made
+import { lastRunLine, keepRun } from './core/lastrun.js';
+import { aboutTo } from './core/journal.js';   // what the last start reached, where it was killed (an iPhone's: no log a Mac reads)
 import { HMIN, heightAt } from './world/land.js';
 import { createUniforms } from './core/uniforms.js';
-import { keepMeasure, measureNow, truthAfter, TRUTH } from './detail/measure.js';
+import { keepMeasure, measureNow, dialAfter, DIAL_ASKED } from './detail/measure.js';
 import { farthest, farthestMost } from './detail/extent.js';
 import { setImpostorRenderer } from './detail/impostor.js';
 import { setPlanes } from './core/frustum.js';
 import { createGovernor } from './core/governor.js';
+import { frameDone } from './core/pace.js';   // (each frame's own time on the GPU, what the governor judges)
 import { createHud } from './core/hud.js';
-import { useGPU, askedLimits, ledger } from './core/gpu.js';
+import { useGPU, askedLimits, adapterOf, ledger } from './core/gpu.js';
 import { taken, busy, changed } from './core/work.js';
+import { part as framePart, begin as frameBegins, enter as frameIn, end as frameEnds, now as frameSoFar, take as framesTaken } from './core/frames.js';   // where each frame's time went on the page's thread: __game.frames()
 import { settle, ready as firstView, drawn, waiting, watch, tick, partOf, leave } from './core/settle.js';
 import { bakeTextures } from './materials/bake.js';
 import { createTerrain, landMaterials } from './terrain/terrain.js';
@@ -46,6 +50,7 @@ import { createControls } from './camera/rig.js';   // the one camera, from the 
 import { createLens } from './camera/post.js';
 import { createScreen } from './core/screen.js';
 import { startLight } from './world/light/start.js';
+import { cascades } from './world/shadow.js';
 import { createTemporal } from './core/temporal.js';
 import { createSky } from './world/sky.js';
 import { createWeather } from './world/weather/index.js';
@@ -57,7 +62,7 @@ import { useGround } from './world/rocksolid.js';
 import { showBodies } from './world/bodies.js';
 import { createCity } from './city/index.js';
 import { createLakes } from './world/lakes.js';   // the city's plots over the land, seen from above (world/city.js)
-import { sharePipelines, watchCompiles, compiles, countCompiles, making, ahead } from './core/compile.js';
+import { sharePipelines, watchCompiles, compiles, countCompiles, making, pipelines, ahead, firstReach } from './core/compile.js';
 import { waitsOn, gpuLost } from './core/waits.js';   // what the start waits for, watched: the veil says what holds it up, or what stopped the page
 import { flag } from './core/flags.js';
 import { FIRST_FRAME, stampDone } from './core/marks.js';   // (the first frame that draws the world, on the page's own timeline)
@@ -114,9 +119,9 @@ export async function boot({ profile = 'world' } = {}) {
   // the picture built over time come to rest on it; ready: the same for the page's first view; waiting(): what is still
   // out. What the gate waits on, never a timer: src/core/settle.js)
   let shown = null; const first = new Promise((res) => (shown = res));   // (the stage's first subject in: its first view is complete once it has settled)
-  const game = (window.__game = { profile, renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 }, settle, ready: world ? firstView : first.then(() => settle()), waiting, compiles, memory: ledger });   // memory(): the GPU's memory, the one ledger (src/core/gpu.js)
+  const game = (window.__game = { profile, renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 }, settle, ready: world ? firstView : first.then(() => settle()), waiting, compiles, memory: ledger, frames: framesTaken, adapter: adapterOf() });   // memory(): the GPU's memory, the one ledger (src/core/gpu.js); frames(): the slowest frames since it was last asked, part by part (src/core/frames.js)
   const bounds = world && flag('bounds') ? showBodies(scene) : null;   // ?bounds: what is solid round the walker drawn as lines, in every world (src/world/bodies.js)
-  const U = createUniforms(camera, SKY);
+  const U = createUniforms(camera);
   setImpostorRenderer(renderer);
   // The one way to the screen, for every view (src/core/screen.js): the world drawn at the inside's pixels (the governor's
   // dial; the screen keeps all its own), a prepass and the colour (src/core/pass.js), through the lens where the camera
@@ -125,20 +130,23 @@ export async function boot({ profile = 'world' } = {}) {
   const screen = (game.screen = createScreen(renderer, { temporal, lens: createLens(renderer) }));
   const governor = createGovernor(renderer, { apply: (r) => screen.set(r), most: () => screen.out });   // (the drawn ratio within the canvas's)
   game.governor = governor;   // the film holds it still while it plays
-  keepMeasure(() => screen.inside, () => screen.out);   // the one measure of size on screen, for every level of detail (src/detail/measure.js)
-  if (TRUTH) governor.hold(true);   // (?truth: everything at its finest, offline: no dial turned for its slow frames)
-  // ?truth (src/detail/measure.js): the game's own start, at the dial's rest (the world built at the game's pace), then,
-  // once that first view is complete, the dial turned down to the truth's: what it brings in is waited for by settle()
-  truthAfter(game.ready);
+  keepMeasure(() => screen.drawn, () => screen.out);   // the one measure of size on screen, for every level of detail, at the rows drawn; capacities at the canvas's (src/detail/measure.js)
+  governor.hold(DIAL_ASKED < 1);   // (a page drawn finer than the dial's rest, ?truth's, is a still, drawn offline: no frame's time turns its dials)
+  // the game's own start, at the dial's rest (the world built at the game's pace), then, once that first view is
+  // complete, the dial turned to the page's least (src/detail/measure.js: the truth's; what it brings in is waited for
+  // by settle()), the game's its rest
+  dialAfter(game.ready);
   watch({ camera, renderer, screen, temporal, U });   // what the world complete is measured against (src/core/settle.js)
   const marks = (game.boot = {}), mark = (k) => (marks[k] = Math.round(performance.now() - t0));   // where the start's time goes
   mark('renderer');
+  loadingLast(lastRunLine());   // (the last start's note, where it ended other than as a page ends: once)
   await loadingStep('Painting the ground', 0.12);
   // (the shaders the start compiles, their bytes and the largest: `bun tools/gate.js compile`. The land's no longer grows
   // with the biomes: src/terrain/layers.js. The stage paints the land's materials at its start, a subject's when it wears them)
   const tex = bakeTextures(renderer, world ? { spare: 1 } : { spare: 8, first: landMaterials() });   // (the library's pictures ask for materials the world may not wear; the start's are compiled side by side and painted while the world is made: tex.ready)
   useTiles(tex);   // node code that reads a baked tile by itself (the clouds' field, the snow's clumps: src/world/tile.js)
   game.screenLight = startLight(renderer, screen);   // the light's start, before any material is built: the backend's reads, the shadow cascades laid out from what casts, the light worked out on the screen (src/world/light/start.js)
+  firstReach(cascades().half[0]);   // (the first view waits for what is drawn within the near cascade's reach; the rest comes after, rising in: src/core/compile.js nearFrom)
   mark('bake');
   await loadingStep('Raising the land', 0.3);
   // what grows on the land (the ground under the camera and every scattered thing: src/scatter): the world's from the
@@ -184,10 +192,11 @@ export async function boot({ profile = 'world' } = {}) {
 
   // ---- a frame: place the camera, choose what to draw, draw ----
   const projScreen = new THREE.Matrix4();
-  const parts = { ctl: 0, ground: 0, terrain: 0, scatter: 0, draw: 0 };   // where a frame's time went, for the hitch log
+  // (a frame's parts on the page's thread, by name: src/core/frames.js; what it encodes is named by its passes' marks)
+  const PART = Object.fromEntries(Object.entries({ materials: 'materials', lakes: 'lakes', controls: 'controls', ground: 'ground update', terrain: 'terrain update', scatter: 'scatter select', draw: 'draw', veil: 'the veil', governor: 'governor', settle: 'settle', hud: 'hud' }).map(([k, n]) => [k, framePart(n)]));
   const live = () => !!grown?.live && (grown.into === scene || grown.into.parent === scene);   // (what grows on the land is drawn: packed, and in the world)
   function choose(dt) {
-    let t = performance.now(), u;
+    frameIn(PART.controls);
     controls?.update(dt); sky.update(dt); weather.update(dt);
     const p = camera.position, dy = (U.uDy.value = Math.max(0, p.y - heightAt(p.x, p.z) - 2, HMIN - p.y));   // how high above the ground here: lifted, the grass and stones see it far off (intent 0003)
     U.uAirH.value = Math.max(0, p.y - heightAt(p.x, p.z));   // the height fog thins along a line of sight from up here (src/world/light.js)
@@ -198,28 +207,33 @@ export async function boot({ profile = 'world' } = {}) {
     U.uLodInv.value = 1 / lod;
     measureNow();   // (the live pixel and the dial, as the governor left them: src/detail/measure.js)
     const far = farthest() * lod; if (!(Math.abs(camera.far - far) <= far * 0.01)) { camera.far = far; camera.updateProjectionMatrix(); }   // (as far as the largest thing is drawn through this lens: src/detail/extent.js)
-    u = performance.now(); parts.ctl = u - t; t = u;
+    frameIn(PART.ground);
     if (live()) grown.ground.update(p.x, p.z, dy, lod);
-    u = performance.now(); parts.ground = u - t; t = u;
+    frameIn(PART.terrain);
     terrain.update(camera, dy, 1 / lod);
-    u = performance.now(); parts.terrain = u - t; t = u;
+    frameIn(PART.scatter);
     if (live()) grown.scatter.select(p.x, p.z, heightAt(p.x, p.z), lod, dy);
     bounds?.(p.x, p.z);
-    parts.scatter = performance.now() - t;
   }
   function draw() {
     const gy = heightAt(camera.position.x, camera.position.z);
     weather.before(camera, gy); shadows.render(scene, camera, gy);   // (what a condition draws before the picture: the clouds' shadow map)
     screen.render(scene, camera);   // (through its lens, where the camera brings one)
   }
-  let last = 0, wasBusy = false, veiled = false, stillAt = -1;
-  const veil = (game.veil = { frames: 0, drawn: 0, longest: 0 });   // (the frames behind the veil: how many, how many drawn, the longest between two, ms: __game.veil)   // (stillAt: the turns over when the last frame behind the veil was drawn, where it changed nothing; -1: it changed something)
+  let last = 0, wasBusy = false, veiled = false, drawnAt = -1, quiet = false;
+  const veil = (game.veil = { frames: 0, drawn: 0, longest: 0 });   // (the frames behind the veil: how many, how many drawn, the longest between two, ms: __game.veil)   // (drawnAt: the turns over when the last frame behind the veil was drawn; quiet: it changed nothing)
+  /** A frame, its parts timed (src/core/frames.js). */
   function frame(now) {
     requestAnimationFrame(frame);
-    const ms = last ? now - last : 16.7; last = now;
+    frameBegins();
+    try { step(now); } finally { frameEnds(); }
+  }
+  function step(now) {
+    const ms = last ? now - last : 16.7, j0 = performance.now(); last = now;   // (j0: the frame's start on the page's thread)
     U.uTime.value = (now - t0) / 1000;
-    tex.flush();   // (materials asked for since the last frame: src/materials/bake.js)
-    if (lakes) { lakes.update(camera); if (lakes.version !== lakesSeen) { lakesSeen = lakes.version; grown.ground.refresh(); terrain.refresh(); stillAt = -1; } }   // (new lakes: the ground under the camera drawn again, and its layers)
+    frameIn(PART.materials); tex.flush();   // (materials asked for since the last frame: src/materials/bake.js)
+    frameIn(PART.lakes);
+    if (lakes) { lakes.update(camera); if (lakes.version !== lakesSeen) { lakesSeen = lakes.version; grown.ground.refresh(); terrain.refresh(); quiet = false; } }   // (new lakes: the ground under the camera drawn again, and its layers)
     // (behind the veil, a frame that would be the last one drawn again is not drawn: nothing was made since it, and it
     // changed nothing. three's compile, building a material's code, yields to the page for a frame to be drawn after
     // every 8 ms of it, and the start's frames, each drawing the whole world, held it to 8 ms a frame: one turn of 207
@@ -231,21 +245,36 @@ export async function boot({ profile = 'world' } = {}) {
     // throttled, headless above all, and three's wait then ends only on its own timer, 100 ms a step: the master's
     // Chrome log of this, 2026-11-19)
     if (veiled) { veil.frames++; veil.longest = Math.max(veil.longest, ms); }
-    if (veiled && stillAt === making().ended) { renderer.setRenderTarget(null); renderer.clear(); tell(); return; }
+    // (and while a turn is being made, what streams in meanwhile, the land's pages, a stand's meshes, waits for it: a
+    // frame drawn for them drew the whole world, and three's next step waited for it; 263 of the 469 frames behind the
+    // veil were drawn so, in Chrome on main 093a56f, the master's log, and 40 asks spent 34 s on the page's thread, of
+    // some 0.5 s of building, bun's. They come in between turns, and after the veil)
+    frameIn(PART.veil);
+    const M = making();
+    if (veiled && drawnAt === M.ended && (quiet || M.active)) { renderer.setRenderTarget(null); renderer.clear(); tell(); return; }
     if (veiled) veil.drawn++;
+    frameIn(PART.governor);
     renderer.info.reset();
     governor.begin();
     const c0 = performance.now();
     // (a film's footage fills the picture, cine/media.js: the world under it is neither chosen nor drawn, the GPU is the video's)
-    if (!game.covered) { choose(Math.min(ms, 100) / 1000); hud?.cpu(performance.now() - c0); const d0 = performance.now(); draw(); parts.draw = performance.now() - d0; }
+    if (!game.covered) { choose(Math.min(ms, 100) / 1000); hud?.cpu(performance.now() - c0); frameIn(PART.draw); draw(); }
+    frameIn(PART.governor);
     // (the time since the last frame is that frame's: what it did besides drawing is told with it. Not behind the veil:
     // the start's frames are long for what it makes, not for its pixels, and the governor's look begins at the first
     // frame shown. A ratio it turned there changed the inside's pixels, which the land's pages take for a new view and
     // ask for again: in WebKit, 943 never laid, and the veil never lifted, 2026-11-18)
-    if (!veiled) governor.end(ms, now, live() && grown.scatter.over, wasBusy);
+    if (!veiled) {
+      // (judged by its own time on the GPU, once it is done, against how long the page's thread took over it: a frame
+      // the thread held moves no dial, src/core/governor.js; where no queue can be asked, by the time between frames)
+      const over = live() && grown.scatter.over, busy = wasBusy, js = performance.now() - j0, gpu = frameDone();
+      if (gpu) gpu.then((g) => { if (g != null) governor.end(g, performance.now(), over, busy, js); }); else governor.end(ms, now, over, busy);
+    }
     wasBusy = busy();
+    frameIn(PART.settle);
     if (!game.covered) tick(changed());   // (whether the world is complete: src/core/settle.js)
-    if (veiled) { stillAt = changed() ? -1 : making().ended; tell(); game.work = taken(); } else hitch(ms, now);   // (the start's frames, behind the veil: what they wait for told, not logged as the game's; what each did let go all the same, or every frame after the first that did anything would count as changing what is drawn, and the world would never be complete)
+    frameIn(PART.hud);
+    if (veiled) { drawnAt = making().ended; quiet = !changed(); tell(); game.work = taken(); } else hitch(ms, now);   // (the start's frames, behind the veil: what they wait for told, not logged as the game's; what each did let go all the same, or every frame after the first that did anything would count as changing what is drawn, and the world would never be complete)
     hud?.frame(ms, now, controls && controls.band !== 'eye' ? `  ${controls.band} ${Math.round(controls.height)} m` : '');
   }
 
@@ -253,13 +282,13 @@ export async function boot({ profile = 'world' } = {}) {
   // few seconds (TheGame/.perf/hitches.jsonl), to find what makes the picture stop. Each post says which tab it is (an id
   // made at its load, its browser, its page), how many frames it drew since the last, and where the governor's dials stand:
   // the frame rate a person's own browser really holds, read from the file ----
-  const HITCH = 24, hitches = []; let frames = 0, sentAt = 0;
+  const HITCH = 24, hitches = []; let frames = 0, sentAt = 0, framesAll = 0;   // (framesAll: every frame drawn, the last start's note: src/core/lastrun.js)
   const TAB = { id: Math.random().toString(36).slice(2, 8), ua: /Chrome\//.test(navigator.userAgent) ? 'Chrome' : /Safari\//.test(navigator.userAgent) ? 'Safari' : 'other', page: location.pathname + location.search };
   function hitch(ms, now) {
-    frames++; const work = (game.work = taken());   // (what the frame did besides drawing: src/core/work.js; the last frame's, read as window.__game.work)
+    frames++; framesAll++; const work = (game.work = taken());   // (what the frame did besides drawing: src/core/work.js; the last frame's, read as window.__game.work)
     if (ms > HITCH && frames > 30) {
       const r = renderer.info.render, c = window.__cine, f = (v) => +v.toFixed(2);
-      hitches.push({ at: Math.round(now), ms: f(ms), ctl: f(parts.ctl), ground: f(parts.ground), terrain: f(parts.terrain), scatter: f(parts.scatter), draw: f(parts.draw),
+      hitches.push({ at: Math.round(now), ms: f(ms), parts: frameSoFar(),
         lod: f(governor.lod), cap: f(governor.cap), dpr: governor.dpr, resizes, w: innerWidth, h: innerHeight, tris: r.triangles, calls: r.drawCalls ?? r.calls, film: c?.clips?.length ? f(c.time) : null, playing: !!c?.playing, page: location.pathname + location.search, ...(Object.keys(work).length ? { work } : {}) });
     }
     if (import.meta.env.DEV && now - sentAt > 4000 && (hitches.length || frames > 0)) {
@@ -311,10 +340,13 @@ export async function boot({ profile = 'world' } = {}) {
   // (Until 2026-11-18 the start compiled everything the world could draw, every mesh made visible, before any frame:
   // 308 pipelines, 7.7 s of a 14.1 s cold start in Chrome, and a first picture that was not yet complete; under memory
   // pressure, three minutes on "Lighting the world")
-  // (the veil says what the start waits on: what is being compiled, n of m; once nothing is, what is still out)
+  // (the veil says what the start waits on: how many of the pipelines asked of the GPU are made (the one cache's count:
+  // src/core/compile.js pipelines; each step a compile, the start's own with the first view's: the bar ends as the veil
+  // lifts. An ask is a mesh and a pass, and most of a stand's share a pipeline: on next, 395 asks for 58 pipelines of the
+  // first view), what is being made now; once nothing is, what is still out)
   const tell = () => {
-    const M = making(), out = M.done < M.asked ? '' : Object.entries(waiting()).map(([k, n]) => `${k} ${n}`).join(', ');
-    loadingSay(`Lighting the world: ${M.done} of ${M.asked}${M.now ? ` (${M.now})` : out ? `; waiting on ${out}` : ''}`, 0.55 + 0.4 * (M.asked ? M.done / M.asked : 0));
+    const M = making(), P = pipelines(), [n, of] = P.asked ? [P.made, P.asked] : [M.done, M.asked], out = M.done < M.asked ? '' : Object.entries(waiting()).map(([k, w]) => `${k} ${w}`).join(', ');
+    loadingSay('Lighting the world', 0.55 + 0.4 * (of ? n / of : 0), { count: `${n} / ${of}`, detail: M.now || (out ? `waiting on ${out}` : '') });   // (its phase, how many are made, and which now: three lines, brand.css)
   };
   const makeAhead = () => {   // (a material at a time: what draws with it, for every pass; and each tier's packing)
     const groups = grown?.scatter ? grown.scatter.ahead() : [], by = new Map();
@@ -337,11 +369,13 @@ export async function boot({ profile = 'world' } = {}) {
     veiled = false;
     stampDone(renderer, FIRST_FRAME);   // (the first frame the world shows: what every measure of a start reads)
     game.loadMs = performance.now() - t0; mark('first');
+    { const f0 = framesAll; keepRun(performance.now(), () => framesAll - f0); }   // (where the start stands, kept from now on: src/core/lastrun.js)
+    aboutTo('the world shown: what grows after it'); firstView.then(() => aboutTo('the world settled'));   // (its phases, in the journal: src/core/journal.js)
     setTimeout(() => (game.outlines.made = keepOutlines()), 2500);   // what was measured anew this time, kept for the next start
     console.log(`[the game] ready in ${game.loadMs.toFixed(0)} ms`, marks);
     const C = compiles(); console.log(`[the game] the first view: ${C.firstView.asks} asks, ${C.firstView.pipes} pipelines asked of the GPU in ${C.firstView.turns} turns, ${C.firstView.ms} ms; the GPU's own ${C.firstView.gpu} ms; ${C.parallel.overtook} of ${C.parallel.of} pipelines ready before one asked earlier (none: one at a time) (__game.compiles())`);
     loadingDone();
-    if (world) makeAhead();
+    if (world) { aboutTo('what is made ahead of need'); makeAhead(); }
     if (world && flag('flyby')) import('../tools/flyby.js').then((m) => m.run());   // ?flyby: the camera flown by itself, to watch the plants' levels change (tools/flyby.js)
     if (world && flag('bench')) import('../tools/bench.js').then((m) => m.overlay());   // ?bench: the frame timed at the bench's six views once the world is loaded, the numbers on the screen (tools/bench.js)
   })();

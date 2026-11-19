@@ -13,9 +13,11 @@
 // gave each part 20 s, and then drew what had not come). What a frame asked for and is not made yet is out (the source
 // `compiling`): the world is not complete before (src/core/settle.js). Nothing is given up on by a clock: a compile the
 // GPU never answers holds the ones after it, and the veil says which it is (making: src/boot.js).
-import { source } from './settle.js';
+import { source, onSettled } from './settle.js';
+import { underBudget } from './gpu.js';
+import { pace, frameShare } from './pace.js';
 
-let last = Promise.resolve(), turns = 0, ended = 0;   // (turns: what the world waits for, waiting its turn here or being made; ended: turns over, of any kind)
+let last = Promise.resolve(), turns = 0, ended = 0, active = 0;   // (turns: what the world waits for, waiting its turn here or being made; ended: turns over, of any kind; active: one being made now)
 
 /** Run `fn` (it may be async) when its turn comes: after everything asked for here before it, and before anything asked
     after it (drawing what was just compiled, say, so that it does not draw while the next compile is half done).
@@ -23,7 +25,7 @@ let last = Promise.resolve(), turns = 0, ended = 0;   // (turns: what the world 
     what it gives. */
 export function inTurn(fn, counted = true) {
   if (counted) turns++;
-  const done = last.then(fn, fn), over = () => { ended++; if (counted) turns--; };   // (in turn, whether the one before it went well or not)
+  const go = () => { active++; return fn(); }, done = last.then(go, go), over = () => { active--; ended++; if (counted) turns--; };   // (in turn, whether the one before it went well or not)
   done.then(over, over);
   last = done.catch(() => {});   // (never two at once: three keeps the running compile's state in the renderer)
   return done;
@@ -38,6 +40,12 @@ export function inTurn(fn, counted = true) {
     one asked for again of the same make is given the one made, or being made. What is laid out 'auto', or made of what
     was made before this (unknown here), is its own, never shared. On the renderer's device, once, before anything is
     compiled on it. */
+let pipesAsked = 0, pipesMade = 0;   // (the cache's own count: below)
+/** The pipelines the renderer's device has been asked to make, each make once (the one cache, sharePipelines: one asked
+    for again of the same make is not counted again; one it cannot tell, laid out 'auto', each time), and how many of
+    them are made (or failed): what the veil counts (src/boot.js), each step one compile of the GPU's. Nothing before
+    sharePipelines (nor without WebGPU). */
+export const pipelines = () => ({ asked: pipesAsked, made: pipesMade });
 export function sharePipelines(renderer) {
   const dev = renderer.backend?.device;
   if (!dev?.createComputePipelineAsync || dev.__sharing) return;
@@ -55,10 +63,11 @@ export function sharePipelines(renderer) {
     const s = JSON.stringify(d, (k, v) => { if (k === 'label') return undefined; if (k !== 'module' && k !== 'layout') return v; if (!keys.has(v)) unknown = true; return keys.get(v); });
     return unknown ? null : `${kind} ${s}`;
   };
+  const counted = (promise) => { pipesAsked++; promise.then(() => pipesMade++, () => pipesMade++); return promise; };   // (a compile asked of the device, and when it ends)
   const later = (fn, kind) => { const f = dev[fn]; dev[fn] = function (d) {
     const k = makeOf(kind, d), had = k != null && made.get(k);
-    if (k == null || had) return k == null ? f.call(this, d) : had.promise;
-    const e = { promise: f.call(this, d), pipeline: null }; made.set(k, e);
+    if (k == null || had) return k == null ? counted(f.call(this, d)) : had.promise;
+    const e = { promise: counted(f.call(this, d)), pipeline: null }; made.set(k, e);
     e.promise.then((p) => { e.pipeline = p; }, () => { if (made.get(k) === e) made.delete(k); });   // (one that failed is asked for again as it is next wanted)
     return e.promise;
   }; };
@@ -67,7 +76,8 @@ export function sharePipelines(renderer) {
   const now = (fn, kind) => { const f = dev[fn]; dev[fn] = function (d) {
     const k = makeOf(kind, d), had = k != null && made.get(k);
     if (had?.pipeline) return had.pipeline;
-    const p = f.call(this, d); if (k != null && !had) made.set(k, { promise: Promise.resolve(p), pipeline: p });
+    const p = f.call(this, d); pipesAsked++; pipesMade++;   // (made at once: asked and made)
+    if (k != null && !had) made.set(k, { promise: Promise.resolve(p), pipeline: p });
     return p;
   }; };
   now('createComputePipeline', 'compute'); now('createRenderPipeline', 'render');
@@ -128,7 +138,9 @@ function readTurn(t) {
                   near ms, the turn was the GPU's; far under, it waited on the page's thread), overtook, slowest (its
                   pipeline of the longest own time), failed (its compile threw: each of its asks made alone after it) }
       slowest     the pipelines of the longest own time (ms: from asked to ready, the wait for those before it in it);
-                  byName: each material's or pass's pipelines, each one's own time */
+                  byName: each material's or pass's pipelines, each one's own time
+      open        what is asked and not made yet, each { name, pass, near (0: the first view waits for it), counted,
+                  first (in the first view's snapshot), what } (tools/census.js counts the first view by it) */
 export function compiles() {
   const ms = (t) => t.ms ?? performance.now() - t.at, issued = (t) => Math.max(0, ...t.pipes.map((p) => p.at - t.at)), gpu = (t) => sum(t.pipes, (p) => p.own ?? 0), compiled = (L) => L.filter((p) => !p.shared);
   const inView = (t) => (t.list && view ? t.list.filter((e) => view.has(e)).length : t.inView), read = TURNS.map((t) => ({ t, overtook: readTurn(t) })), first = TURNS.filter(inView), byName = {};
@@ -141,6 +153,7 @@ export function compiles() {
     turns: read.map(({ t, overtook }) => ({ name: t.name, asks: t.asks, inView: inView(t), pipes: compiled(t.pipes).length, shared: t.pipes.length - compiled(t.pipes).length, issued: Math.round(issued(t)), ms: Math.round(ms(t)), gpu: Math.round(gpu(t)), overtook, ...(compiled(t.pipes).some((p) => p.ms != null) ? { slowest: ((p) => ({ name: familyOf(p), own: Math.round(own(p)) }))(top(compiled(t.pipes).filter((p) => p.ms != null))) } : {}), ...(t.failed ? { failed: true } : {}) })),
     slowest: compiled(PIPES).filter((p) => p.ms != null).sort((a, b) => own(b) - own(a)).slice(0, 20).map((p) => ({ name: familyOf(p), kind: p.kind, own: Math.round(own(p)), ms: Math.round(p.ms) })),
     byName,
+    open: [...open].map((e) => ({ name: e.name, pass: e.pass, near: e.near, counted: e.counted, first: view ? view.has(e) : needed(e), what: e.what })),
   };
 }
 
@@ -168,6 +181,13 @@ const stateOf = (what) => { let S = STATE.get(what); if (!S) STATE.set(what, (S 
 // (an ask's rank: what the first view waits for, 0; then how near it is, metres from the eye; what is made ahead of
 // need, after all of it)
 const rank = (e) => (e.counted ? e.near : Infinity), needed = (e) => rank(e) === 0;
+let reach = Infinity;   // (how far round the eye the first view waits for what is drawn: firstReach; until then all of it)
+/** How far round the eye the first view waits for what is drawn, metres (src/boot.js: the near cascade's reach). */
+export const firstReach = (m) => { reach = m; };
+/** An ask's near (ask) for what is drawn from `m` metres from the eye on (where its band begins): 0 within the first
+    view's reach, what it waits for; past it m, made after it (a tier's packing, src/scatter/tier.js; what the screen
+    draws, src/core/screen.js) */
+export const nearFrom = (m = 0) => (m < reach ? 0 : m);
 /** Whether `what` (a mesh, or a list of compute passes) is made for `pass`. */
 export const made = (what, pass) => STATE.get(own(what))?.get(pass) === 'made';
 /** Whether `what` was asked to be made for `pass` and is not yet (neither made nor failed). */
@@ -218,10 +238,33 @@ function made1(maker, list) {
       (err) => {
         t.failed = true;
         if (list.length > 1) { console.warn(`compile: one of ${list.length} (${names[0]}, …) could not be compiled: each made alone`); return list.reduce((p, e) => p.then(() => made1(maker, [e])), Promise.resolve()); }
-        stateOf(own(list[0].what)).set(list[0].pass, 'failed'); console.warn(`compile: ${names[0]} could not be compiled, and is not drawn`, err); over(list);
+        const e = list[0];
+        if (scarce(err)) { stateOf(own(e.what)).set(e.pass, 'waiting'); SCARCE.push({ ...e, maker, calm: calms }); console.warn(`compile: ${names[0]} could not be made for want of memory: asked again once the world has settled, while the GPU holds less than its budget`, err); }
+        else { stateOf(own(e.what)).set(e.pass, 'failed'); console.warn(`compile: ${names[0]} could not be compiled, and is not drawn`, err); }
+        over(list);
       })
-    .finally(() => { now = ''; });
+    .finally(() => { now = ''; if (again && list.some((e) => e.what === again.what && e.pass === again.pass)) { again = null; nextFrame(askAgain); } });
 }
+// ---- what memory refused: asked again ----
+// A make the device refused for want of memory (a buffer, a texture or a shader module it would not make: WebKit's
+// "Unable to create …", an out-of-memory error) is no fault of its code: it waits, and is asked again once the world has
+// settled (the start's peak past, idle workers let go: src/core/settle.js onSettled), one at a time a frame apart, while
+// the GPU holds less than its budget (src/core/gpu.js underBudget); one refused again waits for the next time the world
+// settles. A make whose code the GPU refused is left out for good, as before (2026-11-19, the master: on Samuel's iPhone
+// the Bell tent was never drawn, its prepass once refused a buffer: "Unable to create buffer").
+const SCARCE = [];   // (what waits: each an ask, with its maker and the settle it was last refused in)
+let calms = 0, again = null;   // (how many times the world has settled; the one asked again now)
+const scarce = (err) => (typeof GPUOutOfMemoryError !== 'undefined' && err instanceof GPUOutOfMemoryError) || /out of memory|unable to create|allocat/i.test(`${err?.message ?? err}`);
+const nextFrame = (fn) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => fn()) : setTimeout(fn, 0));
+function askAgain() {
+  if (again || !underBudget()) return;
+  const i = SCARCE.findIndex((e) => e.calm < calms); if (i < 0) return;
+  [again] = SCARCE.splice(i, 1); stateOf(own(again.what)).delete(again.pass);
+  ask(again.what, again.pass, again.maker, again.name, again.counted, again.near);
+}
+onSettled(() => { calms++; askAgain(); });
+/** How many makes wait for memory (the last start's note: src/core/lastrun.js). */
+export const waitingOnMemory = () => SCARCE.length + (again ? 1 : 0);
 /** Ask `maker` (make(list): a promise, see flush) for `what` to be made for `pass`, unless it is made, being made, or
     could not be: with all else asked of it before this frame is over, in turn. name: what it is, for the veil and the
     console. counted: whether the world waits for it (made ahead of need, src/boot.js: not). near: 0, what the first
@@ -246,16 +289,30 @@ export function ask(what, pass, maker, name = '', counted = true, near = 0) {
     it is. */
 export function ready(what, pass, maker, name = '', near = 0) { if (made(what, pass)) return true; ask(what, pass, maker, name, true, near); return false; }
 /** Each of `groups` (a function that asks for something, not counted) in order, each once what the one before asked has
-    been made: what is made ahead of need, a little at a time, so that what a frame asks for meanwhile waits for little. */
-export async function ahead(groups) { for (const g of groups) { g(); await Promise.resolve(); await last; } }   // (its flush is queued before the turn it waits for)
+    been made: what is made ahead of need, a little at a time, so that what a frame asks for meanwhile waits for little.
+    Paced (src/core/pace.js): a group (a material for every pass, a tier's packing: a pipeline or a few) a frame, more
+    only as they take less than the share of a frame no class names (one whose pipelines are made already takes
+    nothing), and only while the GPU holds less than its budget (src/core/gpu.js underBudget): no burst just past Ready,
+    when a phone's page is fullest (2026-11-19, the master: all of it was asked one group after another as the first view
+    showed). Where there are no frames to pace by (a tool's run without them: tools/smoke.js), one after another. */
+export async function ahead(groups) {
+  const P = pace(1), framed = typeof requestAnimationFrame === 'function';
+  for (const g of groups) {
+    while (framed && (P.left < 1 || !underBudget())) { await new Promise((res) => requestAnimationFrame(() => res())); P.tick(); }
+    P.left--;
+    const t0 = performance.now();
+    g(); await Promise.resolve(); await last;   // (its flush is queued before the turn it waits for)
+    P.measured(1, Math.max(1e-3, performance.now() - t0), frameShare('other'));
+  }
+}
 /** The name of `material` as it draws `object`: its own, else what it draws (the object's name, or its parent's, and
     the pass a twin of it draws in), which it is then given: three labels a pipeline by its material's name, and the
     veil says it (making). */
 export const labelled = (material, object, pass = '') => (material.name ||= [object.name || object.parent?.name || material.type, pass].filter(Boolean).join(' '));
 /** What frames asked to be made: how many, how many are, and what is being made now (the veil: src/boot.js); ended:
     how many turns are over, of any kind (what was made since a frame: src/boot.js draws again behind the veil only
-    then). */
-export const making = () => ({ asked, done, now, ended });
+    then); active: whether a turn is being made now. */
+export const making = () => ({ asked, done, now, ended, active: active > 0 });
 const computeMakers = new WeakMap();
 const ownMakers = new WeakMap();
 /** Draw `mesh` (a pass of its own: a quad drawn straight into the renderer's target as `camera` sees it, not an object of

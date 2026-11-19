@@ -13,7 +13,7 @@ import { U } from '../core/uniforms.js';
 import { kindRule, spanOf } from '../../assets/kinds.js';
 import { handOverAt } from './handover.js';
 import { atlases } from './impostor.js';
-import { spacingOf, depthOf } from './atlas.js';
+import { spacingOf } from './atlas.js';
 import { pxOn } from './measure.js';
 import { FADE, BAND, GONE, switchPx, dialPx } from './error.js';
 
@@ -21,14 +21,14 @@ import { FADE, BAND, GONE, switchPx, dialPx } from './error.js';
 export { distanceAt } from './measure.js';
 
 /** Where a made thing's far card comes (src/world/place.js): its error is its impostor's (src/detail/atlas.js), a texel
-    of its views (CELL of them over the sphere round its faces: at most its box's diagonal) and what their spacing and
-    its parallax misplace (spacingOf(VIEWS) times its depth), against its largest side; its views are every impostor's
-    (src/detail/impostor.js atlases). */
+    of its views (CELL of them over the sphere round its faces: at most its box's diagonal) and what their spacing
+    misplaces (spacingOf(VIEWS) times that sphere's radius: at most half the diagonal), against its largest side; its
+    views are every impostor's (src/detail/impostor.js atlases). */
 const CARDS = new WeakMap(), impostorPx = (a) => {
   if (!CARDS.has(a)) {
-    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity], P = new Float64Array(a.faces.length * 9);
-    a.faces.forEach((f, i) => { for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) { const x = f[j][k]; P[i * 9 + j * 3 + k] = x; lo[k] = Math.min(lo[k], x); hi[k] = Math.max(hi[k], x); } });
-    const { VIEWS, CELL } = atlases(), e = Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) / CELL + spacingOf(VIEWS) * depthOf(P);
+    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+    for (const f of a.faces) for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) { const x = f[j][k]; lo[k] = Math.min(lo[k], x); hi[k] = Math.max(hi[k], x); }
+    const { VIEWS, CELL } = atlases(), d = Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]), e = d / CELL + (spacingOf(VIEWS) * d) / 2;
     CARDS.set(a, e / spanOf(a));   // (its error, a share of its size: the dial says where)
   }
   return switchPx(CARDS.get(a));
