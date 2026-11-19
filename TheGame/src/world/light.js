@@ -6,7 +6,7 @@
 // to the shared lanes (wet, fog, dim), and what each does to a surface (`surface`: the snow lying on it). What is one
 // condition's own (the snow's depth, the wind's push, the clouds' shade) is that condition's code, handed on from here,
 // so a material asks the contract and no file but the condition's holds it.
-import { Fn, float, int, vec2, vec3, vec4, ivec2, If, Loop, Break, array, mix, exp, pow, smoothstep, fract, floor, dot, max, min, clamp, length, normalize, cos, sin, screenCoordinate } from 'three/tsl';
+import { Fn, float, int, vec2, vec3, vec4, ivec2, If, Loop, Break, array, mix, exp, pow, smoothstep, step, fract, floor, dot, max, min, clamp, length, normalize, cos, sin, screenCoordinate } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { passOf } from '../core/pass.js';
 import { lane } from './weather/lanes.js';
@@ -121,7 +121,10 @@ const cascade = (w, k) => {
   return { q, e: smoothstep(0, 0.1, m).mul(q.z.lessThan(1).select(float(1), float(0))) };
 };
 const depthAt = (uv, k) => { const S = cascades().S; return float(U.tShadow.load(ivec2(clamp(uv.mul(S), vec2(0), vec2(S - 1)))).depth(int(k))); };
-const compareAt = (uv, k, z) => U.tShadow.sample(uv).depth(int(k)).level(0).compare(z);
+// (a tap: lit where what was drawn nearest the light there lies no nearer than z, at the texel the point falls in. Read
+// with an integer level (textureLoad, depthAt): a depth texture's sampled level must be one in WGSL, and three writes a
+// sampled one as a float, which Chrome's compiler rejects; the comparison as three wrote it before: step over that texel)
+const compareAt = (uv, k, z) => step(z, depthAt(uv, k));
 // cascade k's taps (TAPS, or FEW: from, n of DISCS) over a penumbra `pen` metres wide (perM: its texture's units a metre)
 const taps = (q, z, cs, pen, perM, k, D, from = 0, n = TAPS.length) => {
   const s = float(0).toVar(), r = pen.mul(perM).mul(0.5).toVar();

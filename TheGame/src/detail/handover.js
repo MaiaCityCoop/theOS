@@ -22,8 +22,12 @@ export const levelOf = (Lv, fade) => ({ hi: uniform(Number.isFinite(Lv.hi) ? Mat
     come since it could first be drawn (userData.arrived, 0 … 1, the screen's ramp after the first view: absent, all of
     it): what comes later rises out of the ground as its last level sinks into it, never at once (handOver's sunk). */
 const ofLv = (f) => uniform(0).onObjectUpdate(({ object }) => { const Lv = object?.userData?.Lv; return Lv ? f(Lv) : 0; });
+/** How far the mesh drawing it has come since it could first be drawn, as it tells it at each draw (userData.arrived:
+    above), for any material whose meshes rise out of the ground as they come (sinkInto by it: the meadow's rings too,
+    src/scatter/grass.js). */
+export const ARRIVED = uniform(1).onObjectUpdate(({ object }) => object?.userData?.arrived ?? 1);
 export const levelOfMesh = (fade) => ({ hi: ofLv((Lv) => (Number.isFinite(Lv.hi) ? Math.log(Lv.hi) + fade : 1e3)), lo: ofLv((Lv) => Math.log(Lv.lo) + fade), px: ofLv((Lv) => Lv.lo), last: ofLv((Lv) => (Lv.last ? 1 : 0)), fade,
-  arrived: uniform(1).onObjectUpdate(({ object }) => object?.userData?.arrived ?? 1) });
+  arrived: ARRIVED });
 
 /** How far the camera may move before an engine's cells of P cells of `cell` metres are packed again, and a little: the
     margin a level's packing keeps a thing either side of its band, so it is there when the camera has moved. */

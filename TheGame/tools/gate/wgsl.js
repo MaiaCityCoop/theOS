@@ -37,7 +37,8 @@ const ENGINES = { chrome: () => chromium.launch({ channel: 'chrome', headless: t
 function built() {
   const dir = mkdtempSync(join(tmpdir(), 'gate-wgsl-')), f = join(dir, 'wgsl.json');
   try {
-    const r = spawnSync('bun', ['tools/smoke.js', '--wgsl', f], { cwd: new URL('../..', import.meta.url).pathname, encoding: 'utf8', maxBuffer: 1 << 26 });
+    const r = spawnSync('bun', ['tools/smoke.js', '--full', '--wgsl', f],   // (--full: what grows after it is made too, the characters', tools/unbuilt.json full)
+      { cwd: new URL('../..', import.meta.url).pathname, encoding: 'utf8', maxBuffer: 1 << 26 });
     try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return { error: `the smoke kept no modules: ${(r.stdout + r.stderr).trim().split('\n').slice(-3).join(' · ')}` }; }
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }

@@ -56,7 +56,8 @@ export async function mock({ webgl = false, dpr = 1, record = false, lean = fals
     debug: { diagnostics: { keywords: false }, onNodeBuilderCreated: null }, info: { render: {}, compute: {}, memory: {}, autoReset: true, reset() {} },
     xr: { enabled: false }, shadowMap: { enabled: false }, lighting: { getNode: () => null }, isOutputTarget: false, highPrecision: false, autoClear: true,
     currentColorSpace: THREE.LinearSRGBColorSpace, outputColorSpace: THREE.LinearSRGBColorSpace, toneMapping: THREE.NoToneMapping,
-    hasFeature: () => true, hasCompatibility: () => false,   // (every feature: every path of the node code is built)
+    hasFeature: () => true,   // (every feature: every path of the node code is built)
+    hasCompatibility: (name) => name === THREE.Compatibility.TEXTURE_COMPARE,   // (as three's backends answer on a Mac: a depth texture compared by its own sampler, textureSampleCompareLevel; answered no, three took its fallback for Android's, a plain textureSampleLevel at a float level, which WGSL refuses on a depth texture: the hour's 29 errors, 2026-11-19)
     getColorBufferType: () => THREE.HalfFloatType, getMRT: () => mrt, setMRT: (m) => { mrt = m; }, getOutputRenderTarget: () => null, getPixelRatio: () => dpr, initTexture() {},   // (initTexture: a texture made on the GPU before it is first drawn, src/materials/bake.js's packed layers)   // (mrt: what a pass writes, src/core/pass.js twinOf)
     size: { W: size[0] * dpr, H: size[1] * dpr }, getDrawingBufferSize: (v) => v.set(renderer.size.W, renderer.size.H), getSize: (v) => v.set(renderer.size.W / dpr, renderer.size.H / dpr), setSize() {}, setPixelRatio() {},
     getRenderTarget: () => target, setRenderTarget: (t) => { target = t; if (record) calls.push(`target ${id(t)}`); },

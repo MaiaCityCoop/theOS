@@ -32,9 +32,12 @@ export const PPD = 0.7 * (OUTPUT.width / 0.7) * (Math.PI / 180);
 // are spread over [0, pt]; the edge detector's width w (degrees); the feature metric's exponent qf. The eye's contrast
 // sensitivity per opponent channel (achromatic, red-green, blue-yellow), each a sum of two Gaussians a·√(π/b)·e^(−π²x²/b)
 // over x in degrees. The D65 white, and its inverse.
+// source: Andersson et al. 2020, "FLIP: A Difference Evaluator for Alternating Images", HPG 2020; their reference,
+// https://github.com/NVlabs/flip src/cpp/FLIP.h
 const QC = 0.7, PC = 0.4, PT = 0.95, GW = 0.082, QF = 0.5;
 const A1 = [1, 1, 34.1], B1 = [0.0047, 0.0053, 0.04], A2 = [0, 0, 13.5], B2 = [1e-5, 1e-5, 0.025];
 const WHITE = [0.950428545, 1, 1.088900371], INV = [1.052156925, 1, 0.91835767];
+// (CIELAB's δ, where its cube root turns linear near black, as FLIP.h takes it: source: CIE 1976, L*a*b*)
 const DELTA = 6 / 29, CUBE = DELTA ** 3, LINEAR = 1 / (3 * DELTA * DELTA);
 
 /** The FLIP error of `test` against `reference` ({ width, height, data: RGB or RGBA bytes in sRGB, channels }), one
