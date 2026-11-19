@@ -2,9 +2,14 @@
 // piecemeal job (the land's pages laid, src/terrain/pages.js; the tiers' packing visits, src/scatter/tier.js) is held to
 // what the GPU does in a share of the frame, by each piece's own time on the GPU.
 //
-//   ownGpuMs(renderer, submit)   a submission's own time on the GPU, ms: from when it is handed over (submit()), or when
-//                                the GPU has done all handed before it, whichever is later, to when it is done; a promise
-//                                (null where there is no queue to ask: the CPU's stand-in, tools/gpu-mock.js)
+//   ownGpuMs(renderer, submit)   a submission's own time on the GPU, ms, a promise: by the GPU's own clock where it has
+//                                one (stampedMs); else heard, a bound: from when it is handed over (submit()), or when
+//                                the GPU has done all handed before it, whichever is later, to when it is done (null
+//                                where there is no queue to ask: the CPU's stand-in, tools/gpu-mock.js)
+//   stampedMs(device, submit)    submit() run with its own GPU time taken by the GPU's own timestamps: a promise of ms;
+//                                null where the device has none ('timestamp-query'), submit() not run then. The one
+//                                reader of a submission's GPU time: ownGpuMs, and the gate's watch (tools/gate/device.js,
+//                                globalThis.__stampedMs; isMark: the clock's own command buffers)
 //   frameShare(cls)              the ms a frame what is paced in class cls may take now: the whole frame (FRAME_MS)
 //                                behind the veil, its class's share (FRAME_MS_BY_CLASS) once the first view shows
 //   pace(unit)                   how many of something a frame: { n, left, tick(), measured(count, ms, budget, exact) }:
@@ -39,14 +44,40 @@ let veiled = true; ready.then(() => { veiled = false; });
     frame's behind the veil, its class's share once the first view shows. */
 export const frameShare = (cls) => (veiled ? FRAME_MS : FRAME_MS_BY_CLASS[cls]);
 
-/** A submission's own time on the GPU (ms, a promise; null without a queue to ask). */
+// ---- a submission's own time on the GPU by the GPU's own clock: two timestamps the GPU writes itself, one before the
+// submission's work and one after it (an empty compute pass each, in command buffers of their own about it), resolved
+// and read back. Not heard on the page's thread, so a stall of it is not charged to the GPU (2026-11-19: the ground's
+// pieces, well under a millisecond each, were heard 231 and 461 ms late, frame after frame) ----
+const CLOCK = "the GPU's clock", POOLS = new WeakMap();
+/** submit() run with its own time on the GPU taken by the GPU's timestamps: a promise of ms (null where they could not
+    be read); null where the device has no 'timestamp-query', and submit() not run. raw: how the clock's own marks are
+    handed to the queue (the gate's watch hands its unwatched submit). */
+function stampedMs(device, submit, raw = (cbs) => device.queue.submit(cbs)) {
+  if (!device?.features?.has('timestamp-query')) return null;
+  const free = POOLS.get(device) ?? POOLS.set(device, []).get(device);
+  const s = free.pop() ?? { set: device.createQuerySet({ type: 'timestamp', count: 2, label: CLOCK }), res: device.createBuffer({ size: 16, usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC, label: CLOCK }), out: device.createBuffer({ size: 16, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ, label: CLOCK }) };
+  const mark = (end) => {
+    const e = device.createCommandEncoder({ label: CLOCK });
+    e.beginComputePass({ label: CLOCK, timestampWrites: end ? { querySet: s.set, endOfPassWriteIndex: 1 } : { querySet: s.set, beginningOfPassWriteIndex: 0 } }).end();
+    if (end) { e.resolveQuerySet(s.set, 0, 2, s.res, 0); e.copyBufferToBuffer(s.res, 0, s.out, 0, 16); }
+    return e.finish({ label: CLOCK });
+  };
+  raw([mark(false)]); submit(); raw([mark(true)]);
+  return s.out.mapAsync(GPUMapMode.READ).then(() => { const [a, b] = new BigUint64Array(s.out.getMappedRange()); s.out.unmap(); free.push(s); return Math.max(0, Number(b - a) / 1e6); }, () => null);
+}
+/** Whether a command buffer is one of the clock's own marks (handed on unwatched: tools/gate/device.js). */
+const isMark = (cb) => cb?.label === CLOCK;
+globalThis.__stampedMs = stampedMs; globalThis.__isMark = isMark;   // (for the gate's watch, in the page before the game: one reader)
+/** A submission's own time on the GPU (ms, a promise; null without a queue to ask): by the GPU's timestamps where it
+    has them, else heard (a bound: a stall of the page's thread in it). */
 export function ownGpuMs(renderer, submit) {
-  const q = renderer.backend?.device?.queue;
+  const dev = renderer.backend?.device, q = dev?.queue;
   if (!q?.onSubmittedWorkDone) { submit(); return null; }
   const before = q.onSubmittedWorkDone().then(() => performance.now()), t0 = performance.now();
-  submit();
+  const stamped = stampedMs(dev, submit) ?? (submit(), null);
   const after = q.onSubmittedWorkDone().then(() => performance.now());
-  return Promise.all([before, after]).then(([d0, d1]) => Math.max(1e-3, d1 - Math.max(t0, d0)));
+  const heard = Promise.all([before, after]).then(([d0, d1]) => Math.max(1e-3, d1 - Math.max(t0, d0)));
+  return stamped ? Promise.all([stamped, heard]).then(([gpu, bound]) => gpu ?? bound) : heard;   // (by the GPU's clock; heard, a bound, where it has none)
 }
 
 // ---- each pass's own time on the GPU, by its marks ----
