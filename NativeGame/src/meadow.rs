@@ -75,7 +75,12 @@ struct Field {
     /// The land beyond the grass, out to the horizon, and where the eye was when it was last built.
     far: Handle<Mesh>,
     far_at: Vec2,
+    /// Whether the eye was high (above `HIGH`) when the far land was last built.
+    far_high: bool,
 }
+
+/// Above this height over the land, the near grass and ground are not drawn: the far land reaches right under the eye.
+const HIGH: f32 = 150.0;
 
 /// The ring class of a chunk `ring` chunks from the camera's: rings 0 and 1 are one class (full detail), rings 7 and out
 /// another.
@@ -97,6 +102,27 @@ fn stream(
     }
     let at = eye.translation();
     let (cx, cz) = ((at.x / CHUNK).floor() as i32, (at.z / CHUNK).floor() as i32);
+    let high = at.y - crate::terrain::height(at.x, at.z) > HIGH;
+    // the land beyond the grass: rebuilt around the eye whenever it has moved 40 m, or crossed the height where the
+    // near detail hands over to it
+    let here = Vec2::new(at.x, at.z);
+    if here.distance(field.far_at) > 40.0 || high != field.far_high {
+        field.far_at = here;
+        field.far_high = high;
+        let inner = if high { 1.0 } else { CHUNK * (RINGS as f32 - 0.5) };
+        if let Some(mut m) = meshes.get_mut(&field.far) {
+            *m = crate::terrain::far(here.x, here.y, inner);
+        }
+    }
+    if high {
+        // high above: no near grass or ground at all, only the far land
+        for (_, (grass, ground, _)) in field.shown.drain() {
+            commands.entity(grass).despawn();
+            commands.entity(ground).despawn();
+        }
+        field.growing.clear();
+        return;
+    }
     // what is wanted, nearest ring first
     let mut wanted: Vec<((i32, i32), i32)> = vec![];
     for ring in 0..=RINGS {
@@ -143,15 +169,6 @@ fn stream(
         if let Some((old_grass, old_ground, _)) = field.shown.insert(k, (g, l, c)) {
             commands.entity(old_grass).despawn();
             commands.entity(old_ground).despawn();
-        }
-    }
-    // the land beyond the grass: rebuilt around the eye whenever it has moved 40 m (or risen far)
-    let here = Vec2::new(at.x, at.z);
-    if here.distance(field.far_at) > 40.0 {
-        field.far_at = here;
-        let inner = CHUNK * (RINGS as f32 - 0.5);
-        if let Some(mut m) = meshes.get_mut(&field.far) {
-            *m = crate::terrain::far(here.x, here.y, inner);
         }
     }
 }
@@ -317,7 +334,7 @@ fn enter(
     let far = meshes.add(crate::terrain::far(0.0, 0.0, crate::grass::CHUNK * (crate::grass::RINGS as f32 - 0.5)));
     commands.spawn((GrassWorld, MEADOW, Mesh3d(far.clone()), MeshMaterial3d(ground.clone())));
     // the grass and the near land are grown around the camera as it moves (`stream`)
-    commands.insert_resource(Field { material: blades, ground, shown: default(), growing: default(), far, far_at: Vec2::ZERO });
+    commands.insert_resource(Field { material: blades, ground, shown: default(), growing: default(), far, far_at: Vec2::ZERO, far_high: false });
 }
 
 fn leave(

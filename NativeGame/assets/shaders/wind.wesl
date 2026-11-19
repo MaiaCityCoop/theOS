@@ -9,7 +9,9 @@ struct Wind {
 
 // The large shape of the land, as `terrain::big` in Rust: keep the two the same.
 fn ground(p: vec2<f32>) -> f32 {
-    return 4.0 * sin(0.0110 * p.x + 0.7) * cos(0.0093 * p.y - 1.1)
+    return 22.0 * sin(0.0011 * p.x + 0.3) * cos(0.0013 * p.y + 1.7)
+        + 9.0 * sin(0.0031 * p.x - 0.0024 * p.y + 0.9)
+        + 4.0 * sin(0.0110 * p.x + 0.7) * cos(0.0093 * p.y - 1.1)
         + 2.5 * sin(0.0057 * p.x + 0.0043 * p.y + 2.0)
         + 0.45 * sin(0.071 * p.x - 0.052 * p.y + 0.3) * sin(0.048 * p.x + 0.083 * p.y + 1.9)
         + 0.25 * sin(0.15 * p.x + 0.11 * p.y + 4.0);

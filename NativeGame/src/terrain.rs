@@ -11,7 +11,9 @@ use bevy::prelude::*;
 
 /// The large shape of the land: hills and swells. Also in `wind.wesl` (`ground`): keep the two the same.
 pub fn big(x: f32, z: f32) -> f32 {
-    4.0 * (0.0110 * x + 0.7).sin() * (0.0093 * z - 1.1).cos()
+    22.0 * (0.0011 * x + 0.3).sin() * (0.0013 * z + 1.7).cos()
+        + 9.0 * (0.0031 * x - 0.0024 * z + 0.9).sin()
+        + 4.0 * (0.0110 * x + 0.7).sin() * (0.0093 * z - 1.1).cos()
         + 2.5 * (0.0057 * x + 0.0043 * z + 2.0).sin()
         + 0.45 * (0.071 * x - 0.052 * z + 0.3).sin() * (0.048 * x + 0.083 * z + 1.9).sin()
         + 0.25 * (0.15 * x + 0.11 * z + 4.0).sin()
@@ -39,7 +41,7 @@ pub fn noise(x: f32, z: f32, cell: f32, seed: u32) -> f32 {
 
 /// The small shape: tussock mounds and the crumbly unevenness of a meadow's floor, a few centimetres.
 fn small(x: f32, z: f32) -> f32 {
-    0.09 * noise(x, z, 1.3, 1) + 0.035 * noise(x, z, 0.4, 2) + 0.012 * noise(x, z, 0.12, 3)
+    0.22 * noise(x, z, 1.6, 1) + 0.08 * noise(x, z, 0.55, 2) + 0.025 * noise(x, z, 0.16, 3) + 0.008 * noise(x, z, 0.05, 11)
 }
 
 /// The height of the ground at (x, z), in metres.
@@ -59,16 +61,18 @@ fn soil(x: f32, z: f32) -> Vec3 {
     let moss = (noise(x, z, 2.1, 6) - 0.62).clamp(0.0, 0.3) / 0.3;
     let grain = 0.85 + 0.3 * noise(x, z, 0.05, 7);
     let loam = Vec3::new(0.105, 0.075, 0.052).lerp(Vec3::new(0.05, 0.036, 0.026), damp);
-    loam.lerp(Vec3::new(0.19, 0.15, 0.09), litter * 0.7).lerp(Vec3::new(0.035, 0.065, 0.018), moss) * grain
+    let floor = loam.lerp(Vec3::new(0.19, 0.15, 0.09), litter * 0.7).lerp(Vec3::new(0.035, 0.065, 0.018), moss);
+    // under a sward the ground is mostly dead leaves and moss, olive, with only some soil showing through
+    floor.lerp(Vec3::new(0.06, 0.07, 0.03), 0.45) * grain
 }
 
 /// The colour of the land seen from afar, where its grass is too small to draw: the sward's own average green,
 /// varying in large patches (lusher, sparser, drier) so a view from above has structure.
 fn sward(x: f32, z: f32) -> Vec3 {
-    let lush = noise(x, z, 60.0, 8);
-    let dry = noise(x, z, 170.0, 9);
-    let fine = 0.9 + 0.2 * noise(x, z, 9.0, 10);
-    Vec3::new(0.030, 0.070, 0.014).lerp(Vec3::new(0.050, 0.095, 0.018), lush).lerp(Vec3::new(0.10, 0.09, 0.045), dry * dry * 0.6) * fine
+    let lush = noise(x, z, 60.0, 8) * 0.6 + noise(x, z, 600.0, 12) * 0.4;
+    let dry = noise(x, z, 170.0, 9) * 0.5 + noise(x, z, 1900.0, 13) * 0.5;
+    let fine = 0.85 + 0.3 * noise(x, z, 9.0, 10);
+    Vec3::new(0.026, 0.062, 0.012).lerp(Vec3::new(0.055, 0.10, 0.020), lush).lerp(Vec3::new(0.12, 0.10, 0.05), dry * dry * 0.8) * fine
 }
 
 /// Geometry being built.
@@ -93,6 +97,33 @@ impl Geo {
             .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, self.nrm)
             .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, self.col)
             .with_inserted_indices(Indices::U32(self.idx))
+    }
+
+    /// A clod of earth: a lumpy, low octahedron of soil `size` metres across, sitting on the ground at (x, z).
+    fn clod(&mut self, x: f32, z: f32, size: f32, seed: u32) {
+        let r = |k: u32| hash(seed as i32, k as i32, 91);
+        let ground = height(x, z);
+        let yaw = r(1) * std::f32::consts::TAU;
+        let (sy, cy) = yaw.sin_cos();
+        let corner = |k: u32, v: Vec3| {
+            let v = v * (0.7 + 0.6 * r(10 + k));
+            let v = Vec3::new(v.x, v.y * 0.55, v.z) * size * 0.5;
+            Vec3::new(v.x * cy - v.z * sy, v.y, v.x * sy + v.z * cy) + Vec3::new(x, ground + size * 0.12, z)
+        };
+        let pts = [
+            corner(0, Vec3::X), corner(1, -Vec3::X), corner(2, Vec3::Y), corner(3, -Vec3::Y * 0.4), corner(4, Vec3::Z), corner(5, -Vec3::Z),
+        ];
+        let faces = [[2, 4, 0], [2, 1, 4], [2, 5, 1], [2, 0, 5], [3, 0, 4], [3, 4, 1], [3, 1, 5], [3, 5, 0]];
+        // the soil's own colour, a little darker and damper than the surface it lies on
+        let col = soil(x, z) * (0.6 + 0.3 * r(2)) + Vec3::new(0.02, 0.012, 0.006);
+        for f in faces {
+            let (a, b, c) = (pts[f[0]], pts[f[1]], pts[f[2]]);
+            let n = (b - a).cross(c - a).normalize_or_zero();
+            let i0 = self.vert(a, n, col * (0.8 + 0.25 * n.y));
+            let i1 = self.vert(b, n, col * (0.8 + 0.25 * n.y));
+            let i2 = self.vert(c, n, col * (0.8 + 0.25 * n.y));
+            self.idx.extend_from_slice(&[i0, i1, i2]);
+        }
     }
 
     /// A stone: an irregular, flattened, partly buried rounded shape `size` metres across, at (x, z).
@@ -179,17 +210,25 @@ fn patch(g: &mut Geo, x0: f32, z0: f32, size: f32, n: u32, h: &dyn Fn(f32, f32) 
 pub fn chunk(cx: i32, cz: i32, size: f32, share: f32) -> Mesh {
     let mut g = Geo::default();
     let n = if share >= 1.0 { 96 } else if share >= 0.35 { 40 } else if share >= 0.09 { 16 } else { 8 };
-    let near = share >= 1.0;
-    let colour = |x: f32, z: f32| if near { soil(x, z) } else { soil(x, z).lerp(sward(x, z), 0.5) };
+    // near the eye the floor under the blades; further out more and more the sward's colour, the far land's own
+    let blend = ((0.35 - share) / 0.3).clamp(0.0, 1.0);
+    let colour = |x: f32, z: f32| soil(x, z).lerp(sward(x, z), blend);
     patch(&mut g, cx as f32 * size, cz as f32 * size, size, n, &height, &colour);
     if share >= 0.35 {
-        // pebbles, 1 to 4 cm, a few to the square metre, and now and then a stone of 8 to 30 cm
-        let count = (5.0 * size * size * share) as u32;
+        // per square metre at full detail: 35 clods of earth (2 to 6 cm), 18 pebbles (1 to 5 cm), and a stone (6 to
+        // 25 cm) in every few square metres; fewer one ring out
+        let count = (54.0 * size * size * share) as u32;
         for k in 0..count {
             let seed = (cx.wrapping_mul(92837) ^ cz.wrapping_mul(689287)) as u32 ^ k.wrapping_mul(2654435761);
             let (x, z) = (cx as f32 * size + hash(seed as i32, 1, 5) * size, cz as f32 * size + hash(seed as i32, 2, 5) * size);
-            let size = if hash(seed as i32, 3, 5) < 0.02 { 0.08 + 0.22 * hash(seed as i32, 4, 5) } else { 0.01 + 0.03 * hash(seed as i32, 4, 5) };
-            g.stone(x, z, size, seed);
+            let pick = hash(seed as i32, 3, 5);
+            if pick < 0.65 {
+                g.clod(x, z, 0.02 + 0.04 * hash(seed as i32, 4, 5), seed);
+            } else if pick < 0.995 {
+                g.stone(x, z, 0.01 + 0.04 * hash(seed as i32, 4, 5).powi(2), seed);
+            } else {
+                g.stone(x, z, 0.06 + 0.19 * hash(seed as i32, 4, 5), seed);
+            }
         }
     }
     g.mesh()
