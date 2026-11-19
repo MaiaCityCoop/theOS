@@ -25,6 +25,7 @@ import { crowdsReady } from '../core/crowds.js';   // (and each shape's crowd's 
 import { BONES } from '../../assets/kit/solid.js';
 import { useBuilder } from '../../assets/kit/surface.js';
 import { build, tailFrom, ready as built } from '../../assets/kit/clusters.js';
+import { jobDone } from '../../assets/kit/job.js';
 
 // the builder of surfaces' hierarchies (meshoptimizer's WebAssembly: here, never on the page), before any job is done
 const ready = Promise.all([built.then(() => useBuilder(build, tailFrom)), crowdsReady]);
@@ -62,6 +63,7 @@ async function blocksOf(k0, n, levels, make) {
     blocks[b].corners.set(m.index, i * idx); blocks[b].verts.set(m.verts, i * elems * 4); blocks[b].counts[i] = m.count ?? m.index.length; blocks[b].draws[i] = m.index.length; blocks[b].elems[i] = m.verts.length / 4;
     if (D != null) { if (m.box) blocks[b].boxes.set(m.box, i * 6); else solidBox(m.verts, D, blocks[b].boxes, i * 6); }
     else if (m.box) (blocks[b].boxes ||= new Float32Array(n * 6)).set(m.box, i * 6);   // (a family that measures its meshes itself: the plants', assets/kit/plant.js)
+    if (b === levels.length - 1) jobDone();   // (a kind's levels all made: what the kit built for them let go, assets/kit/job.js)
   }
   return blocks;
 }
@@ -83,5 +85,6 @@ self.onmessage = async ({ data: { id, jobs } }) => {
       out.push(blocks);
     }
   }
+  jobDone();   // (and whatever else the message's jobs built)
   self.postMessage({ id, out }, move);
 };
