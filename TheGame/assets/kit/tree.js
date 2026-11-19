@@ -32,7 +32,7 @@
 // in it).
 
 import { budgetOf } from './crowd.js';
-import { bandsOf, shapeSize, hasFar } from './plant.js';
+import { bandsOf, shapeSize, hasFar, onGrid } from './plant.js';
 import { add, sub, mul, dot, len, norm, cross, lerp, bez } from './math.js';
 import { rng } from '../../src/core/hash.js';
 
@@ -478,13 +478,14 @@ export function tree(recipe) {
     crowdRooms(A) {
       const o = measured(), key = far ? A.key : '';
       if (!o.rooms || o.atlas !== key) {
-        const his = bandsOf(out).map(([, hi], l) => (l ? hi : Infinity)), B = shapes.map((s, i) => budgetOf(finest(i), { size: shapeSize(out, i), far, ...(far ? A : {}) }, his));
-        o.rooms = B.map((b) => b.map((r) => [r.verts, r.tris])); o.far = B.map((b) => ({ chunks: b.chunks })); o.atlas = key;
+        const his = bandsOf(out).map(([, hi], l) => (l ? hi : Infinity)), B = shapes.map((s, i) => budgetOf(finest(i), { size: shapeSize(out, i), grid: onGrid, far, ...(far ? A : {}) }, his));   // (grid: its chunks split where the GPU reads its tips, as its crowd does in the workers: plant.js)
+        o.rooms = B.map((b) => b.map((r) => [r.verts, r.tris])); o.far = B.map((b) => ({ chunks: b.chunks, data: b.far ? Array.from(b.far) : null })); o.atlas = key;
         OUTLINES.made.set(id, o);
       }
       return o.rooms;
     },
-    /** each shape's far end as the crowd kit reckons it, by the atlases' numbers A: { chunks (its clumps) } */
+    /** each shape's far end as the crowd kit reckons it, by the atlases' numbers A: { chunks (its clumps), data (its far
+        data as its finest level carries it: crowd.js farDataOf) } */
     farOf: (A) => (out.crowdRooms(A), measured().far),
     /** Whether its rooms are known for the atlases' numbers A (kept from an earlier start, or taken), without measuring
         anything. */
