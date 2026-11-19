@@ -28,6 +28,27 @@ export function kitsOf(root, file, seen = new Set()) {
   return [...seen];
 }
 
+/** Every module a file reads, followed through its imports (relative ones: the game's own, not three's), in the order
+    they are first met: what a material's painting is made of (paintOf). */
+export function importsOf(root, file, seen = new Set()) {
+  for (const m of readFileSync(file, 'utf8').matchAll(/(?:from|import|import\(|new URL\()\s*'(\.{1,2}\/[^']+\.js)'/g)) {
+    const p = resolve(dirname(file), m[1]);
+    if (seen.has(p) || !existsSync(p)) continue;
+    seen.add(p); importsOf(root, p, seen);
+  }
+  return [...seen];
+}
+/** What paints a material, as one hash each (src/materials/bake.js keeps what it painted between starts by it): `paint`,
+    its file and every module it reads, with `painter`, the painter's own (src/materials/bake.js, and the kit it paints
+    with, src/materials/paint.js, and what that reads) and three's version (what writes its programs). A change to any
+    of it is another hash: nothing painted before it is laid out again. */
+function paintOf(root) {
+  const read = (p) => readFileSync(p, 'utf8'), three = JSON.parse(read(resolve(root, 'node_modules/three/package.json'))).version ?? '';
+  const own = [resolve(root, 'src/materials/bake.js'), ...new Set([resolve(root, 'src/materials/paint.js'), ...importsOf(root, resolve(root, 'src/materials/paint.js'))])];
+  const painter = bytesToHex(blake3(utf8ToBytes(`${own.map(read).join('\n')}\nthree ${three}`)));
+  return { painter, of: (file) => bytesToHex(blake3(utf8ToBytes(`${[file, ...importsOf(root, file)].map(read).join('\n')}\n${painter}`))) };
+}
+
 /** Read every recipe under root, version it, and write registry.json if anything changed. Returns the manifest. */
 export function buildRegistry(root) {
   const found = {};
@@ -52,9 +73,9 @@ export function buildRegistry(root) {
     const deps = r.uses.map((u) => version(u, seen)).join('\n');
     return (r.version = bytesToHex(blake3(utf8ToBytes(`${r.src}\n${deps}`))));
   };
-  const out = {};
+  const out = {}, P = paintOf(root);
   for (const uid of Object.keys(found).sort((a, b) => (found[a].type + found[a].name).localeCompare(found[b].type + found[b].name))) {
-    const { type, name, file, uses } = found[uid]; out[uid] = { type, name, file, version: version(uid), uses };
+    const { type, name, file, uses } = found[uid]; out[uid] = { type, name, file, version: version(uid), uses, ...(type === 'material' ? { paint: P.of(join(root, file)), painter: P.painter } : {}) };
   }
   const path = resolve(root, 'registry.json'), text = JSON.stringify(out, null, 2) + '\n';
   writeIfChanged(path, text);
