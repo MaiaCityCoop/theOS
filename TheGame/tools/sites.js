@@ -1,55 +1,39 @@
 // Where the game makes its shaders (intent 0038): every place in its own code that makes a node material or a compute
-// pass, by the function it is made in (the smoke: what it built, against all of them; tools/gate/wgsl.js: what each
-// shader is called). By function, not line: Bun runs the game's files as it re-prints them, and a stack's lines can lie
-// a few off the source's (2026-11-19: src/world/sky.js's dome made its material on line 74, its stack said 78; its
-// column was right), where its names and columns do not. A function given no name in the source is named in a stack
-// by what it is called as (a plant's material, src/scatter/trees.js), so a frame is matched to the nearest place at
-// its column, or to its function's (placeAt).
+// pass, each by its own name in the source ('file:line', and the function it is made in). The tools' loader
+// (tools/glob.js) hands each such place's thing, as it is made, to globalThis.__made with that name (marked), so a
+// tool knows where a thing was made from the code itself: the smoke holds every place against what it built, and the
+// shader gate names each shader so (tools/gate/wgsl.js). Never from a stack: Bun's frames differ from version to version
+// (2026-11-19: on 1.4.2 the census found 13 places never built that 1.4.4 built) and lie a few lines off the source.
 import { readFileSync } from 'node:fs';
 import { Linter } from 'eslint';
 
-/** In a stack as it is being made (inside a constructor, say): the game's own frames, innermost first, each { file
-    (from root), fn (its function's name, or the nearest named one about it in the same file), line, column (from 1)
-    }, the first of each file only. root: the game's folder; tools and node_modules are not the game's. */
-export function framesHere(root) {
-  const was = Error.prepareStackTrace; Error.prepareStackTrace = (e, sites) => sites;
-  const sites = new Error().stack; Error.prepareStackTrace = was;
-  const out = [];
-  for (const c of Array.isArray(sites) ? sites : []) {
-    const f = c.getFileName?.() ?? '', file = f.startsWith(root) ? f.slice(root.length) : '';
-    if (!file || /^(node_modules|tools)\//.test(file)) continue;
-    const fn = c.getFunctionName?.() || '', last = out.at(-1);
-    if (last?.file === file) { if (!last.fn && fn) last.fn = fn; continue; }   // (an anonymous one: named by the named one about it)
-    out.push({ file, fn, line: c.getLineNumber?.() ?? 0, column: c.getColumnNumber?.() ?? 0 });
-  }
-  return out.map((x) => ({ ...x, fn: x.fn || '(module)' }));
-}
-/** Every place in `files` (from root) that makes a node material (`new …NodeMaterial(`) or a compute pass (a node's
-    `.compute(`, TSL's: called on what a call gave, `Fn(…)().compute(n)`), each 'file fn' as framesHere names its frame,
-    with its line and column (from 1, as a stack gives it). */
-export function sitesIn(root, files) {
-  const linter = new Linter(), out = [];
-  for (const file of files) {
-    linter.verify(readFileSync(root + file, 'utf8'), [{ languageOptions: { ecmaVersion: 'latest', sourceType: 'module' } }]);
-    const ast = linter.getSourceCode()?.ast;
-    if (ast) walk(ast, null, [], (node, fns) => { if (makes(node)) { const at = (node.type === 'CallExpression' ? node.callee.property : node).loc.start; out.push({ file, fn: fns.findLast(Boolean) ?? '(module)', line: at.line, column: at.column + 1 }); } });   // (a call, where a stack says it is: at its method's name; a new, at itself)
-  }
+/** The game's own code, by its path from the game's folder: what the loader marks and the census reads (not the tools,
+    nor three's, nor a worker's own file). */
+export const GAME = /^(src|world|biomes|assets|materials|characters|camera|cine)\/(?!.*worker).*\.js$/;
+const linter = new Linter();
+
+/** Every place in `code` (the file `file`, from the game's folder) that makes a node material (`new …NodeMaterial(`) or a
+    compute pass (a node's `.compute(`, TSL's: called on what a call gave, `Fn(…)().compute(n)`): { id ('file:line'),
+    file, fn (the function it is made in, or the nearest named one about it), line, range ([start, end] in code) }. */
+function placesIn(code, file) {
+  if (!/NodeMaterial|\.compute\s*\(/.test(code)) return [];
+  linter.verify(code, [{ languageOptions: { ecmaVersion: 'latest', sourceType: 'module' } }]);
+  const ast = linter.getSourceCode()?.ast, out = [];
+  if (ast) walk(ast, null, [], (node, fns) => { if (makes(node)) out.push({ id: `${file}:${node.loc.start.line}`, file, fn: fns.findLast(Boolean) ?? '(module)', line: node.loc.start.line, range: node.range }); });
   return out;
 }
-/** The place (of sites, sitesIn) a frame (framesHere) was at, where it can be told: its function's only place; of its
-    function's places, the nearest at its column; where its function has none (named in the stack by what it was called
-    as), the nearest of its file's at its column; else null. */
-export function placeAt(sites, frame) {
-  const here = sites.filter((s) => s.file === frame.file), named = here.filter((s) => s.fn === frame.fn);
-  const nearest = (L) => L.filter((s) => s.column === frame.column).reduce((a, s) => (!a || Math.abs(s.line - frame.line) < Math.abs(a.line - frame.line) ? s : a), null);
-  return named.length === 1 ? named[0] : named.length ? nearest(named) : nearest(here);
+/** Every place in `files` (paths from root), placesIn. */
+export const sitesIn = (root, files) => files.flatMap((f) => placesIn(readFileSync(root + f, 'utf8'), f));
+/** `code` with each of its places' things handed to globalThis.__made as they are made, with the place's id: what the
+    loader runs (tools/glob.js). */
+export function marked(code, file) {
+  const cuts = placesIn(code, file).flatMap((p) => [[p.range[1], ')'], [p.range[0], `globalThis.__made(${JSON.stringify(p.id)}, `]]).sort((a, b) => b[0] - a[0]);
+  for (const [at, text] of cuts) code = code.slice(0, at) + text + code.slice(at);   // (from the end: what is cut later stands where it was)
+  return code;
 }
-/** The places (of sites) the frames were at, each frame's (placeAt): where one cannot be told, none (a place is built
-    only where a frame was surely at it: a gap is never hidden by a guess). */
-export const placesAt = (sites, frames) => new Set(frames.map((f) => placeAt(sites, f)).filter(Boolean));
 const makes = (n) => (n.type === 'NewExpression' && /NodeMaterial$/.test(n.callee.name ?? n.callee.property?.name ?? '')) || (n.type === 'CallExpression' && n.callee.type === 'MemberExpression' && n.callee.property.name === 'compute' && n.callee.object.type === 'CallExpression');
 const FN = new Set(['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression']);
-/** A function's name as the stack gives it: its own, or what it is given to (a variable, a property, a method, a member). */
+/** A function's name: its own, or what it is given to (a variable, a property, a method, a member). */
 function nameOf(n, parent) {
   if (n.id?.name) return n.id.name;
   const p = parent ?? {};

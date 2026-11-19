@@ -1,29 +1,13 @@
 {
-  "about": "Places in the game's code that make shaders (a node material, a compute pass) the smoke does not build, by file and function, with how many places in each (tools/smoke.js unbuilt, tools/sites.js). The gate never compiles them (tools/gate/wgsl.js). The smoke fails on one not here; each here is to be made by the smoke and taken out. 2026-11-19: the canopy's passes were found so, and made.",
-  "sites": {
-    "characters/kit/bones.js materialOf": 1,
+  "about": "Places in the game's code that make shaders (a node material, a compute pass) the smoke does not build, by file and function, with how many places in each (tools/smoke.js unbuilt, tools/sites.js), and why. The gate compiles only what the smoke builds (tools/gate/wgsl.js). The smoke fails on a place it does not build that is not here. sites: not built in any run, each to be made and taken out. full: built only by smoke --full (what grows after it is made, in a worker or from a file: a minute; the hour and gate.js wgsl run it, CI's smoke does not), and --full fails where one is not. 2026-11-19: the canopy's passes were found so, and made; then all the start, the library, the stress stand and the WebGL 2 fallback make; the characters' with --full.",
+  "sites": {},
+  "full": {
     "characters/kit/figure.js materialOf": 1,
-    "characters/kit/human.js materialOf": 1,
     "characters/kit/muscles/flesh.js eyesOf": 1,
     "characters/kit/muscles/flesh.js behind": 1,
     "characters/kit/muscles/flesh.js lit": 1,
     "characters/kit/muscles/flesh.js lashesOf": 1,
     "characters/kit/muscles/flesh.js materialOf": 1,
-    "characters/kit/skin/light.js skinMaterial": 1,
-    "src/camera/post.js quadOf": 1,
-    "src/city/index.js material": 1,
-    "src/detail/impostor.js mat": 1,
-    "src/materials/bake.js blocksOf": 1,
-    "src/materials/preview.js materialPreview": 1,
-    "src/scatter/cut.js createCut": 3,
-    "src/scatter/stress.js createStress": 1,
-    "src/scatter/tier.js argsPass": 1,
-    "src/scatter/tier.js patchPass": 1,
-    "src/scatter/trees.js standBodies": 1,
-    "src/world/weather/clouds.js shadowMap": 1,
-    "src/core/temporal.js createTemporal": 2
-  },
-  "why": {
-    "src/core/temporal.js createTemporal": "the picture built over time without storage textures (STORE false: its two-target pass and its copy): the stand-in has every feature, so only the storage path is built"
+    "characters/kit/skin/light.js skinMaterial": 1
   }
 }
