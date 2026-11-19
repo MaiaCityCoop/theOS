@@ -57,6 +57,10 @@
 //                                                                stress world (src/scatter/stress.js)
 //   bun tools/gate.js all [--tag t] [--views a,b]                stills of this code and of ?truth, their diff, the
 //                                                                bench, the compile and the paths, in one table
+//   bun tools/gate.js wgsl                                       every shader module the smoke builds, compiled on this
+//                                                                machine's GPU in a blank page of Chrome and of WebKit,
+//                                                                no game loaded: each module's errors and every
+//                                                                pipeline made of them; exit 1 on any (tools/gate/wgsl.js)
 //   bun tools/gate.js device [--secs s]                          the device on the machine the 8 GB gate is for
 //                                                                (budget.js MACHINE, in WebKit): GPU memory by the
 //                                                                game's ledger, its peak and where it settles, the
@@ -677,7 +681,7 @@ const walkLines = (W) => Object.entries(W ?? {}).map(([w, r]) => (r.notSettled ?
 async function hourly(opt) {
   const tag = commit(), views = opt.views ?? HOURLY.join(','), at = `${OUT}hourly/`;
   KEEP.on = true;   // (a start or a view that does not settle is said on the board, and what settles is measured all the same)
-  const run = await locked('the hour', () => onMachine(async () => {   // (a machine short of memory measures its disk: the hour is not measured)
+  const run = await locked('the hour', async () => ({ wgsl: await (await import('./gate/wgsl.js')).wgsl(), ...(await onMachine(async () => {   // (first the WGSL, no game: it runs on a machine short of memory too; then the measures, which a machine short of memory would measure its disk with: the hour is not measured)
     const dev = await (await import('./gate/device.js')).device(BASE);   // (first: the device on the machine the 8 GB gate is for)
     const chrome = await launch({ ...opt, fresh: true });
     let s, a, t, b, c, w;
@@ -688,9 +692,9 @@ async function hourly(opt) {
     } finally { await closeHard(chrome, chrome.gateDir); }
     const unsettled = (set) => Object.entries(JSON.parse(readFileSync(`${OUT}${set}/gate.json`, 'utf8')).views ?? {}).filter(([, r]) => r.notSettled).map(([k]) => k);
     return { tag, when: new Date().toISOString(), out: OUTPUT, device: dev, walks: w, start: s.start, smoke: s, stills: { lod: unsettled(a), truth: unsettled(t) }, flip: await diff(a, t, { ...opt, views }).catch((e) => ({ none: e.message })), bench: b, compile: c, paths: await paths({ ...opt, paths: opt.paths ?? 'walk,zoom' }) };
-  }, (o) => ({ tag, when: new Date().toISOString(), ...o })));
+  }, (o) => ({ tag, when: new Date().toISOString(), ...o }))) }));
   save(`${at}${tag}/summary.json`, run);
-  if (run.device?.pass === false) process.exitCode = 1;   // (a lost device fails the hour)
+  if (run.device?.pass === false || run.wgsl?.pass === false) process.exitCode = 1;   // (a lost device fails the hour, and a module the device will not compile)
   return board(tag, at);
 }
 /** The scoreboard of the hour `tag` (in `at`): every measure against the last hour kept before it (tools/gate/ten.js),
@@ -702,8 +706,9 @@ async function board(tag, at) {
   const R = JSON.parse(readFileSync(`${at}${tag}/summary.json`, 'utf8')), S = R.start;
   const out = [...(R.stills?.lod ?? []).map((v) => `${v} (stills)`), ...(R.stills?.truth ?? []).map((v) => `${v} (?truth)`), ...Object.keys(R.bench?.unsettled ?? {}).map((v) => `${v} (bench)`), ...['cold', 'warm'].flatMap((c) => Object.entries(R.paths?.[c]?.paths ?? {}).filter(([, r]) => r.notSettled).map(([k]) => `${k} (paths, ${c})`))];
   const mem = memoryOn(R.smoke);
+  const { wgslLine } = await import('./gate/wgsl.js');
   const md = [`# The hour on main, ${tag} (${OUTPUT.width} × ${OUTPUT.height}), ${new Date().toISOString().slice(0, 16)}`, '',
-    ...head(R, (await import('./gate/device.js')).readyLine),   // (first: was it measured, did the game come at all, the machine)
+    ...head(R, (await import('./gate/device.js')).readyLine).flatMap((l, i) => (i ? [l] : [l, wgslLine(R.wgsl)])),   // (first: was it measured, did the game come at all; the WGSL on the device; the machine)
     mem.line,
     ...(await import('./gate/device.js')).lines(R.device), '',
     S?.settled === false ? `**The start did not settle** in ${(S.ms / 1000).toFixed(0)} s: ${String(S.said).slice(0, 300)}` : `The start settled in ${((S?.ms ?? 0) / 1000).toFixed(1)} s.`,
@@ -754,9 +759,10 @@ try {
   else if (cmd === 'real') { const real = async () => (await import('./gate/real.js')).real(pos[0], opt); r = await ((opt.device ?? 'cpu') === 'cpu' ? real() : locked('real', real)); }   // (on a GPU, mps: in its turn)
   else if (cmd === 'all') r = await onMachine(() => all(opt));   // (its parts take their turns one by one: the machine read over the whole)
   else if (cmd === 'hourly') { r = await hourly(opt); if (r?.fails?.length) process.exitCode = 1; }   // (the hour fails where the GPU's memory went past a budget)
+  else if (cmd === 'wgsl') { r = await locked('wgsl', async () => (await import('./gate/wgsl.js')).wgsl()); if (!r.pass) process.exitCode = 1; }   // (no game, no measure: on any machine)
   else if (cmd === 'device') r = await measured('device', async () => (await import('./gate/device.js')).device(BASE, opt.secs ? { secs: +opt.secs } : {}));
   else if (WITH[cmd]) { const chrome = await launch(opt); try { r = await WITH[cmd](chrome); } finally { await closeHard(chrome, chrome.gateDir); } }
-  else { console.log('bun tools/gate.js device | walks | smoke | stills | diff | noise | bench | compile | paths | motion | real | all | hourly: see the top of tools/gate.js'); process.exitCode = cmd ? 1 : 0; }
+  else { console.log('bun tools/gate.js wgsl | device | walks | smoke | stills | diff | noise | bench | compile | paths | motion | real | all | hourly: see the top of tools/gate.js'); process.exitCode = cmd ? 1 : 0; }
   if (cmd === 'smoke' && r?.memory?.over?.length) process.exitCode = 1;   // (the GPU smoke too)
   if (cmd === 'device' && r.pass === false) process.exitCode = 1;
   if (['bench', 'compile', 'paths', 'device'].includes(cmd) && r.host?.after) { mkdirSync(OUT, { recursive: true }); save(`${OUT}${cmd}.json`, r); }   // (the numbers kept, where it ran: .gate/bench.json and so on)

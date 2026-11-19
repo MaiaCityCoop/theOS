@@ -606,7 +606,7 @@ function farOf(renderer, tex, G, D) {
   // near (a leaf's cut-out read at its finest: SS x SS samples a texel say how much of it is covered)
   const materials = () => {
     if (M) return M;
-    const H = D().H, kindU = uniform(0, 'uint'), levelU = uniform(0, 'uint'), rowU = uniform(0, 'int'), sphereU = uniform(new THREE.Vector4(0, 0, 0, 1)), nU = uniform(0, 'int');
+    const H = D().H, kindU = uniform(0, 'uint'), levelU = uniform(0, 'uint'), rowU = uniform(0, 'int'), sphereU = uniform(new THREE.Vector4(0, 0, 0, 1)), nU = uniform(0, 'int'), tilesU = uniform(G.tiles, 'int');   // (tilesU: its tiles a row, a uniform: every stand's bakers one pipeline)
     const cells = Array.from({ length: A.CLUMPS * 4 }, () => new THREE.Vector4()), cellsU = uniformArray(cells, 'vec4');
     // (the tile level's card corners, a chunk's after another (chunkOrder): a chunk's planes draw their own range of
     // them, its start and count in its cell's first two rows, never the rest of the level. As large as what is written
@@ -621,9 +621,9 @@ function farOf(renderer, tex, G, D) {
     const tileV = Fn(() => {
       // (a chunk's plane over its own corners only: its range of the chunks' list, CL, as many corners drawn as its row's
       // largest chunk has, those past its own behind the far plane, not drawn)
-      const tile = rowU.mul(G.tiles).add(int(instanceIndex)), c = tile.div(3), a = tile.sub(c.mul(3)), clip = vec4(0, 0, 2, 1).toVar();
+      const tile = rowU.mul(tilesU).add(int(instanceIndex)), c = tile.div(3), a = tile.sub(c.mul(3)), clip = vec4(0, 0, 2, 1).toVar();
       const from = cellsU.element(c.mul(4)).w, many = cellsU.element(c.mul(4).add(1)).w, blo = cellsU.element(c.mul(4).add(2)).xyz, bhi = cellsU.element(c.mul(4).add(3)).xyz;
-      If(c.lessThan(nU).and(vertexIndex.lessThan(uint(many))), () => { const V = vertexAt(CL.node.element(uint(from).add(vertexIndex))), P = tileClip(V.position, blo, bhi, a, float(instanceIndex), G.tiles); pass(V, P.z.mul(2).sub(1), planeFrame(a)); clip.assign(P.clip); });
+      If(c.lessThan(nU).and(vertexIndex.lessThan(uint(many))), () => { const V = vertexAt(CL.node.element(uint(from).add(vertexIndex))), P = tileClip(V.position, blo, bhi, a, float(instanceIndex), float(tilesU)); pass(V, P.z.mul(2).sub(1), planeFrame(a)); clip.assign(P.clip); });
       return clip;
     })();
     const N = (j) => D().numOf(kindU, j), leafA = () => tex.a(floor(vTwig.greaterThan(0.5).select(N(3).x, N(2).z).add(0.5)), vUv).bias(-2);

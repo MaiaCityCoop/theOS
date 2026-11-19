@@ -652,8 +652,8 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // ---- a tier: level i of the kinds a placer places (tier.js). What stands in a cell, of which kind and how large,
   // the placer says; whether it is of this level, and which of the level's draws it is dropped into, is said here, the
   // same for every placer ----
-  /** Level i's tier. cell, P: the placer's cells (metres) and how many a patch's side holds; cap: the most of it drawn
-      at once; sizes: [the smallest, the largest] thing, metres; far: no further off than this, metres (none: as far
+  /** Level i's tier. cell, P: the placer's cells (metres) and how many a patch's side holds; cap: what it reckons is
+      drawn at once (its own patches' rooms till their count is read back: tier.js); sizes: [the smallest, the largest] thing, metres; far: no further off than this, metres (none: as far
       as its size is seen); shadow: all that is near whatever its size, a little smaller, for the light only; casts: it
       casts its shadows as it is drawn.
       place(c, at, found): the placer's node code for cell c. Where a thing stands in it, it calls (once, inside
@@ -680,11 +680,11 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // blows, and the snow lying on it). far: the bucket of its far end's quad (MAKE.far: it stands over its whole sphere,
   // half of it towards the eye), drawn round half again the box's corner. A kind whose box is not known yet is never hidden
   const GROWN = grownOf(SOLID, MAKE);
-  const boundsOf = (grow, far = -1) => (A, B, k) => {
+  const boundsOf = (grow, far = -1) => { const uFar = far >= 0 ? uniform(far, 'uint') : null; return (A, B, k) => {   // (uFar: a uniform, so a level's culling is one pipeline whatever its far end's bucket)
     const R = lookOf(uint(B.y.add(0.5)), BR).toVar(), s = A.w;
-    const half = vec3(R.x, R.z.sub(R.y).mul(0.5), R.x).mul(s), h = far >= 0 ? k.equal(uint(far)).select(vec3(length(half).mul(1.5)), half) : half;
+    const half = vec3(R.x, R.z.sub(R.y).mul(0.5), R.x).mul(s), h = uFar ? k.equal(uFar).select(vec3(length(half).mul(1.5)), half) : half;
     return { c: vec3(A.x, A.z.add(R.y.add(R.z).mul(0.5).mul(s)), A.y), h: R.w.greaterThan(0.5).select(h.add(s.mul(grow)).add(0.05), vec3(1e6)), w: s.mul(0.1).add(1.5) };
-  };
+  }; };
   // The draws level i's tier has (shadow: the shadow's stand-in). The full meshes are a draw a slot of the heap, each as
   // long as the mesh that lies in it (set when it is put in: arrive, above): a full mesh is 50 000 to 200 000 triangles,
   // and one draw as long as the longest for all of them worked out 200 000 for each (perSlot, only where its finest
@@ -781,7 +781,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     let made1 = null;   // (another make's material: one for every draw of the tier)
     const draws = classed ? Array.from({ length: cHi - cLo + 1 }, (_, c) => { const g = new THREE.InstancedBufferGeometry(); g.setIndex(classIndex(cLo + c)); return g; }) : Array.from({ length: byKind ? ALL : leafy ? K0 * 2 : K0 }, () => drawOf(i));
     if (FAR) draws.push(new THREE.InstancedBufferGeometry().setIndex([0, 1, 2, 0, 2, 3]));   // (the far end's quad: four corners, its vertex stage places them)
-    const caps = FAR ? [...draws.slice(0, KF).map(() => cap), Math.min(1 << 20, cap * ALL)] : cap;   // (its own patches: its far end's draw holds as many as every kind's, up to about a million)
+    const caps = FAR ? [...draws.slice(0, KF).map(() => cap), Math.min(1 << 20, cap * ALL)] : cap;   // (its own patches, till their count is read back: its far end's draw as many as every kind's, up to about a million)
     // its numbers: its level, the one under it, whether it stands in for the finer ones, whether it is the shadow's
     const mine = { lv: i, under: Math.max(0, i - 1), stands: i ? 1 : 0, all: shadow ? 1 : 0 }, finer = i > 1 ? 1 / (LEVELS[i - 2].px * Math.exp(fade)) : 0;
     let packs;
@@ -883,8 +883,9 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       return { alive: out.alive.greaterThan(0.5), bucket: out.bucket };
     };
     // (one material for every mesh level of it, its level told by each mesh; one more for what is drawn by a level's own list)
-    // (what moves chooses its own patches, packed every frame, a cap a draw: what is drawn large is few, four times as
-    // many a level further off, and as many more as the dial's least reaches (measure.js DIAL_LEAST); what stands still is resident, its buckets as large as it finds it needs: tier.js)
+    // (what moves chooses its own patches, packed every frame, a room a draw till its count is read back: what is drawn
+    // large is few, four times as many a level further off, and as many more as the dial's least reaches (measure.js
+    // DIAL_LEAST); then, as what stands still (resident), its buckets as large as it finds it needs: tier.js)
     const packs = moving ? { live, cap: draws.map((d) => (d.dot ? cap : Math.min(cap, Math.ceil((16 * 4 ** Math.max(1, d.level)) / DIAL_LEAST ** 2)))) } : { found, select, label: name };
     const mats = {}, T = new Tier(scene, draws.map((d) => (d.cut ? new THREE.InstancedBufferGeometry().setIndex([0, 1, 2]) : d.shared ? drawShaped(d.level) : drawOf(d.level))), (src, k = 0) => { const d = draws[k], key = d.dot ? 'dot' : d.shared ? 'shared' : 'plain'; return (mats[key] ||= d.dot ? dot(src) : meshOf(src, null, false, moving, false, !!d.shared, true)); }, { cell, P, near: 0, far: 1, order: 1, ...packs, gpu: true, slots: ROWS, bounds: boundsOf(GROWN + (moving ? 0.5 : 0)) });
     T.step = step;

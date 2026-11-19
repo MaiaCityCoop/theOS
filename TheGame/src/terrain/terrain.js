@@ -13,7 +13,7 @@ import { createPages } from './pages.js';
 import { WALKER } from '../../world/scale.js';
 import { SOIL_RELIEF } from '../world/physics.js';
 import { LAYERS } from './layers.js';
-import { waterMaterial } from './water.js';
+import { waterMaterials } from './water.js';
 import { usedMaterials } from '../materials/bake.js';
 import { farthestMost } from '../detail/extent.js';
 import { recipes } from '../core/registry.js';
@@ -80,10 +80,12 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
   // (to start with, as many as its levels hold round the camera at the most: the land's to where it ends and the relief's
   // below them; the water's over the levels it is drawn at)
   const R00 = landR0(true), land = make(perLevel(R00) * (Math.ceil(Math.log2(farthestMost() / R00)) + 1 + reliefLevels(R00))), water = make(perLevel(R00) * WATER_LEVELS);
-  const landMat = terrainMaterial(pages), waterMat = waterMaterial(tex);
+  const landMat = terrainMaterial(pages), waterMat = waterMaterials(tex);
   // near the eye the quadtree goes on into the relief's finer levels (src/terrain/relief.js), each reaching half as far
   // as the one before: nodes of the land like any other, the land's own vertex stage raising them (material.js)
   let FIRST = -reliefLevels(R00), RELIEF0 = -1, raised = 0;   // (the finest level, and the relief's first: the measure's, update; how many nodes of the relief's levels this frame)
+  // (the water's two draws over the same surface, one after the other: its geometry twice, a material each: water.js)
+  water.g.addGroup(0, Infinity, 0); water.g.addGroup(0, Infinity, 1);
   const landMesh = new THREE.Mesh(land.g, landMat), waterMesh = new THREE.Mesh(water.g, waterMat);
   landMesh.frustumCulled = waterMesh.frustumCulled = false;
   landMesh.renderOrder = 10; // after the grass and the rocks: they are in front, the depth test spares the ground's shader

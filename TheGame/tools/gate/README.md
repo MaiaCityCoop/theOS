@@ -12,9 +12,21 @@
 | `tiles.js` | `stills --tiles`: a view drawn in tiles and laid together (the truth past 800 m) |
 | `real.js`, `real.py` | `real`: renders against photographs; the numbers (CMMD, image statistics) in Python |
 | `sheet.js` | Labelled JPEG sheets (`diff --jpeg`) |
+| `wgsl.js` | `wgsl`: every shader module the smoke builds, compiled on this machine's GPU in Chrome and WebKit |
 
 The gate is two halves (intent 0038, Define): **invisible** (detail never shows: `stills`, `diff` against `?truth`,
 and `motion`) and **real** (the full-detail picture is held against photographs: `real`).
+
+## WGSL: every shader compiles on the device
+
+`bun tools/gate.js wgsl` has the smoke (`tools/smoke.js --wgsl`) keep every shader module it builds: the world's and
+the library's, each with the part it was built for. It then compiles them on this machine's GPU in a blank page of
+Chrome (Tint) and of WebKit (its own compiler), with no game loaded, and makes every pipeline from them. Each
+pipeline's bind groups are laid out as its WGSL declares them, as three lays out the game's. Smoke only builds the
+text; only a device says whether it compiles. It takes about a minute and little memory, so it runs even where the
+machine is too short for a measure. It is the hour's first line after Ready. Before a push it runs where asked:
+`git config gate.wgsl true`, or `git -c gate.wgsl=true push` once. Where another run holds the GPU, the push says
+so and goes on.
 
 ## Motion: nothing pops (check 4)
 
