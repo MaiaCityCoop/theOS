@@ -16,7 +16,7 @@
 //                           rule's own expectation: src/scatter/rule.js densOf) and their crowns' pattern
 //   the grass's colour      the meadow's as its blades' tips show it (the carpet's), and which two stands those are
 import * as THREE from 'three/webgpu';
-import { If, Loop, float, int, uint, vec2, vec3, abs, max, clamp, smoothstep, log2, sqrt, round, uniformArray, renderGroup } from 'three/tsl';
+import { If, Loop, float, int, uint, vec2, vec3, abs, max, min, clamp, smoothstep, log2, sqrt, round, uniformArray, renderGroup } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { byRole } from '../core/registry.js';
 import { riverInfo, biomesAt, grassFrom, groveAt, leadAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, BASE, LAID, PATH_W } from '../world/land.nodes.js';
@@ -26,7 +26,8 @@ import { BAND } from '../detail/error.js';
 import { standsOf, rowsOf, densOf } from '../scatter/rule.js';
 import { detailOf } from '../detail/index.js';
 import { seenOf, seenVersion } from '../detail/seen.js';
-import { sizeOf } from '../../assets/kinds.js';
+import { sizeOf, most } from '../../assets/kinds.js';
+import { FOOT } from '../../assets/kit/plant.js';
 const noise = byRole('noise');   // the baked cloudy noise: whichever material plays that part (its `role`)
 
 const EMPTY = 255, NO_STAND = 15;
@@ -117,7 +118,13 @@ for (const bio of LAID) for (const { key, P, kinds, CV, L, entries } of standsOf
   // and the litter that stand for themselves far off keep their size (a bush's, 0.3 of a tree, made them two to three
   // times as large there)
   const grain = key === 'tree' ? 1 : footprintOf(kinds) / CROWNS;
-  STANDS.push({ bio, P, grain, L, entries, seen, colour: CV.colour ?? null, span, fade: span ? [Math.min(...spans) / (span * BAND), 1] : [0, 0], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1, crown, radius, top });
+  // its relief's top where its cover is whole (what the land is raised by, cover times it, where its plants are gone):
+  // each kind's crown top over the ground, the mean of its shapes (its ages and variants, as goneOf has them), each kind
+  // by how much of the ground it covers where the stand is thick (as its colour: seenColour)
+  const topOf = (a) => { let t = 0; const n = a.shapeCount ?? 1; for (let i = 0; i < n; i++) t += Math.max(0, (a.heights?.[i] ?? most(a.size.height)) - FOOT); return t / n; };
+  const tw = entries.map((e) => (e.from ? 0 : e.most * e.reach * e.reach)), tws = tw.reduce((s, w) => s + w, 0);
+  const reliefTop = tws > 0 ? entries.reduce((s, e, i) => s + tw[i] * topOf(e.asset), 0) / tws : 0;
+  STANDS.push({ bio, P, grain, L, entries, seen, reliefTop, colour: CV.colour ?? null, span, fade: span ? [Math.min(...spans) / (span * BAND), 1] : [0, 0], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1, crown, radius, top });
 }
 if (STANDS.length >= NO_STAND) throw new Error(`the land has ${STANDS.length} stands that wear a colour: four bits name at most ${NO_STAND - 1}`);
 /** How far round the camera the shadows of the stands that cast them are drawn at the most (-1: none casts): past it, a
@@ -147,7 +154,8 @@ export const layerTables = (tex) => {
   TABLE = uniformArray(LAYERS.map((L) => new THREE.Vector4(L.ground ? tex.layer(L.ground.material) : -1, L.ground ? L.ground.tile : 2, L.size ?? 0, L.meadow ? 1 : 0)), 'vec4').setGroup(renderGroup);
   // the stands': (its crowns' colour (-1: none yet), its grain), (its plants' span (0: none), from, to (shares of where
   // they are gone), how far its shadows reach (-1: none))
-  STAND_T = uniformArray(STANDS.flatMap((S) => [new THREE.Vector4(...(S.colour ?? [-1, -1, -1]), S.grain), new THREE.Vector4(S.span, ...S.fade, S.reach)]).concat([new THREE.Vector4(), new THREE.Vector4()]), 'vec4').setGroup(renderGroup);
+  // (and its relief's top where its cover is whole)
+  STAND_T = uniformArray(STANDS.flatMap((S) => [new THREE.Vector4(...(S.colour ?? [-1, -1, -1]), S.grain), new THREE.Vector4(S.span, ...S.fade, S.reach), new THREE.Vector4(S.reliefTop, 0, 0, 0)]).concat([new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4()]), 'vec4').setGroup(renderGroup);
 };
 /** What a stand whose kinds have far ends shows ([r, g, b], linear albedo; null while none of them does): each kind's
     that shows (src/detail/seen.js) by how much of the ground it covers where the stand is thick, as its cover counts it
@@ -171,7 +179,7 @@ export function standColours() {
   let near = Infinity;
   STANDS.forEach((S, i) => {
     if (!S.seen) return;
-    const c = seenColour(S), v = STAND_T.array[2 * i];
+    const c = seenColour(S), v = STAND_T.array[3 * i];
     if (!c || (c[0] === v.x && c[1] === v.y && c[2] === v.z)) return;
     v.set(...c, S.grain);
     near = Math.min(near, S.span > 0 ? (U.uPxK.value * S.span * S.fade[0]) / U.uErrorPx.value : 0);
@@ -322,7 +330,10 @@ export const layerOf = (id) => {
 };
 /** A stand's numbers ({ colour (its x under 0: none yet), grain, span, fade [a, b], reach }: as STANDS has them), for
     the fragment. */
-export const standOf = (id) => { const a = STAND_T.element(id.mul(2)), b = STAND_T.element(id.mul(2).add(1)); return { colour: a.xyz, grain: a.w, span: b.x, a: b.y, b: b.z, reach: b.w }; };
+export const standOf = (id) => { const a = STAND_T.element(id.mul(3)), b = STAND_T.element(id.mul(3).add(1)), c = STAND_T.element(id.mul(3).add(2)); return { colour: a.xyz, grain: a.w, span: b.x, a: b.y, b: b.z, reach: b.w, relief: c.x }; };
+/** The highest a stand's relief stands where its cover is whole (metres; 0: no stand has one): what the land's pages
+    hold the relief as a share of (src/terrain/pages.js). */
+export const RELIEF_MOST = Math.max(0, ...STANDS.map((S) => S.reliefTop));
 /** How far off (metres, as the 68° lens sees them) a stand's colour comes in: its plants' last level's reach (the
     measure's farAt: src/detail/measure.js, its span reckoned at the dial's rest, so over the dial now); without plants,
     everywhere. */
@@ -330,4 +341,12 @@ export const standFade = (S, dist2) => {
   const at = U.uPxK.mul(S.span).div(U.uErrorPx), last = at;   // (?truth: the dial turned down moves it out, as every other far)
   return S.span.greaterThan(0).select(smoothstep(last.mul(S.a), last.mul(S.b), dist2), float(1));
 };
+/** How much of the stands' relief the land shows at dist (as standFade's distance): only where every stand's plants are
+    gone, so nothing drawn stands in it, and it comes in as the last of them goes out (each its own standFade). R: the
+    relief there (metres, the pages': src/terrain/pages.js relief), for a rule by the place (one measure v2's: the
+    plants' gone by the cover there). Node code. */
+export const canopyShownAt = (R, dist) => STANDS.filter((S) => S.span > 0 && S.reliefTop > 0).reduce((m, S) => {
+  const last = U.uPxK.mul(S.span).div(U.uErrorPx);
+  return min(m, smoothstep(last.mul(S.fade[0]), last.mul(S.fade[1]), dist));
+}, float(1));
 export { NO_STAND };
