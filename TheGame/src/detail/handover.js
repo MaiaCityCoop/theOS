@@ -17,6 +17,11 @@ import { float, vec3, uniform, log, max, clamp, mix, smoothstep, sqrt } from 'th
 /** A level's numbers as uniforms. Lv: { lo, hi, last } (the dial pixels it is drawn between; whether it is the farthest). */
 export const levelOf = (Lv, fade) => ({ hi: uniform(Number.isFinite(Lv.hi) ? Math.log(Lv.hi) + fade : 1e3), lo: uniform(Math.log(Lv.lo) + fade), px: uniform(Lv.lo), last: uniform(Lv.last ? 1 : 0), fade });
 
+/** A level's numbers as the mesh drawing it tells them (mesh.userData.Lv: { lo, hi, last }), read at each draw: every
+    level of a thing drawn alike is then one material, not one a level (src/scatter/drawer.js). */
+const ofLv = (f) => uniform(0).onObjectUpdate(({ object }) => { const Lv = object?.userData?.Lv; return Lv ? f(Lv) : 0; });
+export const levelOfMesh = (fade) => ({ hi: ofLv((Lv) => (Number.isFinite(Lv.hi) ? Math.log(Lv.hi) + fade : 1e3)), lo: ofLv((Lv) => Math.log(Lv.lo) + fade), px: ofLv((Lv) => Lv.lo), last: ofLv((Lv) => (Lv.last ? 1 : 0)), fade });
+
 /** How far the camera may move before an engine's cells of P cells of `cell` metres are packed again, and a little: the
     margin a level's packing keeps a thing either side of its band, so it is there when the camera has moved. */
 export const padOf = (cell, P) => ((cell * P) / 16) * 1.8;
