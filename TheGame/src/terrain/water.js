@@ -30,7 +30,8 @@ import { gridPoint, GRID } from './material.js';
 import { WATER } from '../world/biomes.js';
 import { WATER_IOR, WATER_RED_ABSORPTION, WATER_REFLECTANCE_F } from '../world/physics.js';
 import { FRAME_MS_BY_CLASS } from '../core/budget.js';
-import { ownGpuMs, pace } from '../core/pace.js';
+import { ownGpuMs, pace, spentSince } from '../core/pace.js';
+import { CLASSES } from '../core/classes.js';
 
 const water = WATER;
 
@@ -52,15 +53,17 @@ const R_INF = water.colours.deep, BB = (WATER_RED_ABSORPTION * R_INF[0]) / WATER
 // looked at within the frames a pixel is built from)
 // (steps: how many samples a pixel's march takes at the most this frame: PACE's)
 const WAS = { depth: texture(new THREE.DepthTexture(1, 1)), colour: texture(new THREE.Texture()), size: uniform(new THREE.Vector2(1, 1)), on: uniform(0), built: uniform(1), steps: uniform(1) };
-// how many samples a march takes at the most: held to what the water's own draw takes on the GPU, within the light's share
-// of the frame (src/core/budget.js FRAME_MS_BY_CLASS; its time measured each frame, src/core/pace.js), so it never costs
-// more than that on any GPU; from one
-const PACE = pace();
+// how many samples a march takes at the most: held to what the water's own draw takes on the GPU (measured each frame:
+// src/core/pace.js), within the room the light's class has left in its share of the frame (src/core/budget.js
+// FRAME_MS_BY_CLASS) once its other passes have taken theirs (the cascades, the canopy, the contact shadows: their own
+// time since the water's last frame), so the class as a whole keeps its share whatever the scene; from one
+const PACE = pace(), OTHERS = CLASSES.light.filter((n) => n !== 'water');
 /** The water drawn (src/core/screen.js apart: render() draws it), its own time on the GPU taken, the march's most samples
-    following it. */
+    following it within the light's room. */
 export function waterDrawn(renderer, render) {
   PACE.tick(); WAS.steps.value = PACE.n;
-  ownGpuMs(renderer, render)?.then((ms) => PACE.measured(PACE.n, ms, FRAME_MS_BY_CLASS.light)).catch(() => {});
+  const room = FRAME_MS_BY_CLASS.light - spentSince('water', OTHERS);
+  ownGpuMs(renderer, render)?.then((ms) => PACE.measured(PACE.n, ms, Math.max(room, 1e-3))).catch(() => {});
 }
 /** Each frame after the prepass (src/boot.js): the frame before's depth (src/core/screen.js afterPrepass: depthWas), its
     kept picture (src/core/temporal.js history: null after a cut or a new size), which the water reflects the world from,

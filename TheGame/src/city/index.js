@@ -35,7 +35,7 @@ export function createCity({ scene, camera, canvas, renderer, compile = (o) => r
   let failed = false;
   source('city', () => (api.ready || failed ? 0 : 1));   // (its plan made in a worker and compiled, src/core/settle.js)
 
-  const group = new THREE.Group(); group.visible = false; scene.add(group);
+  const group = (api.group = new THREE.Group()); group.visible = false; scene.add(group);   // (drawn apart, after the water it lies over: src/boot.js)
   const uOp = uniform(0), uW = uniform(0.0011);
   const airK = Fn(([w]) => airOf(w).k);   // (node code with branches: built inside a Fn)
   const fadeFar =(p) => float(1).sub(smoothstep(CITY.far[0], CITY.far[1], length(p.sub(cameraPosition))));

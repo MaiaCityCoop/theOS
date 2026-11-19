@@ -64,6 +64,14 @@ import { FIRST_FRAME, stampDone } from './core/marks.js';   // (the first frame 
 const SKY = 0x9fc2e6, REACH = 6000;   // REACH: how far the stage's land is drawn (m): it ends in the air beyond what its camera looks at
 
 /** Start the world for this page: { profile: 'world' | 'stage' }. A promise of the game, once its parts are made. */
+/** The water's reads of the frame before and its own draw, its time taken (src/terrain/water.js: its march held to the
+    light's room), and what lies over it drawn after it (the city's plan): src/core/screen.js afterPrepass, apart. */
+function drawnApart(screen, temporal, renderer, terrain, city) {
+  screen.afterPrepass((f) => waterReads(f, temporal.history(), temporal.K.most), 'water');
+  screen.apart(terrain.waterMesh, (render) => waterDrawn(renderer, render), 'water');
+  if (city?.group) screen.apart(city.group, (render) => render(), 'city');
+}
+
 export async function boot({ profile = 'world' } = {}) {
   const world = profile === 'world', t0 = performance.now();
   // (what the stands need to know of each tree kind before they are made, its outline and rooms, reckoned in the recipes'
@@ -146,8 +154,6 @@ export async function boot({ profile = 'world' } = {}) {
   const terrain = (game.terrain = createTerrain(scene, tex, renderer, world ? {} : { reach: REACH }));
   const layerPass = terrain.compile();   // the land's pages' passes, beside the others (they read no target)
   screen.afterPrepass(terrain.pages.ask, 'pages');   // (which pages the land's pixels read: src/terrain/pages.js)
-  screen.afterPrepass((f) => waterReads(f, temporal.history(), temporal.K.most), 'water');   // (what the water reflects of the world: the frame before, src/terrain/water.js)
-  screen.apart(terrain.waterMesh, (render) => waterDrawn(renderer, render), 'water');   // (drawn on its own, its time taken: its march held to its share)
   mark('terrain');
   const scatterOf = (g) => {
     g.scatter = createScatter(g.into, tex, g.ground, renderer, camera);
@@ -168,6 +174,7 @@ export async function boot({ profile = 'world' } = {}) {
   game.light = game.shadows = shadows;
   game.controls = controls;
   const city = world ? (game.city = createCity({ scene, camera, canvas, renderer, compile: (o) => screen.compile(o, camera, scene) })) : null;   // (compiled for the target the world is drawn into)
+  drawnApart(screen, temporal, renderer, terrain, city);   // (the water on its own, and the city's plan over it)
   const hudAt = document.getElementById('hud'), hud = hudAt ? createHud(hudAt, renderer, camera, governor, game) : null;
   if (controls) spawn(controls);
   // the lakes round the camera (src/world/lakes.js: no river runs in a ring; what it rings round is water): found before the first frame

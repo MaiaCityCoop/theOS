@@ -7,6 +7,11 @@
     year as the Earth's distance changes). source: HyperPhysics, "The Sun"; Wikipedia, "Angular diameter". */
 export const SUN_DIAMETER = 0.0093;
 
+/** The sun's light at the top of the air, on a plane facing it, at the Earth's mean distance: what the clearness of a
+    sky is a share of (src/world/sky.js skyShare). unit: W/m² (1360.8 ± 0.5). source: Kopp & Lean 2011, "A new, lower
+    value of total solar irradiance: evidence and climate significance", Geophysical Research Letters 38: L01706. */
+export const SOLAR_CONSTANT = 1361;
+
 /** How much of the light a metre of crown takes, Beer–Lambert through foliage: k · LAI / depth, with k 0.5 for leaves at
     random angles, an LAI of 5 m² of leaf over each m² of ground and a crown 7 m deep (assumed). What the canopy's probes
     let through a slab of crowns (src/world/light/canopy.js). unit: per metre (m⁻¹). source: Monteith & Unsworth 1990
