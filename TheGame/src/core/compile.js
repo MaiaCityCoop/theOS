@@ -78,9 +78,10 @@ export const sameAs = (copy, what) => void SAME.set(copy, what);
 // what was asked of each maker since the last flush, made in one turn, side by side: a frame's asks of one pass are one
 // compile (three keeps up to sixteen pipelines in flight), not one at a time. A maker's promise gives the set of what it
 // reached (none: all of it); what it did not reach is asked again when it is next drawn. One of them that cannot be
-// made fails the whole compile: then each is made alone, in turn, so that only it is left out, and the console names it
-// and says why (2026-11-19: one pipeline WebKit would not make left every stand's and the meadow's prepass out, the
-// game never ready, and the line named them all)
+// made fails the whole compile: then each is made alone, so that only it is left out, and the console names it and says
+// why (2026-11-19: one pipeline WebKit would not make left every stand's and the meadow's prepass out, the game never
+// ready, and the line named them all). Alone, in the order asked, in that same turn: each asked again at the back of
+// the queue waited for everything asked since, and the first view for them (2026-11-19, the master)
 // (a maker's turn takes all that waits for it when the turn comes, not what one frame asked: the frames' asks of one
 // pass are one compile, as large as they have come to, side by side, not one small compile after another: 460 asks
 // queued were minutes, 2026-11-19)
@@ -102,7 +103,7 @@ function made1(maker, list) {
   return Promise.resolve(maker(list.map((e) => e.what)))
     .then((got) => { for (const e of list) { const S = stateOf(own(e.what)); if (!got || got.has(e.what)) S.set(e.pass, 'made'); else S.delete(e.pass); } over(list); },
       (err) => {
-        if (list.length > 1) { console.warn(`compile: one of ${list.length} (${names[0]}, …) could not be compiled: each made alone`); for (const e of list) inTurn(() => made1(maker, [e]), e.counted); return; }
+        if (list.length > 1) { console.warn(`compile: one of ${list.length} (${names[0]}, …) could not be compiled: each made alone`); return list.reduce((p, e) => p.then(() => made1(maker, [e])), Promise.resolve()); }
         stateOf(own(list[0].what)).set(list[0].pass, 'failed'); console.warn(`compile: ${names[0]} could not be compiled, and is not drawn`, err); over(list);
       })
     .finally(() => { now = ''; });
