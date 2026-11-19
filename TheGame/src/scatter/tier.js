@@ -13,7 +13,8 @@
 //     buckets are as large as it has found it needs (its own count, read back), never a number set by hand;
 //   - its own patches (a placer that says where it looks: a list's runs, src/scatter/placed.js; the stress stand's plots
 //     and the herds; the walker's bodies round a point; it brings live): the patches nearest first, packed again when they
-//     or what they read change, each bucket in a room of its own (cap).
+//     or what they read change, each bucket in a room of its own, as large as it has found it needs (its own count, read
+//     back, by the same rule as a resident tier's store); what its engine reckons (cap) only till that is known.
 // Without WebGPU (the WebGL 2 fallback) live runs in the vertex stage, per vertex, over square patches.
 import * as THREE from 'three/webgpu';
 import { Fn, If, Loop, uint, int, ivec2, vec4, uniform, uniformArray, instancedArray, storage, atomicAdd, atomicStore, atomicLoad, min, instanceIndex, localId, workgroupArray, workgroupBarrier, cameraProjectionMatrix, cameraViewMatrix, uintBitsToFloat } from 'three/tsl';
@@ -48,7 +49,7 @@ export const clipOf = Fn(([w, was], builder) => { if (passOf(builder) === 'pre')
 // tier that reckons its band by them (its band(): the drawer's tiers, src/scatter/drawer.js) reckons it again. One
 // handler for every tier of every placer.
 const ALL = new Set();
-const reband = () => { for (const T of ALL) { T.band?.(); if (T.residentRow) T.residentRow.cap = null; } };   // (and a tier held to its class's room may ask again: what it finds has changed)
+const reband = () => { for (const T of ALL) { T.band?.(); const row = T.residentRow ?? T.ownRow; if (row) row.cap = null; } };   // (and a tier held to its class's room may ask again: what it finds has changed)
 addEventListener('resize', reband); onMeasure(reband);
 const FOUND = [];   // (the patches a frame finds, before the nearest are taken)
 const bitsOf = (x) => new Uint32Array(new Float32Array([x]).buffer)[0];
@@ -65,8 +66,9 @@ export class Tier {
       bucket, also?, data? } (whether a thing held is of the level now, and its bucket: which of its geometries draws it;
       also: a second one, -1 none, a thing handing over between two draws); metres: its band is metres, not sizes on
       screen (the meadow's rings).
-      Another brings live(cell, part) -> { alive, data, bucket?, also? } (found and select in one) and `cap`, the most
-      that may stand at once (a number: of each bucket; or a list, a cap a bucket); spans: a list's tier
+      Another brings live(cell, part) -> { alive, data, bucket?, also? } (found and select in one) and `cap`, what its
+      engine reckons may stand at once (a number: of each bucket; or a list, one a bucket): its rooms till its own count
+      is read back (ownOf); spans: a list's tier
       (src/scatter/placed.js): spans(i, j) says which runs of the list patch (i, j) holds, [[start, count], …] (each count
       at most P × P), each run a patch of its own to the packing; live is then told which run a cell is of and which of
       its places ({ pid, b, span: (start, count) }).
@@ -100,14 +102,15 @@ export class Tier {
   run(renderer, world = '', cx = 0, cy = 0, cz = 0, view = '', kept = world) {
     if (!this.passes) return;
     if (this.resident) { this.resident.run(renderer, world, kept, cx, cy, cz); return; }
-    const q = this.step || Math.max(0.25, this.S / 16), n = this.n;   // (step: a tier that says itself how far the camera may move before it packs again)
+    const q = this.step || Math.max(0.25, this.S / 16), n = this.n, own = this.ownRow;   // (step: a tier that says itself how far the camera may move before it packs again)
+    own.ask(renderer);   // (what its last packing found, read back: its rooms as large as that needs)
     const key = `${world}|${this.near}|${this.far}|${Math.round(cx / q)},${Math.round(cy / q)},${Math.round(cz / q)}|${this.reads?.() ?? ''}|${n}|${this.patchKey()}|${this.viewKeyed ? view : ''}`;
     if (key === this.key) return;
-    if (!n && this.empty) { this.key = key; return; }   // (nothing chosen, and nothing left packed from before: no pass to make it nought again)
+    if (!n && this.empty) { this.key = key; own.idle(); return; }   // (nothing chosen, and nothing left packed from before: no pass to make it nought again, nor room it needs)
     if (!made(this.passes, 'run')) { this.make(renderer); return; }   // (its passes made first: until they are, it packs nothing, and draws nothing: src/core/compile.js)
     this.key = key;
     const cells = this.patchesIn();
-    renderer.compute(this.passes); did('packs'); if (this.movers) did('moving'); did('kcells', Math.round(cells / 1000)); this.empty = !n;   // (moving: a tier packed every frame, its things moving; not a change of what stands: src/core/work.js changed)
+    renderer.compute(this.passes); own.packed(); own.ask(renderer); did('packs'); if (this.movers) did('moving'); did('kcells', Math.round(cells / 1000)); this.empty = !n;   // (moving: a tier packed every frame, its things moving; not a change of what stands: src/core/work.js changed)
   }
   /** What it is: its meshes named so (three labels their pipelines by it: src/core/compile.js). Not its packing passes:
       three writes a compute pass's name into its code, and the tiers' passes that are one shader would then be many. */
@@ -206,8 +209,9 @@ function fallbackOf(T, geos, material) {
 // ---- on WebGPU: what is packed, its draws, its culling ----
 /** Its draws' arguments, five a bucket, in one buffer (a shader binds few). */
 const argsOf = (geos) => { const args = new THREE.IndirectStorageBufferAttribute(new Uint32Array(geos.flatMap((g) => [g.index.count, 0, 0, 0, 0])), 5); return { args, argsNode: storage(args, 'uint', 5 * geos.length) }; };
-/** After its packing, where the eye does not cull it: each draw as many as its bucket holds, no more than its room. */
-const argsPass = (argsNode, count, K, caps) => Fn(() => { for (let k = 0; k < K; k++) argsNode.element(k * 5 + 1).assign(min(atomicLoad(count.element(k)), caps ? uint(caps[k]) : uint(2 ** 32 - 1))); })().compute(1);
+/** After its packing, where the eye does not cull it: each draw as many as its bucket holds, no more than its room
+    (rooms: each bucket's room and where its things begin, a vec2 a bucket). */
+const argsPass = (argsNode, count, K, rooms) => Fn(() => { for (let k = 0; k < K; k++) argsNode.element(k * 5 + 1).assign(min(atomicLoad(count.element(k)), uint(rooms.element(k).x))); })().compute(1);
 /** Its meshes: each bucket's draw from its arguments, its material reading a thing's rows where the packing put it
     (through what the eye's culling kept, culled: C): its place (placeOf(at, slot): which of the store's things it is,
     slot a node, the bucket a mesh says), its rows there (S of them). room(k): as many as bucket k may hold. A material is
@@ -237,24 +241,80 @@ function entriesOf(T, spans) {
   more('tiers: what each looks at', bytes, bytes, 'geometry');
   return { EN, nE, RN, STEPS: Math.ceil(Math.log2(MAXP)) + 1 };
 }
-/** Its packing: each bucket a room of its own, one after another (cap: one for all, or a list). */
+/** Its packing: each bucket a room of its own, one after another, as large as it has found it needs (ownOf); till its
+    count is read back, what its engine reckons (cap: one for all, or a list). */
 function packedOf(T, geos, material, { live, cap = 0, slots = 0, spans = null, bounds = null }) {
   const K = geos.length, S = uint(slots), { EN, nE, RN, STEPS } = entriesOf(T, spans);
-  const own = Array.isArray(cap), caps = own ? cap : geos.map(() => cap), offs = caps.map((_, k) => caps.slice(0, k).reduce((a, c) => a + c, 0)), total = caps.reduce((a, c) => a + c, 0);
-  const capOff = own ? uniformArray(caps.map((c, k) => new THREE.Vector2(c, offs[k])), 'vec2') : null, uCap = uniform(own ? 0 : cap, 'uint');
+  const caps = Array.isArray(cap) ? [...cap] : geos.map(() => cap), offs = caps.map(() => 0);   // (each bucket's room and where its things begin: laid out again from its count)
+  const rooms = uniformArray(caps.map(() => new THREE.Vector2()), 'vec2');   // (the same, for its packing)
   // (where each bucket's things begin, as they were set: the page's copy is what they are, tier.read)
-  const OFF = new THREE.StorageBufferAttribute(Uint32Array.from(offs), 1), OFr = storage(OFF, 'uint', K).toReadOnly();
+  const OFF = new THREE.StorageBufferAttribute(new Uint32Array(K), 1), OFr = storage(OFF, 'uint', K).toReadOnly();
   // (a thing's rows side by side in one buffer, `slots` of them: one buffer to bind, not one a row; what it packs lives
   // on the GPU only: the GPU writes it and the GPU reads it, src/core/gpu.js)
-  const packed = gpuStorageLater('vec4', 'tiers: what stands, packed', 'geometry'); packed.make(total * slots);
-  const data = packed.node, count = instancedArray(K, 'uint').toAtomic(), { args, argsNode } = argsOf(geos);
+  const packed = gpuStorageLater('vec4', 'tiers: what stands, packed', 'geometry');
+  // (its rooms one after another, into everything that reads them: all the room they take)
+  const lay = () => {
+    let at = 0; caps.forEach((c, k) => { offs[k] = at; rooms.array[k].set(c, at); at += c; });
+    OFF.array.set(offs); OFF.needsUpdate = true; packed.make(at * slots);
+    return at;
+  };
+  const total = lay(), data = packed.node, count = instancedArray(K, 'uint').toAtomic(), { args, argsNode } = argsOf(geos);
   const culled = !!bounds && hasFeature('indirect-first-instance') && cullable(total);   // (?truth too: what this frame's depth hides adds nothing to any pixel)
   Object.assign(T, { slots, data, args, count, offsets: OFF, room: (k) => caps[k] });
   T.offAt = (k) => OFr.element(k);   // (where bucket k's things begin: a node, for what reads a bucket of it itself)
   const C = (T.culler = culled ? cullOf(T, { K, caps, offs, total, S: slots, data, args, count, box: bounds }) : null);
+  // (laid out again at N, a room a bucket: its draws as many, its culling's ranges too; packed again)
+  T.ownRow = ownOf(T, caps, (N) => { N.forEach((n, k) => { caps[k] = n; geos[k].instanceCount = n; }); const all = lay(); if (C) C.resize(all); T.repack(); });
   const zero = Fn(() => { for (let k = 0; k < K; k++) atomicStore(count.element(k), uint(0)); })().compute(1);
-  T.passes = [zero, patchPass({ K, S, data, count, own, capOff, uCap, entryOf: entryOf(EN, nE, STEPS) }, live, RN), ...(C ? [C.args, C.boxes] : [argsPass(argsNode, count, K, caps)])];
+  T.passes = [zero, patchPass({ K, S, data, count, rooms, entryOf: entryOf(EN, nE, STEPS) }, live, RN), ...(C ? [C.args, C.boxes] : [argsPass(argsNode, count, K, rooms)])];
   return meshesOf(geos, material, args, C, (k) => caps[k], data, S, (at, slot) => at(OFr.element(slot)));
+}
+/** A store's room for n things: a MARGIN more, in whole workgroups (a resident tier's and a bucket of its own patches'). */
+const roomFor = (n) => Math.max(WG, Math.ceil((n * MARGIN) / WG) * WG);
+const sum = (a) => a.reduce((n, x) => n + x, 0);
+/** Of its own patches' rooms N (what they need, a bucket each), as many as the room its class has left takes where
+    they grow (its own buffers still in it: what they were is let go only after what they are is made, src/core/gpu.js;
+    a resident kind's: relayout), and one binding: held to that, they ask for no more till the measure changes
+    (reband). A smaller room is always taken: it gives room back. */
+function holdOwn(T, row, caps, N) {
+  const each = T.slots * bytesOf('vec4') + (T.culler ? CULL_BYTES : 0), need = sum(N);
+  const most = Math.floor(Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity) / (T.slots * bytesOf('vec4')));
+  const fit = Math.min(need > sum(caps) ? Math.max(0, roomOf('geometry')) / (need * each) : Infinity, most / need);
+  row.cap = null;
+  if (fit >= 1) return;
+  console.warn(`tier ${T.asset ?? T.name ?? ''}: its own patches would hold ${Math.round((need * each) / 2 ** 20)} MB, past ${fit * need < most ? 'the room geometry has left' : `one binding (${most} things)`}: held to it, the rest is the dial's (the governor's)`);
+  N.forEach((n, k) => { N[k] = Math.max(WG, Math.floor((n * fit) / WG) * WG); });
+  row.cap = [...N];
+}
+/** Its own patches' rooms (caps: each bucket's now; lay(N): laid out again at N), as a resident tier's store is sized
+    (residentOf ask): after a packing, its count read back (what each bucket found, past its room too); every bucket laid
+    out again a MARGIN larger than it found where one found more than it holds, or where all of them hold BAND times
+    more than that. The world is not complete till what a packing found is read back and fits (src/core/settle.js); a
+    tier whose things move, packed every frame, once its rooms are read back as large as what they find. */
+function ownOf(T, caps, lay) {
+  const row = { cap: null };
+  let asking = false, wrong = 0, all = 0, seen = 0, packs = 0, laid = 0, fits = -1;   // (all: its packings; seen: of them, read; packs: those that changed what stands; laid: its layouts; fits: the last one read back as large as it needs)
+  source(`tiers: a store made again (${T.asset ?? 'a tier'})`, () => wrong);
+  const check = (z, asked, at) => {
+    const found = caps.map((_, k) => z[k] ?? 0), N = found.map((f, k) => Math.min(roomFor(f), row.cap?.[k] ?? Infinity));
+    T.short = found.some((f, k) => f > caps[k]);   // (more found than it holds: said to the governor, as a resident tier's over)
+    if (N.some((n, k) => n > caps[k]) || sum(N) * BAND < sum(caps)) { holdOwn(T, row, caps, N); if (N.some((n, k) => n !== caps[k])) { lay(N); laid++; wrong = 1; return; } }
+    if (at === laid) fits = laid;
+    if (asked === packs) wrong = 0;   // (no change of what stands since: what it holds is what was read)
+  };
+  return Object.assign(row, {
+    /** A packing handed to the GPU: a change of what stands, but where its things only moved on rooms read back right. */
+    packed() { all++; if (!T.movers || fits !== laid) { wrong = 1; packs++; } },
+    /** Nothing chosen and nothing packed: it needs no room. */
+    idle() { wrong = 0; },
+    /** What its last packing found, read back (one read at a time, after a packing; one packed while it was read, read
+        once it is: what it found is known whether the tier runs again or not). */
+    ask(renderer) {
+      if (asking || seen === all) return;
+      asking = true; seen = all; const asked = packs, at = laid;
+      renderer.getArrayBufferAsync(T.count.value).then((b) => check(new Uint32Array(b), asked, at)).catch(() => { seen = -1; }).finally(() => { asking = false; if (seen >= 0) row.ask(renderer); });
+    },
+  });
 }
 
 /** The workgroup's entry (its first invocation finds it, the last whose first is at most its own, by halving), then
@@ -303,15 +363,13 @@ const intoBuckets = (K) => {
 /** Its rows written at place `at` (a thing's) of the packing. */
 const rowsAt = (data, S, at, rows) => { rows.forEach((d, k) => data.element(at.mul(S).add(uint(k))).assign(d)); };
 
-/** A placer's own patches: each cell live() says holds something, into its bucket's room. */
-function patchPass({ K, S, data, count, own, capOff, uCap, entryOf: ofEntry }, live, RN) {
+/** A placer's own patches: each cell live() says holds something, into its bucket's room (rooms: each bucket's room and
+    where its things begin). */
+function patchPass({ K, S, data, count, rooms, entryOf: ofEntry }, live, RN) {
   const into = intoBuckets(K);
   return Fn(() => {
     const Q = ofEntry(), L = live(Q.cell, { pid: Q.e, b: int(Q.r), cell: Q.cell, span: RN ? RN.element(Q.e) : null });
-    into(L, Q.in.and(L.alive), count, (b, i) => {
-      if (own) If(i.lessThan(uint(capOff.element(b).x)), () => { rowsAt(data, S, uint(capOff.element(b).y).add(i), L.data); });
-      else If(i.lessThan(uCap), () => { rowsAt(data, S, b.mul(uCap).add(i), L.data); });
-    });
+    into(L, Q.in.and(L.alive), count, (b, i) => { const r = rooms.element(b); If(i.lessThan(uint(r.x)), () => { rowsAt(data, S, uint(r.y).add(i), L.data); }); });
   })().compute(WG, [WG]);
 }
 
@@ -557,9 +615,8 @@ function residentOf(T, me, s, ends) {
     T.table?.();   // (its kind's own numbers: its engine's)
   };
   // (its own counts, read back after a packing or a gather: what it found, made again where that is more than its store
-  // holds, or BAND times less than it would be made at; what it packed for its draws, the same against their room;
-  // its kind laid out again once every tier of it asking then has answered)
-  const roomFor = (n) => Math.max(WG, Math.ceil((n * MARGIN) / WG) * WG);
+  // holds, or BAND times less than it would be made at (roomFor); what it packed for its draws, the same against their
+  // room; its kind laid out again once every tier of it asking then has answered)
   const ask = (renderer) => {
     if (asking) return;
     asking = true; s.asking.add(me); const asked = packs, seen = gathers;
