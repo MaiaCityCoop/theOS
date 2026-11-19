@@ -704,10 +704,12 @@ function residentOf(T, me, s, ends) {
     T.table?.();   // (its kind's own numbers: its engine's)
   };
   // (its own counts, read back after a packing or a gather: what it found and what it packed for its draws, each against
-  // its room (roomsFor: made again where it found more than it holds, or, read of a store holding all it is to at its
-  // layout now, BAND times less; a store still filling counts less than it will hold: 2026-11-19, read so, a store made
-  // again filled anew, was read so again, and was never complete); its kind laid out again once every tier of it asking
-  // then has answered)
+  // its room (roomsFor: made again where it found more than it holds, or BAND times less where what it read was all it
+  // holds whole, at its layout now). Less only from what it holds whole: a store filling in a piece a frame (the frame's
+  // cells, below) holds part of what it will, and made again smaller at that, everything of its kind is let go, filled
+  // in again from nothing, found to be more, made again larger, let go again: at a still camera, without end
+  // (2026-11-19, the meadow, the trees and shrubs by the tent coming and going); its kind laid out again once every tier
+  // of it asking then has answered)
   const ask = (renderer) => {
     if (asking) return;
     asking = true; s.asking.add(me); asked = packs; const read = { ...last }, seen = gathers;
