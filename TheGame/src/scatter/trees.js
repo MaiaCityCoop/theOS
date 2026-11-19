@@ -204,14 +204,16 @@ const ofMesh = (key, start, type) => uniform(start, type).onObjectUpdate(({ obje
     (a crown of a thousand cards takes the light as a whole, not card by card), the sky's less what the crowns above hide
     of it, through its needles when the sun is behind them (in their own colour), less of both deep in the crown (ao); its
     snow (in clumps); the air before it. n0: its way, turned with the plant; Ve: the way to the eye; share: the share of the
-    sun that reaches w; tint: its own green (a card's; its wood's, white). -> { sky, sun: what its texture's colour is
+    sun that reaches w; tint: its own green (a card's; its wood's, white); leaf: how much of it is leaf, 0 … 1 (a far
+    end's texel, which may be part leaf and part wood: src/detail/impostor.js impostorRead; else its part's, a card and a
+    plane all, its wood none), what its leaves' light is mixed in by. -> { sky, sun: what its texture's colour is
     multiplied by, the sky's part and the sun's apart (a pixel takes the sun's less what the contact shadows say), add:
     what is added (the snow on it, the air before it), through: the sun through its needles } */
-const standLight = ({ w, n0, Ve, part, ao, wrap, shines, clumps, tint, share }) => {
-  const leaf = part.greaterThan(0.5), n = n0.dot(Ve).lessThan(0).select(n0.negate(), n0);
-  const ndl = leaf.select(n.dot(U.uSunDir).add(wrap).div(wrap.add(1)), n.dot(U.uSunDir)).max(0);   // needles take the light round their edge
-  const Lo = lightOn({ n, w, V: Ve, sun: share, ndl, through: leaf.select(shines, float(0)), ao });   // the sun behind a brush of needles shines through it
-  const through = leaf.select(pow(Lo.back, 3).mul(shines), float(0));
+const standLight = ({ w, n0, Ve, part, leaf = part.greaterThan(0.5).select(float(1), float(0)), ao, wrap, shines, clumps, tint, share }) => {
+  const n = n0.dot(Ve).lessThan(0).select(n0.negate(), n0), sd = n.dot(U.uSunDir);
+  const ndl = mix(sd, sd.add(wrap).div(wrap.add(1)), leaf).max(0);   // needles take the light round their edge
+  const Lo = lightOn({ n, w, V: Ve, sun: share, ndl, through: shines.mul(leaf), ao });   // the sun behind a brush of needles shines through it
+  const through = pow(Lo.back, 3).mul(shines).mul(leaf);
   const W = weatherOn(n, snowLiftAtVertex(w, clumps)), air = airOf(w);   // what the weather does to it (wet, its snow in clumps), and the air before it
   // (a chunk's plane is lit texel by texel, as its leaves are: here only what that light is multiplied by)
   const keep = tint.mul(W.keep).mul(air.k), plane = step(1.5, part).greaterThan(0.5);
@@ -459,9 +461,10 @@ function impostorMaterial(G, D, Lv, src) {
     if (passOf(builder) === 'shadow') return out;   // (into a shadow map: its outline)
     // lit as its mesh is, pixel by pixel (standLight: its leaves' wrap, the sun through them, the sky, the weather, the
     // air before it; the contact shadows on the sun's part), at its pixel's point, its way as its pictures keep it, the
-    // light that reaches into it as baked: nothing of its own, so it hands over from its mesh unseen
+    // light that reaches into it as baked, how much of it is leaf as its pictures keep it (a texel part leaf and part
+    // wood lit as much as each): nothing of its own, so it hands over from its mesh unseen
     If(unlit().not(), () => {
-      const S = standLight({ w: vX, n0: turnOf(vK.z).turn(R.normal), Ve: normalize(U.uCam.sub(vX)), part: R.leaf, ao: R.light, wrap: vLit.z, shines: vLit.y, clumps: vLit.w, tint: mix(vec3(1), vT, R.leaf), share: vLit.x });
+      const S = standLight({ w: vX, n0: turnOf(vK.z).turn(R.normal), Ve: normalize(U.uCam.sub(vX)), part: float(0), leaf: R.leaf, ao: R.light, wrap: vLit.z, shines: vLit.y, clumps: vLit.w, tint: mix(vec3(1), vT, R.leaf), share: vLit.x });
       out.assign(vec4(toScreen(R.colour.mul(R.colour).mul(S.sky.add(S.sun.mul(contactShade()))).add(S.add)).rgb, 1));
     });
     return out;
@@ -473,7 +476,7 @@ function impostorMaterial(G, D, Lv, src) {
 // ---- the far ends baked: each shape's impostor and its clumps, each picture from the level of the heap the measure picks
 // at its own size ----
 let BAKING = false;   // (one shape at a time, of every stand: the bakers' targets are one set)
-const BAKED = 3;   // the bake's own version, in what the browser keeps of it (farOf): one more whenever how a far end is baked changes
+const BAKED = 4;   // the bake's own version, in what the browser keeps of it (farOf): one more whenever how a far end is baked changes
 /** A stand's far ends (G: its group; D(): its drawer, once made): its two atlases (the impostors' views, a layer a shape,
     VIEWS x VIEWS views of CELL texels a side; its chunks' planes, a layer a shape that has clumps, G.clumpLayer, G.tiles
     tiles of TILE texels a row: the atlases' numbers, src/detail/impostor.js atlases), and what bakes them. Each shape
