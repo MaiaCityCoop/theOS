@@ -38,7 +38,8 @@
 //     from the crowd itself, and the shape has no clumps. A plant without a far end (its kind's `far`, assets/kinds.js)
 //     has neither: its crowd goes by its own error to where it is gone.
 //
-//   crowd(mesh, { size, far }) -> a shape:
+//   crowd(mesh, { size, far, measured? }) -> a shape (measured: what the build measured of it, assets/kit/measures.js;
+//                                 none: measured here; `measure` on the shape is what is kept of it):
 //     count, cards, parts, solids   its vertices; its cards (4 vertices each, corners 0 1 2, 0 2 3); its sprigs; its
 //                                   pieces drawn by corners
 //     position, normal, uv, part, ao, cn, root, twig (and whatever else the mesh carries a vertex)
@@ -170,7 +171,7 @@ function turnsOf(X, Y, Z, cls, mid) {
 function headOf(m, K) {
   const P = m.position, n = m.part.length;
   const { lo, hi, mean, frame, sphere } = boundsOf(P, n), size = K.size ?? max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]);
-  const { sprigs, solids } = partsOf(m), N = sprigs.length, { mid, sd, order } = orderOf(sprigs, P, K);
+  const { sprigs, solids } = partsOf(m), N = sprigs.length, B = K.measured, { mid, sd, order } = orderOf(sprigs, P, K, B);
   // ---- the crowd's own error, turn by turn (metres): drawing its first t turns, what leaving out the rest truly
   // misplaces. What is left out is stood for by what stays: the kept grow about their roots, each sqrt(A / A_t) of its
   // size (A: every sprig's leaves, A_t: the first t turns'), so the crown covers as much of its round as it did (Cook,
@@ -185,7 +186,7 @@ function headOf(m, K) {
   const thins = N > K.LEAST, withFar = K.far !== false;
   if (withFar && !K.CELL) throw new Error('crowd: a far end is sized by its atlases (VIEWS, CELL, TILE, CLUMPS: src/detail/impostor.js atlases), and none were given');
   const R = m.root, rootReach = (q) => { let r = 0; for (const v of q.verts) r = max(r, hypot(P[v * 3] - R[v * 3], P[v * 3 + 1] - R[v * 3 + 1], P[v * 3 + 2] - R[v * 3 + 2])); return r; };
-  const area = Float64Array.from(order, (p) => sprigs[p].area), reach = thins ? Float64Array.from(order, (p) => rootReach(sprigs[p])) : null;
+  const area = B ? null : Float64Array.from(order, (p) => sprigs[p].area), reach = thins && !B ? Float64Array.from(order, (p) => rootReach(sprigs[p])) : null;
   // ---- the impostor's error (metres): its bake's texel, CELL of them over its sphere's width, and what its views'
   // spacing misplaces, its sphere's radius times their angle (src/detail/atlas.js) ----
   const views = withFar ? spacingOf(K.VIEWS) * sphere[3] : 0, eImp = withFar ? (2 * sphere[3]) / K.CELL + views : Infinity;
@@ -212,8 +213,10 @@ function headOf(m, K) {
   };
   // (the vertex stage reads the growth between its knots, at most a knot's step of it over what it is: each turn's go
   // reckoned with that much more, so what is drawn is within the dial too; that step known once the growth is, again)
-  let E = endsOf(ownOf(N, thins, order.err, area, reach, 1));
-  for (let k = 0, infl = 1; k < 3; k++) { const want = exp(E.grow.most / (RULE.AT - RULE.GROW)); if (!(want > infl)) break; infl = want; E = endsOf(ownOf(N, thins, order.err, area, reach, infl)); }
+  // (a measure the build made of this shape, at this version and these atlases' numbers, is all of this: B, crowd's
+  // measure: assets/kit/measures.js)
+  let E = B ? { own: B.own, chunks: B.chunks, eC: B.eC ?? Infinity, M: B.M, go: B.go, win: B.win, grow: B.grow } : endsOf(ownOf(N, thins, order.err, area, reach, 1));
+  for (let k = 0, infl = 1; k < 3 && !B; k++) { const want = exp(E.grow.most / (RULE.AT - RULE.GROW)); if (!(want > infl)) break; infl = want; E = endsOf(ownOf(N, thins, order.err, area, reach, infl)); }
   const { own, chunks, eC, M, go, win } = E;
   return { lo, hi, mean, size, frame, sprigs, solids, N, M, mid, sd, order, sphere, views, errors: { clumps: chunks ? eC : null, impostor: withFar ? eImp : null, crowd: own }, chunks, win, go, grow: E.grow, far: withFar,
     atlas: withFar ? { VIEWS: K.VIEWS, CELL: K.CELL, TILE: K.TILE, TILES: K.TILES, CLUMPS: K.CLUMPS } : null };
@@ -282,7 +285,7 @@ function partsOf(m) {
 /** The spread order of a crowd's sprigs: by size into classes (each half the area of the one before, the largest first;
     one where the shape asks them alike), the farthest from all taken before within a class (turnsOf). -> { mid, sd:
     their spread, order } */
-function orderOf(sprigs, P, K) {
+function orderOf(sprigs, P, K, B = null) {
   const N = sprigs.length, mid = [0, 0, 0], sd = [0, 0, 0], X = new Float64Array(N), Y = new Float64Array(N), Z = new Float64Array(N); let nC = 0;
   sprigs.forEach((q, p) => { for (const v of q.verts) { X[p] += P[v * 3] / q.verts.length; Y[p] += P[v * 3 + 1] / q.verts.length; Z[p] += P[v * 3 + 2] / q.verts.length; for (let a = 0; a < 3; a++) mid[a] += P[v * 3 + a]; nC++; } });
   for (let a = 0; a < 3; a++) mid[a] /= max(1, nC);
@@ -290,7 +293,7 @@ function orderOf(sprigs, P, K) {
   for (let a = 0; a < 3; a++) sd[a] = sqrt(sd[a] / max(1, nC)) || 1e-9;
   let amax = 0; for (const q of sprigs) amax = max(amax, q.area);
   const cls = Uint8Array.from(sprigs, (q) => (K.order === 'alike' ? 0 : min(K.CLASSES - 1, floor(log2(amax / q.area) + 1e-6))));
-  return { mid, sd, order: turnsOf(X, Y, Z, cls, mid) };
+  return { mid, sd, order: B ? B.order : turnsOf(X, Y, Z, cls, mid) };   // (B: a measure the build made: its order)
 }
 // the ways the eye can see a chunk's planes from: each plane's error and share depend on |v.x|, |v.y|, |v.z| alone, so
 // one eighth of the sphere is all of them (a triangle's grid of 325), each as its three planes' weights: plane a draws a
@@ -399,7 +402,7 @@ export function crowd(m, opts = {}) {
   const K = { ...CROWD, ...opts }, P = m.position, I = m.index, n = m.part.length, R = m.root;
   const H = headOf(m, K), { size, frame, sprigs, solids, N, M, mid, sd: spread, order, sphere, win, go } = H;
   // how much of its pictures the plant covers
-  const stop = Float32Array.from({ length: n }, (_, v) => (m.part[v] === 1 ? K.STOPS : 1)), cover = N ? coverOf(P, n, I, stop, frame, K.PIC) : 0;
+  const stop = K.measured ? null : Float32Array.from({ length: n }, (_, v) => (m.part[v] === 1 ? K.STOPS : 1)), cover = K.measured ? K.measured.cover : N ? coverOf(P, n, I, stop, frame, K.PIC) : 0;
 
   // ---- its solid pieces: how wide each is, its go (widthsOf). Thick wood, what is still there where the crowd ends, is
   // never gone by itself (go 0): the impostor takes it; so is what was laid without a part ----
@@ -455,7 +458,9 @@ export function crowd(m, opts = {}) {
     return { n: Mc, cells, boxes, go: cgo, ao, err: max(...all.map((C) => C.err)) };
   }
   return { count, cards, parts: N, solids: listed.length, ...out, ...S, index, steps, turns, size, mid, spread, win, grow: H.grow, cover, sphere, clumps,
-    atlas: H.atlas, errors: H.errors, far: { lo: farLoOf(H), data: farDataOf(H, clumps) } };
+    atlas: H.atlas, errors: H.errors, far: { lo: farLoOf(H), data: farDataOf(H, clumps) },
+    // (what of it the build keeps, so a start reckons none of it: assets/kit/measures.js, tools/outlines.js)
+    measure: { order: H.order, own: H.errors.crowd, go: H.go, M: H.M, win: H.win, grow: H.grow, chunks: H.chunks, eC: H.errors.clumps, cover } };
 }
 /** Each solid piece's width and its go (metres). How long: between its two corners farthest apart (the farthest from
     its middle, and the farthest from that). How wide: it is taken as a body a ray passes twice, whose area over pi times
