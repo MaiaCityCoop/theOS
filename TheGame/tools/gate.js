@@ -663,7 +663,7 @@ async function walks(chrome) {
       if (g.settled === false) { out[world] = { notSettled: g.said }; continue; }
       await P.page.evaluate(() => window.__game?.frames?.());   // (the frames of the walk alone: src/core/frames.js)
       const r = told(await P.page.evaluate(ride, { fly: false, limit: 20e3 })), d = await P.page.evaluate(() => window.__device), frames = await P.page.evaluate(() => window.__game?.frames?.() ?? null);
-      out[world] = { ...r, longest: Math.round(d?.longest ?? 0), long: d?.long ?? null, slow: d?.slow ?? [], slowN: d?.slowN ?? 0, sure: d?.sure ?? 0, frames };
+      out[world] = { ...r, longest: Math.round(d?.longest ?? 0), long: d?.long ?? null, slow: d?.slow ?? [], slowN: d?.slowN ?? 0, sure: d?.sure ?? 0, stamped: d?.stamped ?? 0, submits: d?.submits ?? 0, frames };
     } finally { said(P.errors); await P.close(); }
   }
   console.log(`  ${walkLines(out, D).join('\n  ').replace(/\*\*/g, '')}`);

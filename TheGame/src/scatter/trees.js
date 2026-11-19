@@ -68,6 +68,7 @@ import { wayAt, waysVersion } from '../world/ways.js';
 import { pxOf, turnOf, seedOf } from './row.js';
 import { levelOf as crowdLevelOf, RULE } from '../../assets/kit/crowd.js';
 import { crowdOf, bandsOf, baseShare, goneOf, GRID, GOQ, GO0, FOOT } from '../../assets/kit/plant.js';
+import { jobDone } from '../../assets/kit/job.js';
 import { ringsOf, bandsOf as ringBands } from './grass.js';
 import { lo16, hi16 } from './unpack.js';
 import { farMost, pxKMost, measureVersion, dialPxAt } from '../detail/measure.js';
@@ -906,7 +907,7 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     // assets/kit/tree.js crowdRooms, at the top of each of the stand's levels: cutOf)
     const crowdRoom = (v, i) => { const Kd = shapeKd[v]; return Kd.rooms[v - Kd.offset][i]; };
     const roomAt = (i) => ({ room: { verts: Math.max(1, ...shapeKd.map((_, v) => crowdRoom(v, i)[0])), tris: Math.max(1, ...shapeKd.map((_, v) => crowdRoom(v, i)[1])) }, rooms: shapeKd.map((_, v) => ({ verts: crowdRoom(v, i)[0], tris: crowdRoom(v, i)[1] })) });
-    const LEVELS = [...G.kinds[0].levels.map((l, i) => ({ px: l.lo, crowd: { band: [l.lo, l.hi], atlas: A }, ...roomAt(i) })), ...(SHL >= 0 ? [{ px: 1e-3, crowd: 'shade', room: roomOf((Kd) => Kd.asset.detail.shadow?.most), rooms: roomsOf((Kd) => Kd.asset.detail.shadow?.most) }] : [])];
+    const LEVELS = [...G.kinds[0].levels.map((l, i) => ({ px: l.lo, crowd: { band: [l.lo, l.hi], atlas: A, shared: true }, ...roomAt(i), ...(i ? { shares: 0 } : {}) })), ...(SHL >= 0 ? [{ px: 1e-3, crowd: 'shade', room: roomOf((Kd) => Kd.asset.detail.shadow?.most), rooms: roomsOf((Kd) => Kd.asset.detail.shadow?.most) }] : [])];   // (shares: every crowd level after the first is its corners into the first's block, assets/kit/plant.js sharedAt)
     // each shape's far end as the crowd kit reckons it (assets/kit/tree.js farOf): a layer of its clumps' atlas for each
     // shape that has clumps (G.clumpLayer), as many tiles a row as its largest clumps need (G.tiles)
     const FE = shapeKd.map((Kd, v) => Kd.asset.farOf?.(A)?.[v - Kd.offset] ?? { chunks: 0 });
@@ -1064,6 +1065,7 @@ function standBodies(G, KINDS, ground, renderer) {
 export function treeSample(tex, row, x = 0, y = 0, z = 0, s = 1, form = 0, px = null) {
   // (its whole crowd as one mesh, its last parts kept: it wears no clumps and has no impostor, it is seen near)
   const a = row.asset, S = crowdOf(a, form, atlases()), M = crowdLevelOf(S, 0, Infinity, { keep: true, clumps: false }), g = new THREE.BufferGeometry();
+  jobDone();   // (what the kit built for it let go: M is its own, assets/kit/job.js)
   const four = (f) => { const a = new Float32Array(M.count * 4); for (let v = 0; v < M.count; v++) a.set(f(v), v * 4); return new THREE.BufferAttribute(a, 4); };
   for (const [k, w] of [['position', 3], ['normal', 3], ['uv', 2], ['cn', 3], ['root', 3]]) g.setAttribute(k, new THREE.BufferAttribute(M[k], w));
   g.setAttribute('partAo', four((v) => [M.part[v], M.ao[v], M.twig[v], 0]));

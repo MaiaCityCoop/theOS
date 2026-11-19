@@ -7,12 +7,18 @@
 //   bun tools/paints.js --url <the dev server's game/> --tag <t> [--size n] [--cpu]   paint them into .gate/paints/<t>/
 //                       [--only name,name]                                            (those materials alone)
 //   bun tools/paints.js diff <tagA> <tagB>                                           hold the two sets against each other
+//   bun tools/paints.js cache --url <the dev server's game/> [--cpu]               a start, and a start again (the warm
+//                       cache: src/materials/bake.js): the second paints nothing, asks the GPU for no painting
+//                       program, and its layers are the first's, byte for byte; the first kept them all, a layer a
+//                       frame at the most, one buffer of them at once (tools/painted.page.js)
 //
 // The GPU's lock is held while it paints (tools/gpu/lock.js); --cpu paints in Chrome on its CPU adapter (SwiftShader, as
 // CI compiles: tools/gate/wgsl.js), no GPU at all. What is kept is held to one step of its format: a texel of the tile
 // or of the relief differs where a channel is more than one step (1/255) off. The raw heights are said, not held: no
 // texture keeps them (float rounding moves them: 1e-6 of them, and 1e-7).
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import { locked } from './gpu/lock.js';
 
@@ -64,4 +70,28 @@ function diff(a, b) {
   if (worst) process.exitCode = 1;
 }
 
-if (process.argv[2] === 'diff') diff(process.argv[3], process.argv[4]); else await paint();
+/** A start of the world's textures, then another on the same profile: what the first painted and kept, the second lays
+    out. Exit 1 unless the second painted nothing, asked the GPU for no pipeline, and holds the first's layers, and the
+    first kept all it painted, paced: no more than a layer a frame, nor a buffer of them at once. */
+async function cache() {
+  const url = arg('url'), cpu = process.argv.includes('--cpu'), dir = mkdtempSync(join(tmpdir(), 'paints-cache-'));
+  const args = ['--enable-unsafe-webgpu', ...(cpu ? ['--enable-features=Vulkan', '--use-vulkan=swiftshader', '--use-webgpu-adapter=swiftshader', '--disable-vulkan-surface'] : [])];
+  const run = async () => {
+    const context = await chromium.launchPersistentContext(dir, { channel: 'chrome', headless: true, args }), starts = [];
+    try {
+      for (const q of ['?fresh', '']) {
+        const page = await context.newPage(); page.on('pageerror', (e) => console.log(`paints: the page: ${e.message}`));
+        await page.goto(`${url}tools/painted.html${q}`); await page.waitForFunction(() => window.__painted, null, { timeout: 600000 });
+        starts.push(await page.evaluate(() => window.__painted)); await page.close();
+      }
+    } finally { await context.close(); }
+    return starts;
+  };
+  const [a, b] = cpu ? await run() : await locked('tools/paints.js: the textures, kept and laid out', run);
+  const same = a.layers.length === b.layers.length && a.layers.every((L, n) => L.hash === b.layers[n].hash && L.uid === b.layers[n].uid);
+  const P = a.pace, paced = a.stored === a.painted && P.perFrame <= 1 && P.buffers <= 1;
+  console.log(`paints cache: the first start painted ${a.painted}, laid out ${a.laid}, asked the GPU for ${a.asked} pipelines, and kept ${a.stored} over ${P.frames} frames, at most ${P.perFrame} a frame, ${P.buffers} of their buffers at once${paced ? '' : ' (NOT paced)'}; the second painted ${b.painted}, laid out ${b.laid}, asked for ${b.asked}; its ${b.layers.length} layers ${same ? 'the first\'s, byte for byte' : 'NOT the first\'s'}${a.packed ? '' : ' (no blocks on this GPU: nothing kept)'}`);
+  if (!a.packed || b.painted || b.asked || !same || b.laid !== a.painted || !paced) process.exitCode = 1;
+}
+
+if (process.argv[2] === 'diff') diff(process.argv[3], process.argv[4]); else if (process.argv[2] === 'cache') await cache(); else await paint();

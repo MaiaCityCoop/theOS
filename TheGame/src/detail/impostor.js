@@ -36,16 +36,19 @@ import { shown } from '../core/settle.js';
 import { compileFor } from '../core/compile.js';
 import { SHARE_MB } from '../core/classes.js';
 import { FNV, fnv } from '../core/hash.js';
-import { asking } from '../core/workers.js';
+import { workerPool } from '../core/workers.js';
 import { pxAt } from './measure.js';
+import { aboutTo } from '../core/journal.js';
 import { atlasesOf, atlasBytes, levelsUnder, SS, LEAST, PICTURES } from './atlas.js';
 import { farLayers } from '../scatter/entries.js';
 
 /** The numbers the plants' far ends' atlases are sized by: { VIEWS, CELL, TILE, TILES, CLUMPS, key } (src/detail/atlas.js
     atlasesOf), from the far ends the stands bake (src/scatter/entries.js farLayers), the share of memory they are given
-    (src/core/classes.js SHARE_MB) and the limits every device grants (src/core/gpu.js PORTABLE): the same on every
-    device and at every start of the same world. Handed to the crowd kit wherever it builds a far end (in the recipes'
-    workers with each level's band: src/scatter/trees.js); a made thing's card takes the same views. */
+    (src/core/classes.js SHARE_MB, this device's share of it: src/core/gpu.js budgetShare) and the limits every device
+    grants (src/core/gpu.js PORTABLE): the same at every start of the same world on the same device. Worked out once, at
+    the first ask, so asked only once the adapter has said the share (src/boot.js: the outlines wait for it). Handed to
+    the crowd kit wherever it builds a far end (in the recipes' workers with each level's band: src/scatter/trees.js); a
+    made thing's card takes the same views. */
 let ATLASES = null;
 export const atlases = () => (ATLASES ||= atlasesOf({ layers: farLayers(), bytes: SHARE_MB.geometry.atlases * 2 ** 20 * budgetShare(), limits: PORTABLE, tiles: UV_TILES }));   // (their share of geometry's budget on this device: src/core/gpu.js budgetShare)
 
@@ -134,10 +137,10 @@ export function createAtlas(renderer, { name, side, layers, cell = side, views =
 
 // ---- the bake: a row of pictures at a time, SS x SS samples a texel, reduced on the GPU, read back, mipped in a worker ----
 let WORKERS = null;
-const workers = () => (WORKERS ||= Array.from({ length: Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 2)) }, () => asking(new Worker(new URL('./impostor.worker.js', import.meta.url), { type: 'module' }), "the impostors' worker")));
-/** The pictures' smaller ones, as a worker makes them (impostor.worker.js, the least busy of a few, watched:
-    src/core/workers.js): { levels: [{ colour, data, leaf, n }] }. */
-const mipsOf = (colour, data, leaf, side, cell, least) => workers().reduce((a, b) => (b.out() < a.out() ? b : a))({ colour, data, leaf, side, cell, least }, [colour.buffer, data.buffer, leaf.buffer]);
+const workers = () => (WORKERS ||= workerPool("the impostors' worker", () => new Worker(new URL('./impostor.worker.js', import.meta.url), { type: 'module' }), undefined, ({ side }) => `a row's pictures mipped, ${side} texels a side`));
+/** The pictures' smaller ones, as a worker makes them (impostor.worker.js, one of a pool as large as the device, watched:
+    src/core/workers.js workerPool): { levels: [{ colour, data, leaf, n }] }. */
+const mipsOf = (colour, data, leaf, side, cell, least) => workers().ask({ colour, data, leaf, side, cell, least }, [colour.buffer, data.buffer, leaf.buffer]);
 
 /** What bakes a family's pictures: rows of `per` pictures `px` texels a side, drawn by draw(row) (a mesh whose
     instances are the row's pictures, from PIECE's on: pictureOf; its one material's two outputs, mrt's `output` its
@@ -224,6 +227,7 @@ export function createBaker(renderer, { per, px }) {
         done, once its layer is in the atlas, with its levels (what the browser keeps of it: src/scatter/trees.js farOf). */
     bake(atlas, layer, count, draw, least = LEAST) {
       const job = last.then(async () => {
+        aboutTo(`a far end's bake: layer ${layer}, ${count} rows of ${per} pictures, ${px} texels a side`);
         await makeFor(draw(0));
         // (as many pictures a frame as fit the frame's share for geometry, by each piece's own time on the GPU; at least one,
         // on any GPU; a row's pictures in pieces, each as many of them as are left this frame. Before the first view is

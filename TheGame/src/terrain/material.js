@@ -7,7 +7,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, int, uint, vec2, vec3, vec4, array, attribute, positionGeometry, positionWorld, varyingProperty, cameraProjectionMatrix, dFdx, dFdy, If, Loop, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, floor, exp2, log2, step } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { DIAL_LEAST, pxAt, dialPxAt } from '../detail/measure.js';
+import { DIAL_ASKED, pxAt, dialPxAt } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
 import { camDist, riverInfo, riverNear, heightAt, heightSlopeAt, roofAt, hashI, BASE } from '../world/land.nodes.js';
 import { OCT_LAM, OCT_AMP } from '../world/land.js';
@@ -28,7 +28,7 @@ const FINE = float(1);
     dial pixel where the relief's geometry lets go, half its first level's reach (src/terrain/terrain.js): there the
     soil's relief (src/world/physics.js) covers SOIL_RELIEF GRID / (NODE FINE) over the steepest of the land's octaves
     (A / λ: what level 0's reach is made from) dial pixels, whatever the measure (it is in both). */
-export const PSTEPS = Math.max(1, Math.ceil((SOIL_RELIEF * GRID * DIAL_LEAST) / (NODE * Math.max(...OCT_AMP.map((A, i) => A / OCT_LAM[i])))));   // (at the page's least dial, the land's levels as far as one over it: one at the least, at a dial of 0)
+export const PSTEPS = Math.max(1, Math.ceil((SOIL_RELIEF * GRID * DIAL_ASKED) / (NODE * Math.max(...OCT_AMP.map((A, i) => A / OCT_LAM[i])))));   // (at the page's least dial, the land's levels as far as one over it: one at the least, at a dial of 0)
 
 /** The finest step the land's normal is worked out over: an eighth of its finest octave (what resolves that octave's
     slope; tools/slopecheck.js) */

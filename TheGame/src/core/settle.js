@@ -94,10 +94,24 @@ export function tick(did) {
   if (view && !own) { view({ frames }); view = null; }
   still = moved || did || out + lost > 0 || T.age === 0 ? 0 : still + 1;
   need = T.settles;
-  if (still < need || T.age < need) return;
+  if (still < need || T.age < need) return void (calm = false);
   if (first) { first({ frames }); first = null; }
   for (const a of asks) if (frames > a.from) { asks.delete(a); clearTimeout(a.timer); a.res({ frames: frames - a.from, ms: Math.round(performance.now() - a.t0), still }); }
+  calmed();
 }
+// (each time the world has come to settle: calm, from the first frame of a stretch it stands settled to the first that
+// is not)
+let calm = false;
+const CALM = new Set();
+function calmed() {
+  if (calm) return;
+  calm = true;
+  for (const f of CALM) try { f(); } catch (e) { console.warn('settle: what lets go as the world settles failed', e); }
+}
+/** fn(), each time the world has come to settle (the first frame of each stretch it stands settled, as ready and settle
+    take it): what may let go of what it holds only while nothing is asked of it (src/core/workers.js: a worker with
+    nothing to do), or ask again what waits for the start's peak to pass (src/core/compile.js: what memory refused). */
+export const onSettled = (fn) => void CALM.add(fn);
 
 /** Whether something waits for the world to settle (a page's first view, a still, the gate): a camera that moves by
     itself (the library's stage circling its subject: src/stage/studio.js) stands still meanwhile, or it never would. */

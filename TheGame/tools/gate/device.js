@@ -43,7 +43,7 @@ import { MACHINE, BUDGET_MB, FRAME_MS, SUBMIT_MS, TASK_MS, WATCHDOG_MS } from '.
     free, so a submission's time is at most so: how late its done may have been heard is kept with it (late, the thread
     busy just before), and a submission over submitMs even so is surely over (sure). */
 export function watch(frameMs, submitMs, salt = 0) {
-  const W = (window.__device = { buffers: 0, submits: 0, longest: 0, over: 0, slow: [], slowN: 0, sure: 0, lost: null, errors: [], top: null, long: null, dead: [] });
+  const W = (window.__device = { buffers: 0, submits: 0, stamped: 0, longest: 0, over: 0, slow: [], slowN: 0, sure: 0, lost: null, errors: [], top: null, long: null, dead: [] });
   // (the ledger's most, read in the page every frame, what it held then with it: it rises by gigabytes the seconds before
   // a device is lost, between two of the gate's looks)
   const keep = () => { const L = window.__game?.memory?.(); if (L && L.gpu > (W.top?.device ?? -1)) W.top = { device: L.gpu, classes: L.classes, rows: L.rows.slice(0, 8), makers: L.makers.slice(0, 8), over: L.over, unnoted: L.unnoted, buffers: W.buffers }; requestAnimationFrame(keep); };
@@ -87,12 +87,12 @@ export function watch(frameMs, submitMs, salt = 0) {
   };
   /** A submission's own time ms, submitted at t, what it held (list: its passes), what was written to the device before
       it (up: [bytes, writes]), how late its done may have been heard. */
-  const held = (list, ms, t, up, late) => {
+  const held = (list, ms, t, up, late, gpu = null, heard = ms) => {
     const by = {}, of = (n, one, many) => `${n} ${n === 1 ? one : many}`;
     for (const r of list) for (const [name, c] of r.uses) { const a = (by[`${r.kind} ${name}, begun at ${r.by || '?'}`] ||= { kind: r.kind, passes: 0, n: 0, inst: 0, wg: 0, ind: 0, fresh: false }); a.passes++; a.n += c.n; a.inst += c.inst; a.wg += c.wg; a.ind += c.ind; a.fresh ||= c.fresh; }
     const what = Object.entries(by).sort(([, x], [, y]) => y.inst + y.wg + y.ind - (x.inst + x.wg + x.ind) || y.n - x.n).slice(0, 8)
       .map(([k, a]) => `${a.passes}× ${k}: ${a.kind === 'compute' ? `${of(a.n, 'dispatch', 'dispatches')}, ${of(a.wg, 'workgroup', 'workgroups')}` : `${of(a.n, 'draw', 'draws')}, ${of(a.inst, 'instance', 'instances')}`}${a.ind ? ` (${a.ind} of them indirect)` : ''}${a.fresh ? ', its first use' : ''}`);
-    return { at: Math.round(t), ms: Math.round(ms), late: late > 12 ? Math.round(Math.min(late, ms)) : 0, passes: list.length, up: { bytes: up[0], writes: up[1] }, what };
+    return { at: Math.round(t), ms: Math.round(ms), ...(gpu != null ? { gpu: +gpu.toFixed(2), heard: Math.round(heard) } : {}), late: late > 12 ? Math.round(Math.min(late, ms)) : 0, passes: list.length, up: { bytes: up[0], writes: up[1] }, what };
   };
   const timed = (dev) => {
     const q = dev.queue, submit = q.submit.bind(q);
@@ -102,18 +102,24 @@ export function watch(frameMs, submitMs, salt = 0) {
     upload('writeTexture', (to, d) => d.byteLength ?? 0);
     upload('copyExternalImageToTexture', (from, to, s) => (s.width ?? s[0] ?? 0) * (s.height ?? s[1] ?? 1) * 4);
     q.submit = (cbs) => {
+      if ([...cbs].every((c) => globalThis.__isMark?.(c))) return submit(cbs);   // (the GPU's clock's own marks, src/core/pace.js stampedMs: handed on unwatched)
       const t = performance.now(), list = [...cbs].flatMap((c) => HOLDS.get(c) ?? []), before = [up, ups];
       up = ups = 0;
       for (const r of list) for (const b of r.bufs) if (DEAD.has(b) && W.dead.length < 12) W.dead.push(`the destroyed buffer "${LABEL.get(b)}" bound by a ${r.kind} pass (${r.uses.keys().next().value ?? 'no pipeline'}) begun at ${r.by || '?'}, ${Math.round(t / 1e3)} s in`);
-      submit(cbs); W.submits++;
+      const stamped = globalThis.__stampedMs?.(dev, () => submit(cbs), submit) ?? (submit(cbs), null);   // (its own GPU time by the GPU's timestamps, where the device has them: the game's one reader, src/core/pace.js)
+      W.submits++;
       q.onSubmittedWorkDone().then(() => {
-        const now = performance.now(), ms = now - Math.max(t, last);
+        const now = performance.now(), heard = now - Math.max(t, last), late = lateBy(now);
         last = now;
-        if (ms > frameMs) W.over++;
-        if (ms <= W.longest && ms <= submitMs) return;
-        const h = held(list, ms, t, before, lateBy(now));
-        if (ms > W.longest) { W.longest = ms; W.long = h; }
-        if (ms > submitMs) { W.slowN++; if (h.ms - h.late > submitMs) W.sure++; W.slow = [...W.slow, h].sort((x, y) => y.ms - x.ms).slice(0, 12); }
+        return Promise.resolve(stamped).then((gpu) => {
+          const ms = gpu ?? heard;   // (the GPU's own time where its timestamps tell it; else as heard, a bound)
+          if (gpu != null) W.stamped++;
+          if (ms > frameMs) W.over++;
+          if (ms <= W.longest && ms <= submitMs) return;
+          const h = held(list, ms, t, before, gpu != null ? 0 : late, gpu, heard);
+          if (ms > W.longest) { W.longest = ms; W.long = h; }
+          if (ms > submitMs) { W.slowN++; if (h.ms - h.late > submitMs) W.sure++; W.slow = [...W.slow, h].sort((x, y) => y.ms - x.ms).slice(0, 12); }
+        });
       }, () => {});
     };
   };
@@ -157,12 +163,27 @@ const firstMade = () => {
 /** In the page: the ledger now (src/core/gpu.js), with the gate's own count and the device's state. */
 const look = () => {
   let out = null; try { out = window.__game?.waiting?.() ?? null; } catch (e) { out = { [`waiting() threw: ${e.message}`]: 1 }; }   // (a source that cannot say: said, by name)
-  return { ready: window.__game?.loadMs ?? null, shown: performance.getEntriesByName('game:first-frame')[0]?.startTime ?? null, ledger: window.__game?.memory?.() ?? null, out, stage: Object.entries(window.__game?.boot ?? {}).at(-1) ?? null, step: document.body?.dataset.step ?? null, ...window.__device };
+  return { ready: window.__game?.loadMs ?? null, readyAt: performance.getEntriesByName('game:ready')[0]?.startTime ?? null, shown: performance.getEntriesByName('game:first-frame')[0]?.startTime ?? null, ledger: window.__game?.memory?.() ?? null, out, stage: Object.entries(window.__game?.boot ?? {}).at(-1) ?? null, step: document.body?.dataset.step ?? null, ...window.__device };
 };
-/** What every process of the WebKit Playwright runs holds of the machine (its pages', its GPU's, its own: their physical
-    footprint on a Mac, tools/gate/machine.js heldBy), MB (0 where it cannot be read). */
-async function gpuProcess() {
-  try { const ours = withChildren(await processes(), WEBKIT), H = await heldBy(ours); return [...ours.values()].reduce((s, p) => s + H.of(p), 0) / 1048576; } catch { return 0; }
+/** What the processes of the WebKit Playwright runs hold of the machine now (their physical footprint on a Mac,
+    tools/gate/machine.js heldBy), MB: all of them, and its GPU process's and its pages' each by its pid ([{ pid, mb }]).
+    Nothing where they cannot be read. */
+async function webkitNow() {
+  try {
+    const ours = withChildren(await processes(), WEBKIT), H = await heldBy(ours), mb = (p) => Math.round(H.of(p) / 1048576);
+    const of = (re) => [...ours.values()].filter((p) => re.test(p.cmd)).map((p) => ({ pid: p.pid, mb: mb(p) }));
+    return { mb: [...ours.values()].reduce((s, p) => s + H.of(p), 0) / 1048576, gpu: of(/WebKit\.GPU\b/), page: of(/WebKit\.WebContent\b/) };
+  } catch { return { mb: 0, gpu: [], page: [] }; }
+}
+/** WebKit's GPU and page processes as a look found them (P: webkitNow), kept in out.procs: each by its pid, its most;
+    and the first look that saw the device lost, whether the GPU process the look before it saw was still there (2026-11-19:
+    the Mac mini's devices lost "destroyed" with no message: WebKit's source says so of a device torn down in the GPU
+    process; whether that process itself died with it tells the machine's kill from the device's own end). */
+function watchProcs(out, P, lost) {
+  const W = (out.procs ??= { gpu: {}, page: {}, last: null, atLoss: null });
+  for (const k of ['gpu', 'page']) for (const p of P[k]) W[k][p.pid] = Math.max(W[k][p.pid] ?? 0, p.mb);
+  if (lost && !W.atLoss) { const was = W.last?.gpu ?? [], now = P.gpu.map((p) => p.pid); W.atLoss = { was: was.map((p) => p.pid), held: was.reduce((t, p) => t + p.mb, 0), now, alive: was.length ? was.every((p) => now.includes(p.pid)) : null }; }
+  if (!lost) W.last = { gpu: P.gpu, page: P.page };
 }
 
 /** The device on MACHINE: { ready (s), peak and settled (MB, the ledger's), classes at the peak against BUDGET_MB, the
@@ -180,27 +201,32 @@ async function opened(url, dir, salt) {
   const context = await webkit.launchPersistentContext(dir, { headless: true, ...webkitAt(), viewport: { width: MACHINE.width, height: MACHINE.height }, deviceScaleFactor: MACHINE.dpr });
   const page = context.pages()[0] ?? (await context.newPage());
   await page.addInitScript(`window.__gateMark = ${mark}`); await page.addInitScript(watching(salt));
-  return { context, page, t0: Date.now(), go: () => page.goto(url, { waitUntil: 'load' }) };
+  const lines = [];   // (what the start says of itself: its ready and its first view, src/boot.js)
+  page.on('console', (m) => { const t = m.text(); if (/^\[the game\] (ready in|the first view)/.test(t)) lines.push(t.slice(0, 800)); });
+  return { context, page, lines, t0: Date.now(), go: () => page.goto(url, { waitUntil: 'load' }) };
 }
 /** A repeat start (a player's next): the same profile and the same mark as the cold one before it, so what the browser
     and the driver kept from it is kept, in a browser of its own; till ready. { ready, shown (s), lost }. */
 async function warmStart(url, { secs, dir, salt }) {
-  const { context, page, t0, go } = await opened(url, dir, salt);
-  try { await go(); const ready = await arrived(page, { samples: [], process: 0 }, t0, secs), s = await page.evaluate(look); return { ready, shown: s.shown == null ? null : +(s.shown / 1e3).toFixed(1), lost: s.lost ?? null }; }
+  const { context, page, lines, t0, go } = await opened(url, dir, salt);
+  try { await go(); const o = { samples: [], process: 0 }, ready = await arrived(page, o, t0, secs), s = await page.evaluate(look); return { ready, seen: o.seen, shown: s.shown == null ? null : +(s.shown / 1e3).toFixed(1), lost: s.lost ?? null, boot: await page.evaluate(() => window.__game?.boot ?? null), lines }; }
   finally { await context.close(); }
 }
 /** The first start after the shaders changed (what a player sees after an update): a fresh profile, every shader
     marked anew (salt), so neither the browser nor the driver has kept any of it; the device measured through it. */
 async function coldStart(url, { secs, programs, dir, salt }) {
-  const { context, page, t0, go } = await opened(url, dir, salt);
+  const { context, page, lines, t0, go } = await opened(url, dir, salt);
   try {
     const out = { machine: MACHINE, budget: Object.values(BUDGET_MB).reduce((a, b) => a + b, 0), peak: 0, process: 0, samples: [] };
     await go();
     out.ready = await arrived(page, out, t0, secs);
+    // (where its time went, kept with the run: the boot's stages, ms (begun: from the navigation; each then from there),
+    // and what it said of its ready and its first view: asks, pipelines, turns, ms; beside out.held, what held it)
+    out.boot = await page.evaluate(() => window.__game?.boot ?? null); out.lines = lines;
     if (out.ready != null) await page.evaluate(() => window.__game?.frames?.());   // (the frames from ready on: the start's are the veil's, src/boot.js)
     const s = out.ready == null ? await page.evaluate(look) : await stay(page, out, secs);
     out.frames = await page.evaluate(() => window.__game?.frames?.() ?? null);
-    Object.assign(out, { shown: s.shown == null ? null : +(s.shown / 1e3).toFixed(1), settled: out.samples.at(-1) ?? null, longest: Math.round(s.longest ?? 0), over: s.over ?? 0, submits: s.submits ?? 0, lost: s.lost ?? null, errors: s.errors ?? [], long: s.long ?? null, slow: s.slow ?? [], slowN: s.slowN ?? 0, sure: s.sure ?? 0, dead: s.dead ?? [], process: Math.round(out.process) });
+    Object.assign(out, { shown: s.shown == null ? null : +(s.shown / 1e3).toFixed(1), settled: out.samples.at(-1) ?? null, longest: Math.round(s.longest ?? 0), over: s.over ?? 0, submits: s.submits ?? 0, lost: s.lost ?? null, errors: s.errors ?? [], long: s.long ?? null, slow: s.slow ?? [], slowN: s.slowN ?? 0, sure: s.sure ?? 0, stamped: s.stamped ?? 0, dead: s.dead ?? [], process: Math.round(out.process) });
     out.honest = out.buffers == null || out.peak >= out.buffers;   // (the ledger holds at least the buffers the device made)
     out.pass = !out.lost && out.ready != null;
     say(out);
@@ -208,12 +234,16 @@ async function coldStart(url, { secs, programs, dir, salt }) {
     return out;
   } finally { await context.close(); }
 }
-/** The game's start, as long as four stays, sampled (sample): seconds from t0 to ready, or null where it never came
-    (or the device was lost before). */
+/** The game's start, as long as four stays, sampled (sample): seconds from the navigation to ready as the page stamped
+    it (src/core/marks.js READY: its own clock, like the first frame's), or null where it never came (or the device was
+    lost before). out.seen: when the gate's look first had it, seconds from t0: a second's sampling and a busy page's
+    thread later (2026-11-19, the hour on ba6bea3: ready seen at 10.1 s, the first frame shown at 6.9 s). */
 async function arrived(page, out, t0, secs) {
   let s = await sample(page, out);
   while (s.ready == null && !s.lost && Date.now() - t0 < secs * 4e3) { hold(out, s, Math.round((Date.now() - t0) / 1e3)); await page.waitForTimeout(1e3); s = await sample(page, out); }
-  return s.ready == null || s.lost ? null : +((Date.now() - t0) / 1e3).toFixed(1);
+  if (s.ready == null || s.lost) return null;
+  out.seen = +((Date.now() - t0) / 1e3).toFixed(1);
+  return s.readyAt != null ? +(s.readyAt / 1e3).toFixed(1) : out.seen;   // (a build that stamps no READY: when it was seen, as before)
 }
 /** What held the start at a look s, t seconds in, kept in out.held: each source still out (settle.js waiting()), from
     and till when, its most at once and its count now; the start's last stage and the veil's words. */
@@ -227,7 +257,8 @@ function hold(out, s, t) {
     browser's resident memory at its most. */
 async function sample(page, out) {
   const s = await page.evaluate(look), T = s.top;
-  out.samples.push(s.ledger?.gpu ?? 0); out.process = Math.max(out.process, await gpuProcess());
+  const P = await webkitNow();
+  out.samples.push(s.ledger?.gpu ?? 0); out.process = Math.max(out.process, P.mb); watchProcs(out, P, s.lost);
   if (T) Object.assign(out, { peak: T.device, classes: T.classes, rows: T.rows, makers: T.makers, past: T.over, unnoted: T.unnoted, buffers: +(T.buffers / 1048576).toFixed(1) });
   return s;
 }
@@ -247,18 +278,22 @@ async function stay(page, out, secs) {
 
 /** Whether the game came: ready (window.__game.loadMs set: the start's world made and drawn) and in how long, the first
     frame shown (the game's mark, src/core/marks.js) beside it; the hour's board's first line. */
-const came = (r) => (r?.ready != null ? `yes, ${r.ready} s in${r.shown != null ? ` (the first frame shown ${r.shown} s in)` : ''}` : r ? `**no**${r.lost ? ' (the device lost)' : ''}` : 'not tried');
+const came = (r) => (r?.ready != null ? `yes, ${r.ready} s in${r.shown != null ? ` (the first frame shown ${r.shown} s in${r.seen != null ? `; the gate's look had it ${r.seen} s in` : ''})` : ''}` : r ? `**no**${r.lost ? ' (the device lost)' : ''}` : 'not tried');
 export const readyLine = (d) => (d?.ready != null ? `Ready, cold (the first start after the shaders changed: a fresh profile, every shader compiled anew): ${came(d)}; warm (a repeat start, what the browser and the driver kept, kept): ${came(d.warm)}; on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}× in WebKit.` : `**Ready: no**${d ? `, on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}× in WebKit${d.lost ? ' (the device lost first)' : ''}` : ''}: the game never came.${stillOut(d?.held, d?.submits)}`);
 /** What still held the start when the run ended (hold): each source still out, with its count and since when, the
     start's last stage, the veil's words, the submissions drawn meanwhile (frames behind the veil, or none). */
 const stillOut = (H, submits) => (!H ? '' : ` Still out: ${Object.entries(H.sources).filter(([, h]) => h.now).map(([k, h]) => `${k} (${h.now}, since ${h.from} s)`).join(', ') || 'nothing settle.js counts'}; the start's last stage ${H.stage ? `'${H.stage[0]}', ${(H.stage[1] / 1e3).toFixed(1)} s in` : 'none'}${H.step ? `; the veil: "${H.step}"` : ''}; ${submits ?? 0} submissions drawn.`);
+/** What WebKit's GPU process did at the device's loss (watchProcs' atLoss), as the board says it. */
+const atLoss = (A) => (!A ? "WebKit's GPU process not watched" : A.alive == null ? "WebKit's GPU process not seen before the loss" : A.alive ? `WebKit's GPU process (pid ${A.was.join(', ')}, ${A.held} MB) still there: the device ended inside it, not the process with it` : `**WebKit's GPU process (pid ${A.was.join(', ')}, ${A.held} MB) died at the loss**${A.now.length ? ` (another since, pid ${A.now.join(', ')})` : ''}: the process ended, the device with it (killed, or crashed)`);
+/** WebKit's GPU process and its pages at their most (watchProcs), for the device's memory line. */
+const procsMost = (W) => { const most = (o) => Math.max(0, ...Object.values(o ?? {})); return W ? `; its GPU process at most ${most(W.gpu)} MB, its pages at most ${most(W.page)} MB` : ''; };
 /** The device's lines, as the hour's board begins with them (after readyLine). */
 export function lines(d) {
   if (d?.peak == null) return [];
   const mb = (n) => (n == null ? '–' : `${(n / 1024).toFixed(2)} GB`);
   return [
-    d.lost ? `**The device was lost** ${(d.lost.at / 1e3).toFixed(0)} s in (${d.lost.reason}: ${d.lost.message}), on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}×.` : 'The device lived.',   // (whether the game came, and when, is readyLine's to say)
-    `GPU memory (the game's ledger): peak ${mb(d.peak)}, settled ${mb(d.settled)}, against the budget's ${mb(d.budget)}; unnoted by any pool ${mb(d.unnoted)}; WebKit's processes at most ${mb(d.process)} of the machine (their physical footprint)${d.honest ? '' : `; **the ledger is short**: the device made ${mb(d.buffers)} of buffers alone`}.`,
+    d.lost ? `**The device was lost** ${(d.lost.at / 1e3).toFixed(0)} s in (${d.lost.reason}: ${d.lost.message || 'no message'}), on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}×; ${atLoss(d.procs?.atLoss)}.` : 'The device lived.',   // (whether the game came, and when, is readyLine's to say)
+    `GPU memory (the game's ledger): peak ${mb(d.peak)}, settled ${mb(d.settled)}, against the budget's ${mb(d.budget)}; unnoted by any pool ${mb(d.unnoted)}; WebKit's processes at most ${mb(d.process)} of the machine (their physical footprint${procsMost(d.procs)})${d.honest ? '' : `; **the ledger is short**: the device made ${mb(d.buffers)} of buffers alone`}.`,
     `By class at the peak: ${Object.entries(d.classes ?? {}).map(([c, x]) => `${c} ${x.gpu} MB of ${x.budget}${x.gpu > x.budget ? ' (over)' : ''}`).join(', ') || '–'}.`,
     `The largest pools: ${(d.rows ?? []).map(([n, g]) => `${n} ${g} MB`).join('; ') || '–'}.`,
     `The largest makes, by class and what they were (the ledger's makers): ${(d.makers ?? []).map(([c, w, m, n]) => `${c}: ${w} ${m} MB (${n})`).join('; ') || '–'}.`,
@@ -272,10 +307,10 @@ export function lines(d) {
 /** A submission as the board says it (watch: held): its own time, how late its done may have been heard, when, and what
     it held: what was written before it, each pipeline with its draws and instances or its dispatches and workgroups,
     where its pass began. */
-export const submission = (h) => `${h.ms} ms${h.gpu != null ? ` (${h.gpu} ms of it on the GPU, by its timestamps)` : ''}${h.late ? ` (its done heard up to ${h.late} ms late: the page's thread was busy)` : ''}, ${(h.at / 1e3).toFixed(1)} s in, ${h.passes} pass${h.passes === 1 ? '' : 'es'}${h.up?.writes ? `, ${h.up.bytes < 1048576 ? `${Math.ceil(h.up.bytes / 1024)} KB` : `${(h.up.bytes / 1048576).toFixed(1)} MB`} written before it in ${h.up.writes} write${h.up.writes === 1 ? '' : 's'}` : ''}: ${h.what.join('; ') || 'no draw or dispatch'}`;
+export const submission = (h) => `${h.ms} ms${h.gpu != null ? ` on the GPU, by its timestamps (its done heard ${h.heard} ms after it was handed over)` : ''}${h.late ? ` (its done heard up to ${h.late} ms late: the page's thread was busy)` : ''}, ${(h.at / 1e3).toFixed(1)} s in, ${h.passes} pass${h.passes === 1 ? '' : 'es'}${h.up?.writes ? `, ${h.up.bytes < 1048576 ? `${Math.ceil(h.up.bytes / 1024)} KB` : `${(h.up.bytes / 1048576).toFixed(1)} MB`} written before it in ${h.up.writes} write${h.up.writes === 1 ? '' : 's'}` : ''}: ${h.what.join('; ') || 'no draw or dispatch'}`;
 /** The submissions as the board says them (r: the device's run, or a world's walk: what watch kept): the longest with what
     it held, how many were over SUBMIT_MS (how many surely, however late heard), and the next worst with what each held. */
-export const submissions = (r) => `the longest ${r.long ? submission(r.long) : `${r.longest ?? 0} ms`}${r.slow == null ? '' : r.slowN ? `; **${r.slowN} over ${SUBMIT_MS} ms** (budget.js SUBMIT_MS; ${r.sure} surely, however late heard)${r.slow.length > 1 ? `, the next worst: ${r.slow.slice(1, 3).map(submission).join(' | ')}` : ''}` : `; none over ${SUBMIT_MS} ms`}`;
+export const submissions = (r) => `${r.stamped ? `${r.stamped} of ${r.submits ?? '?'} timed by the GPU's timestamps` : 'timed as heard (no GPU timestamps)'}; the longest ${r.long ? submission(r.long) : `${r.longest ?? 0} ms`}${r.slow == null ? '' : r.slowN ? `; **${r.slowN} over ${SUBMIT_MS} ms** (budget.js SUBMIT_MS; ${r.sure} surely, however late heard)${r.slow.length > 1 ? `, the next worst: ${r.slow.slice(1, 3).map(submission).join(' | ')}` : ''}` : `; none over ${SUBMIT_MS} ms`}`;
 /** The hour's rule on its submissions (R: the hour's run; was: the last measured hour's run, or null), the device's run
     and each world's walk alike: it fails where a submission's own time on the GPU, as the GPU's own timestamps tell it
     (gpu: ms), was within the watchdog's reach (WATCHDOG_MS: a lost device waiting to happen), or where more were surely

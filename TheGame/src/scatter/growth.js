@@ -4,8 +4,8 @@
 // (src/terrain/layers.js): a texel's place in it is its place on the land modulo N, so as the camera moves only the rows
 // and columns the window comes onto are worked out, on the GPU, a layer at a time, the largest first. Its texel is the
 // layer's band limit (rule.js layersOf: half its smallest crown; a finer one holds nothing more), its side N the fewest
-// texels (a power of two) that reach as far as what reads it is drawn (its `far`), within the room the geometry's class
-// has left (src/core/gpu.js roomOf), else the most that fits there, and said.
+// texels (a power of two) that reach as far as what reads it is drawn (its `far`, at the dial at rest): its need, made
+// once at that dial (src/core/gpu.js byDial: where the geometry's class cannot hold it beside the rest, the dial rises).
 //
 // For every layer that writes (src/scatter/rule.js: those whose things are as large as a texel) it keeps two things:
 //   - what stands in each of the layer's own cells, a word a cell (rule.js recordOf: which of its things, which of its
@@ -26,10 +26,9 @@
 // took to it. Where a layer's window does not reach, nothing of that layer has left anything.
 import * as THREE from 'three/webgpu';
 import { Fn, If, float, int, uint, vec2, ivec2, uniform, globalId, floor, clamp, round } from 'three/tsl';
-import { gpuStorage, roomOf } from '../core/gpu.js';
+import { gpuStorage, byDial } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { ownGpuMs, pace, frameShare } from '../core/pace.js';
-import { SUBMIT_MS } from '../core/budget.js';
 import { source } from '../core/settle.js';
 
 /** Texels a window moves by at once; the most layers that write (a word each). */
@@ -75,13 +74,11 @@ export function createGrowth(renderer, fields) {
       its window of cells (where c is one the gather of its texels' window reads: whoever asks keeps to that). */
   const places = [], placeOf = (w) => (places[w] ||= { side: uniform(1, 'int'), base: uniform(0, 'uint') });   // (each layer's cells' window: its side and its first, uniforms set as it is built)
   const at = (w, c) => { const P = placeOf(w); return B.element(uint(c.x.bitAnd(P.side.sub(1)).add(c.y.bitAnd(P.side.sub(1)).mul(P.side))).add(P.base)); };
-  // (while it all holds more than the geometry's room, the largest word halved, and said: its words and the cells its
-  // gather reads, 4 bytes each)
+  // (its need: its words as far as their readers reach at the dial at rest, and the cells its gather reads, 4 bytes
+  // each; never what the geometry's class has left: made once at the dial at rest, src/core/gpu.js byDial)
   const sides = (list) => {
-    const bytes = () => words.reduce((b, Wd, w) => { const L = list.find((x) => x.w === w); return b + 4 * (Wd.N * Wd.N + (L ? 2 ** (2 * Math.ceil(Math.log2(L.span(Wd.N)))) : 0)); }, 0);
-    const held = words.map((Wd) => Wd.N);
-    while (bytes() > roomOf('geometry')) { const Wd = words.reduce((a, b) => (b.N > a.N ? b : a)); if (Wd.N <= 4 * SNAP) break; Wd.N /= 2; }
-    words.forEach((Wd, w) => { if (Wd.N < held[w]) console.warn(`the growth map, word ${w}: ${held[w]} texels a side reach its readers (${Math.round(Wd.far)} m); ${Wd.N} fit the geometry's room: ${Math.round((Wd.N / 2 - SNAP) * Wd.T)} m`); });
+    const bytes = words.reduce((b, Wd, w) => { const L = list.find((x) => x.w === w); return b + 4 * (Wd.N * Wd.N + (L ? 2 ** (2 * Math.ceil(Math.log2(L.span(Wd.N)))) : 0)); }, 0);
+    byDial('the growth map', 'geometry', bytes, false);
   };
   /** The passes, one a layer that writes, in their order (rule.js writersOf): record(c), what stands in cell c of the
       layer, worked out for the cells the gather of the texels to be worked out reads (cells(x0, w): those along a side
@@ -129,8 +126,9 @@ export function createGrowth(renderer, fields) {
   // world is not complete before (settle). Without the GPU's clock to ask (the CPU's stand-in), all of it at once)
   // (its unit: a whole window a frame, every writer's fill and gather, set as the writers are (build): a time heard on the
   // page's thread never takes it under that (src/core/pace.js), so a stall charged to it never starves it, nor the
-  // world's Ready, which waits for it; and a piece never more than SUBMIT_MS by what a workgroup last took (each))
-  const jobs = [], each = { ms: 0 };   // (a job: writer n's rectangle of cells (fill) or texels, x z w h; r, c: its workgroups' rows done, and of the next row)
+  // world's Ready, which waits for it; and a piece never more than SUBMIT_MS by what a workgroup last took (P.most: a
+  // piece as small as a workgroup, the frame still a whole window))
+  const jobs = [];   // (a job: writer n's rectangle of cells (fill) or texels, x z w h; r, c: its workgroups' rows done, and of the next row)
   let P = pace(1);
   source('the growth map', () => jobs.length);
   /** Its next k workgroups at most, as a rectangle: whole rows where k holds one, else part of a row. -> [x, z, w, h, k] */
@@ -146,10 +144,9 @@ export function createGrowth(renderer, fields) {
     let clocked = true;
     while (jobs.length && (P.left > 0 || !clocked)) {
       if (!(jobs[0].w > 0 && jobs[0].h > 0)) { jobs.shift(); continue; }   // (nothing to work out)
-      const most = each.ms > 0 ? Math.max(1, Math.floor(SUBMIT_MS / each.ms)) : Infinity;   // (a piece's own time no more than SUBMIT_MS)
-      const J = jobs[0], [x0, z0, ww, hh, k] = take(J, clocked ? Math.min(P.left, most) : Infinity), kernel = J.fill ? fills[J.n] : passes[J.n], u = J.fill ? uCells : uRect;
+      const J = jobs[0], [x0, z0, ww, hh, k] = take(J, clocked ? Math.min(P.left, P.most()) : Infinity), kernel = J.fill ? fills[J.n] : passes[J.n], u = J.fill ? uCells : uRect;
       const ms = ownGpuMs(renderer, () => { u.value.set(x0, z0, ww, hh); renderer.compute(kernel, [Math.ceil(ww / 8), Math.ceil(hh / 8), 1]); });
-      if (ms) { P.left -= k; ms.then((t) => { each.ms = t / k; P.measured(k, t, frameShare('geometry')); }).catch(() => {}); } else clocked = false;
+      if (ms) { P.left -= k; ms.then((t) => P.measured(k, t, frameShare('geometry'))).catch(() => {}); } else clocked = false;
       if (J.r >= Math.ceil(J.h / 8)) jobs.shift();
     }
     if (!jobs.length && pending) { pending = false; version++; }
