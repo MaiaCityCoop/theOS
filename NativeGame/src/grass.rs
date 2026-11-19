@@ -214,7 +214,9 @@ pub fn chunk(cx: i32, cz: i32, share: f32) -> Mesh {
             }
             continue;
         }
-        let height = 0.22 + 0.45 * lush * lush + 0.15 * r(3);
+        // the outermost rings shrink toward the carpet, so the field melts into it instead of ending at an edge
+        let fade = if share < 0.09 { 0.55 } else if share < 0.18 { 0.8 } else { 1.0 };
+        let height = (0.22 + 0.45 * lush * lush + 0.15 * r(3)) * fade;
         let width = (0.006 + 0.006 * r(4)) * widen;
         let lean = 0.12 + 0.55 * r(6) * r(6);
         let (dir, side) = (Vec3::new(yaw.cos(), 0.0, yaw.sin()), Vec3::new(-yaw.sin(), 0.0, yaw.cos()));
@@ -249,7 +251,137 @@ pub fn chunk(cx: i32, cz: i32, share: f32) -> Mesh {
             }
         }
     }
+    if detail {
+        thatch(&mut g, cx, cz, share);
+        low_plants(&mut g, cx, cz, share);
+    }
     g.mesh()
+}
+
+/// A flat leaf from `base` along `dir`, rising at `rise` (0 flat on the ground, 1 straight up), `len` long and at most
+/// `width` wide, its outline ovate (widest a third of the way), its colour darker at the base.
+#[allow(clippy::too_many_arguments)]
+fn leaf(g: &mut Geo, base: Vec3, dir: Vec3, rise: f32, len: f32, width: f32, colour: Vec3, toothed: bool) {
+    let along = (dir * (1.0 - rise) + Vec3::Y * rise).normalize();
+    let side = dir.cross(Vec3::Y).try_normalize().unwrap_or(Vec3::X);
+    let n = along.cross(side).normalize() * -1.0;
+    let n = if n.y < 0.0 { -n } else { n };
+    let segs = 5;
+    let start = g.pos.len() as u32;
+    for s in 0..=segs {
+        let t = s as f32 / segs as f32;
+        let mut w = width * (std::f32::consts::PI * t.powf(0.75)).sin().max(0.0);
+        if toothed && s % 2 == 1 {
+            w *= 0.55; // a dandelion's teeth
+        }
+        let p = base + along * (len * t) - Vec3::Y * (0.15 * len * t * t * rise); // the tip droops a little
+        let c = colour * (0.75 + 0.35 * t);
+        g.vert(p - side * w, n, 0.05, c);
+        g.vert(p + side * w, n, 0.05, c);
+    }
+    for s in 0..segs {
+        let a = start + s * 2;
+        g.idx.extend_from_slice(&[a, a + 1, a + 2, a + 1, a + 3, a + 2]);
+    }
+}
+
+/// The low plants of a meadow, under and between the grass: clover in patches, rosettes of plantain and dandelion,
+/// cushions of moss. Each grows where the field gives it room (where the grass is thinner).
+fn low_plants(g: &mut Geo, cx: i32, cz: i32, share: f32) {
+    let count = (6.0 * CHUNK * CHUNK * share) as u32;
+    let (sx, sz) = (cx as u32 ^ 0x3C3C, cz as u32 ^ 0xC3C3);
+    for i in 0..count {
+        let r = |k: u32| h(sx, sz, i * 17 + k);
+        let (x, z) = ((cx as f32 + r(0)) * CHUNK, (cz as f32 + r(1)) * CHUNK);
+        let lush = field(x, z, 7.0, 1);
+        if r(2) > 1.1 - lush {
+            continue; // low plants where the grass is thin
+        }
+        let at = Vec3::new(x, 0.006, z);
+        let a0 = r(3) * std::f32::consts::TAU;
+        match (r(4) * 10.0) as u32 {
+            // clover: a small patch of trifoliate leaves on short stalks (linear reflectance: a cool mid green)
+            0..=4 => {
+                let col = Vec3::new(0.035, 0.10, 0.03) * (0.8 + 0.4 * r(5));
+                for k in 0..(4 + (r(6) * 6.0) as u32) {
+                    let ka = a0 + k as f32 * 2.3;
+                    let stem = at + Vec3::new(ka.cos(), 0.0, ka.sin()) * (0.05 * r(7 + k)) + Vec3::Y * (0.04 + 0.05 * r(8 + k));
+                    g.strip(at, stem, 0.0008, col * 0.7, col, 0.0, 0.1);
+                    for l in 0..3 {
+                        let la = ka + l as f32 * std::f32::consts::TAU / 3.0;
+                        leaf(g, stem, Vec3::new(la.cos(), 0.0, la.sin()), 0.15, 0.014, 0.008, col, false);
+                    }
+                }
+            }
+            // plantain: a rosette of broad ribbed leaves lying out from the centre
+            5..=6 => {
+                let col = Vec3::new(0.04, 0.09, 0.025) * (0.8 + 0.4 * r(5));
+                let n = 5 + (r(6) * 4.0) as u32;
+                for k in 0..n {
+                    let ka = a0 + k as f32 * std::f32::consts::TAU / n as f32;
+                    leaf(g, at, Vec3::new(ka.cos(), 0.0, ka.sin()), 0.25 + 0.2 * r(7 + k), 0.09 + 0.06 * r(9 + k), 0.025, col, false);
+                }
+            }
+            // dandelion: a flatter rosette of long toothed leaves
+            7..=8 => {
+                let col = Vec3::new(0.045, 0.11, 0.03) * (0.8 + 0.4 * r(5));
+                let n = 7 + (r(6) * 5.0) as u32;
+                for k in 0..n {
+                    let ka = a0 + k as f32 * std::f32::consts::TAU / n as f32 + 0.2 * r(7 + k);
+                    leaf(g, at, Vec3::new(ka.cos(), 0.0, ka.sin()), 0.12 + 0.15 * r(8 + k), 0.12 + 0.08 * r(9 + k), 0.016, col, true);
+                }
+            }
+            // moss: a low cushion of tiny pointed shoots, deep green to yellow-green
+            _ => {
+                let col = Vec3::new(0.03, 0.075, 0.015).lerp(Vec3::new(0.07, 0.11, 0.02), r(5));
+                let radius = 0.06 + 0.1 * r(6);
+                for k in 0..40 {
+                    let ka = a0 + k as f32 * 2.4;
+                    let d = radius * r(7 + k).sqrt();
+                    let p = at + Vec3::new(ka.cos() * d, 0.0, ka.sin() * d);
+                    let up = 0.012 * (1.0 - d / radius) + 0.004;
+                    g.strip(p, p + Vec3::Y * up + Vec3::new(ka.cos(), 0.0, ka.sin()) * 0.004, 0.002, col * 0.8, col, 0.0, 0.03);
+                }
+            }
+        }
+    }
+}
+
+/// Thatch per square metre at full detail: the dead blades of earlier years, lying matted on the ground.
+const THATCH: f32 = 45.0;
+
+/// The thatch: dead blades lying almost flat, slightly arched, crossing each other, in the browns and greys of old
+/// straw. What a real meadow shows of its ground between the living blades, far more than bare soil.
+fn thatch(g: &mut Geo, cx: i32, cz: i32, share: f32) {
+    let count = (THATCH * CHUNK * CHUNK * share) as u32;
+    let (sx, sz) = (cx as u32 ^ 0x5A5A, cz as u32 ^ 0xA5A5);
+    for i in 0..count {
+        let r = |k: u32| h(sx, sz, i * 13 + k);
+        let (x, z) = ((cx as f32 + r(0)) * CHUNK, (cz as f32 + r(1)) * CHUNK);
+        let yaw = r(2) * std::f32::consts::TAU;
+        let (dir, side) = (Vec3::new(yaw.cos(), 0.0, yaw.sin()), Vec3::new(-yaw.sin(), 0.0, yaw.cos()));
+        let len = 0.10 + 0.25 * r(3);
+        let width = 0.003 + 0.003 * r(4);
+        let lift = 0.004 + 0.02 * r(5); // how high it lies on the others
+        // linear reflectance of dead grass: pale straw to grey-brown, darker where it is older and damper
+        let colour = Vec3::new(0.20, 0.16, 0.09).lerp(Vec3::new(0.09, 0.075, 0.05), r(6)) * (0.7 + 0.5 * r(7));
+        let start = g.pos.len() as u32;
+        let segs = 3;
+        for s in 0..=segs {
+            let t = s as f32 / segs as f32;
+            let arch = (t * std::f32::consts::PI).sin() * 0.012 * r(8); // a little arched, not glued flat
+            let p = Vec3::new(x, lift + arch, z) + dir * (len * t) + side * (0.02 * r(9) * t * t);
+            let w = width * (1.0 - 0.7 * t);
+            let n = (Vec3::Y + side * 0.3 * (r(10) - 0.5)).normalize();
+            let c = colour * (0.85 + 0.3 * t);
+            g.vert(p - side * w, n, 0.02, c);
+            g.vert(p + side * w, n, 0.02, c);
+        }
+        for s in 0..segs {
+            let a = start + s * 2;
+            g.idx.extend_from_slice(&[a, a + 1, a + 2, a + 1, a + 3, a + 2]);
+        }
+    }
 }
 
 /// The grass carpet: what a field of grass looks like from further than its blades are drawn. A tile of fine streaks
@@ -271,9 +403,9 @@ pub fn carpet() -> Image {
         a + (b - a) * sy
     };
     // the carpet in the blades' own linear colours, a little darker for the shade between them
-    let deep = Vec3::new(0.022, 0.060, 0.010);
-    let light = Vec3::new(0.070, 0.165, 0.025);
-    let straw = Vec3::new(0.26, 0.21, 0.09);
+    let deep = Vec3::new(0.016, 0.045, 0.008);
+    let light = Vec3::new(0.045, 0.110, 0.017);
+    let straw = Vec3::new(0.15, 0.12, 0.05);
     let mut level: Vec<Vec3> = (0..N * N)
         .map(|i| {
             let (u, v) = ((i % N) as f32 / N as f32, (i / N) as f32 / N as f32);

@@ -30,10 +30,20 @@ impl Studio {
         self.time = 0.0;
         self.playing = true;
     }
+    /// Opens a kept shot list from `timelines/` and plays it from the start.
+    pub fn open(&mut self, path: &str) {
+        if let Some(t) = std::fs::read_to_string(path).ok().and_then(|t| Timeline::from_json(&t).ok()) {
+            self.timeline = t;
+            self.time = 0.0;
+            self.playing = true;
+        }
+    }
 }
 
 /// The kept shot list the Studio opens with.
 pub const FIRST_SHOTS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/timelines/first-shots.json");
+/// The Meadow's storytelling anchors: the same four shots at every stage of the scene.
+pub const ANCHORS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/timelines/meadow-anchors.json");
 
 /// The walker of the Game: W A S D to move, the mouse (held) to look, Shift to run, E and Q to rise and sink.
 #[derive(Resource)]
@@ -80,7 +90,14 @@ fn walk(
     }
 }
 
-fn play(time: Res<Time>, keys: Res<ButtonInput<KeyCode>>, mut studio: ResMut<Studio>, mut eye: Query<(&Camera, &mut Transform, &mut Projection), With<Camera3d>>) {
+fn play(
+    time: Res<Time>,
+    keys: Res<ButtonInput<KeyCode>>,
+    mut studio: ResMut<Studio>,
+    mut hour: ResMut<crate::meadow::Hour>,
+    mut wind: ResMut<crate::wind::Strength>,
+    mut eye: Query<(&Camera, &mut Transform, &mut Projection), With<Camera3d>>,
+) {
     if keys.just_pressed(KeyCode::Space) {
         if studio.time >= studio.duration() {
             studio.time = 0.0;
@@ -95,6 +112,16 @@ fn play(time: Res<Time>, keys: Res<ButtonInput<KeyCode>>, mut studio: ResMut<Stu
         }
     }
     let Some(cam) = studio.timeline.at(studio.time) else { return };
+    // the shot's own hour and wind, where it gives them (a value, or [from, to] across the shot)
+    if let Some((i, q)) = studio.timeline.shot_at(studio.time) {
+        let shot = &studio.timeline.clips[i];
+        if let Some(h) = &shot.hour {
+            hour.0 = h.at(q);
+        }
+        if let Some(w) = &shot.wind {
+            wind.0 = w.at(q);
+        }
+    }
     for (c, mut t, mut p) in &mut eye {
         if c.is_active {
             aim(&cam, &mut t, &mut p);

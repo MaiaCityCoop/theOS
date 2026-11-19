@@ -63,6 +63,39 @@ pictures looked at by Samuel; the navigation self-test, `cargo run -- --navtest`
 - **Too slow so far:** 82 to 94 ms (11 to 12 fps) at 1080p with grass, measured while Samuel's own instance ran too.
   Clean numbers and the cost of each part are next.
 
+- **Calm at zero, whole spikelets:** the flutter now scales with the wind; a blade's own sway character is smooth
+  across it (a hash per 2.5 cm cell had blown each spikelet's corners apart into the flat triangles).
+- **The night:** stars on a dome that follows the eye, a moon opposite the sun with a cool light, and an exposure that
+  opens from 13 by day to 5.5 at night, as an eye adapts.
+- **The ground floor, procedural:** a 1 m tile at 1024 px baked from generated micro-geometry (soil grain, damp
+  patches, 9,000 crumbs, 220 pebbles, 1,400 bits of litter) into colour with crevice shade, a normal map and
+  roughness, in measured soil and litter reflectances; it lies within 18 m of the eye and fades into the carpet by
+  32 m. Thatch of dead blades and low plants (clover, plantain, dandelion, moss) grow in the near chunks.
+- **Clouds:** fair-weather cumulus 1.5 km up, generated, lit by the sun and moon, drifting with the wind.
+- **The Studio plays a shot's hour and wind** (a value or `[from, to]`), and opens the four anchors.
+- **The disk ran full** (300 MB free); builds stopped until it was cleared in a separate session.
+
+### How the scene evolved
+
+The story of the Meadow, stage by stage, for the devlog. Every stage is a commit on `aven/0047-meadow`; checked out
+and run, it shows the scene as it was. The pictures are those Samuel and the agent looked at on the day.
+
+| Time (2026-11-19) | Commit | Stage | What it looked like | Samuel |
+| --- | --- | --- | --- | --- |
+| 15:05 | (in `8eb7638`) | Sky, sun, ground | A physical evening sky over a flat green ground; a shadow fought the ground and flickered | "it's flickering on green" |
+| 15:20 | (in `8eb7638`) | First grass | Dense generated blades about 40 m around the eye, then a dark band and a hard edge; 11 fps | "we have flickering artifacts, can you see?" |
+| 15:40 | (in `8eb7638`) | Navigation fixed | Home froze the screen on its last frame; fixed, with a click self-test | "navigation works again!!" |
+| 16:40 | `8eb7638` | Realism 1 to 5 | Denser, finer blades, varied colour, light through the blades, a carpet to the horizon | "this looks already wondrous" |
+| 16:49 | `bd81db9` | True colour and wind | AgX and real reflectance: green, with a golden backlight; gusts across the field, at first far too strong | "wind looks super, can you make wind even stronger" |
+| 16:55 | `9a26fa9` | Grass that follows you, seed heads, sliders | The same density wherever you walk; seed heads still read as flat triangles | "the heads still look like flat unrealistic triangles" |
+| 17:05 | this commit | Calm at zero wind, heads whole, night | The wind's flutter blew a spikelet's corners apart (the triangles); stars, a moon, an eye that adapts | "and have a proper night sky too, it's just black now" |
+
+**Storytelling anchors:** `NativeGame/timelines/meadow-anchors.json` holds four shots fixed to the world (into the
+evening sun, down among the blades, over the field, night), each with its hour and wind. The grass is fixed to the
+world, so the same shot at any later commit shows the same spot of ground: played at each stage's commit, the four
+shots become the before-and-after of the film. (The Studio does not yet read a shot's hour and wind; until it does,
+they are set with the sliders.)
+
 ## Propose
 
 ## Story
@@ -77,6 +110,10 @@ pictures looked at by Samuel; the navigation self-test, `cargo run -- --navtest`
 - [ ] Bring the Meadow to 30 fps at 1080p, or say what it costs
 - [x] Wind
 - [ ] Clouds
+- [ ] The Studio plays a shot's hour and wind, and can open `meadow-anchors.json`
+- [ ] The ground under the grass: thatch of dead blades, low plants (clover, rosettes, moss), a scanned soil set
+- [ ] Code hot reload with `dx` (needs free disk space: the disk had 1.5 GB left)
+- [ ] 30 fps at 1080p
 
 ## Changelog
 

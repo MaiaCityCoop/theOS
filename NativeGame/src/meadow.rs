@@ -27,6 +27,12 @@ pub struct Hour(pub f32);
 #[derive(Component)]
 struct Sun;
 
+#[derive(Component)]
+struct Moon;
+
+#[derive(Component)]
+struct Stars;
+
 /// The grass world's camera.
 #[derive(Component)]
 pub struct Eye2;
@@ -128,7 +134,10 @@ pub fn plugin(app: &mut App) {
         .add_systems(OnExit(View::Meadow), leave)
         .add_systems(OnEnter(View::Studio), enter)
         .add_systems(OnExit(View::Studio), leave)
-        .add_systems(Update, stream.run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio)))
+        .add_systems(
+            Update,
+            (stream, crate::ground::follow, crate::clouds::drift).run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio)),
+        )
         .add_systems(Update, (hours, sun).chain().run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio)));
 }
 
@@ -177,7 +186,27 @@ fn enter(
         SunDisk::EARTH,
         Transform::default(),
     ));
-    // the parts that cost time, each switchable for measuring: MEADOW_NO_<PART>=1
+    // the moon: opposite the sun, a cool faint light, no shadows (they would cost a second set of shadow maps)
+    commands.spawn((
+        GrassWorld,
+        MEADOW,
+        Moon,
+        DirectionalLight { shadow_maps_enabled: false, illuminance: 0.0, color: Color::srgb(0.70, 0.78, 1.0), ..default() },
+        SunDisk { angular_size: 0.009, intensity: 0.0 },
+        Transform::default(),
+    ));
+    // the stars: a dome of small glowing points far off, faded in as the sky darkens
+    let stars = materials.add(StandardMaterial {
+        base_color: Color::BLACK,
+        unlit: true,
+        fog_enabled: false,
+        ..default()
+    });
+    commands.spawn((GrassWorld, MEADOW, Stars, Mesh3d(meshes.add(star_dome(2500, 9_000.0))), MeshMaterial3d(stars), bevy::light::NotShadowCaster));
+    // the ground floor under the grass: soil, crumbs, pebbles and litter, baked from generated micro-geometry
+    commands.spawn((GrassWorld, MEADOW, crate::ground::floor(&mut meshes, &mut materials, &mut images)));
+    // the clouds: fair-weather cumulus 1.5 km up, drifting with the wind
+    commands.spawn((GrassWorld, MEADOW, crate::clouds::layer(&mut meshes, &mut materials, &mut images, 0.45)));    // the parts that cost time, each switchable for measuring: MEADOW_NO_<PART>=1
     let off = |part: &str| std::env::var_os(format!("MEADOW_NO_{part}")).is_some();
     let mut cam = commands.spawn((
         GrassWorld,
@@ -269,12 +298,84 @@ fn hours(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut hour: ResMut<Hour
 }
 
 /// The sun at the hour: rising in the east (+X), highest at 13:00 in the south (-Z), setting in the west.
-fn sun(hour: Res<Hour>, mut sun: Query<&mut Transform, With<Sun>>) {
+#[allow(clippy::type_complexity)]
+fn sun(
+    hour: Res<Hour>,
+    mut sun: Query<&mut Transform, (With<Sun>, Without<Moon>, Without<Stars>, Without<Eye2>)>,
+    mut moon: Query<(&mut Transform, &mut DirectionalLight, &mut SunDisk), (With<Moon>, Without<Sun>, Without<Stars>, Without<Eye2>)>,
+    mut stars: Query<(&mut Transform, &MeshMaterial3d<StandardMaterial>), (With<Stars>, Without<Sun>, Without<Moon>, Without<Eye2>)>,
+    mut eye: Query<(&GlobalTransform, &mut Exposure), With<Eye2>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
     let a = (hour.0 - 7.0) / 12.0 * std::f32::consts::PI; // 0 at sunrise, π at sunset
     let to_sun = Vec3::new(a.cos(), a.sin() * 0.85 + 0.02, -a.sin() * 0.5).normalize();
     for mut t in &mut sun {
         *t = Transform::from_translation(to_sun).looking_at(Vec3::ZERO, Vec3::Y);
     }
+    // how dark it is: 0 by day, 1 in full night, rising through dusk while the sun goes 6° below the horizon
+    let night = ((0.08 - to_sun.y) / 0.18).clamp(0.0, 1.0);
+    let night = night * night * (3.0 - 2.0 * night);
+    // the moon stands opposite the sun, a little higher, and lights only by night
+    let to_moon = Vec3::new(-to_sun.x, (-to_sun.y).max(0.0) * 0.8 + 0.25, -to_sun.z * 0.6 + 0.3).normalize();
+    for (mut t, mut light, mut disk) in &mut moon {
+        *t = Transform::from_translation(to_moon).looking_at(Vec3::ZERO, Vec3::Y);
+        light.illuminance = 400.0 * night;
+        disk.intensity = night;
+    }
+    // the eye adapts: exposed for the sun by day, opened up by night so the moonlit field can be seen
+    let ev = 13.0 - 7.5 * night;
+    let mut at = Vec3::ZERO;
+    for (g, mut e) in &mut eye {
+        e.ev100 = ev;
+        at = g.translation();
+    }
+    for (mut t, m) in &mut stars {
+        t.translation = Vec3::new(at.x, 0.0, at.z); // the stars stay infinitely far: they move with the eye
+        if let Some(mut mat) = materials.get_mut(&m.0) {
+            // bright enough to read against the exposure of the night (an unlit colour is divided by 1.2 × 2^ev on the
+            // way to the screen), gone by day; each star's own brightness is its vertex colour
+            let k = night * 1.2 * 2.0f32.powf(ev) * 0.9;
+            mat.base_color = Color::linear_rgb(k, k, k);
+        }
+    }
+}
+
+/// The night sky's stars: `n` small points on a dome `radius` metres away, each its own size and brightness.
+fn star_dome(n: u32, radius: f32) -> Mesh {
+    use bevy::asset::RenderAssetUsages;
+    use bevy::mesh::{Indices, PrimitiveTopology};
+    let h = |i: u32, k: u32| {
+        let mut x = i.wrapping_mul(0x9E37_79B1) ^ k.wrapping_mul(0x85EB_CA77);
+        x ^= x >> 15;
+        x = x.wrapping_mul(0x2C1B_3C6D);
+        x ^= x >> 12;
+        (x >> 8) as f32 / (1u32 << 24) as f32
+    };
+    let (mut pos, mut col, mut idx) = (vec![], vec![], vec![]);
+    for i in 0..n {
+        // even over the upper sphere, a little below the horizon too
+        let y = h(i, 1) * 1.05 - 0.05;
+        let a = h(i, 2) * std::f32::consts::TAU;
+        let r = (1.0 - y * y).max(0.0).sqrt();
+        let dir = Vec3::new(r * a.cos(), y, r * a.sin());
+        let c = dir * radius;
+        let size = radius * (0.0009 + 0.0022 * h(i, 3).powi(6));
+        let bright = 0.15 + 0.85 * h(i, 4).powi(3);
+        let tint = Vec3::new(1.0, 0.95 + 0.05 * h(i, 5), 0.85 + 0.25 * h(i, 5)) * bright;
+        let side = dir.cross(Vec3::Y).try_normalize().unwrap_or(Vec3::X) * size;
+        let up = dir.cross(side).normalize() * size;
+        let s = pos.len() as u32;
+        for p in [c - side - up, c + side - up, c + side + up, c - side + up] {
+            pos.push(p.to_array());
+            col.push([tint.x, tint.y, tint.z, 1.0]);
+        }
+        idx.extend_from_slice(&[s, s + 1, s + 2, s, s + 2, s + 3]);
+    }
+    Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, pos)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0f32, -1.0, 0.0]; n as usize * 4])
+        .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, col)
+        .with_inserted_indices(Indices::U32(idx))
 }
 
 /// `--meadow`: settle, measure the frame time for ten seconds without vsync, take one picture, print, quit.

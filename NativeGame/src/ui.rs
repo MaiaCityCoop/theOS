@@ -31,6 +31,7 @@ pub enum Act {
     Home,
     PlayPause,
     NewShots,
+    Anchors,
 }
 
 /// When the current view opened, in real seconds since the start.
@@ -336,6 +337,7 @@ fn studio(mut commands: Commands, f: Res<Fonts>, s: Res<Studio>) {
                 row.spawn((Clock, text(&f.mono, 15.0, FOREST, "0.0 s")));
                 row.spawn((text(&f.serif, 22.0, FOREST, s.timeline.title.clone()), Node { margin: UiRect::left(Val::Px(8.0)), ..default() }));
                 row.spawn((Node { margin: UiRect::left(Val::Auto), ..default() },)).with_children(|r| {
+                    r.spawn(pill(&f, Act::Anchors, "The four anchors", false));
                     r.spawn(pill(&f, Act::NewShots, "Five new shots", false));
                 });
             });
@@ -437,6 +439,7 @@ fn press(
         Act::Open(v) => next.set(v),
         Act::Home => next.set(View::Home),
         Act::NewShots => s.new_shots(),
+        Act::Anchors => s.open(crate::film::ANCHORS),
         Act::PlayPause => {
             if s.time >= s.duration() {
                 s.time = 0.0;

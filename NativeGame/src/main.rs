@@ -7,7 +7,9 @@
 
 mod camera;
 mod film;
+mod clouds;
 mod grass;
+mod ground;
 mod meadow;
 mod ui;
 mod wind;

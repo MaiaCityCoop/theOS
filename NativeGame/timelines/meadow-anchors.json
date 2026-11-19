@@ -1,0 +1,17 @@
+{
+  "title": "The Meadow's anchors: the same four shots at every stage",
+  "clips": [
+    { "name": "Into the evening sun", "kind": "medium", "secs": 6, "ease": "inout", "hour": 18.5, "wind": 1.0,
+      "why": "eye height, against the light: where the colour, the glow through the blades and the wind show most",
+      "keys": [ { "pos": [0, 1.6, 0], "look": [-50, 1.2, -3], "mm": 35 }, { "pos": [0, 1.6, -2], "look": [-50, 1.2, -5], "mm": 35 } ] },
+    { "name": "Down among the blades", "kind": "close", "secs": 5, "ease": "inout", "hour": 13, "wind": 0.6,
+      "why": "low, at noon: the blades, the seed heads and the ground under them",
+      "keys": [ { "pos": [3, 0.25, 2], "look": [8, 0.3, -6], "mm": 50 } ] },
+    { "name": "Over the field", "kind": "wide", "secs": 7, "ease": "inout", "hour": 9, "wind": 1.2,
+      "why": "from above in the morning: the density to the horizon and the gusts running across it",
+      "keys": [ { "pos": [0, 25, 30], "look": [0, 0, -60], "mm": 28 }, { "pos": [0, 18, 10], "look": [0, 0, -80], "mm": 28 } ] },
+    { "name": "Night", "kind": "medium", "secs": 6, "ease": "inout", "hour": 23, "wind": 0.4,
+      "why": "the moonlit field and the stars",
+      "keys": [ { "pos": [0, 1.6, 0], "look": [0, 6, -40], "mm": 28 } ] }
+  ]
+}
