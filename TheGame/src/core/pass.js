@@ -32,16 +32,23 @@ import { GA, GB } from './gbuffer.js';
 
 const PRE = context({ pass: 'pre', invariant: true }), MAIN = context({ pass: 'main', invariant: true }), SHADOW = context({ pass: 'shadow' }), SOLID = vec4(0);
 
+/** A thing's id's first number, a uint's 32 bits: its class in the high CLASS_BITS, its place in the rest (PLACE_BITS).
+    So many classes it can say (1 …; 0, none), and so many places (0 … PLACES - 1). */
+const CLASS_BITS = 8, PLACE_BITS = 32 - CLASS_BITS, CLASSES = 2 ** CLASS_BITS - 1, PLACES = 2 ** PLACE_BITS;
 /** What a pixel's id may say drew it: its class (1 …), each a family's draw (the made things of a group at a level, …),
-    and what each is (ID_CLASSES[class - 1]). The class is 8 bits of the id. */
+    and what each is (ID_CLASSES[class - 1]). */
 const ID_CLASSES = [];
 /** A new class of what draws, `what` its description (a family and what of it): its number. */
 let fullSaid = false;
-export const idClass = (what) => { if (ID_CLASSES.length >= 255) { if (!fullSaid) console.warn('pass.js: more classes of what draws than 8 bits hold: the rest say none (0)'); fullSaid = true; return 0; } ID_CLASSES.push(what); return ID_CLASSES.length; };
-/** A thing's id in the prepass (a material's idNode): its class (8 bits) and its place (24 bits: its row in its tier's
-    store, src/scatter/tier.js placeAt), and the first corner of its triangle as the draw numbers it (flat, its first:
-    the triangle itself where a draw's corners are its own, three a triangle; else the vertex it begins with). */
-export const drawnId = (cls, place) => varying(uvec2(uint(cls).shiftLeft(uint(24)).bitOr(uint(place).bitAnd(uint(0xffffff))), vertexIndex), 'vId').setInterpolation(THREE.InterpolationSamplingType.FLAT, THREE.InterpolationSamplingMode.FIRST);
+export const idClass = (what) => { if (ID_CLASSES.length >= CLASSES) { if (!fullSaid) console.warn(`pass.js: more classes of what draws than ${CLASS_BITS} bits hold: the rest say none (0)`); fullSaid = true; return 0; } ID_CLASSES.push(what); return ID_CLASSES.length; };
+/** Whether a store of n things (a tier's: src/scatter/tier.js) has a place in an id for each, said once where it has
+    not (what: its name): its ids past PLACES would say another thing's. */
+let placesSaid = false;
+export const placesFor = (n, what) => { if (n <= PLACES) return true; if (!placesSaid) console.warn(`pass.js: ${what} holds ${n} things, more than an id's ${PLACE_BITS} bits of place name (${PLACES}): past them their ids say another's`); placesSaid = true; return false; };
+/** A thing's id in the prepass (a material's idNode): its class and its place (its row in its tier's store,
+    src/scatter/tier.js placeAt), and the first corner of its triangle as the draw numbers it (flat, its first: the
+    triangle itself where a draw's corners are its own, three a triangle; else the vertex it begins with). */
+export const drawnId = (cls, place) => varying(uvec2(uint(cls).shiftLeft(uint(PLACE_BITS)).bitOr(uint(place).bitAnd(uint(PLACES - 1))), vertexIndex), 'vId').setInterpolation(THREE.InterpolationSamplingType.FLAT, THREE.InterpolationSamplingMode.FIRST);
 
 
 /** The pass a material is being built for ('pre', 'main'; undefined: none), from what node code is handed. */
