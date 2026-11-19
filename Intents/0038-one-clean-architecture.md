@@ -232,9 +232,9 @@ from `main`). `?hud` shows the frame, memory and settle readout on any device; t
 **Open PRs:** #379 and #382 (the start waits only for wanted far ends; bakes kept by shape). Both are **red in CI**: the far
 tier's gather binds 10 storage buffers against the limit of 8 (#379's T0 and WANT buffers). The fix is to read the wanted
 shapes from the far tiers' own bucket counts (a Tier.found), drop the T0/WANT buffers and want(), and set T.farEnd in
-drawer.js, applying the same change to far.js on #382. #379's fix is now pushed as c4a39b92 on aven/0038-far-wanted (2026-11-19,
-the MacBook host). The pre-push hook's lint and smoke passed on it; it is not GPU-checked, and its CI was running at the stop.
-#382 still needs main merged in (it conflicts) and the same change in far.js.
+drawer.js, applying the same change to far.js on #382. **#379 is merged** (0f1fbd69, 2026-11-19): its fix, c4a39b92,
+passed CI (check and build), but it is not GPU-checked, so check the start on next. #382 still needs main merged in (it
+conflicts) and the same change in far.js.
 #392, #394, #396 and #398 are merged. Drafts #255 and #275 conflict with main; #256 and #265 don't. All four need a GPU look.
 
 **Branches not in main, all pushed (2026-11-19, the MacBook):** no worktree or session is left on the MacBook, so these
