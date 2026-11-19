@@ -116,7 +116,7 @@ export async function boot({ profile = 'world' } = {}) {
   let shown = null; const first = new Promise((res) => (shown = res));   // (the stage's first subject in: its first view is complete once it has settled)
   const game = (window.__game = { profile, renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 }, settle, ready: world ? firstView : first.then(() => settle()), waiting, compiles, memory: ledger });   // memory(): the GPU's memory, the one ledger (src/core/gpu.js)
   const bounds = world && flag('bounds') ? showBodies(scene) : null;   // ?bounds: what is solid round the walker drawn as lines, in every world (src/world/bodies.js)
-  const U = createUniforms(camera, SKY);
+  const U = createUniforms(camera);
   setImpostorRenderer(renderer);
   // The one way to the screen, for every view (src/core/screen.js): the world drawn at the inside's pixels (the governor's
   // dial; the screen keeps all its own), a prepass and the colour (src/core/pass.js), through the lens where the camera
