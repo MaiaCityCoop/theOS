@@ -211,7 +211,8 @@ export async function boot({ profile = 'world' } = {}) {
     weather.before(camera, gy); shadows.render(scene, camera, gy);   // (what a condition draws before the picture: the clouds' shadow map)
     screen.render(scene, camera);   // (through its lens, where the camera brings one)
   }
-  let last = 0, wasBusy = false, veiled = false, stillAt = -1;   // (stillAt: the turns over when the last frame behind the veil was drawn, where it changed nothing; -1: it changed something)
+  let last = 0, wasBusy = false, veiled = false, stillAt = -1;
+  const veil = (game.veil = { frames: 0, drawn: 0, longest: 0 });   // (the frames behind the veil: how many, how many drawn, the longest between two, ms: __game.veil)   // (stillAt: the turns over when the last frame behind the veil was drawn, where it changed nothing; -1: it changed something)
   function frame(now) {
     requestAnimationFrame(frame);
     const ms = last ? now - last : 16.7; last = now;
@@ -224,7 +225,13 @@ export async function boot({ profile = 'world' } = {}) {
     // asks spent 168 s building in Chrome, 2026-11-19, the master's compile log. The frame after a turn is over is
     // drawn, and the veil lifts on such a frame: only a turn's end changes what the first view waits for. What a frame
     // asked to be painted, and new lakes, are taken in all the same: a turn of their own, or a change)
-    if (veiled && stillAt === making().ended) { tell(); return; }
+    // (passed over, the canvas is cleared all the same, under the veil: a frame presented keeps the browser's frames
+    // coming at the screen's rate, which three's compile waits for. A page that presents nothing may get its frames
+    // throttled, headless above all, and three's wait then ends only on its own timer, 100 ms a step: the master's
+    // Chrome log of this, 2026-11-19)
+    if (veiled) { veil.frames++; veil.longest = Math.max(veil.longest, ms); }
+    if (veiled && stillAt === making().ended) { renderer.setRenderTarget(null); renderer.clear(); tell(); return; }
+    if (veiled) veil.drawn++;
     renderer.info.reset();
     governor.begin();
     const c0 = performance.now();
