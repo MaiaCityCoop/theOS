@@ -27,7 +27,7 @@ export const U = {
   uMeadowOptics: uniform(new THREE.Vector2(0, 0)),   // the meadow's blades' area a square metre where it all grows: upright (as a ray along the ground meets it) and from above (src/scatter/grass.js opticsOf; 0: no meadow)
   uMeadowTop: uniform(0),                          // the meadow's mean top over the ground where it covers it all, metres (src/scatter/grass.js meanTop; 0: no meadow)
   uLandEnd: uniform(24000),                        // how far the land is drawn, metres from the eye (src/terrain/terrain.js): the air hides it by then
-  uExposure: uniform(1),                           // the picture's exposure (the sky sets it by the hour)
+  uExposure: uniform(1),                           // the picture's exposure (the sky's meter sets it: src/world/sky.js)
   uSnow: uniform(0),                               // how deep the snow lies, metres (src/world/weather/snow.js)
   uFine: uniform(1),                               // how much finer than the inside's pixels textures are read (built over time: src/core/temporal.js)
   // where a point lay a frame ago, for the prepass's motion (src/core/pass.js; set by src/core/temporal.js): the clock as

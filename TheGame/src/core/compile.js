@@ -128,7 +128,9 @@ function readTurn(t) {
                   near ms, the turn was the GPU's; far under, it waited on the page's thread), overtook, slowest (its
                   pipeline of the longest own time), failed (its compile threw: each of its asks made alone after it) }
       slowest     the pipelines of the longest own time (ms: from asked to ready, the wait for those before it in it);
-                  byName: each material's or pass's pipelines, each one's own time */
+                  byName: each material's or pass's pipelines, each one's own time
+      open        what is asked and not made yet, each { name, pass, near (0: the first view waits for it), counted,
+                  first (in the first view's snapshot), what } (tools/census.js counts the first view by it) */
 export function compiles() {
   const ms = (t) => t.ms ?? performance.now() - t.at, issued = (t) => Math.max(0, ...t.pipes.map((p) => p.at - t.at)), gpu = (t) => sum(t.pipes, (p) => p.own ?? 0), compiled = (L) => L.filter((p) => !p.shared);
   const inView = (t) => (t.list && view ? t.list.filter((e) => view.has(e)).length : t.inView), read = TURNS.map((t) => ({ t, overtook: readTurn(t) })), first = TURNS.filter(inView), byName = {};
@@ -141,6 +143,7 @@ export function compiles() {
     turns: read.map(({ t, overtook }) => ({ name: t.name, asks: t.asks, inView: inView(t), pipes: compiled(t.pipes).length, shared: t.pipes.length - compiled(t.pipes).length, issued: Math.round(issued(t)), ms: Math.round(ms(t)), gpu: Math.round(gpu(t)), overtook, ...(compiled(t.pipes).some((p) => p.ms != null) ? { slowest: ((p) => ({ name: familyOf(p), own: Math.round(own(p)) }))(top(compiled(t.pipes).filter((p) => p.ms != null))) } : {}), ...(t.failed ? { failed: true } : {}) })),
     slowest: compiled(PIPES).filter((p) => p.ms != null).sort((a, b) => own(b) - own(a)).slice(0, 20).map((p) => ({ name: familyOf(p), kind: p.kind, own: Math.round(own(p)), ms: Math.round(p.ms) })),
     byName,
+    open: [...open].map((e) => ({ name: e.name, pass: e.pass, near: e.near, counted: e.counted, first: view ? view.has(e) : needed(e), what: e.what })),
   };
 }
 
@@ -168,6 +171,13 @@ const stateOf = (what) => { let S = STATE.get(what); if (!S) STATE.set(what, (S 
 // (an ask's rank: what the first view waits for, 0; then how near it is, metres from the eye; what is made ahead of
 // need, after all of it)
 const rank = (e) => (e.counted ? e.near : Infinity), needed = (e) => rank(e) === 0;
+let reach = Infinity;   // (how far round the eye the first view waits for what is drawn: firstReach; until then all of it)
+/** How far round the eye the first view waits for what is drawn, metres (src/boot.js: the near cascade's reach). */
+export const firstReach = (m) => { reach = m; };
+/** An ask's near (ask) for what is drawn from `m` metres from the eye on (where its band begins): 0 within the first
+    view's reach, what it waits for; past it m, made after it (a tier's packing, src/scatter/tier.js; what the screen
+    draws, src/core/screen.js) */
+export const nearFrom = (m = 0) => (m < reach ? 0 : m);
 /** Whether `what` (a mesh, or a list of compute passes) is made for `pass`. */
 export const made = (what, pass) => STATE.get(own(what))?.get(pass) === 'made';
 /** Whether `what` was asked to be made for `pass` and is not yet (neither made nor failed). */
