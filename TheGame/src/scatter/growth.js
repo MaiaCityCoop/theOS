@@ -79,7 +79,13 @@ export function createGrowth(renderer, fields) {
   const at = (w, c) => { const P = placeOf(w); return B.element(uint(c.x.bitAnd(P.side.sub(1)).add(c.y.bitAnd(P.side.sub(1)).mul(P.side))).add(P.base)); };
   // (its need: its words as far as their readers reach at the dial at rest, and the cells its gather reads, 4 bytes
   // each; never what the geometry's class has left: made once at the dial at rest, src/core/gpu.js byDial)
+  const total = (list) => words.reduce((n, Wd) => n + Wd.N * Wd.N, 0) + list.reduce((n, { w, span }) => n + 2 ** (2 * Math.ceil(Math.log2(span(words[w].N)))), 0);   // (its numbers as build lays them: each word's texels, each layer's cells)
   const sides = (list) => {
+    // (held: where all of it would pass what geometry has left or one binding, four bytes a number (at a dial of 0 every
+    // word as far as Infinity), the word with the most texels halved, again, till it fits: it reaches less far, the
+    // rest is the dial's)
+    const most = Math.min(Math.max(0, roomOf('geometry')), limitOf('maxStorageBufferBindingSize') || Infinity) / 4;
+    for (let Wd = null; total(list) > most; ) { Wd = words.reduce((a, b) => (b.N > a.N ? b : a)); if (Wd.N <= 4 * SNAP) break; Wd.N /= 2; }
     const bytes = words.reduce((b, Wd, w) => { const L = list.find((x) => x.w === w); return b + 4 * (Wd.N * Wd.N + (L ? 2 ** (2 * Math.ceil(Math.log2(L.span(Wd.N)))) : 0)); }, 0);
     byDial('the growth map', 'geometry', bytes, false);
   };
