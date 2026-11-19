@@ -64,21 +64,44 @@ export function spacingOf(views) {
     along 256 ways over the half-sphere, each with its opposite: its diameter, near enough). P: its points' places
     (x y z), n of them. */
 export function depthOf(P, n = P.length / 3) {
-  let worst = 0;
-  for (let k = 0; k < 256; k++) {
-    const y = (k + 0.5) / 256, r = sqrt(1 - y * y), a = k * PI * (3 - sqrt(5)), x = r * cos(a), z = r * sin(a);   // (a golden spiral)
-    let lo = Infinity, hi = -Infinity;
-    for (let p = 0; p < n * 3; p += 3) { const d = P[p] * x + P[p + 1] * y + P[p + 2] * z; if (d < lo) lo = d; if (d > hi) hi = d; }
-    if (hi - lo > worst) worst = hi - lo;
-  }
+  if (!n) return 0;
+  // (each way's extent is its farthest point's and its nearest's. The farthest from the box's middle are looked at
+  // first, every way; a point nearer the middle than every way's extent then holds round it (R) moves none of them, so
+  // only the rest are looked at too. The same depth, exactly. Every point every way, for every shape, was a tenth of the
+  // scatter's 5 s at a start, 2026-11-19)
+  const c = [0, 1, 2].map((a) => { let lo = Infinity, hi = -Infinity; for (let p = a; p < n * 3; p += 3) { if (P[p] < lo) lo = P[p]; if (P[p] > hi) hi = P[p]; } return (lo + hi) / 2; });
+  const d2 = new Float64Array(n); let far = 0;
+  for (let i = 0, p = 0; i < n; i++, p += 3) { d2[i] = (P[p] - c[0]) ** 2 + (P[p + 1] - c[1]) ** 2 + (P[p + 2] - c[2]) ** 2; if (d2[i] > far) far = d2[i]; }
+  const lo = new Float64Array(256).fill(Infinity), hi = new Float64Array(256).fill(-Infinity);
+  const look = (idx, m) => {   // (the first m points of `idx` every way: each way's extent widened to them)
+    for (let k = 0; k < 256; k++) {
+      const x = DEPTH_X[k], y = DEPTH_Y[k], z = DEPTH_Z[k]; let l = lo[k], h = hi[k];
+      for (let j = 0; j < m; j++) { const p = idx[j] * 3, d = P[p] * x + P[p + 1] * y + P[p + 2] * z; if (d < l) l = d; if (d > h) h = d; }
+      lo[k] = l; hi[k] = h;
+    }
+  };
+  const idx = new Uint32Array(n); let m = 0;
+  for (let i = 0; i < n; i++) if (d2[i] >= far * 0.81) idx[m++] = i;
+  look(idx, m);
+  let R = Infinity; for (let k = 0; k < 256; k++) { const cu = c[0] * DEPTH_X[k] + c[1] * DEPTH_Y[k] + c[2] * DEPTH_Z[k]; R = Math.min(R, hi[k] - cu, cu - lo[k]); }
+  R -= 1e-9 * (1 + sqrt(far));   // (less a hair: what passes by stays clear of every rounding)
+  m = 0; for (let i = 0; i < n; i++) if (d2[i] < far * 0.81 && !(R > 0 && d2[i] < R * R)) idx[m++] = i;
+  look(idx, m);
+  let worst = 0; for (let k = 0; k < 256; k++) if (hi[k] - lo[k] > worst) worst = hi[k] - lo[k];
   return worst;
 }
+// (the ways depthOf looks along: a golden spiral over the half-sphere, each way's x, y and z)
+const DEPTH = Array.from({ length: 256 }, (_, k) => { const y = (k + 0.5) / 256, r = sqrt(1 - y * y), a = k * PI * (3 - sqrt(5)); return [r * cos(a), y, r * sin(a)]; });
+const DEPTH_X = Float64Array.from(DEPTH, (w) => w[0]), DEPTH_Y = Float64Array.from(DEPTH, (w) => w[1]), DEPTH_Z = Float64Array.from(DEPTH, (w) => w[2]);
 
 // ---- the atlases: what they are made of, and how large ----
-/** A texel's bytes: two RGBA8 textures, its colour and cover, its way, depth and light, and an R8, how much of it is
-    leaf (impostor.js createAtlas: each of its own, so each filters as it is); MIPS: its smaller pictures under it, a
-    third more. */
-const TEXEL = 9, MIPS = 4 / 3;
+/** What an atlas keeps of a texel: three pictures, each a texture of its own so each is filtered as it is
+    (impostor.js createAtlas), by its channels, eight bits each: its colour and cover; its data, its way (facingCode),
+    depth and light; how much of it is leaf. What its textures are made as, what the worker writes (impostor.worker.js)
+    and what a texel costs, all from here. */
+export const PICTURES = [{ name: 'colour', channels: 'rgba' }, { name: 'data', channels: 'rgba' }, { name: 'leaf', channels: 'r' }];
+/** A texel's bytes: its pictures' channels; MIPS: its smaller pictures under it, a third more. */
+const TEXEL = PICTURES.reduce((s, p) => s + p.channels.length, 0), MIPS = 4 / 3;
 /** The least picture an atlas keeps, texels a side: its smaller pictures go down to it (impostor.worker.js), and one read
     at any of its levels stays inside its own cell (impostor.js inCell). */
 export const LEAST = 4;
@@ -96,7 +119,7 @@ export const levelsUnder = (cell) => floor(Math.log2(cell / LEAST) + 1e-9);
       limits   the limits every WebGPU device grants (src/core/gpu.js PORTABLE): what is baked is kept by its key and
                drawn on any device, so its size is the same on every one
       tiles    how many tiles a plane's uv can name (assets/kit/plant.js UV_TILES: what the heap packs it in)
-    -> { VIEWS, CELL, TILE, TILES, CLUMPS, key }
+    -> { VIEWS, CELL, STORED, TILE, TILES, CLUMPS, key }
     - a clump's plane is a tile of the least picture, TILE = LEAST: where the clumps stand in their error is within the
       dial, and it counts their texel, a chunk's side over TILE; so a chunk is never more pixels drawn across than its
       tile has texels, and a finer picture of it would never be read;
@@ -120,6 +143,11 @@ export function atlasesOf({ layers, bytes, limits, tiles }) {
     if (!best || e < best.e) best = { e, VIEWS, CELL };
   }
   if (!best) throw new Error(`atlases: ${(bytes / 2 ** 20).toFixed(0)} MiB for ${layers} far ends hold no views`);
-  const { VIEWS, CELL } = best;
-  return { VIEWS, CELL, TILE, TILES, CLUMPS, key: `${VIEWS}x${CELL}|${TILES}x${TILE}|${CLUMPS}` };
+  // what is kept of a view, STORED texels a side: the level an impostor is read at where it comes in, and under it. It
+  // stands in where its error, its texel's and its views' together, is a dial pixel, and is read a texel a drawn pixel
+  // (its texels' level by its size on screen), so there its views' share being about its texel's (as they are chosen
+  // above, the least error for the bytes) it reads the level under the bake's: the bake's own finest is never read, and
+  // is not kept (three quarters of the bytes). The bake is still CELL texels a side (its level under: a mean of four)
+  const { VIEWS, CELL } = best, STORED = levelsUnder(CELL) ? CELL / 2 : CELL;
+  return { VIEWS, CELL, STORED, TILE, TILES, CLUMPS, key: `${VIEWS}x${CELL}|${TILES}x${TILE}|${CLUMPS}` };
 }

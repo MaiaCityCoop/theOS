@@ -53,12 +53,20 @@ export function shareComputeCompiles(renderer) {
 
 /** The world's source `compiling`: what it waits for to be compiled (src/core/settle.js): the turns it waits for, and
     what a frame asked to be made and is not yet (asked in the frame just drawn, its turn comes after it). */
-export const countCompiles = () => source('compiling', () => turns + asked - done);
+export const countCompiles = () => {
+  source('compiling', () => turns + asked - done);
+  // (the first frame shown waits for what the first frame asked for, a snapshot taken as it was drawn: what streams in
+  // after it, its asks with it, does not hold it: 2026-11-19, the veil waited for the whole running count, 460 and more
+  // in Chrome for minutes, the master's registry reads)
+  source('the first view', (held, frame) => { if (frame) view ??= new Set(open); if (!view) return open.size; let n = 0; for (const e of view) if (open.has(e)) n++; return n; }, { first: true });
+};
 
 // ---- made by need ----
 const STATE = new WeakMap(), SAME = new WeakMap();   // what -> Map(pass -> 'asked' | 'made' | 'failed'); a copy -> what it is drawn as
 const asking = new Map();   // a maker -> what was asked of it since the last flush ([{ what, pass, name, counted }])
-let asked = 0, done = 0, now = '', flushing = false;
+let asked = 0, done = 0, now = '', flushing = false, view = null;
+const open = new Set();   // (what was asked, counted, and is not made yet, nor failed: each { what, pass, name, counted })
+const queued = new Map(), due = new Set();   // (a maker -> what waits for its turn; the makers with a turn waiting)
 const own = (what) => SAME.get(what) ?? what;
 const stateOf = (what) => { let S = STATE.get(what); if (!S) STATE.set(what, (S = new Map())); return S; };
 /** Whether `what` (a mesh, or a list of compute passes) is made for `pass`. */
@@ -73,17 +81,29 @@ export const sameAs = (copy, what) => void SAME.set(copy, what);
 // made fails the whole compile: then each is made alone, in turn, so that only it is left out, and the console names it
 // and says why (2026-11-19: one pipeline WebKit would not make left every stand's and the meadow's prepass out, the
 // game never ready, and the line named them all)
+// (a maker's turn takes all that waits for it when the turn comes, not what one frame asked: the frames' asks of one
+// pass are one compile, as large as they have come to, side by side, not one small compile after another: 460 asks
+// queued were minutes, 2026-11-19)
 function flush() {
   flushing = false;
-  for (const [maker, list] of asking) { asking.delete(maker); make(maker, list); }
+  for (const [maker, list] of asking) {
+    asking.delete(maker);
+    let q = queued.get(maker); if (!q) queued.set(maker, (q = [])); q.push(...list);
+    if (!due.has(maker)) { due.add(maker); turnOf(maker, list.some((e) => e.counted)); }
+  }
 }
-function make(maker, list) {
-  const names = [...new Set(list.map((e) => e.name))], counted = list.some((e) => e.counted), over = () => { done += list.filter((e) => e.counted).length; };
-  inTurn(() => { now = names.length > 1 ? `${names[0]} and ${names.length - 1} more` : names[0]; return maker(list.map((e) => e.what)); }, counted)
-    .then((got) => { for (const e of list) { const S = stateOf(own(e.what)); if (!got || got.has(e.what)) S.set(e.pass, 'made'); else S.delete(e.pass); } over(); },
+const turnOf = (maker, counted) => inTurn(() => {
+  const list = queued.get(maker) ?? []; queued.delete(maker); due.delete(maker);
+  return list.length ? made1(maker, list) : null;
+}, counted);
+function made1(maker, list) {
+  const names = [...new Set(list.map((e) => e.name))], over = (L) => { done += L.filter((e) => e.counted).length; for (const e of L) open.delete(e); };
+  now = names.length > 1 ? `${names[0]} and ${names.length - 1} more` : names[0];
+  return Promise.resolve(maker(list.map((e) => e.what)))
+    .then((got) => { for (const e of list) { const S = stateOf(own(e.what)); if (!got || got.has(e.what)) S.set(e.pass, 'made'); else S.delete(e.pass); } over(list); },
       (err) => {
-        if (list.length > 1) { console.warn(`compile: one of ${list.length} (${names[0]}, …) could not be compiled: each made alone`); for (const e of list) make(maker, [e]); return; }
-        stateOf(own(list[0].what)).set(list[0].pass, 'failed'); console.warn(`compile: ${names[0]} could not be compiled, and is not drawn`, err); over();
+        if (list.length > 1) { console.warn(`compile: one of ${list.length} (${names[0]}, …) could not be compiled: each made alone`); for (const e of list) inTurn(() => made1(maker, [e]), e.counted); return; }
+        stateOf(own(list[0].what)).set(list[0].pass, 'failed'); console.warn(`compile: ${names[0]} could not be compiled, and is not drawn`, err); over(list);
       })
     .finally(() => { now = ''; });
 }
@@ -96,7 +116,7 @@ export function ask(what, pass, maker, name = '', counted = true) {
   if (S.has(pass)) return;
   S.set(pass, 'asked'); if (counted) asked++;
   let list = asking.get(maker); if (!list) asking.set(maker, (list = []));
-  list.push({ what, pass, name, counted });
+  const e = { what, pass, name, counted }; list.push(e); if (counted) open.add(e);
   if (!flushing) { flushing = true; queueMicrotask(flush); }
 }
 /** Whether `what` may be drawn or run for `pass` now: once it is made. Else it is asked for (ask) and left out until
@@ -119,11 +139,10 @@ const ownMakers = new WeakMap();
     there, at once, and the frame waits for the GPU to compile it (2026-11-19: the start's first frames in WebKit, 0.9
     to 1 s each, the master's own-time trace). name: what it is, for the veil and the console. */
 export function drawMade(renderer, mesh, camera, name) {
-  if (made(mesh, 'own')) { renderer.render(mesh, camera); return true; }
   let maker = ownMakers.get(mesh);
   if (!maker) { const target = renderer.getRenderTarget(); ownMakers.set(mesh, (maker = (list) => compileList(renderer, target, list, camera, mesh))); }
-  ask(mesh, 'own', maker, (mesh.material.name ||= name));
-  return false;
+  if (!ready(mesh, 'own', maker, (mesh.material.name ||= name))) return false;
+  renderer.render(mesh, camera); return true;
 }
 /** What makes compute passes (lists of them) on `renderer`, side by side: a maker for ask. */
 export const computeMaker = (renderer) => { let m = computeMakers.get(renderer); if (!m) computeMakers.set(renderer, (m = (lists) => renderer.compileComputeAsync(lists.flat()).then(() => null))); return m; };

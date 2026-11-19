@@ -70,7 +70,7 @@ await tryTo('the city', async () => { (await import('../src/city/index.js')).cre
 await tryTo('a frame', async () => { game?.screen?.render(scene, camera); await Promise.resolve(); await (await import('../src/core/compile.js')).inTurn(() => {}); });   // (and what it asked to be made, made: its passes of their own, src/core/compile.js drawMade)
 
 // ---- every material made, built as each pass draws it ----
-const { twinOf } = await import('../src/core/pass.js'), { prepassTarget } = await import('../src/core/screen.js');
+const { twinOf } = await import('../src/core/pass.js'), { prepassTarget } = await import('../src/core/screen.js'), { lightPass } = await import('../src/core/gbuffer.js'), { CASTS } = await import('../src/world/shadow.js');
 const PRE_TARGET = prepassTarget(4, 4, new THREE.DepthTexture(4, 4));   // (the prepass built as it draws: into its target, writing its id too)
 const built = new Set(), materials = new Map();
 const take = (object, m) => { if (m?.isNodeMaterial && !materials.has(m)) materials.set(m, object); };
@@ -82,7 +82,7 @@ const buildAll = (where) => {
     part = `${where}: ${object.name || object.type || 'a thing'} (${m.name || m.type})`;
     const twins = (() => { try { return twinOf(m); } catch { return { pre: null, main: null }; } })();
     // (and what a caster draws into the shadow cascades and the canopy map: its shadow twin, src/world/shadow.js)
-    for (const [pass, mat] of [['own', m], ['pre', twins.pre], ['main', twins.main], ['shadow', object.layers?.isEnabled?.(1) ? twins.shadow : null]]) {
+    for (const [pass, mat] of [['own', m], ['pre', twins.pre], ['main', twins.main], ['shadow', object.layers?.isEnabled?.(CASTS) ? twins.shadow : null]]) {
       if (!mat) continue;
       if (pass === 'pre') renderer.setRenderTarget(PRE_TARGET);
       try { const s = M.build(object.isMesh || object.isPoints || object.isLine || object.isSprite ? object : { isMesh: true, geometry: new THREE.BufferGeometry(), material: mat }, mat); shaders.render.add(`${s.vertex}\0${s.fragment}`); made.push(pass); }
@@ -91,6 +91,7 @@ const buildAll = (where) => {
     }
   }
 };
+{ const L = lightPass(); if (L) take(L.mesh, L.mesh.material); }   // (the one pass of light: drawn by the screen, in no scene)
 buildAll('the world');
 // what bakes the far ends (src/scatter/trees.js farOf): compiled at the start, drawn straight by the bakers, by no pass,
 // so as itself only (no prepass or colour twin); and the bakers' own reduce (src/detail/impostor.js createBaker: a row's

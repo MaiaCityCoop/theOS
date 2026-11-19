@@ -16,13 +16,13 @@ import { Fn, If, uint, float, vec3, uvec4, instancedArray, storage, atomicAdd, a
 import { U } from '../core/uniforms.js';
 import { heapRow, sinceCame } from './heap.js';
 import { camDist } from '../world/land.nodes.js';
-import { spanAt } from '../detail/measure.js';
+import { spanAt, pxKMost } from '../detail/measure.js';
 import { BAND, PX_CUT, surfaceBand } from '../detail/error.js';
 import { turnOf } from './row.js';
 import { gpuStorage, limitOf, roomOf } from '../core/gpu.js';
+import { MAXT } from '../../assets/kit/surface.js';
 
 const GROW = 1.5;   // seconds a level that came late takes to refine from what stood in for it (the drawer's)
-const MAXT = 128;   // a cluster's most triangles (assets/kit/clusters.js)
 
 /** A level's header and cluster c's numbers, from the heap (R: the kind's row at that level). */
 export const levelHead = (H, R) => { const h = H.elems.element(R.y); return { n: h.x, lo: uintBitsToFloat(h.y), hi: uintBitsToFloat(h.z) }; };
@@ -49,6 +49,11 @@ export const eased = (R, b, from, time) => mix(float(from), b, smoothstep(0, GRO
 /** The rule: drawn, and how far it has turned into its parent (0 … 1), for own and parent errors at allowed errors
     bS, bP. */
 export const ruleOf = (self, parent, bS, bP) => ({ drawn: self.lessThanEqual(bS).and(parent.greaterThan(bP)), t: smoothstep(bP.mul(BAND), bP, parent) });
+
+/** The most things a cut holds at once: of things `size` metres large at the most, a thing a cell of `cell` metres, as
+    many as stand within where that size is px dial pixels large at the most (measure.js pxKMost; px: where level 0
+    ends). */
+export const cutThings = (size, cell, px) => Math.ceil(Math.PI * ((size * pxKMost()) / px / cell + 1) ** 2);
 
 /** Level 0's cut for a tier's bucket of the things drawn there (T: a tier of src/scatter/tier.js; k: the bucket; H: the
     heap; room: the most a kind's level holds, { tris, clusters }: src/scatter/rooms.js; things: the most things that can

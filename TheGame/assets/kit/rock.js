@@ -18,7 +18,7 @@
 // is the measure's: world/scale.js). No engine scales it by anything of its own.
 //   rockFamily(id, asset)                       the asset's shapes as a family of the zoo (assets/zoo/index.js)
 import { ball, ballMesh, hash3, noise3, SWELL } from './blob.js';
-import { packSolid } from './solid.js';
+import { STILL_PER, stillOf } from './solid.js';
 import { hierarchyOf, packLevel } from './surface.js';
 import { sstep } from './math.js';
 import { kindOf, kindRule, shapesOf } from '../kinds.js';
@@ -99,16 +99,8 @@ const dagOf = (asset, v) => {
   const F = rockFull(asset, v);
   DAGS.set(key, (D = hierarchyOf({ V: F.V, pos: F.pos, nor: F.nor, attr: Float32Array.from(F.shade), k: 1, index: F.index }))); return D;
 };
-// a vertex of a cluster as the heap keeps a rock's (solid.js, `still`): its place, normal and shade, and the same on
-// its parent's surface
-const writeRock = (D) => { const P = D.M.pos, N = D.M.nor, A = D.M.attr; return (out, at, c, j, Dm) => { const v = c.verts[j], t = c.to, o = j * 7; packSolid(out, at, P[v * 3], P[v * 3 + 1], P[v * 3 + 2], N[v * 3], N[v * 3 + 1], N[v * 3 + 2], A[v], t[o], t[o + 1], t[o + 2], t[o + 3], t[o + 4], t[o + 5], Dm, 0, 0, 0, t[o + 6]); }; };
-/** A vertex of a rock in the heap, element by element: one, its place, normal and shade and the same on its parent's
-    surface (solid.js packSolid, `still`). */
-const ROCK_VERTEX = ['its place, normal and shade, and its way to its parent'];
-/** The elements a vertex of a rock is in the heap. */
-export const ROCK_PER = ROCK_VERTEX.length;
 /** Level l of shape v of a rock asset's hierarchy, packed for the heap (surface.js), no larger than room. */
-export function rockMesh(asset, v, l, room = null) { const D = dagOf(asset, v); return packLevel(D, l, ROCK_PER, writeRock(D), room); }
+export function rockMesh(asset, v, l, room = null) { const D = dagOf(asset, v); return packLevel(D, l, STILL_PER, stillOf(D), room); }
 /** Shape v drawn coarser by its recipe, quickly, on the page: what the fingerprint reads. */
 export const rockSketch = (asset, v) => { const S = shapeOf(asset, v); return ballMesh((q) => rockAt(S, q), 8, 0, 0); };
 /** What who places shape v must know: { span (its largest side as it was grown), sunk (how much of its largest side

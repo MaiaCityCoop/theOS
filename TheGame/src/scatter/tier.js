@@ -19,7 +19,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, If, Loop, uint, int, ivec2, vec4, uniform, uniformArray, instancedArray, storage, atomicAdd, atomicStore, atomicLoad, min, instanceIndex, localId, workgroupArray, workgroupBarrier, cameraProjectionMatrix, cameraViewMatrix, uintBitsToFloat } from 'three/tsl';
 import { boxIn } from '../core/frustum.js';
 import { gpuStorageLater, more, note, hasFeature, limitOf, roomOf, bytesOf } from '../core/gpu.js';
-import { cullOf, cullable, MANY, wgOf, sizeTo, useLimits } from '../core/occlusion.js';
+import { cullOf, cullable, MANY, wgOf, sizeTo, useLimits, CULL_BYTES } from '../core/occlusion.js';
 import { did } from '../core/work.js';
 import { FNV, fnv } from '../core/hash.js';
 import { passOf, vWas } from '../core/pass.js';
@@ -29,6 +29,7 @@ import { onMeasure, dialK } from '../detail/measure.js';
 import { Resident, WG, BLOCK, MARGIN } from './regions.js';
 import { BAND } from '../detail/error.js';
 import { FRAME_MS_BY_CLASS } from '../core/budget.js';
+import { ownGpuMs, pace } from '../core/pace.js';
 
 /** The patches a placer that chooses its own may hand a tier at most (the stress stand's plots, the herds, a list's
     runs; and the WebGL 2 fallback's square patches): each tier looks at the nearest of them first. */
@@ -212,7 +213,11 @@ const argsPass = (argsNode, count, K, caps) => Fn(() => { for (let k = 0; k < K;
     slot a node, the bucket a mesh says), its rows there (S of them). room(k): as many as bucket k may hold. A material is
     handed read(j), readAt(j, slot), and placeAt(slot): the thing's place (what the prepass's id says: src/core/pass.js). */
 function meshesOf(geos, material, args, C, room, data, S, placeOf) {
-  const at = C ? C.entry : (slot) => slot.add(instanceIndex), rowAt = (slot, j) => data.element(placeOf(at, slot).mul(S).add(uint(j)));
+  // (a row read once where a material asks for it, a variable: as an element of the store it was written out again, its
+  // place's reads with it, at every use of it: 157 reads a corner in a stand's vertex where 17 are its own, 118 KB of
+  // the world's WGSL. Apple's compiler merged them (measured, 2026-11-19: no GPU time); what it saves is the WGSL its
+  // compilers read)
+  const at = C ? C.entry : (slot) => slot.add(instanceIndex), rowAt = (slot, j) => data.element(placeOf(at, slot).mul(S).add(uint(j))).toVar();
   return geos.map((g, k) => {
     g.setIndirect(args, k * 20); g.instanceCount = room(k);
     const m = new THREE.Mesh(g, material({ read: (j) => rowAt(uint(k), j), readAt: (j, slot) => rowAt(slot, j), placeAt: (slot) => placeOf(at, slot) }, k));
@@ -274,8 +279,11 @@ const entryOf = (EN, nE, STEPS) => () => {
     atomic a bucket a workgroup: its place among its bucket's, counted in A, then put(b, i) writes it there (none: only
     counted). K: the buckets. */
 const intoBuckets = (K) => {
-  const wgN = workgroupArray('uint', K).toAtomic().setName('wgTierBucketCount'), wgAt = workgroupArray('uint', K).setName('wgTierBucketAt');
-  const each = (lid, fn) => { if (K <= WG) If(lid.lessThan(uint(K)), () => fn(lid)); else Loop({ start: lid, end: uint(K), type: 'uint', condition: '<', update: WG }, ({ i }) => fn(i)); };
+  // (up to a workgroup's worth of buckets, as many as it has invocations, K of them used, K a uniform: every kind of so
+  // many draws one shader; they were one for every K, differing only in it, 2026-11-19. More than that, its own)
+  const n = K <= WG ? WG : K, uK = uniform(K, 'uint');
+  const wgN = workgroupArray('uint', n).toAtomic().setName('wgTierBucketCount'), wgAt = workgroupArray('uint', n).setName('wgTierBucketAt');
+  const each = (lid, fn) => { if (K <= WG) If(lid.lessThan(uK), () => fn(lid)); else Loop({ start: lid, end: uint(K), type: 'uint', condition: '<', update: WG }, ({ i }) => fn(i)); };
   return (L, on, A, put = null) => {
     const lid = localId.x;
     each(lid, (b) => { atomicStore(wgN.element(b), uint(0)); });
@@ -331,6 +339,9 @@ function patchPass({ K, S, data, count, own, capOff, uCap, entryOf: ofEntry }, l
 const firstStore = (store) => Math.max(WG, 2 ** Math.ceil(Math.log2(Math.max(WG, store))));   // (until its own count is known: what its engine reckons)
 const lean = (type, name, atomic = false, cls = 'geometry') => { const b = gpuStorageLater(type, name, cls); if (atomic) b.node.toAtomic(); return b; };
 let GR = null;   // (what every resident tier shares: shared(), made with the first)
+// (a tier's own numbers in Z, one a slot: what its store holds (no more than its room), what it found, what it packed
+// for its draws in all; read back to size its stores: residentOf, ask)
+const ZROW = ['held', 'found', 'packed'], ZAT = Object.fromEntries(ZROW.map((n, i) => [n, i]));
 const KINDS = new Map();   // (a kind of tier, by its key: its passes, its stores, its tiers)
 function shared() {
   if (GR) return GR;
@@ -345,16 +356,17 @@ function shared() {
   // in its kind's (base), the store copied from and into (from, to), the one gathered (g), its regions (nE), and
   // whether what it held is gone (fresh))
   const u = { zi: uniform(0, 'uint'), kb: uniform(0, 'uint'), K: uniform(1, 'uint'), N: uniform(1, 'uint'), base: uniform(0, 'uint'), from: uniform(0, 'uint'), to: uniform(0, 'uint'), g: uniform(0, 'uint'), nE: uniform(0, 'uint'), fresh: uniform(0, 'uint'), append: uniform(0, 'uint'), P: uniform(1, 'uint') };   // (P: as many as what it packs for its draws holds)
+  const zOf = (slot) => (ZAT[slot] ? u.zi.add(uint(ZAT[slot])) : u.zi);   // (where a tier's number lies in Z: its own row's slot)
   const eachK = (fn) => { Loop({ start: uint(0), end: u.K, type: 'uint', condition: '<' }, ({ i }) => { fn(i); }); };
   const zero = () => { eachK((k) => { atomicStore(C.element(u.kb.add(k)), uint(0)); }); };
   const begin = Fn(() => {
     zero();
-    If(u.fresh.greaterThan(uint(0)), () => { Z.element(u.zi).assign(uint(0)); });   // (what it held is gone: nothing is copied forward)
+    If(u.fresh.greaterThan(uint(0)), () => { Z.element(zOf('held')).assign(uint(0)); });   // (what it held is gone: nothing is copied forward)
     // (adding only: what it holds stays where it is, the visit writes after it; else all of it copied forward)
-    atomicStore(held.element(uint(0)), u.append.greaterThan(uint(0)).select(Z.element(u.zi), uint(0)));
-    sizeTo(DFn, u.append.greaterThan(uint(0)).select(uint(0), Z.element(u.zi).add(uint(WG - 1)).div(uint(WG))));
+    atomicStore(held.element(uint(0)), u.append.greaterThan(uint(0)).select(Z.element(zOf('held')), uint(0)));
+    sizeTo(DFn, u.append.greaterThan(uint(0)).select(uint(0), Z.element(zOf('held')).add(uint(WG - 1)).div(uint(WG))));
   })().compute(1);
-  const seal = Fn(() => { const n = atomicLoad(held.element(uint(0))).toVar(), m = n.min(u.N); Z.element(u.zi).assign(m); Z.element(u.zi.add(uint(1))).assign(n); sizeTo(DGn, m.add(uint(WG - 1)).div(uint(WG))); })().compute(1);
+  const seal = Fn(() => { const n = atomicLoad(held.element(uint(0))).toVar(), m = n.min(u.N); Z.element(zOf('held')).assign(m); Z.element(zOf('found')).assign(n); sizeTo(DGn, m.add(uint(WG - 1)).div(uint(WG))); })().compute(1);
   // (where each draw's things begin, one after another, each no more than the room left (P): what is past it is not
   // written, nor drawn; how many there were in all kept beside its store's counts, read back with them)
   const lay = Fn(() => {
@@ -363,11 +375,11 @@ function shared() {
       const c = atomicLoad(C.element(u.kb.add(k))).toVar(), n = c.min(u.P.sub(at.min(u.P)));
       O.element(u.kb.add(k)).assign(at); atomicStore(C.element(u.kb.add(k)), n); at.addAssign(n); all.addAssign(c); atomicStore(cur.element(k), uint(0));
     });
-    Z.element(u.zi.add(uint(2))).assign(all);
+    Z.element(zOf('packed')).assign(all);
   })().compute(1);
-  const gbegin = Fn(() => { zero(); sizeTo(DGn, Z.element(u.zi).add(uint(WG - 1)).div(uint(WG))); })().compute(1);
+  const gbegin = Fn(() => { zero(); sizeTo(DGn, Z.element(zOf('held')).add(uint(WG - 1)).div(uint(WG))); })().compute(1);
   const EN = storage(E, 'uvec4', LEAVES).toReadOnly();
-  GR = { tiers: [], KB: 0, KMAX: 1, dirty: true, stale: true, Zs, Cs, Os, Us, Z, C, O, cur, held, E, X, A, XN: storage(X, 'uvec2', LEAVES).toReadOnly(), AL: storage(A, 'uint', LEAVES + 1).toReadOnly(), DF, DG, u, begin, seal, lay, gbegin, entry: entryOf(EN, u.nE, Math.ceil(Math.log2(LEAVES)) + 1) };
+  GR = { tiers: [], KB: 0, KMAX: 1, dirty: true, stale: true, Zs, Cs, Os, Us, Z, C, O, cur, held, E, X, A, XN: storage(X, 'uvec2', LEAVES).toReadOnly(), AL: storage(A, 'uint', LEAVES + 1).toReadOnly(), DF, DG, u, zOf, begin, seal, lay, gbegin, entry: entryOf(EN, u.nE, Math.ceil(Math.log2(LEAVES)) + 1) };
   return GR;
 }
 /** A kind of tier's own passes (copy forward, visit, the gather's two) and stores, made with its first tier. */
@@ -393,7 +405,7 @@ function kindOf(key, { K, slots, found, select, twice, label, cls }) {
   const thing = () => wgOf().mul(uint(WG)).add(localId.x);
   // from the store it held (from) to the other (to): what is kept copied forward; then the cells of the regions packed
   const forward = Fn(() => {
-    const i = thing().toVar(), at = u.from.add(i.min(u.N.sub(uint(1)))).toVar(), l = i.lessThan(G.Z.element(u.zi)).select(leaf.element(at), uint(LEAVES)).toVar();
+    const i = thing().toVar(), at = u.from.add(i.min(u.N.sub(uint(1)))).toVar(), l = i.lessThan(G.Z.element(G.zOf('held'))).select(leaf.element(at), uint(LEAVES)).toVar();
     keep(G.AL.element(l).greaterThan(uint(0)), (k) => { put(k, Array.from({ length: slots }, (_, j) => rowOf(at, j)), l); });
   })().compute(MANY, [WG]);
   forward.dispatchSize = G.DF;
@@ -404,20 +416,20 @@ function kindOf(key, { K, slots, found, select, twice, label, cls }) {
   // from the store it holds now (g) into its draws' buckets: counted, laid out (lay), written
   const gather = (write) => {
     const p = Fn(() => {
-      const i = thing().toVar(), on = i.lessThan(G.Z.element(u.zi)), at = u.g.add(i.min(u.N.sub(uint(1)))).toVar(), r = Array.from({ length: slots }, (_, j) => rowOf(at, j).toVar()), L = select(r);
+      const i = thing().toVar(), on = i.lessThan(G.Z.element(G.zOf('held'))), at = u.g.add(i.min(u.N.sub(uint(1)))).toVar(), r = Array.from({ length: slots }, (_, j) => rowOf(at, j).toVar()), L = select(r);
       into(L, on.and(L.alive), write ? G.cur : counts, write ? (b, n) => { If(n.lessThan(atomicLoad(G.C.element(u.kb.add(b)))), () => { rowsAt(data, S, u.base.add(G.O.element(u.kb.add(b))).add(n), L.data ?? r); }); } : null);   // (no more than lay left room for: never into the next tier's)
     })().compute(MANY, [WG]);
     p.dispatchSize = G.DG; return p;
   };
   const gcount = gather(false), gwrite = gather(true);
-  const s = { K, slots, twice, cls, stores, leaves, packed, data, tiers: [], visit, full: [G.begin, forward, visit, G.seal, gcount, G.lay, gwrite], only: [G.gbegin, gcount, G.lay, gwrite], dirty: true, epoch: 0, asking: new Set(), wait: null };
+  const s = { K, slots, twice, cls, stores, leaves, packed, data, tiers: [], visit, full: [G.begin, forward, visit, G.seal, gcount, G.lay, gwrite], before: [G.begin, forward], after: [G.seal, gcount, G.lay, gwrite], only: [G.gbegin, gcount, G.lay, gwrite], dirty: true, epoch: 0, asking: new Set(), wait: null };
   KINDS.set(key, s);
   return s;
 }
 /** A resident tier's packing: its rows in the shared ones, its range in its kind's stores, its draws and their culling. */
 function residentPackedOf(T, geos, material, { found, select, store = 0, slots = 0, bounds = null, kind = null, twice = false, label = 'a tier', cls = 'geometry' }) {
   const G = shared(), K = geos.length, S = uint(slots), s = kindOf(kind ?? T, { K, slots, found, select, twice, label, cls });   // (cls: the class its kind's memory is its share of, src/core/classes.js: the meadow's the ground's)
-  const me = { T, K, zi: 3 * G.tiers.length, kb: G.KB, N: firstStore(store), base: 0, dbase: 0, uKb: uniform(G.KB, 'uint'), uBase: uniform(0, 'uint') };
+  const me = { T, K, zi: ZROW.length * G.tiers.length, kb: G.KB, N: firstStore(store), base: 0, dbase: 0, uKb: uniform(G.KB, 'uint'), uBase: uniform(0, 'uint') };
   me.P = (s.twice ? 2 : 1) * me.N;   // (what it packs for its draws: until its own count is read back, as much as its store, twice where a thing of it may be drawn twice)
   const P = () => me.P;
   G.tiers.push(me); G.KB += K; G.KMAX = Math.max(G.KMAX, K); G.dirty = G.stale = true; s.tiers.push(me); s.dirty = true;
@@ -439,11 +451,10 @@ function residentPackedOf(T, geos, material, { found, select, store = 0, slots =
     what it packed made again as large as all of them, its culling's ranges too; every tier of it packed again. Never
     past the room its class has left (geometry, its own buffers still in it: what it was is let go only after what it is
     is made, src/core/gpu.js), nor past what one binding holds: held to that, the rest is the dial's (the governor's). */
-const CULL = bytesOf('uvec4') + 2 * bytesOf('uint');   // (the culling's for a thing: its box and its two places in the lists, src/core/occlusion.js)
 function relayout(s) {
   const again = s.epoch > 0; s.dirty = false; s.wait = null; s.epoch++;
   const P = (me) => me.P, row = s.slots * bytesOf('vec4');
-  const own = s.tiers.reduce((n, me) => n + 2 * me.N * (row + bytesOf('uint')) + P(me) * row, 0), cull = s.tiers.reduce((n, me) => n + (me.T.culler ? P(me) * CULL : 0), 0), need = own + cull;
+  const own = s.tiers.reduce((n, me) => n + 2 * me.N * (row + bytesOf('uint')) + P(me) * row, 0), cull = s.tiers.reduce((n, me) => n + (me.T.culler ? P(me) * CULL_BYTES : 0), 0), need = own + cull;
   const most = Math.floor(Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity) / row);   // (things one binding holds)
   // (its stores and what it packed are its class's (its tiers say which); its culling's arena is geometry's)
   const room = Math.max(0, roomOf(s.cls)), things = s.tiers.reduce((n, me) => n + Math.max(2 * me.N, P(me)), 0), fit = Math.min(room / own, cull ? Math.max(0, roomOf('geometry')) / cull : Infinity, most / things);
@@ -468,7 +479,7 @@ function relayout(s) {
 export function ready() {
   const G = GR; if (!G?.stale) return;
   G.stale = false;
-  if (G.dirty) { G.dirty = false; G.Zs.make(3 * G.tiers.length); G.Cs.make(G.KB); G.Os.make(G.KB); G.Us.make(G.KMAX); for (const s of KINDS.values()) s.dirty = true; }   // (a tier made after others had packed: what every one held is gone)
+  if (G.dirty) { G.dirty = false; G.Zs.make(ZROW.length * G.tiers.length); G.Cs.make(G.KB); G.Os.make(G.KB); G.Us.make(G.KMAX); for (const s of KINDS.values()) s.dirty = true; }   // (a tier made after others had packed: what every one held is gone)
   for (const s of KINDS.values()) if (s.dirty) { if (s.wait?.size) G.stale = true; else relayout(s); }   // (a kind whose tiers then asking have not all answered waits for them: laid out once, not once a tier)
 }
 // ---- the cells a frame visits ----
@@ -478,30 +489,29 @@ export function ready() {
 // last frame), over as many frames as it takes. What it takes the place of (what it held before, the regions it is
 // joined from or split out of) is kept till it is all visited: nothing packed is let go before what replaces it is
 // there. The world is not complete till every tier has visited all it waits on (src/core/settle.js).
-// The GPU's pace is measured, not reckoned (it differs a device to the next): each packing's own time on the GPU (from
-// when it is handed over, or when the GPU has done all handed before it, whichever is later, to when it is done), and
-// the frame's cells follow it to geometry's share (shared by the tiers that pack in a frame): fewer where it took
-// longer, at most twice as many a frame where it took less. Where a packing lets nothing go (a region filled in, a
-// piece at a time) it only adds to the store it holds: nothing is copied forward.
+// The GPU's pace is measured, not reckoned (src/core/pace.js, as the land's pages are laid): each packing's own time on
+// the GPU, and the frame's cells follow it to geometry's share (shared by the tiers that pack in a frame): fewer where
+// it took longer, at most twice as many a frame where it took less. Where a packing lets nothing go (a region filled
+// in, a piece at a time) it only adds to the store it holds: nothing is copied forward.
 // From one piece a tier, a workgroup's cells, at the start.
-const FRAME = { cells: WG, left: WG };   // (and, each frame: how many tiers asked for cells the frame before, how many ask in this one, the frame's number)
+const CELLS = pace(WG), FRAME = {};   // (the frame's cells; and, each frame: how many tiers asked for cells the frame before, how many ask in this one)
 /** Each frame, before any tier packs (src/scatter/index.js select): the frame's cells to share out. */
-export const tick = () => { FRAME.left = FRAME.cells; FRAME.asked = Math.max(1, FRAME.asking ?? 0); FRAME.asking = 0; FRAME.frame = (FRAME.frame ?? 0) + 1; };
+export const tick = () => { CELLS.tick(); FRAME.asked = Math.max(1, FRAME.asking ?? 0); FRAME.asking = 0; };
 /** A tier's share of this frame's cells. */
-const shareOf = () => FRAME.cells / FRAME.asked;
-/** A packing handed to the GPU (submit()), its own time measured: the frame's cells follow it (above). Without a queue
-    to ask (the CPU's stand-in, tools/gpu-mock.js), handed over and not measured. */
-const timed = (renderer, cells, submit) => {
-  const q = renderer.backend?.device?.queue;
-  if (!q?.onSubmittedWorkDone || !cells) { submit(); return; }
-  const before = q.onSubmittedWorkDone().then(() => performance.now()), t0 = performance.now();
-  submit();
-  const after = q.onSubmittedWorkDone().then(() => performance.now());
-  Promise.all([before, after]).then(([d0, d1]) => {
-    const own = Math.max(1e-3, d1 - Math.max(t0, d0)), k = FRAME_MS_BY_CLASS.geometry / FRAME.asked / own;   // (geometry's share, shared by the tiers packing in a frame)
-    if (k < 1) FRAME.cells = Math.max(WG, Math.round(FRAME.cells * k));
-    else if (FRAME.grew !== FRAME.frame) { FRAME.cells = Math.round(FRAME.cells * Math.min(2, k)); FRAME.grew = FRAME.frame; }   // (more at most once a frame, twice as many at most)
-  }).catch(() => {});
+const shareOf = () => CELLS.n / FRAME.asked;
+/** A packing of `cells` handed to the GPU in turn: what goes before its visit (copying forward), the visit, what comes
+    after (the gather), each its own submission, and the visit's own time measured: the frame's cells follow what its
+    cells cost, not what copying forward and gathering cost beside them (those cost as much whatever it visits: timed
+    with them, a tier that holds much held every tier's cells to the fewest a frame, and what waited never drained:
+    hundreds of regions a tier, main never complete, 2026-11-19). Without a queue to ask (the CPU's stand-in,
+    tools/gpu-mock.js) nothing can be measured: as if its cells cost nothing. */
+const timed = (renderer, cells, before, visit, after) => {
+  renderer.compute(before);
+  const ms = ownGpuMs(renderer, () => renderer.compute(visit));
+  renderer.compute(after);
+  if (!cells) return;
+  if (ms) ms.then((t) => CELLS.measured(cells, t, FRAME_MS_BY_CLASS.geometry)).catch(() => {});
+  else CELLS.measured(cells, 0, FRAME_MS_BY_CLASS.geometry);
 };
 /** Whether two regions (squares of cells) overlap. */
 const overlaps = (A, B) => A.bi * BLOCK < B.bi * BLOCK + B.w && B.bi * BLOCK < A.bi * BLOCK + A.w && A.bj * BLOCK < B.bj * BLOCK + B.w && B.bj * BLOCK < A.bj * BLOCK + A.w;
@@ -512,7 +522,8 @@ function residentOf(T, me, s, ends) {
   let at = 0, key = null, gkey = null, asking = false, wrong = 0, packs = 0, epoch = -1, fresh = 1, gathers = 0, gathered = 0;   // (gathered: a gather since its counts were read)   // (wrong: a packing changed its store, and whether it fits what it found is not yet read back: the world is not complete till it is)
   const drop = (id) => { alive[id] = 0; freed.push(id); };
   const letGo = (L) => { if (L.id != null) { drop(L.id); L.id = null; } };
-  // (what it has still to visit, by region: { L, side (its pieces' side, cells), next (the first piece not visited),
+  // (what it has still to visit, by region: { L, side (its pieces' side, cells: as large as its share lets when it is
+  // begun, visits), next (the first piece not visited),
   // was (the numbers of what it takes the place of, let go once it is all visited) }; and of each number kept for
   // regions waiting, how many wait on it (a region split in four: kept till the last quarter is all visited))
   const waits = new Map(), kept = new Map();
@@ -525,9 +536,8 @@ function residentOf(T, me, s, ends) {
   // (a region new or run out, to wait its turn: what it held before kept till it is all visited; run out again before
   // that, begun again, its pieces visited so far kept the same way)
   const wait = (L) => {
-    let side = L.w; while (side > BLOCK && side * side > shareOf()) side /= 2;
     const w = waits.get(L.key) ?? { L, was: [] };
-    Object.assign(w, { side, next: 0 }); waits.set(L.key, w);
+    w.next = 0; waits.set(L.key, w);
     if (L.id != null) { hold(w, L.id); L.id = null; }
   };
   // (a region let go: what it waits to replace too; or, where a region waiting takes its place (its parent, its
@@ -555,7 +565,7 @@ function residentOf(T, me, s, ends) {
     asking = true; s.asking.add(me); const asked = packs, seen = gathers;
     renderer.getArrayBufferAsync(G.Zs.attr).then((b) => {
       // (held to its class's room: no more than it was held to: a decision, not a wait)
-      const z = new Uint32Array(b), f = z[me.zi + 1], p = z[me.zi + 2], N = Math.min(roomFor(f), me.cap?.N ?? Infinity), P = Math.min(roomFor(p), me.cap?.P ?? Infinity);
+      const z = new Uint32Array(b), f = z[me.zi + ZAT.found], p = z[me.zi + ZAT.packed], N = Math.min(roomFor(f), me.cap?.N ?? Infinity), P = Math.min(roomFor(p), me.cap?.P ?? Infinity);
       T.over = f > me.N || p > me.P;
       if (N > me.N || N * BAND < me.N || P > me.P || P * BAND < me.P) { me.N = N; me.P = P; if (!s.dirty) s.wait = new Set(s.asking); s.dirty = G.stale = true; wrong = 1; return; }
       if (asked === packs) wrong = 0;   // (no packing since: what it holds is what was read)
@@ -574,7 +584,7 @@ function residentOf(T, me, s, ends) {
   // (this frame's visits: the nearest regions first, a piece at a time, within its share of the frame's cells (a piece
   // at least, where it has any)), into the entries; sc: the lens's distances' scale
   const visits = (sc) => {
-    const E = G.E.array, X = G.X.array, most = Math.min(FRAME.left, shareOf()); let n = 0, cells = 0;
+    const E = G.E.array, X = G.X.array, most = Math.min(CELLS.left, shareOf()); let n = 0, cells = 0;
     if (waits.size) FRAME.asking++;
     for (const w of [...waits.values()].sort((a, b) => a.L.dn - b.L.dn)) {
       if (!w.next) { w.side = w.L.w; while (w.side > BLOCK && w.side * w.side > shareOf()) w.side /= 2; }   // (not begun: in pieces as large as its share lets now)
@@ -586,9 +596,9 @@ function residentOf(T, me, s, ends) {
         X[n * 2] = L.id; X[n * 2 + 1] = bitsOf(L.pad / sc);   // (its pad as the measure has distances: the lens's)
         cells += c; n++; w.next++;
       }
-      if (w.next === per * per) { waits.delete(L.key); release(w); }   // (all of it visited: what it takes the place of let go)
+      if (w.next === per * per) { waits.delete(L.key); did('swaps', w.was.length); release(w); }   // (all of it visited: what it takes the place of let go; swaps: the regions so replaced, joined or split, said to the frame: tools/gate/motion.js --swaps)
     }
-    FRAME.left -= cells;
+    CELLS.left -= cells;
     return { n, cells };
   };
   // (a packing: its regions' pieces visited, what is let go dropped, then the gather; g: what the gather was keyed on)
@@ -598,7 +608,7 @@ function residentOf(T, me, s, ends) {
     const adds = !freed.length;   // (nothing let go: only adding, into the store it holds)
     if (adds) table(at, at, at, n, 1); else table(at, 1 - at, 1 - at, n);
     s.visit.dispatchSize = Math.max(WG, cells);
-    timed(renderer, cells, () => renderer.compute([...s.full, ...ends])); if (!adds) at = 1 - at; gkey = g; packs++; wrong = 1; fresh = 0;
+    timed(renderer, cells, s.before, [s.visit], [...s.after, ...ends]); if (!adds) at = 1 - at; gkey = g; packs++; wrong = 1; fresh = 0;
     did('packs'); did('kcells', Math.round(cells / 1000));
   };
   return {

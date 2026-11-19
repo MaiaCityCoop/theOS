@@ -20,9 +20,15 @@
 // of 32 bits, its target's `id`: src/core/screen.js prepassTarget). A material says it by its idNode (drawnId); one that
 // says none writes 0. Its prepass twin writes both, by name (three applies a renderer's MRT only to a material with no
 // fragment of its own). What reads the id comes in the steps after (a shading pass that reads each family's things as data).
+//
+// A family lit where its pixels are, after the prepass (deferred: userData.deferred; the stands', src/scatter/trees.js,
+// and the grass', grass.js), writes in its prepass what its light needs (the G-buffer: src/core/gbuffer.js), and is
+// drawn in no colour pass: the one pass of light lights its pixels before the colour pass draws the rest. Its geometry
+// is drawn once, not twice. Any other material writes nothing there (0).
 import * as THREE from 'three/webgpu';
 import { context, float, vec2, vec4, uint, uvec2, varying, varyingProperty, screenCoordinate, vertexIndex, Discard, mrt } from 'three/tsl';
 import { U } from './uniforms.js';
+import { GA, GB } from './gbuffer.js';
 
 const PRE = context({ pass: 'pre', invariant: true }), MAIN = context({ pass: 'main', invariant: true }), SHADOW = context({ pass: 'shadow' }), SOLID = vec4(0);
 
@@ -36,6 +42,7 @@ export const idClass = (what) => { if (ID_CLASSES.length >= 255) { if (!fullSaid
     store, src/scatter/tier.js placeAt), and the first corner of its triangle as the draw numbers it (flat, its first:
     the triangle itself where a draw's corners are its own, three a triangle; else the vertex it begins with). */
 export const drawnId = (cls, place) => varying(uvec2(uint(cls).shiftLeft(uint(24)).bitOr(uint(place).bitAnd(uint(0xffffff))), vertexIndex), 'vId').setInterpolation(THREE.InterpolationSamplingType.FLAT, THREE.InterpolationSamplingMode.FIRST);
+
 
 /** The pass a material is being built for ('pre', 'main'; undefined: none), from what node code is handed. */
 export const passOf = (builder) => builder?.context?.pass;
@@ -66,7 +73,7 @@ export function twinOf(m) {
     const pre = m.userData?.pre === true;
     // (the shadow twin: a material whose node code says what it cuts in the shadow pass (userData.shadow) keeps it; any
     // other casts whole, drawing nothing of its own: so none binds the atlas it is drawn into, nor writes an id there)
-    t = { pre: pre ? of(PRE, 'pre', { fragmentNode: mrt({ output: m.fragmentNode, id: m.idNode ?? uvec2(0) }) }) : null, main: of(MAIN, 'main', pre ? { depthFunc: THREE.EqualDepth, depthWrite: false } : {}), shadow: of(SHADOW, 'shadow', m.userData?.shadow ? {} : { fragmentNode: SOLID }) };
+    t = { pre: pre ? of(PRE, 'pre', { fragmentNode: mrt({ output: m.fragmentNode, id: m.idNode ?? uvec2(0), gA: GA, gB: GB }) }) : null, main: pre && m.userData?.deferred ? null : of(MAIN, 'main', pre ? { depthFunc: THREE.EqualDepth, depthWrite: false } : {}), shadow: of(SHADOW, 'shadow', m.userData?.shadow ? {} : { fragmentNode: SOLID }) };
     twins.set(m, t);
   }
   return t;

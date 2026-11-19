@@ -25,7 +25,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, ivec2, uniform, texture, screenCoordinate, clamp, mix, smoothstep, exp, max } from 'three/tsl';
 import { castRoute, arrived, CASTS, cascades } from '../shadow.js';
 import { drawMade } from '../../core/compile.js';
-import { complete } from '../../core/settle.js';
+import { shown } from '../../core/settle.js';
 import { note, mark } from '../../core/gpu.js';
 import { CROWN_EXTINCTION } from './physics.js';
 import { HMIN, HMAX } from '../land.js';
@@ -34,7 +34,6 @@ import { WALKER } from '../../../world/scale.js';
 // the canopy's layout from the cascades' reach and the crowns (made when first asked for: by then the cascades are laid
 // out, src/boot.js): side (m), probes a side (P), the map's texels a side (S), the probes' kernel ([m east, m south,
 // share]), their heights over the ground (m), their spacing (m)
-let shown = false; complete.then(() => (shown = true));   // (the first frame drawn: src/core/settle.js)
 let LAYOUT = null;
 const layout = () => {
   if (LAYOUT) return LAYOUT;
@@ -132,8 +131,8 @@ export function createCanopy(renderer, { groundAt }) {
         where it stands, a piece a frame (its view from above, from below, then its probes), then both pairs turned.
         The first time, all at once. */
     render(scene, camera, groundY) {
-      if (shown) missing.clear();   // (after the first frame what it left out comes with the eye's next probe)
-      const came = piece === PIECES && !shown && arrived(missing);
+      if (shown()) missing.clear();   // (after the first frame what it left out comes with the eye's next probe)
+      const came = piece === PIECES && !shown() && arrived(missing);
       if (came) piece = 0;
       const first = !CANOPY.on.value || came, gx = Math.round(camera.position.x / spacing) * spacing, gz = Math.round(camera.position.z / spacing) * spacing;
       if (piece === PIECES && (gx !== was.x || gz !== was.y)) { piece = 0; at.set(gx, gz, side, groundY); was.set(gx, gz); }

@@ -3,11 +3,12 @@
 // camera, made from the grass's blade alone (assets/grass.js: its full detail: ringsOf) and each where its own error is
 // the one ERROR_PX (bandsOf, as the measure is now): every blade as it is, in its own cells, its bends fewer further off.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, bool, vec2, vec3, vec4, If, min, uniform, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor, uintBitsToFloat, floatBitsToUint } from 'three/tsl';
+import { Fn, float, int, uint, bool, vec2, vec3, vec4, If, min, uniform, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor, uintBitsToFloat, floatBitsToUint, exp, sqrt } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { hashI, camDist, BASE } from '../world/land.nodes.js';
 import { lit, weathered, windAt, windStrength, snowDepth, SNOW } from '../world/light.js';
 import { passOf, motion, vWas } from '../core/pass.js';
+import { gWrite, lightFamily, FAMILY } from '../core/gbuffer.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 import { scatterRow } from '../../assets/index.js';
 import { dialK } from '../detail/measure.js';
@@ -16,6 +17,55 @@ import { rankOf } from './rule.js';
 import { growthMap } from './growth.js';   // (a blade's turn in the one spread order, as everything placed has it)
 
 const u8 = (h, sh) => float(h.shiftRight(uint(sh)).bitAnd(uint(0xFF))).mul(1 / 256);   // one byte of a hash, 0..1
+
+// ---- how a blade looks, and so the meadow its blades make ----
+// One place for it: the blade wears it (bladeMaterial), and the carpet that stands for the blades past their end is what
+// they average to as the eye sees them there (meadowTip: src/terrain/layers.js lays it in the land's layer map, the
+// carpet's colour, src/terrain/material.js laid), so where the blades hand over to it nothing changes.
+/** The straw a blade's tip dries to. */
+const straw = () => vec3(0.42, 0.34, 0.15);
+/** A blade's value up it (t: 0 at its foot, 1 at its tip): dark in the thick of it, light at its tip. */
+export const valueUp = (t) => mix(0.14, 1.45, t.mul(t.mul(0.4).add(0.6)));
+/** The tuft a blade at p stands in (blades stand in tufts 0.6 m across: a height, a lean and a shade in common): its hash. */
+const tuftHash = (p) => hashI(int(floor(p.x.div(0.6))), int(floor(p.y.div(0.6))), uint(102));
+/** The shade of the tuft at p, 0 … 1 (its hash's third byte, c3: bladeIn). */
+export const tuftShade = (p) => u8(tuftHash(p), 16);
+/** How much a blade's tip has dried where the grass's dryness is a, over its own hash (bladeIn: clamp(1.2 a + 0.35 r2 -
+    0.25, 0, 1), r2 even over 0 … 1): its expectation, the clamp's integral over r2. */
+const driedOf = (a) => { const lo = a.mul(1.2).sub(0.25), F = (u) => { const c = clamp(u, 0, 1); return c.mul(c).mul(0.5).add(max(u.sub(1), 0)); }; return F(lo.add(0.35)).sub(F(lo)).div(0.35); };
+/** The meadow as the eye sees it along the ground, where its blades are too many to tell apart: their tips (the eye's ray
+    meets a field of them within a hair of its top, at any distance past a few metres), over their own hashes: the
+    grass's tint there (rgb) and its dryness (a), the tuft's shade (c3; 0.5, the mean, where many tufts are averaged). As
+    a blade's tip is drawn (bladeMaterial): its shade (0.7 + 0.35 r3 + 0.35 c3, r3's mean 0.5), dried to straw as much as
+    it is, at its tip's value. */
+export const meadowTip = (tint, a, c3) => mix(tint.mul(float(0.875).add(c3.mul(0.35))), straw(), driedOf(a)).mul(valueUp(float(1)));
+/** The meadow's blades as optics, a square metre of them where it all grows (one a cell): their area upright, as a ray
+    along the ground meets it (over their headings, 2/π of a flat blade's), and from above (their arcs), m² a m². The mean
+    blade as bladeMaterial draws it: 2w wide (r1's mean width), tapering by 1 - 0.8 t², rising t (1 - 0.42 bend t) of its
+    height and arcing out 1.15 bend t² of it; bladeIn's mean height and bend (as meanTop). height: the asset's; R: a ring
+    (its cell and the blade's half width w, as they are in every ring: ringsOf). -> [upright, from above] */
+export const opticsOf = (height, R) => {
+  const h = height * (0.5 + 0.55 / 3 + 0.8 / 3), b = 0.2 + 0.55 / 2 + 0.35 / 2, W = 2 * R.w, rho = 1 / (R.cell * R.cell);
+  const up = W * h * (1 - 0.8 / 3 - 0.42 * b + (0.42 * b * 0.8) / 2), out = W * h * 2.3 * b * (1 / 2 - 0.8 / 4);   // (the width up its rise and along its arc, t 0 … 1)
+  return [(rho * up * 2) / Math.PI, rho * out];
+};
+/** The meadow past its blades as the eye sees it from where it is (node code): e, the way to the eye (a unit vec3);
+    cover, how much of the meadow grows there (0 … 1). A ray down at γ through the layer the blades stand in meets
+    cover x (their upright area / tan γ + their area from above) of them (U.uMeadowOptics: opticsOf), τ: the share
+    e^-τ of rays reaches the floor between them, the rest meet a blade first at the mean depth into the layer of an
+    exponential cut at its foot. -> { shade: what shows, of the tips' value (a blade's value where it is met, valueUp;
+    the floor's, underShade), t: how far up the blades it meets them (their light: bladeLight) } */
+export const meadowSeen = (e, cover) => {
+  const s = clamp(e.y, 1e-3, 1), tg = s.div(sqrt(float(1).sub(s.mul(s)).max(1e-6)));
+  const tau = cover.mul(U.uMeadowOptics.x.div(tg).add(U.uMeadowOptics.y)).max(1e-4).toVar(), hit = float(1).sub(exp(tau.negate())).toVar();
+  const depth = tau.lessThan(0.05).select(float(0.5).sub(tau.div(12)), float(1).div(tau).sub(exp(tau.negate()).div(hit)));   // (the exponential's mean over 0 … 1; its series where τ is small)
+  const t = clamp(float(1).sub(depth), 0, 1);
+  return { shade: hit.mul(valueUp(t)).div(valueUp(float(1))).add(float(1).sub(hit).mul(underShade())), t };
+};
+/** How much darker the floor under standing blades is than their tips, as seen from above between them: a blade's value
+    over its lower half (what shows of it down there) to its tip's (node). Its mean over the lower half by two points
+    (Gauss-Legendre's, exact for the value's quadratic). */
+export const underShade = () => valueUp(float(0.25 - 0.25 / Math.sqrt(3))).add(valueUp(float(0.25 + 0.25 / Math.sqrt(3)))).mul(0.5).div(valueUp(float(1)));
 
 function blade(segs) {
   const pos = [], idx = [];
@@ -111,7 +161,7 @@ function bladeIn(c, asset, T, ground, pad) {
   const inBand = dist.lessThanEqual(hf.mul(T.farFade.negate()).add(T.far).add(pad)).and(dist.greaterThanEqual(hf.mul(T.nearFade.negate()).add(T.near).sub(pad)));
   const r1 = u8(h2, 0), r2 = u8(h2, 8), r3 = u8(h2, 16);
   // blades stand in tufts: the tuft they are in gives them a height, a lean and a shade in common
-  const hc = hashI(int(floor(pos.x.div(0.6))), int(floor(pos.y.div(0.6))), uint(102)), c1 = u8(hc, 0), c2 = u8(hc, 8), c3 = u8(hc, 16);
+  const hc = tuftHash(pos), c1 = u8(hc, 0), c2 = u8(hc, 8), c3 = u8(hc, 16);
   const tint = ground.tint(pos);
   const flower = step(0.985, r2).mul(float(1).sub(clamp(tint.a.sub(0.28).mul(1.6), 0, 1))).mul(BASE.grass.flowers ? 1 : 0);   // now and then a stalk with a small white head, not where it is dry
   const hgt = float(asset.height).mul(float(0.5).add(r1.mul(r1).mul(0.55)).add(c1.mul(c1).mul(0.8)).add(flower.mul(0.35))).mul(G.z).mul(dens.mul(0.4).add(0.6));
@@ -129,6 +179,21 @@ function bladeOf([A, B, C], T) {
   const dist = camDist(A.xy), hf = C.w, inBand = dist.lessThanEqual(hf.mul(T.farFade.negate()).add(T.far)).and(dist.greaterThanEqual(hf.mul(T.nearFade.negate()).add(T.near)));
   return { alive: inBand.and(C.z.lessThanEqual(endOf(dist))).and(A.w.greaterThan(snowDepth.mul(2.5))), data: [A, B, vec4(unpackRGB(C.x), C.y)] };
 }
+
+/** A blade's parts in the G-buffer (src/core/gbuffer.js): the blade, or a flower's head at its tip. */
+const PART = Object.fromEntries(['blade', 'head'].map((name, at) => [name, at]));
+/** A meadow lit, as a blade takes the light (bladeLight: softly round, the sun through its blades the bright yellow-green
+    of a lit meadow, a sheen along them); one sample of the shadow map: a blade is too thin for a soft edge to show. A
+    flower's head (head: a bool node) takes it plainly. colour, n, w: as lit's; t: how far up its blade (bladeLight). */
+const meadowLit = ({ colour, n, w, t, head }) => {
+  const B = bladeLight(n, t);
+  return lit({ colour, n, w, how: 'one', ndl: head.select(float(0.7), B.ndl), through: head.select(float(0), B.through), lobe: B.lobe, tint: B.tint,
+    sky: head.select(float(1), B.sky), gloss: head.select(float(0), B.gloss), sharp: B.sharp });
+};
+let said = false;
+/** The meadow's light, said once (gbuffer.js lightFamily): its blades lit where the prepass left them, in the one pass
+    of light; t, how far up its blade, is its own first number (gWrite own, below). */
+const sayLight = () => { if (!said) { said = true; lightFamily(FAMILY.grass, (f) => meadowLit({ colour: f.colour, n: f.n, w: f.w, t: f.own[0], head: f.part.equal(uint(PART.head)) })); } };
 
 function bladeMaterial(T) {
   // shape(A, B, C): its vertex from what bladeIn packed, bent by the wind; lit in the fragment
@@ -155,23 +220,22 @@ function bladeMaterial(T) {
       const tg = normalize(vec3(dir.x.mul(2).mul(bend).mul(t).add(k.x.mul(2.2).mul(t)), float(1).sub(bend.mul(0.6).mul(t)).sub(kk.mul(0.8).mul(t)), dir.y.mul(2).mul(bend).mul(t).add(k.y.mul(2.2).mul(t))));
       const sd = vec3(side.x, 0, side.y);
       vWorld.assign(w); vSide.assign(sd); vN.assign(cross(sd, tg)); vTS.assign(vec3(t, s, flower));
-      vCol.assign(mix(C.rgb, vec3(0.42, 0.34, 0.15), smoothstep(0.5, 1, t).mul(max(C.w, clamp(snowDepth.mul(2.5), 0, 0.65)))).mul(mix(0.14, 1.45, t.mul(t.mul(0.4).add(0.6)))));   // dark in the thick of it, light at the tips; in snow, pale and straw-coloured
+      vCol.assign(mix(C.rgb, straw(), smoothstep(0.5, 1, t).mul(max(C.w, clamp(snowDepth.mul(2.5), 0, 0.65)))).mul(valueUp(t)));   // dark in the thick of it, light at the tips; in snow, pale and straw-coloured
       return clipOf(w, at(push(U.uTimeWas)));
     };
     const frag = Fn((builder) => {
-      if (passOf(builder) === 'pre') return motion(vWas, 1);   // (the prepass: where it lay a frame ago; a blade is thin)
       const vT = vTS.x, n0 = normalize(vN.add(vSide.mul(vTS.y).mul(0.6)));   // a blade is a little rounded
       const n = normalize(frontFacing.select(n0, n0.negate()).add(vec3(0, 1.4, 0)));   // and a meadow lights as a soft whole
-      // a meadow takes the light as a blade does (bladeLight: softly round, the sun through its blades the bright
-      // yellow-green of a lit meadow, a sheen along them); one sample of the shadow map: a blade is too thin for a soft
-      // edge to show. A flower's head (pale, at a blade's tip) takes it plainly
-      const B = bladeLight(n, vT), head = vTS.z.greaterThan(0.5).and(vT.greaterThan(0.86));
+      const head = vTS.z.greaterThan(0.5).and(vT.greaterThan(0.86));   // (a flower's head: pale, at a blade's tip)
       const onIt = max(clamp(snowDepth.mul(4), 0, 0.4).mul(float(1).sub(smoothstep(0.05, 0.5, vT))), clamp(snowDepth.mul(2.5), 0, 0.6).mul(smoothstep(0.3, 0.8, n0.y.abs())).mul(smoothstep(0.3, 0.8, vT)));   // snow at the foot, and lying on
-      return lit({ colour: head.select(vec3(0.92, 0.92, 0.86), weathered(mix(vCol, SNOW, onIt), n, 9)), n, w: vWorld, how: 'one',
-        ndl: head.select(float(0.7), B.ndl), through: head.select(float(0), B.through), lobe: B.lobe, tint: B.tint,
-        sky: head.select(float(1), B.sky), gloss: head.select(float(0), B.gloss), sharp: B.sharp });
+      const colour = head.select(vec3(0.92, 0.92, 0.86), weathered(mix(vCol, SNOW, onIt), n, 9));
+      // (the prepass: where it lay a frame ago, and what its light needs, lit where its pixels are in the one pass of
+      // light (src/core/gbuffer.js): the screen draws it once. Drawn anywhere else, lit here)
+      if (passOf(builder) === 'pre') { gWrite({ family: FAMILY.grass, part: head.select(uint(PART.head), uint(PART.blade)), colour, n, w: vWorld, own: [vT] }); return motion(vWas, 1); }
+      return meadowLit({ colour, n, w: vWorld, t: vT, head });
     });
-    const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)
+    const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.userData.pre = true; m.userData.deferred = true;   // (it takes part in the prepass, and is lit in the pass of light: no colour pass of its own, src/core/pass.js)
+    sayLight();
     return { m, shape };
   };
 }
@@ -183,6 +247,7 @@ function bladeMaterial(T) {
 export function createGrass(scene, tex, ground, asset, gpu = false) {
   const rings = asset.tiers, now = () => bandsOf(rings, asset.height, dialK());
   U.uMeadowTop.value = meanTop(asset.height);   // (what the carpet is raised to past the blades: src/terrain/material.js)
+  U.uMeadowOptics.value.set(...opticsOf(asset.height, rings[0]));   // (how much of it shows from where the eye is: meadowSeen)
   // (the rings pack as one kind of tier, tier.js: their store and their gather one piece of code, compiled once, over
   // numbers of the kind's own (P) that each ring tells before it packs; its draws read its own (T))
   const P = { cell: uniform(0), near: uniform(0), nearFade: uniform(0), far: uniform(0), farFade: uniform(0) }, kind = {};

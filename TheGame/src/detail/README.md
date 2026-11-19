@@ -10,7 +10,7 @@ where an asset's file or a kind holds detail data).
 | --- | --- |
 | its file | what it is at full detail: a plant's shapes as its kit grows them, a made thing's `faces`, a rock's look, the grass's `blade` |
 | its kind, `assets/kinds.js` | `measure`: what is measured (`'height'`, else its largest side); `far`: whether a plant has a far end (yes or no); `impostor`: whether what stands at a place has a far card (yes or no) |
-| its stand, in its biome | `cover`: the colour the land wears where its plants have gone |
+| its stand, in its biome | the colour the land wears where its plants have gone, till their far ends show theirs (what their impostors show: `seen.js`); a stand of things with no far end (herbs, litter), always |
 
 ## The one measure
 
@@ -66,7 +66,7 @@ every distance with it.
 | what stands at a spot of its own (a tent, a fire pit, later a house): a list of a few or of millions | `src/scatter/placed.js`, drawn by `src/scatter/drawer.js` (intent 0029) | per vertex, each frame: `handOver` (of one piece: whole, half way), `sinkInto`; packing by the drawer's tier over the list's runs; its last level the drawer's dot |
 | what moves (the stress stand's movers, the herds of `?herds=N`) | `src/scatter/stress.js`, `src/scatter/herds.js`, drawn by `src/scatter/drawer.js` | the drawer's one tier of every level, packed every frame: the level its size asks for, on its skeleton until its hull |
 | the same in the library's stage, and where there is no WebGPU | `index.js` `Detailed`, `src/world/place.js` (its light and wind: `src/world/made.nodes.js`, the list's too), `impostor.js` (the plants' impostor, baked once a recipe from its nearest level) | on the CPU: `handOverAt`, the material's `sunk` |
-| the land's colour where a stand has sunk | `src/terrain/material.js` | `sizeOf`, `detailOf().cut`, the stand's `cover` |
+| the land's colour where a stand has sunk | `src/terrain/material.js`, `src/terrain/layers.js` | `sizeOf`, `detailOf().cut`; its colour what its kinds' impostors show, their pictures' mean (`seen.js`, read from the bake's least level: `src/scatter/trees.js` `seenIn`) |
 
 The grass (`src/scatter/grass.js`): rings of blades made from its blade (`ringsOf`), each where its blades' own error
 is within `ERROR_PX`, no levels of a thing; the meadow ends where the ground's map does (`ground.js` `REACH`).

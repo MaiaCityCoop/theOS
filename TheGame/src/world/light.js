@@ -208,7 +208,7 @@ export const sunAt = (w, how = 'soft', n = null) => sunDim().mul(cloudShade(w)).
 // what the screen's light left for this pixel (src/world/light/screen.js): one texel, loaded (no sampler), the share of
 // the sun the contact shadows let through. Read in the colour pass of what takes part in the prepass (its depth is the
 // one the screen's light read), in a fragment; 1 anywhere else.
-const onScreen = (builder) => passOf(builder) === 'main' && builder.shaderStage === 'fragment' && builder.material?.userData?.pre === true;
+const onScreen = (builder) => passOf(builder) === 'main' && builder.shaderStage === 'fragment' && (builder.material?.userData?.pre === true || builder.material?.userData?.lit === true);   // (lit: a deferred family's pass of light, src/core/pass.js LIT)
 /** The share of the sun the contact shadows let reach this pixel (1: all of it): for lightOn, and for a material that lights
     itself per vertex and takes the rest per pixel (a tree's cards). */
 export const contactShade = Fn((builder) => (onScreen(builder) ? mix(float(1), SCREEN.contact.load(ivec2(screenCoordinate.xy)).x, SCREEN.on) : float(1)));
@@ -222,7 +222,11 @@ export const contactShade = Fn((builder) => (onScreen(builder) ? mix(float(1), S
                     as tight as `lobe` (3), coloured by `tint` on the way
       ao            its own occlusion (its mesh's, a crown's depth): the sky's light is lost faster than the sun's
       sky           what else dims the sky's light on it (the ground's own shade)
-      gloss, sharp  its highlight: how bright, how tight */
+      gloss, sharp  its highlight: how bright, how tight (shineOf: from its material's roughness)
+      ns            the way its highlight is reflected from, where that is not n (a leaf: its own card's, where n is its
+                    crown's dome)
+      glint         its highlight's own share, worked out already where its gloss and ns were at hand (glintOf: a
+                    deferred family's prepass, src/core/gbuffer.js); else from gloss, sharp and ns here */
 export const lightOn = (s) => {
   const n = s.n, L = U.uSunDir, V = s.V ?? (s.w ? normalize((s.eye ?? U.uCam).sub(s.w)) : null), share = (s.sun ?? sunAt(s.w, s.how, s.n)).mul(contactShade());
   const wrap = s.wrap ?? 0, ndl = s.ndl ?? (wrap ? n.dot(L).add(wrap).div(float(wrap).add(1)) : n.dot(L)).max(0);
@@ -236,9 +240,16 @@ export const lightOn = (s) => {
   if (s.sky) sky = sky.mul(s.sky);
   if (s.ao) { const ao = float(s.ao); sky = sky.mul(ao.mul(ao).mul(0.75).add(ao.mul(0.25))); sun = sun.mul(ao.mul(0.6).add(0.4)); }
   // (its highlight)
-  const spec = s.gloss ? light.mul(pow(max(n.dot(normalize(V.add(L))), 0), s.sharp ?? 40)).mul(s.gloss) : vec3(0);
+  const spec = s.glint ? light.mul(s.glint) : s.gloss ? light.mul(glintOf(s.ns ?? n, V, s.gloss, s.sharp)) : vec3(0);
   return { sky, sun, spec, light, V, back, ndl };
 };
+/** A surface's highlight from its material's roughness (rough: 0 … 1, its painting's, src/materials/bake.js tex.r),
+    as its material is shown (src/materials/preview.js) and as it is lit in the world: { gloss, sharp } for lightOn.
+    ndl: how its reflecting side faces the sun (the highlight goes with it). */
+/** A highlight's own share of the sun's light where it is (lightOn's spec less that light): off ns (the way it is
+    reflected from), seen from V, as bright and as tight as gloss and sharp. */
+export const glintOf = (ns, V, gloss, sharp = 40) => pow(max(ns.dot(normalize(V.add(U.uSunDir))), 0), sharp).mul(gloss);
+export const shineOf = (rough, ndl) => ({ gloss: float(1).sub(rough).mul(0.5).mul(ndl), sharp: mix(60, 6, rough) });
 /** A surface lit and seen through the air, for the screen: { colour (its own, linear), extra (light of another kind on
     it: a fire's), glow (its own light), ...lightOn's }. */
 export const lit = (s) => { const L = lightOn(s); let d = L.sky.add(L.sun); if (s.extra) d = d.add(s.extra); let c = s.colour.mul(d).add(L.spec); if (s.glow) c = c.add(s.glow); return finish(c, s.w, s.eye); };

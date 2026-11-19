@@ -30,11 +30,13 @@ import { passOf } from '../core/pass.js';
 import { IN, PLANE } from '../../assets/kit/crowd.js';
 import { UV_TILES } from '../../assets/kit/plant.js';
 import { note, PORTABLE } from '../core/gpu.js';
+import { ownGpuMs, pace } from '../core/pace.js';
+import { FRAME_MS_BY_CLASS } from '../core/budget.js';
 import { SHARE_MB } from '../core/classes.js';
 import { FNV, fnv } from '../core/hash.js';
 import { asking } from '../core/workers.js';
 import { pxAt } from './measure.js';
-import { atlasesOf, atlasBytes, levelsUnder, SS, LEAST } from './atlas.js';
+import { atlasesOf, atlasBytes, levelsUnder, SS, LEAST, PICTURES } from './atlas.js';
 import { farLayers } from '../scatter/entries.js';
 
 /** The numbers the plants' far ends' atlases are sized by: { VIEWS, CELL, TILE, TILES, CLUMPS, key } (src/detail/atlas.js
@@ -95,26 +97,29 @@ export const tileClip = (p, lo, hi, a, col, per) => {
 };
 
 // ---- the atlases: a layer a shape, its pictures and their smaller ones ----
+/** The texture format a picture of the atlas is made as (src/detail/atlas.js PICTURES): its channels, eight bits each. */
+const formatOf = (P) => (P.channels === 'r' ? THREE.RedFormat : THREE.RGBAFormat);
 /** Three array textures of `layers` layers, side x side texels each: its colour (albedo as its square root, cover), its
     data (which way it faces, in its picture's frame: facingOf; how deep; the light that reaches into it) and its leaf
     (how much of it is leaf, 0 … 1), each a number of its own, so each is filtered as it is. cell: a picture's texels a
     side; views: how many views a side its pictures are (an impostor's; none: a clump's tiles). put(layer, levels): its
     pictures from the worker, each level's three arrays, into the GPU. */
 export function createAtlas(renderer, { name, side, layers, cell = side, views = 0 }) {
-  const make = (format = THREE.RGBAFormat) => {
-    const rt = new THREE.RenderTarget(side, side, { depth: Math.max(2, layers), depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace, format });   // (two layers at least: an array, however few shapes)
+  const make = (P) => {
+    const rt = new THREE.RenderTarget(side, side, { depth: Math.max(2, layers), depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace, format: formatOf(P) });   // (two layers at least: an array, however few shapes)
     renderer.initRenderTarget(rt); return rt;
   };
-  const C = make(), D = make(), L = make(THREE.RedFormat), mips = Math.floor(Math.log2(side)) + 1;
+  const [C, D, L] = PICTURES.map(make), mips = Math.floor(Math.log2(side)) + 1;
   note(`${name}`, Math.round(atlasBytes(side, Math.max(2, layers))), 0, 'geometry');   // (src/core/classes.js: its share, SHARE_MB)
   return {
     colour: C.texture, data: D.texture, leaf: L.texture, side, cell, views, targets: [C, D, L],   // (targets: to read a layer back, renderer.readRenderTargetPixelsAsync)
     tiles: uniform(side / cell),   // (its pictures a side, as data: an atlas sized to its stand's largest clumps reads with the same code as any)
     put(layer, levels) {
-      const dev = renderer.backend.device, [gc, gd, gl] = [C, D, L].map((t) => renderer.backend.get(t.texture).texture);
-      levels.forEach(({ colour, data, leaf, n }, m) => {
+      const dev = renderer.backend.device, G = [C, D, L].map((t) => renderer.backend.get(t.texture).texture);
+      levels.forEach((level, m) => {
         if (m >= mips) return;
-        for (const [g, a, k] of [[gc, colour, 4], [gd, data, 4], [gl, leaf, 1]]) dev.queue.writeTexture({ texture: g, mipLevel: m, origin: { x: 0, y: 0, z: layer } }, a, { bytesPerRow: n * k, rowsPerImage: n }, { width: n, height: n, depthOrArrayLayers: 1 });
+        const n = level.n;
+        PICTURES.forEach((P, i) => dev.queue.writeTexture({ texture: G[i], mipLevel: m, origin: { x: 0, y: 0, z: layer } }, level[P.name], { bytesPerRow: n * P.channels.length, rowsPerImage: n }, { width: n, height: n, depthOrArrayLayers: 1 }));
       });
     },
   };
@@ -133,9 +138,11 @@ const mipsOf = (colour, data, leaf, side, cell, least) => workers().reduce((a, b
     own), a row a frame (no frame waits on a whole thing's pictures), read back and mipped. One a kind of picture
     (views, tiles) per drawer: its targets are reused job after job, one job at a time. */
 const nextFrame = () => new Promise((res) => requestAnimationFrame(() => res()));
+// (the bakes' rows a frame, shared by every baker: one queue of them, src/core/pace.js)
+const ROWS = pace(1);
 export function createBaker(renderer, { per, px }) {
   const W = per * px, opts = { depthBuffer: true, generateMipmaps: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, colorSpace: THREE.NoColorSpace };
-  const ss = [new THREE.RenderTarget(W * SS, px * SS, opts), new THREE.RenderTarget(W * SS, px * SS, opts)], out = [THREE.RGBAFormat, THREE.RGBAFormat, THREE.RedFormat].map((format) => new THREE.RenderTarget(W, W, { ...opts, depthBuffer: false, format }));
+  const ss = [new THREE.RenderTarget(W * SS, px * SS, opts), new THREE.RenderTarget(W * SS, px * SS, opts)], out = PICTURES.map((P) => new THREE.RenderTarget(W, W, { ...opts, depthBuffer: false, format: formatOf(P) }));
   // the reduce: a texel of the atlas from its SS x SS samples (cover: their share covered; the rest: the covered ones'
   // mean, its way the mean way, its light and how much of it is leaf each a mean of its own: a sample is one or the
   // other, so its one number, litIn, says both exactly), into row `row` of the atlas: which 0 its colour, 1 its data,
@@ -177,15 +184,22 @@ export function createBaker(renderer, { per, px }) {
   return {
     /** Its reduce's three meshes (its colour's, its data's, its leaf's), as the start compiles them (tools/smoke.js) */
     reduces: tris,
-    /** Bake `rows` rows of a thing's pictures into the atlas' layer, a row a frame: draw(r) its mesh for row r (its
+    /** Bake `rows` rows of a thing's pictures into the atlas' layer, as many a frame as the GPU's pace says (ROWS): draw(r) its mesh for row r (its
         instances the row's pictures, its materials [colour, data]); least: the smallest picture's side mipped to. A
         promise of { done }, once its pictures are read back (the targets free for the next job, which waits for it):
         done, once its layer is in the atlas, with its levels (what the browser keeps of it: src/scatter/trees.js farOf). */
     bake(atlas, layer, count, draw, least = LEAST) {
       const job = last.then(async () => {
-        for (let r = 0; r < count; r++) { if (r) await nextFrame(); rowOf(r, draw); }
+        // (as many rows a frame as fit the frame's share for geometry, by each row's own time on the GPU: src/core/pace.js,
+        // as the land's pages and the tiers' packing are; at least one, on any GPU)
+        for (let r = 0; r < count; ) {
+          if (r) { await nextFrame(); ROWS.tick(); }
+          do { const at = r++; ownGpuMs(renderer, () => rowOf(at, draw))?.then((ms) => ROWS.measured(1, ms, FRAME_MS_BY_CLASS.geometry)).catch(() => {}); } while (r < count && --ROWS.left > 0);
+        }
         const [c, d, l] = await Promise.all(out.map((o) => renderer.readRenderTargetPixelsAsync(o, 0, 0, W, W)));
-        return { done: mipsOf(new Uint8Array(c), new Uint8Array(d), new Uint8Array(l), W, px, least).then(({ levels }) => { atlas.put(layer, levels); return levels; }) };
+        // (of its pictures' levels, what the atlas keeps: from its own cell's on, a view's never-read finest not: atlasesOf STORED)
+        const from = Math.round(Math.log2(px / atlas.cell));
+        return { done: mipsOf(new Uint8Array(c), new Uint8Array(d), new Uint8Array(l), W, px, least).then(({ levels }) => { const kept = levels.slice(from); atlas.put(layer, kept); return kept; }) };
       });
       last = job.catch(() => {});
       return job;
@@ -253,7 +267,7 @@ const hashOf = (geo) => { let h = FNV; const a = geo.attributes.position.array, 
 /** A made thing's views (geo: its nearest level, its colours a vertex; c, r: its sphere) baked into an atlas of its own:
     { A, ready (1 once they are in) }. */
 function viewsOf(geo, c, r, name) {
-  const { VIEWS, CELL } = atlases(), A = createAtlas(renderer, { name: `a made thing's impostor ${name}`, side: VIEWS * CELL, layers: 2, cell: CELL, views: VIEWS }), ready = uniform(0), row = uniform(0, 'int'), g = new THREE.InstancedBufferGeometry();
+  const { VIEWS, STORED } = atlases(), A = createAtlas(renderer, { name: `a made thing's impostor ${name}`, side: VIEWS * STORED, layers: 2, cell: STORED, views: VIEWS }), ready = uniform(0), row = uniform(0, 'int'), g = new THREE.InstancedBufferGeometry();
   g.index = geo.index; for (const k of ['position', 'normal', 'color']) if (geo.attributes[k]) g.setAttribute(k, geo.attributes[k]);
   const vC = varyingProperty('vec3', 'mC'), vN = varyingProperty('vec3', 'mN'), vZ = varyingProperty('float', 'mZ');
   const vert = Fn(() => { const P = viewClip(positionGeometry.sub(c).div(r), row, VIEWS); vC.assign(attribute('color', 'vec3')); vN.assign(facingOf(attribute('normal', 'vec3'), P.F)); vZ.assign(P.z); return P.clip; })();
