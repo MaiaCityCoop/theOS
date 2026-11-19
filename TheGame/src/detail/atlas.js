@@ -119,7 +119,7 @@ export const levelsUnder = (cell) => floor(Math.log2(cell / LEAST) + 1e-9);
       limits   the limits every WebGPU device grants (src/core/gpu.js PORTABLE): what is baked is kept by its key and
                drawn on any device, so its size is the same on every one
       tiles    how many tiles a plane's uv can name (assets/kit/plant.js UV_TILES: what the heap packs it in)
-    -> { VIEWS, CELL, TILE, TILES, CLUMPS, key }
+    -> { VIEWS, CELL, STORED, TILE, TILES, CLUMPS, key }
     - a clump's plane is a tile of the least picture, TILE = LEAST: where the clumps stand in their error is within the
       dial, and it counts their texel, a chunk's side over TILE; so a chunk is never more pixels drawn across than its
       tile has texels, and a finer picture of it would never be read;
@@ -143,6 +143,11 @@ export function atlasesOf({ layers, bytes, limits, tiles }) {
     if (!best || e < best.e) best = { e, VIEWS, CELL };
   }
   if (!best) throw new Error(`atlases: ${(bytes / 2 ** 20).toFixed(0)} MiB for ${layers} far ends hold no views`);
-  const { VIEWS, CELL } = best;
-  return { VIEWS, CELL, TILE, TILES, CLUMPS, key: `${VIEWS}x${CELL}|${TILES}x${TILE}|${CLUMPS}` };
+  // what is kept of a view, STORED texels a side: the level an impostor is read at where it comes in, and under it. It
+  // stands in where its error, its texel's and its views' together, is a dial pixel, and is read a texel a drawn pixel
+  // (its texels' level by its size on screen), so there its views' share being about its texel's (as they are chosen
+  // above, the least error for the bytes) it reads the level under the bake's: the bake's own finest is never read, and
+  // is not kept (three quarters of the bytes). The bake is still CELL texels a side (its level under: a mean of four)
+  const { VIEWS, CELL } = best, STORED = levelsUnder(CELL) ? CELL / 2 : CELL;
+  return { VIEWS, CELL, STORED, TILE, TILES, CLUMPS, key: `${VIEWS}x${CELL}|${TILES}x${TILE}|${CLUMPS}` };
 }
