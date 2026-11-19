@@ -152,13 +152,24 @@ fn blade(slot: vec3<f32>, side: f32, t: f32, w: Wind, time: f32, before: f32) ->
     let across = vec3<f32>(-sin(yaw), 0.0, cos(yaw));
     var pos = root + dir * (lean * height * t * t) + vec3<f32>(0.0, height * (t - 0.35 * lean * t * t), 0.0);
     let wt = width * pow(1.0 - clamp((t - 0.45) / 0.55, 0.0, 1.0), 1.2);
-    pos = pos + across * wt * side;
+    // a blade is a shallow V: its two halves meet at the midrib, which stands a little forward
+    pos = pos + across * wt * side + dir * wt * 0.35 * (1.0 - abs(side));
     out.position = pos + sway(pos, time, w.params.z);
     out.previous = pos + sway(pos, before, w.params.z);
     // from about 8 m on, a blade melts into the sward: its colour toward the sward's green and its normal toward
     // the sky, so the field far off reads as one carpet and not as pale specks catching the light
     let far = smoothstep(8.0, 45.0, d);
-    out.normal = normalize(mix(normalize(across + vec3<f32>(0.0, 1.5, 0.0)), vec3<f32>(0.0, 1.0, 0.0), far));
+    // the face's normal: the blade spans `across` and its length, so it faces along `dir`, tilted back as the blade
+    // leans; each half of the V turned a little outward. (It had been `across`, a direction in the blade's own
+    // plane: lit wrongly, and at grazing angles it mirrored the sky as white streaks.)
+    var face = normalize(dir * (1.0 - lean * t) + vec3<f32>(0.0, 0.45 + lean * t, 0.0) + across * side * 0.45);
+    // the side that is seen faces the eye (the material is not double-sided: Bevy would turn the back's normal down,
+    // and a downward normal mirrors the sky as white streaks)
+    let toward = w.eye.xyz - pos;
+    if (dot(vec3<f32>(dir.x, 0.0, dir.z), toward) < 0.0) {
+        face = normalize(vec3<f32>(-face.x, face.y, -face.z));
+    }
+    out.normal = normalize(mix(face, vec3<f32>(0.0, 1.0, 0.0), far));
     // each blade its own green, from deep to light yellow-green; a little straw where the field is dry
     let green = mix(vec3<f32>(0.045, 0.120, 0.018), vec3<f32>(0.100, 0.230, 0.035), thash(ci, cj, seed + 9u));
     let dry = lush * 0.6; // one noise for both: drier where the sward is thinner
@@ -170,6 +181,8 @@ fn blade(slot: vec3<f32>, side: f32, t: f32, w: Wind, time: f32, before: f32) ->
     if (t < 0.5) {
         c = mix(rootc, tip, pow(t / 0.5, 0.8));
     }
+    c = mix(c, vec3<f32>(0.20, 0.17, 0.08), smoothstep(0.85, 1.0, t) * 0.35 * thash(ci, cj, seed + 13u));
+    c = c * (1.0 + 0.12 * (1.0 - abs(side)));
     c = mix(c, vec3<f32>(0.060, 0.140, 0.024) * (0.75 + 0.35 * t), far);
     out.colour = vec4<f32>(c, 1.0);
     return out;

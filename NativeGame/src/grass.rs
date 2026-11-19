@@ -435,7 +435,7 @@ pub fn tile(segs: u32) -> Mesh {
             let slot = [i as f32 + 0.5, 0.0, j as f32 + 0.5];
             for s in 0..=segs {
                 let t = s as f32 / segs as f32;
-                let sides: &[f32] = if s == segs { &[0.0] } else { &[-1.0, 1.0] };
+                let sides: &[f32] = if s == segs { &[0.0] } else { &[-1.0, 0.0, 1.0] };
                 for &side in sides {
                     pos.push(slot);
                     uv.push([side, t]);
@@ -444,11 +444,12 @@ pub fn tile(segs: u32) -> Mesh {
                 }
             }
             for s in 0..segs {
-                let a = start + s * 2;
+                let a = start + s * 3;
+                let n = a + 3;
                 if s + 1 == segs {
-                    idx.extend_from_slice(&[a, a + 1, a + 2]);
+                    idx.extend_from_slice(&[a, a + 1, n, a + 1, a + 2, n]);
                 } else {
-                    idx.extend_from_slice(&[a, a + 1, a + 2, a + 1, a + 3, a + 2]);
+                    idx.extend_from_slice(&[a, a + 1, n, a + 1, n + 1, n, a + 1, a + 2, n + 1, a + 2, n + 2, n + 1]);
                 }
             }
         }

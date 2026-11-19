@@ -392,8 +392,8 @@ fn enter(
         extension: crate::wind::Wind { params: default() },
         base: StandardMaterial {
         base_color: Color::WHITE,
-        perceptual_roughness: 0.55,
-        reflectance: 0.35,
+        perceptual_roughness: 0.75,
+        reflectance: 0.2,
         // light through the blades: against the sun, grass glows
         diffuse_transmission: if off("GLOW") { 0.0 } else { 0.45 },
         thickness: 0.0,
@@ -424,6 +424,7 @@ fn enter(
     let made = {
         let mut m = grass.get(&blades).cloned().expect("the grass material was just added");
         m.extension.params.eye.w = 2.0;
+        m.base.double_sided = false; // the shader turns each blade's normal toward the eye itself
         grass.add(m)
     };
     if !off("GRASS") {
