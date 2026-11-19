@@ -996,7 +996,7 @@ export function treeSample(tex, row, x = 0, y = 0, z = 0, s = 1, form = 0, px = 
   g.setIndex(new THREE.BufferAttribute(M.index, 1));
   const B = bandsOf(a), lo = B.at(-1)[0];
   const { m, shape } = plantMaterial(tex, row.detail)({ lo, hi: Infinity, first: true, last: true }, null, px);
-  m.vertexNode = Fn(() => shape(vec4(x, z, y, s * sizeAtOne(a, form)), vec4(0.4, 0, 1.3, Math.PI)))();
+  m.vertexNode = Fn((builder) => shape(vec4(x, z, y, s * sizeAtOne(a, form)), vec4(0.4, 0, 1.3, Math.PI), passOf(builder)))();   // (its pass: the prepass and the shadow map work out no light at its corners)
   const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.renderOrder = 1; mesh.layers.enable(1);
   for (let j = 0; j < 4; j++) mesh.userData[`rule${j}`] = new THREE.Vector4(...M.rule.subarray(j * 4, j * 4 + 4));
   return wear(mesh, tex, row, form);
