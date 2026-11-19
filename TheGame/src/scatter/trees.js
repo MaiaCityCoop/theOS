@@ -53,7 +53,7 @@ import { scatterRow } from '../../assets/index.js';
 import { kindOf, sizeOf, most } from '../../assets/kinds.js';
 import { levelOf, handOver, sinkInto } from '../detail/handover.js';
 import { createAtlas, bakers, viewClip, tileClip, impostorRead, clumpRead, facingOf, facingEnc, planeFrame, litIn, atlases } from '../detail/impostor.js';
-import { levelsUnder } from '../detail/atlas.js';
+import { levelsUnder, PICTURES } from '../detail/atlas.js';
 import { offScreen, clipOf, Tier } from './tier.js';
 import { createDrawer, pool } from './drawer.js';
 import { castsInto } from '../world/shadow.js';
@@ -74,6 +74,7 @@ import { BAND, FADE } from '../detail/error.js';
 import { source } from '../core/settle.js';
 import { gpuStorage } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
+import { shows } from '../detail/seen.js';
 
 /** A half float's 16 bits as the number (what assets/kit/plant.js wrote). */
 const unhalf = (h) => { const e = (h >> 10) & 31, m = h & 1023, v = e === 0 ? m * 2 ** -24 : e === 31 ? Infinity : (1 + m / 1024) * 2 ** (e - 15); return h & 0x8000 ? -v : v; };
@@ -199,6 +200,12 @@ const wear = (mesh, tex, row, shape = 0) => {
   Object.assign(mesh.userData, { hk: N.hk, ks: N.ks, wind: new THREE.Vector4(...N.wind), leaf: new THREE.Vector4(...N.leaf), twig: N.twig, tint: new THREE.Vector3(...N.tint) });
   return mesh;
 };
+// each plant its own green (its leaves'): lighter or darker by its seed, warmer (yellower) or cooler (bluer) by its turn,
+// each even over its plants; and their mean, what a stand of them shows on the whole (farOf: src/detail/seen.js)
+const WARM = [1.07, 1.0, 0.78], COOL = [0.86, 0.98, 1.1], LIGHTER = [0.84, 0.3];
+const ownGreen = (turn, seed) => mix(vec3(...WARM), vec3(...COOL), turn.mul(1.1631).fract()).mul(seed.mul(LIGHTER[1]).add(LIGHTER[0]));
+const GREEN = WARM.map((w, c) => ((w + COOL[c]) / 2) * (LIGHTER[0] + LIGHTER[1] / 2));
+const CH = Object.fromEntries(PICTURES.map((P) => [P.name, P.channels.length]));   // (a far end's pictures' numbers a texel, by name)
 const ofMesh = (key, start, type) => uniform(start, type).onObjectUpdate(({ object }) => object?.userData?.[key]);
 
 /** A stand's light at w, the one light's (src/world/light.js lightOn): the sky's and the sun's on the dome its crown makes
@@ -337,7 +344,7 @@ function plantMaterial(tex, D) {
       vCut.assign(vec2(mix(0.45, 0.16, smoothstep(15, 220, far)), max(smoothstep(0.06, 0.42, abs(normalize(turn(cardN)).dot(Ve))), body).mul(smoothstep(0.35, 1.3, far))));
       // each plant its own green: lighter or darker, and warmer (yellower) or cooler (bluer)
       const leaf = part.greaterThan(0.5), n0 = normalize(turn(V.normal));
-      const tint = leaf.select(mix(vec3(1.07, 1.0, 0.78), vec3(0.86, 0.98, 1.1), B.z.mul(1.1631).fract()).mul(V.shade.mul(0.3).add(0.84)).mul(Tn), vec3(1));
+      const tint = leaf.select(ownGreen(B.z, V.shade).mul(Tn), vec3(1));
       if (pass === 'main') {   // (the colour pass: what its pixels light themselves by; a chunk's plane's wrap and turn)
         vW.assign(w); vN.assign(n0); vTint.assign(tint); vK.assign(vec4(ao, wrap, shines, clumps)); vCn.assign(normalize(turn(cardN).add(vec3(0, 1e-6, 0))));
         if (vLit) vLit.assign(vec4(0, 0, wrap, B.x));
@@ -456,7 +463,7 @@ function impostorMaterial(G, D, Lv, src) {
       // what it is lit by, as its mesh is (standLight): the sun as it reaches its middle, once for the plant (a few
       // pixels), and its kind's numbers its mesh's corners carry (its leaves' wrap and how much the sun shines through
       // them, its snow's clumps: numbersOf); its own green (as its cards': plantMaterial)
-      vT.assign(mix(vec3(1.07, 1.0, 0.78), vec3(0.86, 0.98, 1.1), B.z.mul(1.1631).fract()).mul(seedOf(B).mul(0.3).add(0.84)).mul(r0.yzw));
+      vT.assign(ownGreen(B.z, seedOf(B)).mul(r0.yzw));
       if (passOf(builder) !== 'shadow') vLit.assign(vec4(sunAt(c, 'vertex'), r2.y, r2.x, D().numOf(kind, 1).w));
       // it sways in the one wind as its mesh does (swayOf), each corner as far as its height up the plant: what it
       // shows is read where it stood still (vP), so its picture leans with the wind as the crown does; and for the
@@ -585,6 +592,26 @@ function farOf(renderer, tex, G, D) {
     const geo = new THREE.InstancedBufferGeometry(), tgeo = new THREE.InstancedBufferGeometry(), mesh = (g, v) => Object.assign(new THREE.Mesh(g, null), { frustumCulled: false, userData: { materials: [mat(v, colourF), mat(v, dataF)] } });   // (tgeo: no corners of its own, its vertex stage reads them)
     return (M = { kindU, levelU, rowU, sphereU, nU, cells, CL, geo, tgeo, view: mesh(geo, viewV), tile: mesh(tgeo, tileV) });
   };
+  // what a shape shows, on the whole (src/detail/seen.js), read from its pictures as they are baked or kept: their least
+  // level (each texel already its cover's mean of those under it: src/detail/impostor.worker.js), as its impostor shows
+  // it farthest, where the land takes over. Each picture alike (the land is seen from any of its views), each texel by its
+  // cover: its albedo, the square of what its colour keeps (src/detail/atlas.js PICTURES), its leaves (by its leaf
+  // picture) in its kind's green and its plants' own, on the whole (GREEN), as its impostor tints them (mix(1, tint, leaf))
+  const kindOfShape = (k) => G.kinds.find((Kd) => k >= Kd.offset && k < Kd.offset + Kd.shapes);
+  const seenIn = (k, levels) => {
+    const Lv = levels?.at(-1); if (!Lv) return;
+    const n = Lv.n, cell = n / A.VIEWS, Kd = kindOfShape(k), Tn = G.numbers.subarray(k * 20 + 1, k * 20 + 4), T = [0, 1, 2].map((c) => Tn[c] * GREEN[c] - 1), sum = [0, 0, 0], P = [0, 0, 0];
+    let pics = 0;
+    for (let py = 0; py < A.VIEWS; py++) for (let px = 0; px < A.VIEWS; px++) {
+      let w = 0; P.fill(0);
+      for (let y = 0; y < cell; y++) for (let x = 0; x < cell; x++) {
+        const o = (py * cell + y) * n + px * cell + x, a = Lv.colour[o * CH.colour + 3] / 255, f = Lv.leaf[o * CH.leaf] / 255; if (!(a > 0)) continue;
+        w += a; for (let c = 0; c < 3; c++) P[c] += a * (Lv.colour[o * CH.colour + c] / 255) ** 2 * (1 + f * T[c]);
+      }
+      if (w > 0) { for (let c = 0; c < 3; c++) sum[c] += P[c] / w; pics++; }
+    }
+    if (pics) shows(Kd.asset, k - Kd.offset, Kd.shapes, sum.map((v) => v / pics));
+  };
   // its numbers, once its pictures are in: its sphere; T, its impostor's error (metres, at scale 1: its views' texel and
   // what their spacing and its parallax misplace, as the crowd kit measured it for these atlases: its far data's sixth
   // number), which the one ratio holds against the dial (meshShare)
@@ -616,7 +643,7 @@ function farOf(renderer, tex, G, D) {
       const per = G.tiles, rows = Math.ceil((nc * 3) / per), most = Uint32Array.from({ length: rows }, (_, r) => { let m = 0; for (let t = r * per; t < Math.min((r + 1) * per, nc * 3); t++) m = Math.max(m, T.count[Math.floor(t / 3)]); return m; });
       b = await bakers(renderer).tiles(per).bake(clumpsOf(), G.clumpLayer[k], rows, (r) => { B.rowU.value = r; B.tgeo.instanceCount = per; B.tgeo.setDrawRange(0, most[r]); return B.tile; });
     }
-    return { done: Promise.all([a.done, b?.done]).then(([va, vb]) => { keptPut(keptAs(), key, { views: va, clumps: vb ?? null }); numbers(k, far); }) };
+    return { done: Promise.all([a.done, b?.done]).then(([va, vb]) => { keptPut(keptAs(), key, { views: va, clumps: vb ?? null }); numbers(k, far); seenIn(k, va); }) };
   };
   return {
     views, clumps: () => clumpsOf(), version: () => version, ready: () => any,
@@ -639,7 +666,7 @@ function farOf(renderer, tex, G, D) {
         keptGet(keptAs(), keyOf(k)).then((kept) => {
           if (!kept) return queue.push(J);
           waiting.delete(k); views.put(k, kept.views); if (kept.clumps && G.clumpLayer[k] >= 0) clumpsOf().put(G.clumpLayer[k], kept.clumps);
-          numbers(k, far); out--;
+          numbers(k, far); seenIn(k, kept.views); out--;
         }, () => queue.push(J));
       }
     },
