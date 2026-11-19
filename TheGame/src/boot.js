@@ -219,7 +219,7 @@ export async function boot({ profile = 'world' } = {}) {
     if (!veiled) governor.end(ms, now, live() && grown.scatter.over, wasBusy);
     wasBusy = busy();
     if (!game.covered) tick(changed());   // (whether the world is complete: src/core/settle.js)
-    if (veiled) { tell(); taken(); } else hitch(ms, now);   // (the start's frames, behind the veil: what they wait for told, not logged as the game's; what each did let go all the same, or every frame after the first that did anything would count as changing what is drawn, and the world would never be complete)
+    if (veiled) { tell(); game.work = taken(); } else hitch(ms, now);   // (the start's frames, behind the veil: what they wait for told, not logged as the game's; what each did let go all the same, or every frame after the first that did anything would count as changing what is drawn, and the world would never be complete)
     hud?.frame(ms, now, controls && controls.band !== 'eye' ? `  ${controls.band} ${Math.round(controls.height)} m` : '');
   }
 
@@ -230,7 +230,7 @@ export async function boot({ profile = 'world' } = {}) {
   const HITCH = 24, hitches = []; let frames = 0, sentAt = 0;
   const TAB = { id: Math.random().toString(36).slice(2, 8), ua: /Chrome\//.test(navigator.userAgent) ? 'Chrome' : /Safari\//.test(navigator.userAgent) ? 'Safari' : 'other', page: location.pathname + location.search };
   function hitch(ms, now) {
-    frames++; const work = taken();   // (what the frame did besides drawing: src/core/work.js)
+    frames++; const work = (game.work = taken());   // (what the frame did besides drawing: src/core/work.js; the last frame's, read as window.__game.work)
     if (ms > HITCH && frames > 30) {
       const r = renderer.info.render, c = window.__cine, f = (v) => +v.toFixed(2);
       hitches.push({ at: Math.round(now), ms: f(ms), ctl: f(parts.ctl), ground: f(parts.ground), terrain: f(parts.terrain), scatter: f(parts.scatter), draw: f(parts.draw),
