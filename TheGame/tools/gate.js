@@ -640,6 +640,8 @@ async function moves(page, v) {
 async function hourly(opt) {
   const tag = commit(), views = opt.views ?? HOURLY.join(','), at = `${OUT}hourly/`;
   KEEP.on = true;   // (a start or a view that does not settle is said on the board, and what settles is measured all the same)
+  const M = await import('./gate/machine.js'), before = M.machine(), short = M.unfit(before);   // (a machine short of memory measures its disk: the hour is not measured)
+  if (short) { save(`${at}${tag}/summary.json`, { tag, when: new Date().toISOString(), notMeasured: short, host: { before } }); return board(tag, at); }
   const run = await locked('the hour', async () => {
     const dev = await (await import('./gate/device.js')).device(BASE);   // (first: the device on the machine the 8 GB gate is for)
     const chrome = await launch({ ...opt, fresh: true });
@@ -652,6 +654,7 @@ async function hourly(opt) {
     const unsettled = (set) => Object.entries(JSON.parse(readFileSync(`${OUT}${set}/gate.json`, 'utf8')).views ?? {}).filter(([, r]) => r.notSettled).map(([k]) => k);
     return { tag, when: new Date().toISOString(), out: OUTPUT, device: dev, start: s.start, smoke: s, stills: { lod: unsettled(a), truth: unsettled(t) }, flip: await diff(a, t, { ...opt, views }).catch((e) => ({ none: e.message })), bench: b, compile: c, paths: await paths({ ...opt, paths: opt.paths ?? 'walk,zoom' }) };
   });
+  run.host = { before, after: M.machine() }; run.notMeasured = M.unfit(before, run.host.after);
   save(`${at}${tag}/summary.json`, run);
   if (run.device?.pass === false) process.exitCode = 1;   // (a lost device fails the hour)
   return board(tag, at);
@@ -666,7 +669,7 @@ async function board(tag, at) {
   const out = [...(R.stills?.lod ?? []).map((v) => `${v} (stills)`), ...(R.stills?.truth ?? []).map((v) => `${v} (?truth)`), ...Object.keys(R.bench?.unsettled ?? {}).map((v) => `${v} (bench)`), ...['cold', 'warm'].flatMap((c) => Object.entries(R.paths?.[c]?.paths ?? {}).filter(([, r]) => r.notSettled).map(([k]) => `${k} (paths, ${c})`))];
   const mem = memoryOn(R.smoke);
   const md = [`# The hour on main, ${tag} (${OUTPUT.width} × ${OUTPUT.height}), ${new Date().toISOString().slice(0, 16)}`, '',
-    (await import('./gate/device.js')).readyLine(R.device),   // (first: did the game come at all)
+    ...(await import('./gate/machine.js')).head(R, (await import('./gate/device.js')).readyLine),   // (first: was it measured, did the game come at all, the machine)
     mem.line,
     ...(await import('./gate/device.js')).lines(R.device), '',
     S?.settled === false ? `**The start did not settle** in ${(S.ms / 1000).toFixed(0)} s: ${String(S.said).slice(0, 300)}` : `The start settled in ${((S?.ms ?? 0) / 1000).toFixed(1)} s.`,
