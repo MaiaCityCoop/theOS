@@ -38,6 +38,7 @@ import { SHARE_MB } from '../core/classes.js';
 import { FNV, fnv } from '../core/hash.js';
 import { workerPool } from '../core/workers.js';
 import { pxAt } from './measure.js';
+import { aboutTo } from '../core/journal.js';
 import { atlasesOf, atlasBytes, levelsUnder, SS, LEAST, PICTURES } from './atlas.js';
 import { farLayers } from '../scatter/entries.js';
 
@@ -134,7 +135,7 @@ export function createAtlas(renderer, { name, side, layers, cell = side, views =
 
 // ---- the bake: a row of pictures at a time, SS x SS samples a texel, reduced on the GPU, read back, mipped in a worker ----
 let WORKERS = null;
-const workers = () => (WORKERS ||= workerPool("the impostors' worker", () => new Worker(new URL('./impostor.worker.js', import.meta.url), { type: 'module' })));
+const workers = () => (WORKERS ||= workerPool("the impostors' worker", () => new Worker(new URL('./impostor.worker.js', import.meta.url), { type: 'module' }), undefined, ({ side }) => `a row's pictures mipped, ${side} texels a side`));
 /** The pictures' smaller ones, as a worker makes them (impostor.worker.js, one of a pool as large as the device, watched:
     src/core/workers.js workerPool): { levels: [{ colour, data, leaf, n }] }. */
 const mipsOf = (colour, data, leaf, side, cell, least) => workers().ask({ colour, data, leaf, side, cell, least }, [colour.buffer, data.buffer, leaf.buffer]);
@@ -224,6 +225,7 @@ export function createBaker(renderer, { per, px }) {
         done, once its layer is in the atlas, with its levels (what the browser keeps of it: src/scatter/trees.js farOf). */
     bake(atlas, layer, count, draw, least = LEAST) {
       const job = last.then(async () => {
+        aboutTo(`a far end's bake: layer ${layer}, ${count} rows of ${per} pictures, ${px} texels a side`);
         await makeFor(draw(0));
         // (as many pictures a frame as fit the frame's share for geometry, by each piece's own time on the GPU; at least one,
         // on any GPU; a row's pictures in pieces, each as many of them as are left this frame. Before the first view is

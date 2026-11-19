@@ -240,6 +240,23 @@ export function standColours() {
   return Number.isFinite(near) ? near : -1;
 }
 
+/** The n strongest of the layers' shares S (an array node, a share a layer, by id), strongest first: [{ id, w }] (none:
+    the id of a slot nothing took, its w 0). The shares looked through in a loop, so its body is written once, not once a
+    layer. Node code, in a Fn. */
+function strongest(n, S, none) {
+  const top = Array.from({ length: n }, () => ({ id: int(none).toVar(), w: float(0).toVar() }));
+  Loop(LAYERS.length, ({ i }) => {
+    const s = S.element(i).toVar(), id = int(i);
+    const c = top.map((t) => s.greaterThan(t.w).toVar());   // (held: the slots change as they are assigned)
+    for (let k = n - 1; k >= 0; k--) {   // (from the last: each takes what was before it, if what comes is stronger than that)
+      const fromAbove = k > 0 ? c[k - 1] : null, here = c[k];
+      if (fromAbove) { top[k].id.assign(fromAbove.select(top[k - 1].id, here.select(id, top[k].id))); top[k].w.assign(fromAbove.select(top[k - 1].w, here.select(s, top[k].w))); }
+      else { top[k].id.assign(here.select(id, top[k].id)); top[k].w.assign(here.select(s, top[k].w)); }
+    }
+  });
+  return top;
+}
+
 /** What the biomes make of the land at p: the layer map's point there, five 32-bit words (as the top of this file packs
     them). texel: metres between the map's points (its noises are read as finely as that calls for). Node code, in a Fn. */
 export function layerWords(tex, p, texel) {
@@ -277,18 +294,8 @@ export function layerWords(tex, p, texel) {
     for (const [id, a] of steps[i].adds) S[id].addAssign(a.mul(left));
     if (i > 0) left.mulAssign(float(1).sub(steps[i].k));
   }
-  // the four strongest, then in the order they are laid (the layers' shares looked through in a loop, so its body is
-  // written once, not once a layer)
-  const top = [0, 1, 2, 3].map(() => ({ id: int(EMPTY).toVar(), w: float(0).toVar() })), SA = array(S).toVar();
-  Loop(S.length, ({ i }) => {
-    const s = SA.element(i).toVar(), id = int(i);
-    const c = top.map((t) => s.greaterThan(t.w).toVar());   // (held: the slots change as they are assigned)
-    for (let k = 3; k >= 0; k--) {   // (from the last: each takes what was before it, if what comes is stronger than that)
-      const fromAbove = k > 0 ? c[k - 1] : null, here = c[k];
-      if (fromAbove) { top[k].id.assign(fromAbove.select(top[k - 1].id, here.select(id, top[k].id))); top[k].w.assign(fromAbove.select(top[k - 1].w, here.select(s, top[k].w))); }
-      else { top[k].id.assign(here.select(id, top[k].id)); top[k].w.assign(here.select(s, top[k].w)); }
-    }
-  });
+  // the four strongest, then in the order they are laid
+  const top = strongest(4, array(S).toVar(), EMPTY);
   const sum = top.reduce((a, t) => a.add(t.w), float(0)).max(1e-6).toVar();
   for (const t of top) { If(t.w.lessThan(0.5 / 255), () => { t.id.assign(EMPTY); t.w.assign(0); }); }
   for (const [i, j] of [[0, 1], [2, 3], [0, 2], [1, 3], [1, 2]]) {   // (sorted by id: a network of five)
@@ -335,12 +342,14 @@ export function layerWords(tex, p, texel) {
 /** What lies at a point of the land, from the four points of the map round it: load(i) their words, i 0 … 3 for (0, 0),
     (1, 0), (0, 1), (1, 1) ({ L: the first four, M: the fifth }); f where the point lies between them (0 … 1 each way);
     ny how steep the land is there, its normal's y. The layers to lay there, at most five, in the order they are laid
-    ({ id, w }: a layer of the map's, w its share; SLOPES's w is how much of it is laid, the point's own), the carpet's
+    ({ id, w }: a layer of the map's, w its share (of the four kept, by what they share; laid() lays each by its share of
+    what is under it); SLOPES's w is how much of it is laid, the point's own), the carpet's
     cover (near, between, far), the macro variation, the grass's tint, and the two stands there ({ id (NO_STAND: none),
     c, n }). */
 export function layersFrom(load, f, ny) {
-  // what the points say, summed by their weights: the layers by id into five slots (the fifth the slope's); the stands by id into two
-  const ids = [0, 1, 2, 3].map(() => int(-1).toVar()), ws = [0, 1, 2, 3].map(() => float(0).toVar()), filled = int(0).toVar();
+  // what the points say, summed by their weights: every layer's share, by its id (each point's four: as many as sixteen);
+  // the stands by id into two
+  const LS = array(LAYERS.map(() => float(0))).toVar();
   const cv = vec3(0).toVar(), macro = float(0).toVar(), tint = vec3(0).toVar();
   const sid = [0, 1].map(() => int(-1).toVar()), sc = [0, 1].map(() => float(0).toVar()), sn = [0, 1].map(() => float(0).toVar()), sw = [0, 1].map(() => float(0).toVar());
   Loop(4, ({ i }) => {
@@ -348,13 +357,9 @@ export function layersFrom(load, f, ny) {
     const bw = tx.equal(1).select(f.x, float(1).sub(f.x)).mul(tz.equal(1).select(f.y, float(1).sub(f.y))).toVar();
     If(bw.greaterThan(0), () => {
       const P = load(i), L = P.L.toVar(), M = P.M.toVar();
-      Loop(4, ({ i: j }) => {   // (a point's four layers in a loop: the merge written once, not once a layer)
-        const id = int(L.x.shiftRight(uint(j).mul(uint(8))).bitAnd(uint(255))), w = un(L.y, j).mul(bw);
-        If(w.greaterThan(0.25 / 255), () => {
-          const hit = ids.map((s) => s.equal(id).toVar()), fresh = hit.reduce((a, h) => a.or(h)).not().toVar();   // (held: the slots change as they are assigned)
-          ids.forEach((s, m) => { const put = fresh.and(filled.equal(m)); ws[m].assign(put.select(w, ws[m].add(hit[m].select(w, float(0))))); s.assign(put.select(id, s)); });
-          filled.assign(fresh.and(filled.lessThan(4)).select(filled.add(1), filled));
-        });
+      Loop(4, ({ i: j }) => {   // (a point's four layers in a loop: written once, not once a layer)
+        const id = int(L.x.shiftRight(uint(j).mul(uint(8))).bitAnd(uint(255))).toVar();
+        If(id.notEqual(EMPTY), () => { LS.element(id).addAssign(un(L.y, j).mul(bw)); });
       });
       cv.addAssign(vec3(un(L.z, 0), un(L.z, 1), un(L.z, 2)).mul(bw)); macro.addAssign(un(L.z, 3).sub(0.5).mul(bw));
       const sq = (k2) => un(M, k2).mul(un(M, k2)); tint.addAssign(vec3(sq(0), sq(1), sq(2)).mul(bw));
@@ -373,8 +378,11 @@ export function layersFrom(load, f, ny) {
   });
   // the base's rock where the land is too steep: the point's own slope
   const slope = { id: int(SLOPES >= 0 ? SLOPES : 999).toVar(), w: float(SLOPES >= 0 ? smoothstep(STEEP[0], STEEP[1], ny) : 0).toVar() };
-  const slots = [...ids.map((id, m) => ({ id, w: ws[m] })), slope];
-  for (const s of slots.slice(0, 4)) If(s.id.lessThan(0), () => { s.id.assign(999); });   // (an empty slot: after every layer)
+  // the four strongest of them, each less the fifth's share: a layer comes into the four as another leaves them, both at
+  // nothing where they cross, so the texels change their layers as smoothly as the points do, and which point is read
+  // first decides nothing (were it to, the four would change at the edges of the map's cells: a checker of its points)
+  const top = strongest(5, LS, 999), fifth = top[4].w;   // (999: an empty slot, after every layer)
+  const slots = [...top.slice(0, 4).map((t) => ({ id: t.id, w: t.w.sub(fifth).toVar() })), slope];
   for (const [a, b] of [[0, 1], [3, 4], [2, 4], [2, 3], [1, 4], [0, 3], [0, 2], [1, 3], [1, 2]]) {   // (sorted by id: a network of nine)
     const A = slots[a], B = slots[b], swap = B.id.lessThan(A.id).toVar(), ai = int(A.id).toVar(), aw = float(A.w).toVar();
     A.id.assign(swap.select(B.id, A.id)); A.w.assign(swap.select(B.w, A.w)); B.id.assign(swap.select(ai, B.id)); B.w.assign(swap.select(aw, B.w));
@@ -421,4 +429,4 @@ export const standFade = (S, dist2, c) => S.large.x.greaterThan(0).select(shownA
     makes of it (R over its relief's top, at most whole), so the relief comes up only where every plant that could stand
     there is gone, and as the last of them goes: nothing drawn stands in it. Node code. */
 export const canopyShownAt = (R, dist) => STANDS.filter((S) => S.large[0] > 0 && S.reliefTop > 0).reduce((m, S) => min(m, shownAt(S.small, S.large, R.div(S.reliefTop).min(1), dist)), float(1));
-export { NO_STAND };
+export { NO_STAND, EMPTY };

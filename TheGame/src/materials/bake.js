@@ -23,10 +23,13 @@
 import * as THREE from 'three/webgpu';
 import { Fn, If, vec2, vec3, vec4, uv, float, uint, uvec2, uvec4, ivec2, uniform, sqrt, clamp, normalize, texture, textureLoad, property, outputStruct, instancedArray, instanceIndex, min, max, dot, round, select, uniformArray, int, renderGroup } from 'three/tsl';
 import { recipes, manifest } from '../core/registry.js';
-import { note, makeOwned, budgetOf, budgetShare } from '../core/gpu.js';
+import { note, makeOwned, budgetOf, readBuffer, fits } from '../core/gpu.js';
+import { pace, ownGpuMs, frameShare } from '../core/pace.js';
 import { BUDGET_MB } from '../core/budget.js';
 import { compileFor, inTurn } from '../core/compile.js';
 import { source, ready as settled } from '../core/settle.js';
+import { aboutTo } from '../core/journal.js';
+import { MiB } from '../core/physics.js';
 
 // (a tile's side, texels, and what follows from it, set once: its levels; its blocks level by level, where each lies in
 // the buffers they are written to (rows of 32 blocks at the least: a row of a copy from a buffer is a multiple of 256
@@ -185,14 +188,20 @@ const levelsOf = (renderer, { A, Nn, Rr, Dd }, i, data) => {
 /** The store of what was painted, for the pool's textures on renderer (packed: whether the GPU packs blocks; keepWhen: a
     promise, when what was painted is kept: the world settled, by default; pool: there(m, layer, data), whether a layer still holds what was painted
     into it; laid(), one laid out; busy(d), what the start waits on): laidOut(jobs), of [material, layer, data], what an
-    earlier start kept laid into its layer, and the rest (a promise); keepLater(jobs), what was painted, kept once
-    keepWhen comes; kept(), a promise: all of it kept; read(layer, data), a layer as kept (bytes). */
+    earlier start kept laid into its layer, and the rest (a promise); keepLater(jobs), what was painted, to be kept once
+    keepWhen comes; step(), each frame: one more kept, where it may be (below); stored(), how many this start kept;
+    kept(), a promise: all of it kept (or given up); read(layer, data), a layer as kept (bytes). */
 function storeOf(renderer, textures, packed, keepWhen, pool) {
   const dev = renderer.backend.device, cache = packed && PAINTER_V && typeof caches !== 'undefined' ? caches.open(STORE).catch(() => null) : Promise.resolve(null);
-  const read = async (i, data = false) => {
-    const L = levelsOf(renderer, textures, i, data), buf = dev.createBuffer({ label: "the world's textures: a layer kept", size: L.bytes, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }), e = dev.createCommandEncoder();
+  // (layer i's blocks copied into buf, as the store keeps them, handed to the GPU: a promise of its own time there)
+  const copyOut = (L, i, buf) => {
+    const e = dev.createCommandEncoder();
     for (const [texture, mipLevel, offset, bytesPerRow, rowsPerImage, side] of L.levels) e.copyTextureToBuffer({ texture, mipLevel, origin: { x: 0, y: 0, z: i } }, { buffer: buf, offset, bytesPerRow, rowsPerImage }, { width: side, height: side, depthOrArrayLayers: 1 });
-    dev.queue.submit([e.finish()]);
+    return ownGpuMs(renderer, () => dev.queue.submit([e.finish()]));
+  };
+  const read = async (i, data = false) => {
+    const L = levelsOf(renderer, textures, i, data), buf = dev.createBuffer({ label: "the world's textures: a layer read", size: L.bytes, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+    copyOut(L, i, buf);
     try { await buf.mapAsync(GPUMapMode.READ); return buf.getMappedRange().slice(0); } finally { buf.destroy(); }
   };
   const layOut = (i, data, bytes) => { for (const [texture, mipLevel, offset, bytesPerRow, rowsPerImage, side] of levelsOf(renderer, textures, i, data).levels) dev.queue.writeTexture({ texture, mipLevel, origin: { x: 0, y: 0, z: i } }, bytes, { offset, bytesPerRow, rowsPerImage }, { width: side, height: side, depthOrArrayLayers: 1 }); };
@@ -204,18 +213,47 @@ function storeOf(renderer, textures, packed, keepWhen, pool) {
       return jobs.filter(([, i, data], n) => { const b = kept[n]; if (!b || b.byteLength !== levelsOf(renderer, textures, i, data).bytes) return true; layOut(i, data, b); pool.laid(); return false; });
     } finally { pool.busy(-1); }
   };
-  // (what was painted, kept once keepWhen comes, one at a time: nothing of the start waits for it)
-  const toKeep = [];
-  let keeping = null;
-  const keepAll = async () => {
-    const c = await cache;
+  // What was painted, kept: a layer a frame at the most (step, from the frame's flush: src/core/pace.js), one at a time,
+  // its buffer let go as soon as its bytes are out of it, before the next is read back; only once keepWhen has come (the
+  // world settled), while the GPU has room for that buffer in its budget (src/core/gpu.js readBuffer) and the store has
+  // room for the layer (its estimate); what no material names any more let go first. None of it at the start's peak
+  // (2026-11-19, the master: a phone dies of its page's memory just after Ready, and the layers read back at once would
+  // be the world's textures again, 87 MB at the Mac's budget). A refusal, or no room: nothing more is kept, said once.
+  const toKeep = [], P = pace(1), waiters = [];
+  let open = null, one = null, stopped = false, stored = 0;
+  const drained = () => { if (!one && !toKeep.length) for (const w of waiters.splice(0)) w(); };
+  const stop = (why, e) => { if (!stopped) console.warn(`[textures] what was painted is not kept (${why}): painted again next time`, e ?? ''); stopped = true; toKeep.length = 0; drained(); };
+  (keepWhen ?? settled).then(() => cache).then(async (c) => {
+    if (c) { const names = new Set([{ uid: 'stand-in' }, ...recipes('material')].map(keyOf)); for (const r of await c.keys()) if (r.url.includes('/__painted/') && !names.has(r.url)) await c.delete(r); }
+    return c;
+  }).catch(() => null).then((c) => { open = c; if (!c) { toKeep.length = 0; drained(); } });
+  const keepOne = async ([m, i, data]) => {
+    const key = keyOf(m), L = levelsOf(renderer, textures, i, data);
+    if (!key || !pool.there(m, i, data)) return;   // (nothing to key it by, or its layer since given to another: not kept)
+    const room = await navigator.storage?.estimate?.().catch(() => null);
+    if (room && room.quota - room.usage < L.bytes) return stop('the store has no room for it, by its estimate');
+    const buf = readBuffer('ground', L.bytes, "the world's textures: a layer kept");
+    if (!buf) return void toKeep.unshift([m, i, data]);   // (no room for its buffer in the GPU's budget now: a later frame)
+    aboutTo("the world's textures: a layer kept", L.bytes / MiB);
+    let bytes;
     try {
-      while (c && toKeep.length) { const [m, i, data] = toKeep.shift(), key = keyOf(m); if (key && pool.there(m, i, data)) await c.put(key, new Response(await read(i, data))); }   // (nothing to key it by, or its layer since given to another: not kept)
-      if (c) { const names = new Set([{ uid: 'stand-in' }, ...recipes('material')].map(keyOf)); for (const r of await c.keys()) if (r.url.includes('/__painted/') && !names.has(r.url)) await c.delete(r); }
-    } catch (e) { toKeep.length = 0; console.warn('[textures] what was painted is not kept (Cache Storage refused it): painted again next time', e); }
-    keeping = null;
+      copyOut(L, i, buf)?.then((ms) => P.measured(1, ms, frameShare('ground'))).catch(() => {});
+      await buf.mapAsync(GPUMapMode.READ);
+      bytes = new Blob([buf.getMappedRange()]);   // (copied out of it: the buffer let go at once)
+    } finally { buf.destroy(); }
+    await open.put(key, new Response(bytes)); stored++;
   };
-  return { laidOut, read, kept: () => keeping ?? Promise.resolve(), keepLater: (jobs) => { if (!packed || budgetShare() < 1) return; toKeep.push(...jobs); keeping ||= (keepWhen ?? settled).then(keepAll); } };   // (nothing kept where the budget is less than the Mac's, a phone's: the layers read back after the start are memory the page holds, until the keeping is paced a layer a frame)
+  const step = () => {
+    P.tick();
+    if (!open || one || !toKeep.length || P.left < 1 || !fits('ground', levelsOf(renderer, textures, toKeep[0][1], toKeep[0][2]).bytes)) return;
+    P.left--;
+    one = keepOne(toKeep.shift()).catch((e) => stop('Cache Storage refused it', e)).finally(() => { one = null; drained(); });
+  };
+  return {
+    laidOut, read, step, stored: () => stored,
+    kept: () => (one || toKeep.length ? new Promise((res) => waiters.push(res)) : Promise.resolve()),
+    keepLater: (jobs) => { if (packed && !stopped) toKeep.push(...jobs); },
+  };
 }
 
 /** The world's textures. Returns how to read them (each a node, as any texture's: with .grad(dx, dy), .level()):
@@ -342,7 +380,7 @@ export function bakeTextures(renderer, { spare = 6, first = null, keepWhen } = {
     const layer = where[k] || place(k); if (layer) asked[layer] = performance.now(); return layer;
   };
   const release = (ref) => { const k = numberOf(ref); if (k >= 0) held[k] = 0; };
-  const flush = () => { if (!wanted.size) return; const list = [...wanted]; wanted.clear(); for (const k of list) if (!where[k]) want(ALL[k], true); };
+  const flush = () => { store.step(); if (!wanted.size) return; const list = [...wanted]; wanted.clear(); for (const k of list) if (!where[k]) want(ALL[k], true); };
   source('textures', () => wanted.size + busy);   // (what is still to be painted: asked for and not yet flushed, or the start's being compiled: src/core/settle.js)
 
   // the stand-in, the numbers' own, and what the world wears (held): their layers taken now, all painted together; the
@@ -358,9 +396,9 @@ export function bakeTextures(renderer, { spare = 6, first = null, keepWhen } = {
     layer: index, want, release, flush, used: USED, capacity: CAP - 1, packed: PACKED,
     /** a promise: the start's materials painted (nothing that reads them may be drawn before) */
     ready,
-    /** how many this start painted, and how many it laid out as an earlier one kept them; and a promise: what it painted
-        kept (tools/paints.js) */
-    counts: () => ({ painted, laid }), kept: store.kept,
+    /** how many this start painted, how many it laid out as an earlier one kept them, and how many it kept; and a
+        promise: what it painted kept, a layer a frame (tools/paints.js) */
+    counts: () => ({ painted, laid, stored: store.stored() }), kept: store.kept,
     /** the start's layers ({ uid, layer, data }), and one as kept (bytes): what tools/paints.js holds against a start's */
     layers: () => jobs.map(([m, i, data]) => ({ uid: m.uid, layer: i, data })), read: store.read,
     /** a material's albedo + height at uv */

@@ -25,7 +25,13 @@
 //             wait past a fill a place and one a layout
 import './glob.js';
 
-const { ownOf, storeOf, roomsFor, holdOf } = await import('../src/scatter/tier.js');
+// (the device a phone: its adapter's largest buffer an iPhone's, so the budget its share, src/core/gpu.js shareOf)
+const gpuM = await import('../src/core/gpu.js'), { PHONE_BUFFER } = await import('../src/core/budget.js');
+globalThis.navigator = { ...(globalThis.navigator ?? {}), gpu: { requestAdapter: async () => ({ limits: { maxBufferSize: PHONE_BUFFER, maxStorageBufferBindingSize: PHONE_BUFFER / 2 }, info: {} }) } };
+await gpuM.askedLimits();
+const { ownOf, storeOf, roomsFor, holdOf, relayIn, atRest, tick } = await import('../src/scatter/tier.js');
+const { restDial } = await import('../src/detail/measure.js');
+const { BAND } = await import('../src/detail/error.js');
 const { WG, MARGIN } = await import('../src/scatter/regions.js');
 const { pace } = await import('../src/core/pace.js');
 const { FRAME_MS, FRAME_MS_BY_CLASS } = await import('../src/core/budget.js');
@@ -54,7 +60,7 @@ const said = (name) => Object.entries(waiting()).filter(([k]) => k.startsWith(`t
 async function own(n, { moving, still, jump, mean }, name) {
   const L = lagging(), rows = [], found = new Array(n).fill(0), out = { wrong: 0, stuck: 0, rest: null, laid: 0, past: 0 };
   for (let i = 0; i < n; i++) {
-    const caps = [WG * 32], T = { asset: `${name} ${i}`, slots: 2, culler: null, count: { value: null } };
+    const caps = [WG * 32], T = { asset: `${name} ${i}`, storeName: `check: ${name} ${i}`, slots: 2, culler: null, count: { value: null } };
     rows.push({ R: L.renderer(() => [found[i]]), row: ownOf(T, caps, (N) => { out.laid++; if (N[0] > caps[0] && N[0] <= roomFor(caps[0])) out.past++; N.forEach((x, k) => (caps[k] = x)); for (const r of rows) r.row.relaid(); }) });   // (a family's layout: every one of it laid out again)
   }
   let lastLay = 0;
@@ -73,6 +79,34 @@ async function own(n, { moving, still, jump, mean }, name) {
   return out;
 }
 
+/** What moves (a herd: src/scatter/herds.js, through drawer.js tierAll moving), its rooms its bound (ownOf bound: the
+    most of it at the dial at rest), packed every frame for `frames` while what it finds swings past its bound and under
+    it (its things crossing a level's band as they walk), then the measure moved (reband: its bound halved). -> { laid:
+    layouts while it walked, after: layouts once the measure moved, short: frames it found more than it holds, wrong:
+    frames not known to fit past its first read } */
+async function moving(frames, most) {
+  const L = lagging(), caps = [most], out = { laid: 0, after: 0, short: 0, wrong: 0 }, T = { asset: 'check: moving', storeName: 'check: moving', slots: 2, culler: null, count: { value: null } };
+  let found = 0, bound = most, walked = false;
+  const row = ownOf(T, caps, (N) => { if (walked) out.after++; else out.laid++; caps[0] = N[0]; row.relaid(); }, undefined, () => [bound]), R = L.renderer(() => [found]);
+  for (let f = 1; f <= frames + 20; f++) {
+    await L.next();
+    if (f === frames) { walked = true; bound = Math.ceil(most / 4); row.rebound(); }   // (the dial at rest twice as coarse: a quarter of it)
+    found = Math.round(most * (1 + Math.sin(f / 5) / 2)); row.packed(); row.ask(R);
+    out.short += T.short ? 1 : 0;
+    if (f > 4 && f < frames && said('check: moving') > 0) out.wrong++;
+  }
+  return out;
+}
+/** The moving sequence, said and failed on where what moves is laid out by what it finds, or not once as the measure
+    moves. */
+async function movers() {
+  const m = await moving(600, WG * 16);
+  console.log(`  moving   1 tier , packed every frame for 600, finding up to half again its bound and down to half of it: laid out ${m.laid} times while it walked, short ${m.short} frames, not known to fit ${m.wrong}; laid out ${m.after} times once the measure moved`);
+  if (m.laid) fail(`moving: laid out ${m.laid} times by what it found while it walked`);
+  if (m.after !== 1) fail(`moving: laid out ${m.after} times once the measure moved, not once`);
+  if (!m.short) fail('moving: never short, though it found more than its bound');
+  if (m.wrong) fail(`moving: not known to fit ${m.wrong} frames while it walked`);
+}
 /** A resident tier's store as residentOf runs it (one tier its kind's: its kind laid out as soon as its read has
     answered), its regions' `cells` visited at the frame's pace (tier.js CELLS: pace, measured against geometry's share
     of a frame), a cell costing the GPU what visits all of them over `per` frames at rest; the camera jumping every
@@ -135,9 +169,84 @@ function paged(tiers, cost, fills, held, budget) {
   return { most, frames };
 }
 
+/** The dial as memory's one knob on a phone (src/core/gpu.js byDial; budgetOf: its share of the Mac's budget), a class
+    at a time: its stores (bases: what each needs at the dial's rest, MB; what lies within a reach goes as the reach's
+    square, so base / d² at dial d), made one a frame as the world fills, each from a first room of a few workgroups,
+    beside what of the class follows no dial (fixed, MB). Each frame every store made reads what it finds at the dial
+    at rest then (reband) and asks for rooms as tier.js asks (roomsFor: band 1 where the dial at rest has risen since it
+    was laid out), laid out again as tier.js lays it out (relayIn: its need said at once, byDial; at once where its
+    class has room for it beside all it holds, else in its class's turn, tick), what it was held beside what it is for
+    three frames (src/core/gpu.js retire: two frames, then the GPU's done). -> { rest, least (MB), total (MB, at the
+    end), peak (MB: the most it held, the old beside the new), budget, smaller (stores made smaller), frames (till
+    nothing is laid out or let go) } */
+function knob(cls, bases, fixed, walk = 0) {
+  const MB = 2 ** 20, each = 256, n = bases.length, first = WG * 32;   // (each: a thing's bytes; first: a store's first room, things)
+  const rooms = [], rest = [], letting = [], out = { smaller: 0, laid: 0, short: 0, rises: 0 }, name = (i) => `check: a store of ${cls} (${i})`;
+  gpuM.more(`check: what of ${cls} follows no dial`, fixed * MB, 0, cls);
+  const holding = () => (rooms.reduce((a, r) => a + r, 0) * each + letting.reduce((a, l) => a + l.bytes, 0)) / MB + fixed;
+  let frame = 0, peak = 0, last = 0;
+  const lay = (i, N) => {
+    letting.push({ bytes: rooms[i] * each, until: frame + 3 }); gpuM.letting(cls, rooms[i] * each);   // (as src/core/gpu.js retire holds it)
+    gpuM.more(name(i), (N - rooms[i]) * each, 0, cls); if (N < rooms[i]) out.smaller++;
+    rooms[i] = N; rest[i] = restDial(); last = frame; peak = Math.max(peak, holding()); out.laid++;
+    return true;
+  };
+  // (a frame: the turn, what is let go, a store made where the world fills, and every store's read of what it finds,
+  // `dense` times what it needs at the dial's rest; -> whether one found more than it holds: drawn short)
+  const step = (dense) => {
+    tick();   // (each class's turn: tier.js rise)
+    for (const l of letting.filter((x) => x.until <= frame)) { letting.splice(letting.indexOf(l), 1); gpuM.letting(cls, -l.bytes); }
+    if (rooms.length < n) { gpuM.more(name(rooms.length), first * each, 0, cls); rooms.push(first); rest.push(restDial()); }
+    let short = false;
+    rooms.forEach((r, i) => {
+      const found = Math.round((bases[i] * dense * MB) / each / restDial() ** 2), N = roomsFor([found], [r], true, rest[i] < restDial() ? 1 : BAND);
+      short ||= found > r;
+      if (!N || N[0] === r) return;
+      const at = restDial(), bytes = N[0] * each;
+      relayIn(cls, `${cls} ${i}`, bytes, r * each, () => gpuM.byDial(name(i), cls, bytes), () => lay(i, atRest(N, at)[0]), () => gpuM.retiring(cls) > 0);
+    });
+    peak = Math.max(peak, holding());
+    return short;
+  };
+  for (; frame < 4000 && (rooms.length < n || letting.length || frame < last + 30); frame++) step(1);
+  const boot = { rest: restDial(), least: Math.min(...rooms) * each / MB, total: holding(), peak, smaller: out.smaller, frames: last };
+  // (then a walk into what is denser: `walk` frames, what it finds growing to two and a half times as much, swaying a
+  // sixth either way as the camera moves; its re-layouts, the dial's rises and the frames a store found more than it held)
+  Object.assign(out, { laid: 0, short: 0 }); peak = 0;
+  let was = restDial();
+  for (let f = 0; f < walk; f++, frame++) {
+    if (step((1 + (1.5 * f) / walk) * (1 + Math.sin(f / 7) / 6))) out.short++;
+    if (restDial() !== was) { out.rises++; was = restDial(); }
+  }
+  return { ...boot, budget: gpuM.budgetOf(cls), walked: { frames: walk, laid: out.laid, rises: out.rises, short: out.short, peak, rest: restDial(), total: holding() } };
+}
+
 /** The sequences, each said and failed on where it breaks: the own-patch tiers, and a resident store over fills of a
     frame to sixteen, the camera jumping and still (2026-11-19, live on next: where Samuel stood, the world's plants
     popped in and out over and over). */
+/** The knob's sequences, a class at a time, said and failed on where a store holds nothing, or its class is past its
+    budget at the end or at the most. */
+function knobs() {
+  const share = gpuM.budgetShare();
+  console.log(`the dial as memory's one knob, a phone's (share ${share}: src/core/gpu.js byDial, src/scatter/tier.js relayIn):`);
+  if (share !== 0.375) fail(`the knob: the phone's share is ${share}, not 0.375`);
+  const WALK = 1200;   // (frames of the walk: twenty seconds at 60)
+  for (const [cls, bases, fixed] of KNOB) {
+    const K = knob(cls, bases, fixed, WALK), all = bases.reduce((a, b) => a + b, 0), W = K.walked, per = (x) => ((x * 60) / W.frames).toFixed(2);
+    console.log(`  ${cls}: ${bases.length} stores needing ${all} MB at the dial's rest beside ${fixed} MB that follows no dial, of its ${K.budget} MB: the dial at rest ${K.rest.toFixed(3)}, every store holding some (the least ${K.least.toFixed(2)} MB), ${K.smaller} made smaller, the class ${K.total.toFixed(1)} MB, at the most ${K.peak.toFixed(1)} MB (the old beside the new), still from frame ${K.frames}`);
+    console.log(`    walking into what is two and a half times as dense, ${W.frames} frames: the dial at rest rose ${W.rises} times to ${W.rest.toFixed(3)}, ${W.laid} layouts (${per(W.laid)} a second at 60 frames), ${W.short} frames a store found more than it held (${per(W.short)} a second), the class ${W.total.toFixed(1)} MB, at the most ${W.peak.toFixed(1)} MB`);
+    if (W.peak > K.budget * 1.000001) fail(`the knob, ${cls}, walking: the class held ${W.peak.toFixed(1)} MB at the most, past its ${K.budget} MB`);
+    if (W.rises > 3) fail(`the knob, ${cls}, walking: the dial at rest rose ${W.rises} times, chasing what the stores find (2026-11-19, the iPhone in a forest: the trees blinking)`);
+    if (!(K.least > 0)) fail(`the knob, ${cls}: a store holds nothing`);
+    if (K.total > K.budget * 1.000001) fail(`the knob, ${cls}: the class holds ${K.total.toFixed(1)} MB, past its ${K.budget} MB`);
+    if (K.peak > K.budget * 1.000001) fail(`the knob, ${cls}: the class held ${K.peak.toFixed(1)} MB at the most, past its ${K.budget} MB`);
+  }
+  if (!(restDial() > 1)) fail('the knob: the dial at rest never rose');
+}
+// (a phone's stores of a class at the dial's rest, MB, more than it holds: geometry's the plants' levels and the rocks',
+// ground's the meadow's rings, src/scatter/grass.js; beside what of it follows no dial, as the census holds it at an
+// iPhone, `bun tools/census.js --buffer=1073741824 --window=390x844@3`, 2026-11-19: geometry 345.3 MB, ground 118.6 MB)
+const KNOB = [['geometry', [96, 64, 48, 40, 32, 28, 24, 20, 16, 12, 8, 6, 4, 4, 2, 2], 345], ['ground', [120, 80], 119]];
 async function check() {
   const OWN = { moving: 600, still: 100, jump: 300, mean: 5000 }, MOVED = { frames: 600, visit: 120, means: [90000, 120000, 70000, 100000], first: 2 ** 17, cells: 2 ** 21 };
   console.log("the tiers' stores, read back two and three frames behind their packings (src/scatter/tier.js storeOf, roomsFor):");
@@ -148,6 +257,7 @@ async function check() {
     if (o.past) fail(`${name}: laid out ${o.past} times for no more found than it held`);
     if (o.rest == null) fail(`${name}: never at rest`);
   }
+  await movers();
   const RES_TIERS = 42;   // (the world's resident tiers: tools/smoke.js's scatter, 2026-11-19)
   for (const cost of [0.25, 2, 10]) {
     const main = paged(RES_TIERS, cost, 8, false), cells = [['behind the veil', FRAME_MS], ['shown', FRAME_MS_BY_CLASS.geometry]].map(([how, budget]) => {
@@ -170,6 +280,7 @@ async function check() {
       if (r.waiting > (places + r.laid - 1) * fill + ramp) fail(`resident over ${per}, ${how}: its regions waited ${r.waiting} frames, past a fill a place and one a layout`);   // (a layout empties it: filled anew)
     }
   }
+  knobs();   // (last: what the dial at rest rose to holds for every store made after)
 }
 await check();
 console.log(failed ? `storecheck: ${failed} failed` : 'storecheck: every store at rest once read, laid out only where it found more than it held or BAND times less');
