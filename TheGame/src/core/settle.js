@@ -117,11 +117,14 @@ export const onSettled = (fn) => void CALM.add(fn);
     itself (the library's stage circling its subject: src/stage/studio.js) stands still meanwhile, or it never would. */
 export const settling = () => asks.size > 0;
 
+/** How long the world may take to come complete, or to settle again, before what waits for it calls it broken (ms):
+    settle's own timeout, and the start's view's in the tools (tools/census.js --settle, the smoke's). */
+export const SETTLE_MS = 300000;
 /** A promise: the world complete for the camera as it stands now, resolved at a frame drawn after this call, once
     nothing has been out and nothing has changed for as long as the picture built over time takes to come to rest.
     { frames, ms, still }: how long it took, and for how many frames nothing changed. timeout (ms): rejected after it,
     with what is still out. */
-export function settle({ timeout = 300000 } = {}) {
+export function settle({ timeout = SETTLE_MS } = {}) {
   return new Promise((res, rej) => {
     const a = { from: frames, t0: performance.now(), res };
     a.timer = setTimeout(() => { asks.delete(a); rej(new Error(`settle: after ${timeout / 1000} s, still out: ${JSON.stringify(waiting())}; ${still} frames of ${need} unchanged`)); }, timeout);

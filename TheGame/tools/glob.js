@@ -3,7 +3,10 @@
 // turned into the modules it names: imported at once where it asks ({ eager: true }), whole or by the export it asks
 // for (`import`), else a function a module that imports it. Import this file first, then import the game's modules with `await import(...)`.
 // And the registry's manifest, made as the dev server and the build make it (vite.config.js: registry.json is never
-// kept in git, tools/registry.js), before any module of the game's asks for it.
+// kept in git, tools/registry.js), before any module of the game's asks for it. And every worker the game starts once
+// this file is in (the recipes', the impostors', the bones', the lakes', the city's plan) is given it first, as the
+// dev server and the build give a worker its own globs: one without it cannot load the game's modules, never builds a
+// thing, and a tool's world drew nothing and passed (2026-11-19: the census and the smoke never saw an empty world).
 import { plugin } from 'bun';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -48,3 +51,8 @@ plugin({
     });
   },
 });
+
+// (a worker started from here on: this file preloaded in it before its own module, so it globs as the page's do; in a
+// worker too, for one it starts in turn)
+const Real = globalThis.Worker;
+if (Real && !Real.globbed) globalThis.Worker = class extends Real { static globbed = true; constructor(url, o = {}) { super(url, { ...o, preload: [...[o.preload ?? []].flat(), import.meta.path] }); } };
