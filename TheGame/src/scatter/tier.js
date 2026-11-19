@@ -584,7 +584,7 @@ function residentOf(T, me, s, ends) {
         X[n * 2] = L.id; X[n * 2 + 1] = bitsOf(L.pad / sc);   // (its pad as the measure has distances: the lens's)
         cells += c; n++; w.next++;
       }
-      if (w.next === per * per) { waits.delete(L.key); release(w); }   // (all of it visited: what it takes the place of let go)
+      if (w.next === per * per) { waits.delete(L.key); did('swaps', w.was.length); release(w); }   // (all of it visited: what it takes the place of let go; swaps: the regions so replaced, joined or split, said to the frame: tools/gate/motion.js --swaps)
     }
     CELLS.left -= cells;
     return { n, cells };

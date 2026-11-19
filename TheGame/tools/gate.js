@@ -38,6 +38,13 @@
 //                                                                second of the path (60: every frame the game draws);
 //                                                                --to: the first s seconds of each path only; --floor:
 //                                                                the game against itself, drawn twice: the noise floor
+//   bun tools/gate.js motion --swaps [--stress] [--paths a,b]    check 4 where regions join or split (#171): each path
+//                        [--to s] [--fps n] [--keep n]           (the walk) as the game draws it, its first s seconds
+//                                                                (20), in the world or the stress world; every frame
+//                                                                in which the game let go regions it replaced
+//                                                                (window.__game.work.swaps) and two after, FLIP against
+//                                                                the frame before with the walk's own change taken out;
+//                                                                .gate/swaps-<tag>-<world>/ (tools/gate/motion.js)
 //   bun tools/gate.js real <tag | dir> --photos <dir>            check 4a, photorealism: renders (a set of stills, or a
 //                        [--device mps] [--no-clip]              folder) held against photographs (a folder with its
 //                                                                manifest.json, tools/gate/README.md): CMMD on CLIP
@@ -69,7 +76,7 @@
 // names the run), and lets it go after; meanwhile the page is held on the gate's clock (tools/gate/clock.js) and draws
 // nothing. A gate run under `bun tools/gpu/lock.js take <owner> -- …` holds the lock whole.
 //
-// A measure (device, walks, bench, compile, paths, all, the hour) is taken only on a machine with the memory for it
+// A measure (device, walks, bench, compile, paths, all, motion, the hour) is taken only on a machine with the memory for it
 // (tools/gate/machine.js onMachine): where its turn starts with less free than the game's GPU budget, or the swap grows
 // while it runs, it says "not measured" and why, keeps nothing, and ends with 75 (EX_TEMPFAIL: run it again later).
 //
@@ -726,7 +733,7 @@ async function all(opt) {
 }
 
 // ---- the command line ----
-const FLAGS = new Set(['truth', 'headed', 'fresh', 'verbose', 'no-clip', 'jpeg', 'floor', 'twice', 'ratchet']);   // (options without a value)
+const FLAGS = new Set(['truth', 'headed', 'fresh', 'verbose', 'no-clip', 'jpeg', 'floor', 'twice', 'ratchet', 'swaps', 'stress']);   // (options without a value)
 const [cmd, ...args] = process.argv.slice(2), pos = [], opt = {};
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -741,7 +748,7 @@ try {
   let r;
   if (cmd === 'diff') await diff(pos[0], pos[1], opt);
   else if (cmd === 'paths') r = await measured('paths', () => paths(opt));   // (timed: held whole)
-  else if (cmd === 'motion') r = await (await import('./gate/motion.js')).motion(opt, { OUT, BASE, SCREEN, INSIDE, WAIT, open, prepare, course, launch, pick, commit, save, rank, said, f });
+  else if (cmd === 'motion') { const M = await import('./gate/motion.js'); r = await onMachine(() => M[opt.swaps ? 'swaps' : 'motion'](opt, { OUT, BASE, SCREEN, INSIDE, WAIT, open, prepare, course, launch, pick, commit, save, rank, said, f })); }   // (its passes take their turns one by one: the machine read over the whole)
   else if (cmd === 'real') { const real = async () => (await import('./gate/real.js')).real(pos[0], opt); r = await ((opt.device ?? 'cpu') === 'cpu' ? real() : locked('real', real)); }   // (on a GPU, mps: in its turn)
   else if (cmd === 'all') r = await onMachine(() => all(opt));   // (its parts take their turns one by one: the machine read over the whole)
   else if (cmd === 'hourly') { r = await hourly(opt); if (r?.fails?.length) process.exitCode = 1; }   // (the hour fails where the GPU's memory went past a budget)
