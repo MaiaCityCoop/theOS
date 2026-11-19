@@ -406,7 +406,7 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, off
     A.build();
     const t = wgOf().mul(uint(WG)).add(localId.x), g = lastAtMost((q) => A.at(q, PRE), uG0, uK, t, uSteps).toVar(), k = g.sub(uG0), i = t.sub(A.at(g, PRE));
     If(i.lessThan(A.at(g, PACK)), () => {
-      const s = offAt ? offAt(k).add(i) : A.at(g, BASE).sub(uBase).add(i), e = s.mul(uS), B = box(data.element(e), data.element(e.add(uint(1))), k), o = A.at(g, BASE).add(i);   // (s: where the packing put it; o: its place in the arena)
+      const s = offAt ? offAt(k).add(i) : A.at(g, BASE).sub(uBase).add(uFrom).add(i), e = s.mul(uS), B = box(data.element(e), data.element(e.add(uint(1))), k), o = A.at(g, BASE).add(i);   // (s: where the packing put it; o: its place in the arena)
       A.BOX.element(o).assign(boxOf(B));
     });
   })().compute(MANY, [WG]);
@@ -427,7 +427,8 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, off
     /** Its range is another now (a resident tier's store made again, src/scatter/tier.js): the arena laid out again
         (now false: by whoever changes many at once, C.arena.relayout()). */
     resize(n, now = true) { me.total = n; if (now) A.relayout(); },
-    /** Where its draws' things begin in the buffer they read (a resident tier's range of its kind's, src/scatter/tier.js):
+    /** Where its draws' things begin in the buffer they read (a resident tier's range of its kind's, a family tier's of its
+        family's store, src/scatter/tier.js):
         a slot the eye's passes are handed is of that buffer, its list of the arena's. */
     from(n) { me.from = n; me.uFrom.value = n; me.uEntry.value = (me.base - n) >>> 0; },
     /** A draw's length (its corners) changed: in all three of its sets of arguments. */

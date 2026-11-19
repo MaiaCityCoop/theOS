@@ -226,11 +226,13 @@ function groupOf(scene, tex, renderer, name, kinds, cap) {
       });
     });
   };
+  // (its levels one family: one store, so that its levels drawn alike are one material, src/scatter/tier.js familyOf)
+  const family = {};
   for (let i = 0; i < LEVELS.length; i++) {
     // its squares 2^k of the list's a side, so that its band's far edge is about eight squares off: a few hundred to look at
     const far = farMost(LEVELS[i].px, sizes[1] * 1.25), k = Math.max(0, Math.min(12, Math.ceil(Math.log2(far / (8 * BUCKET))))), S = BUCKET * 2 ** k;
     const capI = Math.min(cap, i === LEVELS.length - 1 ? 262144 : 256 * 4 ** i);   // (the most of a kind drawn at once at the level: few near, many far)
-    const t = D.tier(i, { cell: S / P, P, cap: capI, sizes, fade, casts: i < ML, place, extra: { spans: spansAt(k), cull: CAST } });
+    const t = D.tier(i, { cell: S / P, P, cap: capI, sizes, fade, casts: i < ML, place, extra: { spans: spansAt(k), cull: CAST, family } });
     t.viewKeyed = true; t.asset = `placed: ${name}`;
     const run = t.run; t.run = (r, world, ...a) => run(r, `${world}|${G.version}`, ...a);   // (packed again when the list has changed)
     tiers.push(t);
