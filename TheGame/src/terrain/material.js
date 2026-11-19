@@ -20,15 +20,15 @@ import { reliefShares, reliefOverSnow } from './relief.js';
 import { SOIL_RELIEF } from '../world/physics.js';
 
 export const GRID = 16, NODE = 8;   // quads per node side; a level-0 node's side, metres (its reach is the measure's: U.uLandR0, src/terrain/terrain.js)
-/** How many times as far every level of the land reaches but the last (whose reach is where the land ends): one over the
-    dial the address asks for, each quad as much smaller on the screen as the dial is (src/detail/measure.js DIAL_ASKED):
-    the game's 1, ?truth's 4 (its finest everywhere is past any GPU). */
-export const FINE = 1 / DIAL_ASKED;
+/** How many times as far every level of the land reaches but the last, as the shader multiplies it: 1. What it reaches
+    farther by (one over the land's own dial: the page's, or held to its list's room, src/terrain/terrain.js) is in
+    U.uLandR0's value, so no dial, of 0 or any, is ever a number in a shader. */
+const FINE = float(1);
 /** The parallax's steps down the eye's ray (pages.js read, relief.js reliefShares): as many as keep a step of it within a
     dial pixel where the relief's geometry lets go, half its first level's reach (src/terrain/terrain.js): there the
     soil's relief (src/world/physics.js) covers SOIL_RELIEF GRID / (NODE FINE) over the steepest of the land's octaves
     (A / λ: what level 0's reach is made from) dial pixels, whatever the measure (it is in both). */
-export const PSTEPS = Math.ceil((SOIL_RELIEF * GRID) / (NODE * FINE * Math.max(...OCT_AMP.map((A, i) => A / OCT_LAM[i]))));
+export const PSTEPS = Math.max(1, Math.ceil((SOIL_RELIEF * GRID * DIAL_ASKED) / (NODE * Math.max(...OCT_AMP.map((A, i) => A / OCT_LAM[i])))));   // (at the page's least dial, the land's levels as far as one over it: one at the least, at a dial of 0)
 
 /** The finest step the land's normal is worked out over: an eighth of its finest octave (what resolves that octave's
     slope; tools/slopecheck.js) */
