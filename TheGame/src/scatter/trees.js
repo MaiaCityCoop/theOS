@@ -250,8 +250,9 @@ const sayLight = () => {
   lightSaid = true;
   lightFamily(FAMILY.stands, (f) => {
     const share = sunAt(f.w, 'vertex').toVar();
-    const S = standLight({ w: f.w, n0: f.n, Ve: f.Ve, part: float(f.part), ao: f.ao, wrap: f.wrap, shines: f.shines, clumps: f.clumps, tint: vec3(1), share, glint: f.glint });
-    const P = lightOn({ n: f.n, w: f.w, V: f.Ve, sun: share, ndl: f.n.dot(U.uSunDir).add(f.wrap).div(f.wrap.add(1)).max(0), through: f.shines, ao: f.ao });
+    const [wrap, shines, ao, clumps] = f.own;   // (as gWrite took them, below)
+    const S = standLight({ w: f.w, n0: f.n, Ve: f.Ve, part: float(f.part), ao, wrap, shines, clumps, tint: vec3(1), share, glint: f.glint });
+    const P = lightOn({ n: f.n, w: f.w, V: f.Ve, sun: share, ndl: f.n.dot(U.uSunDir).add(wrap).div(wrap.add(1)).max(0), through: shines, ao });
     const col = f.part.equal(uint(PART.plane)).select(f.colour.mul(P.sky.add(P.sun)).mul(S.sky), f.colour.mul(S.sky.add(S.sun.mul(contactShade()))));
     return vec4(toScreen(col.add(S.add).add(S.spec)).rgb, 1);   // (and a card's leaves' highlight: leafGlint, from its prepass)
   });
@@ -418,7 +419,7 @@ function plantMaterial(tex, D) {
           // frame, sitting on the plane as a leaf does), and as much as is still its mesh's (handing); cut in the prepass
           const C = clumpRead(FAR.clumps(), vClump.x, vUv, vClump.y), t = floor(vUv.mul(atlases().TILE)), keep = hash(uint(t.x).add(uint(t.y).mul(uint(4099))).add(uint(vClump.x).mul(uint(1000003))));
           cut(builder, C.cover.lessThan(0.5).or(keep.greaterThanEqual(vClump.z)).or(handing(vFade).not()));
-          if (pass === 'pre' && DEFER) gWrite({ family: FAMILY.stands, part: PART.plane, colour: C.colour.mul(C.colour).mul(vTint), n: turnOf(vLit.w).turn(C.normal).add(vEye.mul(0.35)), w: vW, ao: C.light, wrap: vK.y, shines: vK.z, clumps: vK.w });   // (deferred: what its light needs)
+          if (pass === 'pre' && DEFER) gWrite({ family: FAMILY.stands, part: PART.plane, colour: C.colour.mul(C.colour).mul(vTint), n: turnOf(vLit.w).turn(C.normal).add(vEye.mul(0.35)), w: vW, own: [vK.y, vK.z, C.light, vK.w] });   // (deferred: what its light needs)
           if (pass === 'pre' || pass === 'shadow') return;
           If(shadow.not(), () => {
             // lit as its leaves are, pixel by pixel, their way there turned with the plant and pulled a little towards
@@ -437,7 +438,7 @@ function plantMaterial(tex, D) {
       if (pass === 'pre' && DEFER) If(vPart.lessThan(1.5), () => {
         const glint = float(0).toVar();
         If(leaf.not(), () => { const W = tex.a(floor(vLay.y.add(0.5)), vUv); T.assign(vec4(W.rgb.mul(mix(0.74, 1, W.a)), 1)); }).Else(() => { glint.assign(leafGlint({ rough: tex.r(floor(vLay.x.add(0.5)), vUv), ns: vCn, Ve: normalize(U.uCam.sub(vW)) })); });
-        gWrite({ family: FAMILY.stands, part: leaf.select(uint(PART.card), uint(PART.wood)), colour: T.rgb.mul(T.rgb).mul(vTint), n: vN, w: vW, ao: vK.x, wrap: vK.y, shines: vK.z, clumps: vK.w, glint });
+        gWrite({ family: FAMILY.stands, part: leaf.select(uint(PART.card), uint(PART.wood)), colour: T.rgb.mul(T.rgb).mul(vTint), n: vN, w: vW, glint, own: [vK.y, vK.z, vK.x, vK.w] });   // (own: wrap, shines, ao, clumps, as its light reads them: sayLight)
       });
       if (pass === 'pre') return motion(vWas, leaf.select(float(1), float(0)));   // (where it was a frame ago; a leaf's card is thin)
       if (pass === 'shadow') return vec4(0);   // (into a shadow map: its depth and its cut-out, no light)
