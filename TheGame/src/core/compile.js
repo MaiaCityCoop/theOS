@@ -15,6 +15,7 @@
 // GPU never answers holds the ones after it, and the veil says which it is (making: src/boot.js).
 import { source, onSettled } from './settle.js';
 import { underBudget } from './gpu.js';
+import { pace, frameShare } from './pace.js';
 
 let last = Promise.resolve(), turns = 0, ended = 0, active = 0;   // (turns: what the world waits for, waiting its turn here or being made; ended: turns over, of any kind; active: one being made now)
 
@@ -288,8 +289,22 @@ export function ask(what, pass, maker, name = '', counted = true, near = 0) {
     it is. */
 export function ready(what, pass, maker, name = '', near = 0) { if (made(what, pass)) return true; ask(what, pass, maker, name, true, near); return false; }
 /** Each of `groups` (a function that asks for something, not counted) in order, each once what the one before asked has
-    been made: what is made ahead of need, a little at a time, so that what a frame asks for meanwhile waits for little. */
-export async function ahead(groups) { for (const g of groups) { g(); await Promise.resolve(); await last; } }   // (its flush is queued before the turn it waits for)
+    been made: what is made ahead of need, a little at a time, so that what a frame asks for meanwhile waits for little.
+    Paced (src/core/pace.js): a group (a material for every pass, a tier's packing: a pipeline or a few) a frame, more
+    only as they take less than the share of a frame no class names (one whose pipelines are made already takes
+    nothing), and only while the GPU holds less than its budget (src/core/gpu.js underBudget): no burst just past Ready,
+    when a phone's page is fullest (2026-11-19, the master: all of it was asked one group after another as the first view
+    showed). Where there are no frames to pace by (a tool's run without them: tools/smoke.js), one after another. */
+export async function ahead(groups) {
+  const P = pace(1), framed = typeof requestAnimationFrame === 'function';
+  for (const g of groups) {
+    while (framed && (P.left < 1 || !underBudget())) { await new Promise((res) => requestAnimationFrame(() => res())); P.tick(); }
+    P.left--;
+    const t0 = performance.now();
+    g(); await Promise.resolve(); await last;   // (its flush is queued before the turn it waits for)
+    P.measured(1, Math.max(1e-3, performance.now() - t0), frameShare('other'));
+  }
+}
 /** The name of `material` as it draws `object`: its own, else what it draws (the object's name, or its parent's, and
     the pass a twin of it draws in), which it is then given: three labels a pipeline by its material's name, and the
     veil says it (making). */
