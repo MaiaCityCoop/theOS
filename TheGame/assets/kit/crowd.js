@@ -469,7 +469,8 @@ function farDataOf(H, clumps) {
     growth (growthOf): the log of its most, and its first knot; HI, LO: the errors (metres) at which its crowd ends and
     its window's last part goes; GROW: the rest of its knots, up to AT; AT: where its far data begins (its finest
     level's: assets/kit/plant.js; a vertex's number, x 1024 and the rest, two slots). */
-export const RULE = { E: 0, HI: 2, LO: 3, GROW: 4, AT: 14 };
+const SLOTS = ['most', 'from', 'hi', 'lo', 'k1', 'k2', 'k3', 'k4', 'k5', 'k6', 'k7', 'k8', 'k9', 'k10', 'at', 'at2'];   // (in order: four vec4, as the GPU reads them: src/scatter/trees.js ruleOf)
+export const RULE = { E: SLOTS.indexOf('most'), HI: SLOTS.indexOf('hi'), LO: SLOTS.indexOf('lo'), GROW: SLOTS.indexOf('k1'), AT: SLOTS.indexOf('at') };
 /** Where a chunk's planes lie in a shape's layer of clumps (src/detail/impostor.js): plane a (0: across x, 1: across y,
     2: across z) of chunk c is tile 3c + a, TILES a row. The plane's own two axes: [u, v]. Its corners' uv lie a step of
     the packing (assets/kit/plant.js: 1024ths) inside its tile, so no pixel at its edge reads the next one (IN). */
@@ -517,7 +518,7 @@ export function levelOf(S, lo = 0, hi = Infinity, { keep = false, clumps = true 
       index.push(o, o + 1, o + 2, o, o + 2, o + 3);
     }
   }
-  const rule = new Float32Array(16); rule[RULE.HI] = S.win.hi; rule[RULE.LO] = S.win.lo;
+  const rule = new Float32Array(SLOTS.length); rule[RULE.HI] = S.win.hi; rule[RULE.LO] = S.win.lo;
   rule[RULE.E] = S.grow.most; rule[RULE.E + 1] = S.grow.at[0]; rule.set(S.grow.at.subarray(1), RULE.GROW);   // (its kept's growth: growthOf)
   return { ...out, index: Uint32Array.from(index), rule, far: hi === Infinity ? S.far.data : null };
 }
