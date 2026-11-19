@@ -6,15 +6,17 @@ import { resolve, join, extname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { brotliCompressSync, gzipSync, constants as zlibConstants } from 'node:zlib';
 import { spawn } from 'node:child_process';
-import { buildRegistry, FOLDERS, SHARED, MEASURES } from './tools/registry.js';
+import { buildRegistry, FOLDERS, SHARED, PAINTS, MEASURES } from './tools/registry.js';
 import * as repo from '../server/repo.js';
 
 const ROOT = import.meta.dirname;
 // the registry's manifest (registry.json, tools/registry.js): made at the start, and again whenever a recipe, or what
-// every recipe builds with (SHARED: the dice, the measure), changes; and after it what is measured of the recipes, each
-// in a process of its own: the solids' rooms (rooms.json, tools/rooms.js: measured from their hierarchies, those whose
-// version changed) and the plants' outlines (outlines.json, tools/outlines.js: what the page must know of each plant
-// before any of its meshes is made); one run at a time (a change while one runs: one more after it)
+// every recipe builds with (SHARED: the dice, the measure) or what paints a material (PAINTS: the painter's code too,
+// so no painting kept between starts outlives a change to it, src/materials/bake.js), changes; and after it what is
+// measured of the recipes, each in a process of its own: the solids' rooms (rooms.json, tools/rooms.js: measured from
+// their hierarchies, those whose version changed) and the plants' outlines (outlines.json, tools/outlines.js: what the
+// page must know of each plant before any of its meshes is made); one run at a time (a change while one runs: one more
+// after it)
 let measuring = null, again = false;
 const measure = () => {
   if (measuring) { again = true; return measuring; }
@@ -26,7 +28,7 @@ const registry = {
   async buildStart() { buildRegistry(ROOT); await measure(); },
   configureServer(server) {
     buildRegistry(ROOT); measure();
-    server.watcher.on('all', (_, file) => { if (FOLDERS.some((d) => file.startsWith(resolve(ROOT, d) + '/')) || SHARED.some((f) => file === resolve(ROOT, f))) { try { buildRegistry(ROOT); measure(); } catch (e) { console.error('[registry]', e.message); } } });
+    server.watcher.on('all', (_, file) => { if (FOLDERS.some((d) => file.startsWith(resolve(ROOT, d) + '/')) || SHARED.some((f) => file === resolve(ROOT, f)) || PAINTS.has(file)) { try { buildRegistry(ROOT); measure(); } catch (e) { console.error('[registry]', e.message); } } });
   },
 };
 
