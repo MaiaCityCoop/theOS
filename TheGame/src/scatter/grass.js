@@ -421,7 +421,7 @@ export function createGrass(scene, tex, ground, asset, gpu = false) {
       for (const m of t.meshes) m.userData.near = t.near;   // (where its band begins, metres: what the first view waits for, src/core/screen.js)
     };
     t.band(); t.label(`grass, ring ${k}`);
-    if (growthMap()) t.reads = growthMap().version;   // (packed again when what grows over it changes)
+    if (growthMap()) { t.reads = growthMap().version; t.changed = growthMap().changedSince; }   // (its regions where what grows over it changed visited again)
     return t;
   });
 }

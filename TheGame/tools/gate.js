@@ -656,24 +656,36 @@ async function moves(page, v) {
     over SUBMIT_MS, with what each held (tools/gate/device.js watch). */
 async function walks(chrome) {
   const D = await import('./gate/device.js'), p = PATHS.find((x) => x.name === 'walk'), out = {};
-  for (const world of ['world', 'stress']) {
+  for (const world of (opt.worlds ?? 'world,stress').split(',')) {   // (--worlds world: the world alone)
     const P = await open(chrome, { query: world === 'stress' ? 'gputime&stress' : 'gputime', init: D.watching() });
     try {
       await P.page.evaluate(() => { window.__cine.dof = false; }); await P.page.evaluate(course, p);
       const g = await P.page.evaluate(settled, { wait: WAIT, at: `the walk's start, ${world}`, keep: KEEP.on });
-      if (g.settled === false) { out[world] = { notSettled: g.said }; continue; }
+      if (g.settled === false) { out[world] = { notSettled: g.said, held: heldLine(g.held) }; if (!KEEP.on) continue; }   // (--keep: what held it said, and walked all the same)
       await P.page.evaluate(() => window.__game?.frames?.());   // (the frames of the walk alone: src/core/frames.js)
+      const was = await P.page.evaluate(() => window.__game?.tiers?.() ?? null);   // (what the stores did before the walk: src/scatter/tier.js tierStats)
       const r = told(await P.page.evaluate(ride, { fly: false, limit: 20e3 })), d = await P.page.evaluate(() => window.__device), frames = await P.page.evaluate(() => window.__game?.frames?.() ?? null);
-      out[world] = { ...r, longest: Math.round(d?.longest ?? 0), long: d?.long ?? null, slow: d?.slow ?? [], slowN: d?.slowN ?? 0, sure: d?.sure ?? 0, stamped: d?.stamped ?? 0, submits: d?.submits ?? 0, frames };
+      out[world] = { ...out[world], ...r, stores: storesOf(was, await P.page.evaluate(() => window.__game?.tiers?.() ?? null)), longest: Math.round(d?.longest ?? 0), long: d?.long ?? null, slow: d?.slow ?? [], slowN: d?.slowN ?? 0, sure: d?.sure ?? 0, stamped: d?.stamped ?? 0, submits: d?.submits ?? 0, frames };
     } finally { said(P.errors); await P.close(); }
   }
   console.log(`  ${walkLines(out, D).join('\n  ').replace(/\*\*/g, '')}`);
   return out;
 }
+/** What held a wait that ran out (settled's held): the sources still out at its end, the longest held first. */
+const heldLine = (H = {}) => Object.entries(H).filter(([, h]) => h.until >= Math.max(...Object.values(H).map((x) => x.until)) - 2).sort((a, b) => b[1].most - a[1].most).slice(0, 8).map(([k, h]) => `${k} (from ${h.from} s, at most ${h.most})`).join('; ');
+/** What the stores did during a walk (src/scatter/tier.js tierStats, before and after): each count's rise, those that
+    rose alone; the most regions waiting at once. The fixed pools take every one of them to nought. */
+function storesOf(a, b) {
+  if (!a || !b) return null;
+  const rise = (x = {}, y = {}) => Object.fromEntries(Object.entries(y).map(([k, v]) => [k, v - (x[k] ?? 0)]).filter(([, v]) => v > 0));
+  return { layouts: rise(a.layouts, b.layouts), draws: rise(a.draws, b.draws), families: rise(a.families, b.families), emptied: rise(a.emptied, b.emptied), again: rise(a.again, b.again), waitsMost: Math.max(...Object.values(b.waits ?? {}), 0) };
+}
+const storesLine = (S) => { if (!S) return ''; const n = (o) => Object.values(o).reduce((x, v) => x + v, 0), top = (o) => Object.entries(o).sort((x, y) => y[1] - x[1]).slice(0, 4).map(([k, v]) => `${k} ${v}`).join(', ');
+  return ` Stores in the walk: ${n(S.layouts)} made again${n(S.layouts) ? ` (${top(S.layouts)})` : ''}, ${n(S.draws)} draws laid out again, ${n(S.families)} families, ${n(S.emptied)} emptied${n(S.emptied) ? ` (${top(S.emptied)})` : ''}, ${n(S.again)} regions visited again where what they read changed; at most ${S.waitsMost} regions waiting.`; };
 /** The walk's lines on the board: each world's frames and GPU against 60 fps and BUDGET, its hitches, its submissions,
     and its slowest frames with their parts (D: tools/gate/device.js, which says them). */
-const walkLines = (W, D) => Object.entries(W ?? {}).map(([w, r]) => (r.notSettled ? `The walk, ${w}: not settled (${String(r.notSettled).slice(0, 160)}).`
-  : `The walk, ${w}: frames p50 ${f(r.frame?.median, 1).trim()} ms, p99 ${f(r.frame?.p99, 1).trim()} ms (60 fps: ${FRAME.toFixed(1)}); GPU p50 ${f(r.gpu?.median, 2).trim()} ms, p99 ${f(r.gpu?.p99, 2).trim()} ms (budget ${BUDGET}); ${r.frame?.hitches ?? 0} hitches over ${(2 * FRAME).toFixed(0)} ms; submissions from the page's start, ${D.submissions(r)}.${'frames' in r ? ` ${D.framesLine(r.frames, 'of the walk')}` : ''}`));
+const walkLines = (W, D) => Object.entries(W ?? {}).map(([w, r]) => (r.notSettled && !r.frame ? `The walk, ${w}: not settled (${String(r.notSettled).slice(0, 160)}); still out: ${r.held || 'nothing said'}.`
+  : `${r.notSettled ? `(Not settled at its start; still out: ${r.held || 'nothing said'}.) ` : ''}The walk, ${w}: frames p50 ${f(r.frame?.median, 1).trim()} ms, p99 ${f(r.frame?.p99, 1).trim()} ms (60 fps: ${FRAME.toFixed(1)}); GPU p50 ${f(r.gpu?.median, 2).trim()} ms, p99 ${f(r.gpu?.p99, 2).trim()} ms (budget ${BUDGET}); ${r.frame?.hitches ?? 0} hitches over ${(2 * FRAME).toFixed(0)} ms; submissions from the page's start, ${D.submissions(r)}.${'frames' in r ? ` ${D.framesLine(r.frames, 'of the walk')}` : ''}${storesLine(r.stores)}`));
 /** The hour's measure of main (ship-first: a PR merges when its CI is green, main is measured once an hour, and what
     got worse goes back as work): one run under the GPU lock taken once (tools/gpu/lock.js), at the output (OUTPUT): the
     GPU smoke (smoke), the stills and ?truth at HOURLY's views and FLIP between them, the bench twice by class and pass
@@ -780,7 +792,7 @@ async function all(opt) {
 }
 
 // ---- the command line ----
-const FLAGS = new Set(['truth', 'headed', 'fresh', 'verbose', 'no-clip', 'jpeg', 'floor', 'twice', 'ratchet', 'swaps', 'stress', 'cpu']);   // (options without a value)
+const FLAGS = new Set(['truth', 'headed', 'fresh', 'verbose', 'no-clip', 'jpeg', 'floor', 'twice', 'ratchet', 'swaps', 'stress', 'cpu', 'keep']);   // (options without a value)
 const [cmd, ...args] = process.argv.slice(2), pos = [], opt = {};
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -789,6 +801,7 @@ for (let i = 0; i < args.length; i++) {
   else opt[a.slice(2)] = args[++i];
 }
 /** fn, a measure, run in its turn on the GPU and on the machine (onMachine: not run where the machine is short of memory). */
+if (opt.keep) KEEP.on = true;   // (--keep: a start or a view that does not settle is said, and measured all the same, as the hour does)
 const measured = (what, fn) => locked(what, () => onMachine(fn));
 const WITH = { walks: (c) => measured('walks', () => walks(c)), smoke: (c) => locked('smoke', () => smoke(c, { views: opt.views ?? HOURLY.join(',') })), stills: (c) => stills(c, opt), noise: (c) => noise(c, pos[0], opt), bench: (c) => import('./gate/ceilings.js').then((C) => C.rule(() => measured('bench', () => bench(c, opt)), opt, commit())), compile: (c) => measured('compile', () => compile(c, opt)) };
 try {
