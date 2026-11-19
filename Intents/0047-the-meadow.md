@@ -76,3 +76,4 @@ pictures looked at by Samuel; the navigation self-test, `cargo run -- --navtest`
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-19 | `8eb7638` | the Meadow: sky, sun, grass, its realism pass; the navigation fixed with a self-test; the Studio over the grass |
