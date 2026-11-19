@@ -5,7 +5,7 @@
 // nothing repeats, laid over each other in their order, the higher winning at a seam; the grass's carpet among them; the
 // stands' colour far off. Its size is one, whatever the biomes and their materials.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, attribute, positionGeometry, positionWorld, varyingProperty, cameraProjectionMatrix, dFdx, dFdy, If, Loop, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, floor, exp2, log2, step } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, array, attribute, positionGeometry, positionWorld, varyingProperty, cameraProjectionMatrix, dFdx, dFdy, If, Loop, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, floor, exp2, log2, step } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { TRUTH, pxAt, dialPxAt } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
@@ -62,15 +62,15 @@ export function groundRead(tex, m, p, s, tile) {
   const hx = q.mul((2 * Math.sqrt(3)) / CELL), sk = vec2(hx.x.sub(hx.y.mul(0.57735027)), hx.y.mul(1.15470054)), base = floor(sk), f = sk.sub(base);
   const z = float(1).sub(f.x).sub(f.y), up = z.lessThan(0).select(float(1), float(0)), sg = up.mul(2).sub(1);
   const w = vec3(z.negate().mul(sg), up.sub(f.y.mul(sg)), up.sub(f.x.mul(sg))).toVar(), w2 = w.mul(w), b0 = w2.mul(w2).mul(w2).mul(w);   // (each hexagon's nearness to the 7th: a sharp blend)
-  const b = b0.div(b0.x.add(b0.y).add(b0.z)).toVar(), corners = [vec2(up, up), vec2(up, float(1).sub(up)), vec2(float(1).sub(up), up)], sum = float(0).toVar();
-  for (let i = 0; i < 3; i++) {
-    const bi = [b.x, b.y, b.z][i];
+  const b = b0.div(b0.x.add(b0.y).add(b0.z)).toVar(), corners = array([vec2(up, up), vec2(up, float(1).sub(up)), vec2(float(1).sub(up), up)]).toVar(), sum = float(0).toVar();
+  Loop(3, ({ i }) => {   // (the three hexagons in a loop: their reads written once in a shader)
+    const bi = b.element(i);
     If(bi.greaterThan(0.02), () => {   // (a hexagon all but out of the blend: not read)
-      const v = base.add(corners[i]), r = hashI(int(v.x), int(v.y), uint(91)), uv = q.add(vec2(float(r.bitAnd(uint(0xffff))), float(r.shiftRight(uint(16)))).mul(1 / 65536));
+      const v = base.add(corners.element(i)), r = hashI(int(v.x), int(v.y), uint(91)), uv = q.add(vec2(float(r.bitAnd(uint(0xffff))), float(r.shiftRight(uint(16)))).mul(1 / 65536));
       const a = tex.a(m, uv).level(lv), k = bi.mul(a.a.mul(0.6).add(0.4));   // (the higher texel weighs more: Mikkelsen's contrast, by height)
       c.addAssign(a.rgb.mul(a.rgb).mul(k)); h.addAssign(a.a.mul(k)); n.addAssign(tex.n(m, uv).level(lv).xy.mul(2).sub(1).mul(k)); sum.addAssign(k);
     });
-  }
+  });
   const inv = float(1).div(max(sum, 1e-5)); c.mulAssign(inv); h.mulAssign(inv); n.mulAssign(inv);
   return { c, h, n };
 }
@@ -126,7 +126,7 @@ export function laid(tex, p, s, D, X) {
   // let go with distance where it says (not the lowest: nothing lies under it); the slope's rock as much as the texel's
   // slope says; the grass's carpet before the first layer laid over it
   const M = { c: vec3(0.25).toVar(), h: float(0.5).toVar(), n: vec2(0).toVar(), g: float(0).toVar() }, under = float(0).toVar(), carpeted = int(0).toVar();
-  const pick = (i, key) => X.slots.slice(1).reduce((v, sl, j) => i.equal(j + 1).select(sl[key], v), X.slots[0][key]);
+  const SID = array(X.slots.map((sl) => sl.id)).toVar(), SW = array(X.slots.map((sl) => sl.w)).toVar(), pick = (i, key) => (key === 'id' ? SID : SW).element(i);   // (the slots as arrays: a slot read by its index)
   Loop(X.slots.length, ({ i }) => {
     const id = pick(i, 'id'), sw = pick(i, 'w');
     If(id.greaterThanEqual(CARPET).and(carpeted.equal(0)), () => { grass(M); carpeted.assign(1); });

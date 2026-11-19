@@ -322,14 +322,14 @@ export function layersFrom(load, f, ny) {
     const bw = tx.equal(1).select(f.x, float(1).sub(f.x)).mul(tz.equal(1).select(f.y, float(1).sub(f.y))).toVar();
     If(bw.greaterThan(0), () => {
       const P = load(i), L = P.L.toVar(), M = P.M.toVar();
-      for (let j = 0; j < 4; j++) {
-        const id = int(L.x.shiftRight(uint(8 * j)).bitAnd(uint(255))), w = un(L.y, j).mul(bw);
+      Loop(4, ({ i: j }) => {   // (a point's four layers in a loop: the merge written once, not once a layer)
+        const id = int(L.x.shiftRight(uint(j).mul(uint(8))).bitAnd(uint(255))), w = un(L.y, j).mul(bw);
         If(w.greaterThan(0.25 / 255), () => {
           const hit = ids.map((s) => s.equal(id).toVar()), fresh = hit.reduce((a, h) => a.or(h)).not().toVar();   // (held: the slots change as they are assigned)
           ids.forEach((s, m) => { const put = fresh.and(filled.equal(m)); ws[m].assign(put.select(w, ws[m].add(hit[m].select(w, float(0))))); s.assign(put.select(id, s)); });
           filled.assign(fresh.and(filled.lessThan(4)).select(filled.add(1), filled));
         });
-      }
+      });
       cv.addAssign(vec3(un(L.z, 0), un(L.z, 1), un(L.z, 2)).mul(bw)); macro.addAssign(un(L.z, 3).sub(0.5).mul(bw));
       const sq = (k2) => un(M, k2).mul(un(M, k2)); tint.addAssign(vec3(sq(0), sq(1), sq(2)).mul(bw));
       for (let j = 0; j < 2; j++) {
