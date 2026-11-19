@@ -85,7 +85,7 @@ import { pxOf, turnOf, seedOf } from './row.js';
 import { createCut, cutThings, clusterOf, levelHead, allowedAt, eased, ruleOf } from './cut.js';
 import { MARGIN } from './regions.js';
 import { camDist } from '../world/land.nodes.js';
-import { surfaceBand, BAND, GONE, dialPx } from '../detail/error.js';
+import { surfaceBand, BAND, GONE, dialPx, ERROR_PX } from '../detail/error.js';
 import { castsInto } from '../world/shadow.js';
 
 /** How far the mesh drawn has come since it could first be drawn (userData.arrived, 0 … 1; none, all of it): src/core/screen.js. */
@@ -146,6 +146,22 @@ const skinsOf = (renderer, solid, most, share = 1) => Math.round(Math.min(solid 
 /** A mesh's bytes in the heap at a room's most (corners 4 bytes, vertices 16: heap.js), never under one: what a frame
     puts in at the least (arrive, below). */
 const bytesAt = (r) => Math.max(1, (r?.tris ?? 0) * 3 * 4 + (r?.verts ?? 0) * 16);
+/** A heap of asks for a drawer's look (feed: nearest and coarsest first), kept in order as they come: each its id (a
+    kind's level, k L + l) and its key (the level, then its size on screen: l 1e12 + px), n ids at the most. ask(id, key)
+    puts one in, or raises its key where it is asked again larger; top() and pop() the first; clear(). Typed arrays
+    made once: nothing a look. (2026-11-19: a look of the stress stand sorted 4,100 asks, 1.5 ms) */
+function askHeap(n) {
+  const ids = new Int32Array(n), key = new Float64Array(n), at = new Int32Array(n).fill(-1); let size = 0;
+  const up = (i) => { const id = ids[i], k = key[id]; while (i > 0) { const p = (i - 1) >> 1; if (key[ids[p]] >= k) break; ids[i] = ids[p]; at[ids[i]] = i; i = p; } ids[i] = id; at[id] = i; };
+  const down = (i) => { const id = ids[i], k = key[id]; for (;;) { let c = 2 * i + 1; if (c >= size) break; if (c + 1 < size && key[ids[c + 1]] > key[ids[c]]) c++; if (key[ids[c]] <= k) break; ids[i] = ids[c]; at[ids[i]] = i; i = c; } ids[i] = id; at[id] = i; };
+  return {
+    get size() { return size; },
+    ask(id, k) { if (at[id] >= 0) { if (k > key[id]) { key[id] = k; up(at[id]); } return; } key[id] = k; ids[size] = id; at[id] = size; up(size++); },
+    top: () => ids[0],
+    pop() { const id = ids[0]; at[id] = -1; if (--size > 0) { ids[0] = ids[size]; at[ids[0]] = 0; down(0); } return id; },
+    clear() { for (let i = 0; i < size; i++) at[ids[i]] = -1; size = 0; },
+  };
+}
 export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHADE, SMOOTH, ghost: GHOST = GHOSTING, corners: CORNERS = false, skins: SKINSMAX = 1024, skinShare: SKINSHARE, ground: GROUND = false, soft: SOFT = false, relief: RELIEF = 90, full: FULLMOST = 0, make: MAKE = null, state: STATE = false, thin: THIN = null, still: STILL = false, bands: BANDSOF, table: TABLE, zoo: { first = 0, kinds: KINDS = null, ALL, STAND = ALL, MOVING = 0, lookOfKind, fingerprint } }) {
   // MAKE: another make of vertex than the solids' ({ per: elements a vertex, flat: its meshes' corners are their
   // vertices in order (none shared: drawn by class, no corner is looked up), material(src, level, shadow, at): its
@@ -523,24 +539,26 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   const skinAt = new Int32Array(ALL);   // the round a kind's own texture was last wanted in
   const wantAt = new Int32Array(ALL * L);   // wantAt: the round a kind's level was last wanted in; speed: the camera's, metres a second
   const pending = new Set(); let round = 1;   // round: each look at what stands near; a level wanted in the last one is not put out
-  const askedAt = new Int32Array(ALL * L), askOf = new Int32Array(ALL * L), skinAskedAt = new Int32Array(ALL), skinOf = new Int32Array(ALL);   // (a look's ask of a kind's level, and of its texture: one each, at the largest it is asked at)
+  const skinAskedAt = new Int32Array(ALL), skinOf = new Int32Array(ALL), farAt = new Int32Array(ALL);   // (a look's ask of a kind's level, and of its texture: one each, at the largest it is asked at)
   // (of a drawer of bands: which of a kind's bands are short, coarser than a pixel (not in yet, or cut down to its room);
   // the kinds a look found short (what draws them now is not the band they ask, or is short); what is asked in the
   // background, the farthest band of every kind (later: not what the world complete waits on))
   const SHORT = new Uint8Array(BANDS ? ALL * L : 0).fill(1), nearShort = new Set(), later = new Set(); let laterAt = 0;
   const looked = new Set();   // (the kinds the last look asked for)
   const tellShort = () => { if (!BANDS) return; let n = nearShort.size; for (let k = 0; k < ALL; k++) if (!looked.has(k) && SHORT[k * L + L - 1]) n++; short(name, n); };
-  // what is asked of the workers: a few at a time, the next as one comes back; of a level no more than it has room for
-  let queue = []; const asked = new Int32Array(L);
+  // what is asked of the workers: a few at a time, the next as one comes back; of a level no more than it has room for.
+  // The asks kept in their order as they come (askHeap: nearest and coarsest first), a look's own while it looks, the
+  // queue the workers are fed from once it is done
+  let queue = askHeap(ALL * L), looking = askHeap(ALL * L); const asked = new Int32Array(L);
   const feed = () => {
     if (!H.laid) return;   // (a heap laid out later: nothing can be put in yet)
     const rooms = new Int32Array(L).fill(-1), roomOf = (l) => (rooms[l] < 0 ? (rooms[l] = H.room(l, round)) : rooms[l]);   // (how many a level can take in: counted once a feed, not for every one asked)
-    while (busy < 6 && queue.length) {
+    while (busy < 6 && queue.size) {
       const batch = [];   // (the small levels a dozen a message, the large ones one)
-      while (queue.length && batch.length < (batch.length && batch[0].l >= 3 ? 12 : 1)) {
-        const q = queue[0], id = q.k * L + q.l; if (batch.length && (q.l < 3 || BANDS)) break;
-        queue.shift(); if (pending.has(id) || H.has(q.k, q.l) || roomOf(q.l) <= asked[q.l]) continue;
-        pending.add(id); asked[q.l]++; batch.push(q);
+      while (queue.size && batch.length < (batch.length && batch[0].l >= 3 ? 12 : 1)) {
+        const id = queue.top(), k = Math.floor(id / L), l = id - k * L; if (batch.length && (l < 3 || BANDS)) break;
+        queue.pop(); if (pending.has(id) || H.has(k, l) || roomOf(l) <= asked[l]) continue;
+        pending.add(id); asked[l]++; batch.push({ k, l });
       }
       if (!batch.length) continue;
       busy++;
@@ -558,7 +576,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   let laterBusy = 0;
   const feedLater = () => {
     const l = L - 1, p = H.pools[l];
-    for (let tries = 0; BANDS && laterBusy < 1 && busy === 0 && !queue.length && p.n - p.held - asked[l] > 0 && tries < ALL; tries++, laterAt = (laterAt + 1) % ALL) {
+    for (let tries = 0; BANDS && laterBusy < 1 && busy === 0 && !queue.size && p.n - p.held - asked[l] > 0 && tries < ALL; tries++, laterAt = (laterAt + 1) % ALL) {
       const id = laterAt * L + l; if (H.has(laterAt, l) || pending.has(id)) continue;
       later.add(id); pending.add(id); asked[l]++; laterBusy++; askBands({ k: laterAt, l, later: true }); return;
     }
@@ -646,7 +664,10 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // made); a size on screen is the measure's (src/detail/measure.js)
   const near = (inv, ahead) => {
     round++;
-    const asks = [], want = [], lo = LEVELS[STREAMED - 1].px; nearShort.clear(); looked.clear();
+    const want = [], lo = LEVELS[STREAMED - 1].px; nearShort.clear(); looked.clear(); looking.clear();
+    // (the farthest a thing one metre large is anything to this look: one of its levels asked, in dial pixels, or its
+    // texture, in pixels drawn; a hair more, so that what lies on the edge is wants', which says it to the number)
+    const KANY = ((1.2 * U.uPxK.value) / (inv * Math.min(lo * ERROR_PX(), SKINS ? SKINPX : Infinity))) * (1 + 1e-9);   // (as wants reckons it: pxOn, dialPx)
     // a thing s metres large, d metres off: its size on screen now, and as it will be when a mesh asked for now has come
     // (`ahead`: the camera travelling, and the thing itself: a fine level that will have been passed by then is not asked for)
     const wants = (k, s, d, own) => {
@@ -659,8 +680,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
         if (H.has(k, l)) { H.touch(k, l, round); wantAt[k * L + l] = round; }
         else if (then > LEVELS[l].px) {
           const id = k * L + l; wantAt[id] = round;
-          if (pending.has(id)) continue;
-          if (askedAt[id] !== round) { askedAt[id] = round; askOf[id] = asks.length; asks.push({ k, l, px }); } else if (px > asks[askOf[id]].px) asks[askOf[id]].px = px;   // (each kind's level asked once a look, as large as the nearest of it)
+          if (!pending.has(id)) looking.ask(id, l * 1e12 + px);   // (each kind's level asked once a look, as large as the nearest of it, in its order as it comes)
         }
       }
       if (!BANDS) return;
@@ -670,14 +690,25 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       let e = w; while (e < L && !H.has(k, e)) e++;
       if (e !== w || SHORT[k * L + e]) nearShort.add(k);
     };
+    // a thing of kind k too far for wants to do anything (reachAny): what wants does of it all the same, a drawer of
+    // bands' account of it, as one asked for nothing (w its least: what draws it is short where it is not the band
+    // there, or is short); the same for every such thing of a kind, so said once a look
+    const far = (k) => {
+      if (!BANDS || farAt[k] === round) return;
+      farAt[k] = round; looked.add(k);
+      let e = STREAMED; while (e < L && !H.has(k, e)) e++;
+      if (e !== STREAMED || SHORT[k * L + e]) nearShort.add(k);
+    };
     return {
       /** How far off a thing of that size is still asked for. */
       reach: (s) => farFor(lo, s * 1.2) / inv,
-      wants,
+      /** How far off a thing of that size is anything to wants (its levels, or its texture): beyond it, far's. */
+      reachAny: (s) => s * KANY,
+      wants, far,
       /** Nothing is near enough: nothing asked. */
-      none() { queue = []; },
-      /** All that is near has been said: ask, nearest and coarsest first. */
-      done() { queue = asks.sort((p, q) => q.l - p.l || q.px - p.px); feed(); tellShort(); skinAsks.length = 0; for (const [, k] of want.sort((a, b) => b[0] - a[0])) skinAsks.push(k); skinFeed(); },
+      none() { queue.clear(); },
+      /** All that is near has been said: ask, nearest and coarsest first (kept so as it was said: looking). */
+      done() { const was = queue; queue = looking; looking = was; looking.clear(); feed(); tellShort(); skinAsks.length = 0; for (const [, k] of want.sort((a, b) => b[0] - a[0])) skinAsks.push(k); skinFeed(); },
     };
   };
   // ---- a tier: level i of the kinds a placer places (tier.js). What stands in a cell, of which kind and how large,
@@ -992,7 +1023,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // at once instead
   const waiting = (held = false) => {
     if (!H.laid) return 0;   // (a heap laid out later: nothing of it is out till it is)
-    let n = (coarse < ALL ? ALL - Math.max(0, coarse) : 0) + pending.size - later.size + queue.length + done.length + skinAsks.length + skinPending.size + skinDone.length + bonesOut;
+    let n = (coarse < ALL ? ALL - Math.max(0, coarse) : 0) + pending.size - later.size + queue.size + done.length + skinAsks.length + skinPending.size + skinDone.length + bonesOut;
     if (SOLID && U.uTime.value - grewAt < GROW) { if (held) { H.ripen(U.uTime.value - GROW); grewAt = -1e9; } else n++; }
     return n;
   };
