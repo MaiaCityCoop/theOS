@@ -5,7 +5,7 @@
 // nothing repeats, laid over each other in their order, the higher winning at a seam; the grass's carpet among them; the
 // stands' colour far off. Its size is one, whatever the biomes and their materials.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, array, attribute, positionGeometry, positionWorld, varyingProperty, cameraProjectionMatrix, dFdx, dFdy, If, Loop, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, floor, exp2, log2, step } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, array, attribute, positionGeometry, positionWorld, varyingProperty, cameraProjectionMatrix, cameraWorldMatrix, If, Loop, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, floor, exp2, log2, step } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { DIAL_ASKED, pxAt, dialPxAt } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
@@ -20,15 +20,15 @@ import { reliefShares, reliefOverSnow } from './relief.js';
 import { SOIL_RELIEF } from '../world/physics.js';
 
 export const GRID = 16, NODE = 8;   // quads per node side; a level-0 node's side, metres (its reach is the measure's: U.uLandR0, src/terrain/terrain.js)
-/** How many times as far every level of the land reaches but the last (whose reach is where the land ends): one over the
-    dial the address asks for, each quad as much smaller on the screen as the dial is (src/detail/measure.js DIAL_ASKED):
-    the game's 1, ?truth's 4 (its finest everywhere is past any GPU). */
-export const FINE = 1 / DIAL_ASKED;
+/** How many times as far every level of the land reaches but the last, as the shader multiplies it: 1. What it reaches
+    farther by (one over the land's own dial: the page's, or held to its list's room, src/terrain/terrain.js) is in
+    U.uLandR0's value, so no dial, of 0 or any, is ever a number in a shader. */
+const FINE = float(1);
 /** The parallax's steps down the eye's ray (pages.js read, relief.js reliefShares): as many as keep a step of it within a
     dial pixel where the relief's geometry lets go, half its first level's reach (src/terrain/terrain.js): there the
     soil's relief (src/world/physics.js) covers SOIL_RELIEF GRID / (NODE FINE) over the steepest of the land's octaves
     (A / λ: what level 0's reach is made from) dial pixels, whatever the measure (it is in both). */
-export const PSTEPS = Math.ceil((SOIL_RELIEF * GRID) / (NODE * FINE * Math.max(...OCT_AMP.map((A, i) => A / OCT_LAM[i]))));
+export const PSTEPS = Math.max(1, Math.ceil((SOIL_RELIEF * GRID * DIAL_ASKED) / (NODE * Math.max(...OCT_AMP.map((A, i) => A / OCT_LAM[i])))));   // (at the page's least dial, the land's levels as far as one over it: one at the least, at a dial of 0)
 
 /** The finest step the land's normal is worked out over: an eighth of its finest octave (what resolves that octave's
     slope; tools/slopecheck.js) */
@@ -192,7 +192,7 @@ export function terrainMaterial(vt) {
   // ---- vertex: the land's height and normal, the river here; near the eye raised by the ground's own height ----
   // one Fn, every value worked out once into a variable and handed on by name: an expression used twice would otherwise be
   // written out twice, the river three times over at every use, which a browser's shader compiler need not fold back
-  const vWorld = varyingProperty('vec3', 'tWorld'), vI = varyingProperty('vec4', 'tI'), vN = varyingProperty('vec3', 'tN'), vHill = varyingProperty('float', 'tHill'), vRel = varyingProperty('float', 'tRel');
+  const vWorld = varyingProperty('vec3', 'tWorld'), vI = varyingProperty('vec4', 'tI'), vN = varyingProperty('vec3', 'tN'), vHill = varyingProperty('float', 'tHill');
   // (the prepass works out all of it: the land is lit where its pixels are, from what its prepass wrote: below)
   const vertex = Fn(() => {
     const P = gridOf(), wp = P.wp.toVar(), L = landPoint(wp, true), dist = camDist(wp).toVar();
@@ -213,28 +213,33 @@ export function terrainMaterial(vt) {
       const sp = P.cell.mul(P.k.add(1)), G = vt.read(wp, vec2(sp, 0), vec2(0, sp), dist, { lod: true });
       raise.addAssign(G.cv.mul(U.uMeadowTop).mul(past));
     });
-    vRel.assign(share);
     const h = L.h.add(raise).toVar();
-    vWorld.assign(vec3(wp.x, h, wp.y)); vI.assign(L.I); vN.assign(L.N); vHill.assign(L.hill);   // (vWorld without the snow's depth: the light and the air do not need it; vN the smooth land's, what the pages' asks go by where it is raised)
+    vWorld.assign(vec3(wp.x, h, wp.y)); vI.assign(L.I); vN.assign(L.N); vHill.assign(L.hill);   // (vWorld without the snow's depth: the light and the air do not need it; vN the smooth land's, what the pages' levels go by: steps, below)
     // the snow lifts the ground it lies on: what stands on the land sinks into it as deep
     return vec3(wp.x, h.add(snowLiftAt(wp, L.I, L.d)), wp.y);
   });
 
   // ---- fragment: the page's texel, lit ----
-  // (the picture is built over time, src/core/temporal.js: the ground read as finely as the screen's own pixels would)
-  const steps = (p) => [dFdx(p).mul(U.uFine), dFdy(p).mul(U.uFine)];
-  // (where it is raised, the level of the pages a pixel asks for and reads goes by the land's smooth surface under it, not by
-  // the relief's own bumps: across a stone the steps between pixels change many times over, and with the picture's
-  // jitter from frame to frame, so pages would be asked for one by one for as long as the camera stood. Its steps
-  // there: across the eye's ray a pixel's angle, along the slope that over how squarely the ray meets it)
-  const smooth = (P) => { const d = length(P.sub(U.uCam)), across = d.mul(2).div(cameraProjectionMatrix.element(1).element(1).mul(U.uIn.y)).mul(U.uFine); return [vec2(across, 0), vec2(0, across.div(abs(normalize(P.sub(U.uCam)).dot(vN)).max(0.02)))]; };
+  // the steps between a pixel's point P on the land and its neighbours' (in x, z: the pages' own; the picture is built
+  // over time, src/core/temporal.js: as finely as the screen's own pixels would read it), on the land's smooth surface
+  // there: where the neighbouring pixels' rays meet the plane through P square to vN, the land's normal at the vertices
+  // (shared by the triangles round each, so the same either side of a triangle's edge). Not the screen's derivatives of
+  // the triangle's points: those are its facet's, a plane a triangle, so the level of the pages a pixel reads jumped at
+  // every edge where the facets turn (on a slope, stripes along its triangles where the levels lay the ground otherwise:
+  // what is let go with distance), and near the eye, where it is raised, with every stone of the relief (and with the
+  // picture's jitter frame by frame). Along the ray a metre ahead (d), each neighbour's ray one pixel's angle to the side
+  // (the lens's: its projection), held off the grazing (a fiftieth of the ray)
+  const steps = (P) => {
+    const C = cameraWorldMatrix, v = P.sub(U.uCam), z = v.dot(C.element(2).xyz.negate()).max(1e-4).toVar(), d = v.div(z).toVar(), n = normalize(vN).toVar();
+    const nd = n.dot(d), k = nd.greaterThanEqual(0).select(float(1), float(-1)).mul(abs(nd).max(length(d).mul(0.02))).toVar();
+    const on = (e) => e.sub(d.mul(n.dot(e).div(k))).mul(z).xz.mul(U.uFine);
+    return [on(C.element(0).xyz.mul(float(2).div(cameraProjectionMatrix.element(0).element(0).mul(U.uIn.x)))), on(C.element(1).xyz.mul(float(2).div(cameraProjectionMatrix.element(1).element(1).mul(U.uIn.y))))];
+  };
   const frag = Fn((builder) => {
-    // (where it is raised, by the smooth land's steps, as much as it is raised: by its share)
-    const by = (P, [sx, sy]) => { const [mx, my] = smooth(P); return [mix(sx, mx, vRel), mix(sy, my, vRel)]; };
-    const p = vWorld.xz, [dx, dy] = steps(p);
+    const p = vWorld.xz, [dx, dy] = steps(vWorld);
     const rdist = length(vWorld.sub(U.uCam)), dist2 = rdist.mul(U.uLodInv);   // the true distance (for the air), and the lens's (for detail)
     const d = abs(vI.x), w = vI.y;
-    const G = vt.read(p, dx, dy, rdist, { eye: normalize(U.uCam.sub(vWorld)), level: by(vWorld, [dx, dy]) });   // (along the eye's ray through the ground's relief: parallax)
+    const G = vt.read(p, dx, dy, rdist, { eye: normalize(U.uCam.sub(vWorld)) });   // (along the eye's ray through the ground's relief: parallax)
     // where the meadow's blades stand, what shows between them is their lower halves, as dark to their tips as a blade
     // is (src/scatter/grass.js underShade), drawn over it; as they thin out towards its end, what those left out would
     // have shown comes out of it (the share the drawn stand for at the pixel's distance: standsFor; of the rest, what a
@@ -272,7 +277,7 @@ export function terrainMaterial(vt) {
     // (src/terrain/pages.js ask)
     if (passOf(builder) === 'pre') {
       gWrite({ family: FAMILY.land, part: 0, colour, n, w: vWorld, glint, own: [carpet, seen.t, shade] });
-      const [ax, ay] = by(positionWorld, steps(positionWorld.xz));
+      const [ax, ay] = steps(positionWorld);
       return vec4(motion(positionWorld).xyz, vt.asks(ax, ay));
     }
     return landLight({ colour, n, w: vWorld, V, glint, carpet, up: seen.t, shade });   // (drawn with no prepass: a picture of its own)

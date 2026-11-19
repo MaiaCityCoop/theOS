@@ -476,9 +476,11 @@ export function tree(recipe) {
     /** The room each shape's levels need in the heap, [shape][level] [verts, tris] (assets/kit/crowd.js budgetOf),
         reckoned from its finest without building the crowd, and kept with its outline with each shape's far end (farOf),
         for the atlases' numbers A it was reckoned by (src/detail/impostor.js atlases: another A, another reckoning). Its
-        own levels' (bandsOf): a stand that cuts them as one takes the room at each of its levels' tops from here */
+        own levels' (bandsOf): a stand that cuts them as one takes the room at each of its levels' tops from here. The
+        build's, where it reckoned them for these atlases (its outline's `atlases`, by their key: tools/outlines.js) */
     crowdRooms(A) {
-      const o = measured(), key = far ? A.key : '';
+      const o = measured(), key = far ? A.key : '', built = o.atlases?.[key];
+      if ((!o.rooms || o.atlas !== key) && built) Object.assign(o, { rooms: built.rooms, far: built.far, atlas: key });
       if (!o.rooms || o.atlas !== key) {
         const his = bandsOf(out).map(([, hi], l) => (l ? hi : Infinity)), B = shapes.map((s, i) => budgetOf(finest(i), { size: shapeSize(out, i), grid: onGrid, far, ...(far ? A : {}) }, his));   // (grid: its chunks split where the GPU reads its tips, as its crowd does in the workers: plant.js)
         o.rooms = B.map((b) => b.map((r) => [r.verts, r.tris])); o.far = B.map((b) => ({ chunks: b.chunks, data: b.far ? Array.from(b.far) : null })); o.atlas = key;
@@ -491,7 +493,7 @@ export function tree(recipe) {
     farOf: (A) => (out.crowdRooms(A), measured().far),
     /** Whether its rooms are known for the atlases' numbers A (kept from an earlier start, or taken), without measuring
         anything. */
-    roomsKnown: (A) => { const o = outline ?? OUTLINES.kept.get(id); return !!(o?.rooms && o.atlas === (far ? A.key : '')); },
+    roomsKnown: (A) => { const o = outline ?? OUTLINES.kept.get(id), key = far ? A.key : ''; return !!((o?.rooms && o.atlas === key) || o?.atlases?.[key]); },
     /** Its outline measured and its rooms and far ends reckoned for A (crowdRooms, farOf): what the recipes' workers
         reckon of it at a start that has nothing of it kept (src/scatter/trees.js outlinesAhead). */
     outlineFor: (A) => (out.crowdRooms(A), measured()),

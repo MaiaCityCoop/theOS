@@ -53,7 +53,8 @@ import { recipe, recipes, versionOf } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
 import { kindOf, sizeOf, most } from '../../assets/kinds.js';
 import { levelOf, levelOfMesh, handOver, sinkInto } from '../detail/handover.js';
-import { createAtlas, bakers, viewClip, tileClip, impostorRead, clumpRead, facingOf, facingEnc, planeFrame, litIn, atlases, pictureOf } from '../detail/impostor.js';
+import { createAtlas, bakers, viewClip, tileClip, impostorRead, clumpRead, facingOf, facingEnc, planeFrame, litIn, atlases, atlasesAt, ATLAS_SHARES, pictureOf } from '../detail/impostor.js';
+import { shippedRooms } from '../core/outlines.js';
 import { levelsUnder, PICTURES } from '../detail/atlas.js';
 import { offScreen, clipOf, Tier } from './tier.js';
 import { createDrawer, pool } from './drawer.js';
@@ -75,6 +76,7 @@ import { farMost, pxKMost, measureVersion, dialPxAt } from '../detail/measure.js
 import { BAND, FADE } from '../detail/error.js';
 import { source, shown } from '../core/settle.js';
 import { gpuStorageLater } from '../core/gpu.js';
+import { made, pending } from '../core/compile.js';
 import { keptGet, keptPut } from '../core/kept.js';
 import { shows } from '../detail/seen.js';
 
@@ -609,7 +611,25 @@ const BAKED = 6;   // the bake's own version, in what the browser keeps of it (f
 function farOf(renderer, tex, G, D) {
   const A = atlases(), n = G.meshes, views = createAtlas(renderer, { name: `plants, ${G.name}: impostors`, side: A.VIEWS * A.STORED, layers: n, cell: A.STORED, views: A.VIEWS });   // (from the level read where an impostor comes in: atlasesOf STORED)
   let clumps = null; const clumpsOf = () => (clumps ||= createAtlas(renderer, { name: `plants, ${G.name}: clumps`, side: G.tiles * A.TILE, layers: G.clumpy, cell: A.TILE }));   // (a stand none of whose shapes has clumps: one tile, which nothing reads)
-  const queue = [], queued = new Uint8Array(n), waiting = new Map(); let version = 0, any = false, M = null, out = 0, swept = false;
+  const queue = [], queued = new Uint8Array(n), waiting = new Map(), left = new Set(); let version = 0, any = false, M = null, swept = false;   // (left: the shapes queued and not in yet, kept or baked)
+  // Which shapes' far ends the view wants (2026-11-19, the master: the start waited for every shape's bake, 29 of them
+  // over some 45 s on a phone's one worker): those of which its far tiers found things in their band (their draws a
+  // kind each; a shape not baked yet stands there as its mesh, never nothing), as their packing's counts say it, read
+  // back here, one read at a time (look: the counts alone, a few hundred bytes; no pass binds anything more for it, a
+  // compute stage holding no more than 8 storage buffers). Only those are baked, and only those the world waits for; the
+  // rest as the view comes to want them. Where nothing packs on the GPU (WebGL), every shape, as before.
+  const gpu = !!renderer.backend?.isWebGPUBackend, asked = new Uint8Array(n);
+  let reading = null, readN = -1;   // (readN: how many of its tiers were made when the last read that came back was asked)
+  const madeN = () => (G.drawn ?? []).filter((t) => t.passes && made(t.passes, 'run')).length;
+  const look = () => {
+    if (!gpu || reading) return;
+    const m = madeN(), far = (G.drawn ?? []).filter((t) => t.farEnd && t.passes && made(t.passes, 'run'));
+    reading = Promise.all(far.map((t) => t.found(renderer))).then((all) => { for (const f of all) for (let k = 0; k < Math.min(n, f.length); k++) if (f[k]) asked[k] = 1; readN = m; }, () => {}).finally(() => { reading = null; });
+  };
+  // (unsure: a tier of it still being made, or one made since the last read was asked: what it wants not known yet)
+  const unsure = () => gpu && ((G.drawn ?? []).some((t) => t.passes && pending(t.passes, 'run')) || madeN() !== readN);
+  const due = (k) => !gpu || asked[k];
+  const queuedAs = (k) => { queued[k] = 1; left.add(k); };
   // the levels a shape's pictures are drawn from (far: its far data, assets/kit/crowd.js): the measure's at each
   // picture's own size, the plant's size in it in dial pixels (a view: CELL texels over its sphere; a chunk's plane:
   // TILE texels over its chunk's longest side, the shortest of its chunks), never a level wholly under where its
@@ -653,7 +673,7 @@ function farOf(renderer, tex, G, D) {
     let side = Infinity; for (let c = 0; c < far[0]; c++) { const b = 8 + c * 12 + 6; side = Math.min(side, Math.max(far[b + 3] - far[b], far[b + 4] - far[b + 1], far[b + 5] - far[b + 2])); }
     return { views: at((size * A.CELL) / (2 * far[4])), tiles: far[0] > 0 ? at((size * A.TILE) / side) : 0 };
   };
-  source(`plants, ${G.name}: far ends`, () => out);   // (the world is not complete while a shape's far end is still being baked: src/core/settle.js)
+  source(`plants, ${G.name}: far ends`, () => (unsure() ? 1 : 0) + [...left].filter(due).length);   // (the world is not complete while a far end the view wants is still being baked: src/core/settle.js)
   // what bakes a shape (made at the first: they read the heap): its finest level's vertices as they lie there, each
   // view (instances: a row's) or each chunk's plane (instances: a row's tiles) drawing it, its leaves and its bark as
   // near (a leaf's cut-out read at its finest: SS x SS samples a texel say how much of it is covered)
@@ -739,7 +759,7 @@ function farOf(renderer, tex, G, D) {
   const OF = (k) => (outlineFar[k] ? Float32Array.from(outlineFar[k]) : null);
   // (a shape's job from its outline's far data at whichever of its levels comes first (the workers reckon it:
   // outlinesAhead), so a shape no plant has come near is baked too; else from its finest level's, as it comes: onBlock)
-  const fromOutline = (k) => { const far = OF(k); if (queued[k] || !far) return; const J = { k, far, c0: null, t0: null, of: null, at: levelsOf(far), corners: { views: null }, tiles: null }; queued[k] = 1; out++; waiting.set(k, J); kept(J); };
+  const fromOutline = (k) => { const far = OF(k); if (queued[k] || !far) return; const J = { k, far, c0: null, t0: null, of: null, at: levelsOf(far), corners: { views: null }, tiles: null }; queuedAs(k); waiting.set(k, J); kept(J); };
   // (what a block of one of its levels brings a shape's job: the corners its pictures are drawn from, its cards in their
   // chunks, found from the block itself: a coarser level's cards are a first share of the finest's, the same chunks)
   const capture = (J, b, j, idx, elems, cornersOf) => {
@@ -752,7 +772,7 @@ function farOf(renderer, tex, G, D) {
   const kept = (J) => keptGet(keptAs(), keyOf(J.k)).then((rec) => {
     if (!rec) return queue.push(J);
     waiting.delete(J.k); views.put(J.k, rec.views); if (rec.clumps && G.clumpLayer[J.k] >= 0) clumpsOf().put(G.clumpLayer[J.k], rec.clumps);
-    numbers(J.k, J.far); seenIn(J.k, rec.views); out--;
+    numbers(J.k, J.far); seenIn(J.k, rec.views); left.delete(J.k);
   }, () => queue.push(J));
   const job = async ({ k, at, corners, tiles, far }) => {
     const key = keyOf(k), B = materials(); B.levelU.value = at.views; B.geo.setIndex(new THREE.BufferAttribute(corners.views, 1)); B.kindU.value = k; B.sphereU.value.set(far[1], far[2], far[3], far[4]);
@@ -786,7 +806,7 @@ function farOf(renderer, tex, G, D) {
         const o = j * elems * 4, at = unhalf(b.verts[o + 7] & 0xffff) * 1024 + unhalf(b.verts[o + 7] >>> 16); if (!(at > 0)) continue;
         const head = new Float32Array(b.verts.buffer, b.verts.byteOffset + (o + at * 8) * 4, 8), far = new Float32Array(b.verts.buffer, b.verts.byteOffset + (o + at * 8) * 4, 8 + head[0] * 12).slice();
         const c0 = cornersOf(), L = levelsOf(far), of = far[0] > 0 ? chunksOfCards(b, j, idx, elems, far) : null, t0 = of && chunkOrder(b, j, idx, elems, of, far[0]);
-        const J0 = { k, far, c0, t0, of, at: L, corners: { views: L.views ? null : c0 }, tiles: of && !L.tiles ? t0 : null }; queued[k] = 1; out++; waiting.set(k, J0); kept(J0);
+        const J0 = { k, far, c0, t0, of, at: L, corners: { views: L.views ? null : c0 }, tiles: of && !L.tiles ? t0 : null }; queuedAs(k); waiting.set(k, J0); kept(J0);
       }
     },
     /** Each frame: the next shape baked, once the levels its pictures are drawn from are in the heap and no other stand's
@@ -802,16 +822,17 @@ function farOf(renderer, tex, G, D) {
           numbers(k, Float32Array.from(rec.far)); seenIn(k, rec.views);
         }, () => {});
       }
+      look();   // (which of them the view wants now)
       if (BAKING || !queue.length) return;
       const H = D().H, ready = (J) => {
         if (!J.corners.views && J.c0 && H.has(J.k, J.at.views)) { J.at.views = 0; J.corners.views = J.c0; }
         if (J.far[0] > 0 && !J.tiles && J.t0 && H.has(J.k, J.at.tiles)) { J.at.tiles = 0; J.tiles = J.t0; }
         return !!J.corners.views && H.has(J.k, J.at.views) && (!(J.far[0] > 0) || (!!J.tiles && H.has(J.k, J.at.tiles)));
       };
-      const i = queue.findIndex(ready); if (i < 0) return;
+      const i = queue.findIndex((J) => due(J.k) && ready(J)); if (i < 0) return;
       const J = queue.splice(i, 1)[0];
       BAKING = true; waiting.delete(J.k); const fail = (e) => console.warn(`plants: ${G.name}: the far end of shape ${J.k} could not be baked`, e);
-      job(J).then(({ done }) => { BAKING = false; done.catch(fail).finally(() => out--); }, (e) => { BAKING = false; fail(e); out--; });
+      job(J).then(({ done }) => { BAKING = false; done.catch(fail).finally(() => left.delete(J.k)); }, (e) => { BAKING = false; fail(e); left.delete(J.k); });
     },
   };
 }
@@ -864,6 +885,10 @@ const patchOf = (cell, reach) => Math.min(256, Math.max(4, 2 ** Math.ceil(Math.l
 export function outlinesAhead(world = true) {
   const A = world ? atlases() : null, kinds = world ? recipes('asset').filter((a) => a.outlineFor && !a.roomsKnown(A)) : [];
   if (!kinds.length) return Promise.resolve();
+  // (the build reckons every tree kind's rooms for each class's atlases, tools/outlines.js: one it has not is a recipe
+  // changed since the build, or atlases no class of device has, and its start reckons them in the workers, 0.4 GB a
+  // worker: said loudly, never measured in silence. Safari reloaded the page for it, 2026-11-19)
+  (import.meta.env?.PROD ? console.error : console.warn)(`plants: the build's outlines.json has no rooms of ${kinds.length} tree kind${kinds.length > 1 ? 's' : ''} for this device's atlases (${A.key}): ${kinds.map((a) => `${a.name} (${shippedRooms(a, atlasesAt(ATLAS_SHARES.at(-1))) ? 'baked for other atlases' : 'not baked: changed since the build'})`).join(', ')}: reckoned now in the recipes' workers`);
   const ask = pool(), plain = { ...A };
   return Promise.all(kinds.map((a) => ask([['outline', a.uid, plain]]).then(([o]) => a.takeOutline(A, o), (e) => console.warn(`plants: the workers could not reckon '${a.name}': reckoned here`, e))));
 }
@@ -980,7 +1005,7 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
         table: shadow ? null : () => { seen.r.value = round + (L.cell * P) / 16 + 2; },   // (the cells are worked out again every sixteenth of a patch)
         extra: shadow ? { cull: SH.reach, fixed: SH.far * SH.wide } : {},   // (the stand-in in small patches: those whose shade cannot reach the view are dropped)
       });
-      t.viewKeyed = !shadow; t.asset = G.name; t.drawer = D; tiers.push(t);
+      t.viewKeyed = !shadow; t.asset = G.name; t.drawer = D; tiers.push(t); if (!shadow) (G.drawn ||= []).push(t);   // (drawn: what says which far ends the view wants, farOf)
       if (G.M) t.reads = G.M.version;   // (packed again when the growth map under it changes)
       return t;
     };
