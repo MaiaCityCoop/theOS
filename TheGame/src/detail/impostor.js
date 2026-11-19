@@ -44,9 +44,11 @@ import { farLayers } from '../scatter/entries.js';
 
 /** The numbers the plants' far ends' atlases are sized by: { VIEWS, CELL, TILE, TILES, CLUMPS, key } (src/detail/atlas.js
     atlasesOf), from the far ends the stands bake (src/scatter/entries.js farLayers), the share of memory they are given
-    (src/core/classes.js SHARE_MB) and the limits every device grants (src/core/gpu.js PORTABLE): the same on every
-    device and at every start of the same world. Handed to the crowd kit wherever it builds a far end (in the recipes'
-    workers with each level's band: src/scatter/trees.js); a made thing's card takes the same views. */
+    (src/core/classes.js SHARE_MB, this device's share of it: src/core/gpu.js budgetShare) and the limits every device
+    grants (src/core/gpu.js PORTABLE): the same at every start of the same world on the same device. Worked out once, at
+    the first ask, so asked only once the adapter has said the share (src/boot.js: the outlines wait for it). Handed to
+    the crowd kit wherever it builds a far end (in the recipes' workers with each level's band: src/scatter/trees.js); a
+    made thing's card takes the same views. */
 let ATLASES = null;
 export const atlases = () => (ATLASES ||= atlasesOf({ layers: farLayers(), bytes: SHARE_MB.geometry.atlases * 2 ** 20 * budgetShare(), limits: PORTABLE, tiles: UV_TILES }));   // (their share of geometry's budget on this device: src/core/gpu.js budgetShare)
 
