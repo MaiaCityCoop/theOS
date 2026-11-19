@@ -403,9 +403,12 @@ fn enter(
         },
     });
     // the land: its own material, no texture (the colour is in the geometry, from terrain.rs)
-    let biome = crate::biome::Biome::meadow();
+    // the recipe: the file in biomes/ if there is one, else the built-in meadow (written there, to be edited)
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/biomes/meadow.json");
+    let biome = std::fs::read_to_string(path).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_else(crate::biome::Biome::meadow);
+    crate::biome::set(biome.clone());
     // the recipe kept beside the code, as the file future biomes will be
-    let _ = std::fs::write(concat!(env!("CARGO_MANIFEST_DIR"), "/biomes/meadow.json"), serde_json::to_string_pretty(&biome).unwrap_or_default());
+    let _ = std::fs::write(path, serde_json::to_string_pretty(&biome).unwrap_or_default());
     let ground = grounds.add(crate::wind::Ground {
         base: StandardMaterial { base_color: Color::WHITE, perceptual_roughness: 0.95, reflectance: 0.3, cull_mode: None, ..default() },
         extension: crate::wind::GroundLook { biome: biome.uniform() },
@@ -424,6 +427,9 @@ fn enter(
     let made = {
         let mut m = grass.get(&blades).cloned().expect("the grass material was just added");
         m.extension.params.eye.w = 2.0;
+        let g = &biome.grass;
+        m.extension.params.deep = Vec4::new(g.deep[0], g.deep[1], g.deep[2], g.height);
+        m.extension.params.light = Vec4::new(g.light[0], g.light[1], g.light[2], g.height_range);
         m.base.double_sided = false; // the shader turns each blade's normal toward the eye itself
         grass.add(m)
     };

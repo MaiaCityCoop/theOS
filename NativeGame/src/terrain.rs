@@ -256,17 +256,22 @@ pub fn chunk(cx: i32, cz: i32, size: f32, share: f32) -> Mesh {
     if share >= 1.0 {
         // per square metre, near the eye only (where a few centimetres show): 9 clods of earth (2 to 6 cm), 5
         // pebbles (1 to 5 cm), and a stone (6 to 25 cm) in every few square metres
-        let count = (14.0 * size * size) as u32;
-        for k in 0..count {
-            let seed = (cx.wrapping_mul(92837) ^ cz.wrapping_mul(689287)) as u32 ^ k.wrapping_mul(2654435761);
-            let (x, z) = (cx as f32 * size + hash(seed as i32, 1, 5) * size, cz as f32 * size + hash(seed as i32, 2, 5) * size);
-            let pick = hash(seed as i32, 3, 5);
-            if pick < 0.64 {
-                g.clod(x, z, 0.02 + 0.04 * hash(seed as i32, 4, 5), seed);
-            } else if pick < 0.98 {
-                g.stone(x, z, 0.01 + 0.04 * hash(seed as i32, 4, 5).powi(2), seed);
-            } else {
-                g.stone(x, z, 0.06 + 0.19 * hash(seed as i32, 4, 5), seed);
+        // what lies on the ground, from the biome's recipe: each kind so many to the square metre, its own sizes
+        let biome = crate::biome::current();
+        for (n, s) in biome.scatter.iter().enumerate() {
+            let count = (s.per_m2 * size * size) as u32;
+            for k in 0..count {
+                let seed = (cx.wrapping_mul(92837) ^ cz.wrapping_mul(689287)) as u32 ^ k.wrapping_mul(2654435761) ^ (n as u32).wrapping_mul(0x51ED_270B);
+                let (x, z) = (cx as f32 * size + hash(seed as i32, 1, 5) * size, cz as f32 * size + hash(seed as i32, 2, 5) * size);
+                if bare(x, z) < 0.5 && s.kind != "clod" && hash(seed as i32, 6, 5) < 0.5 {
+                    continue; // stones lie mostly where the ground is bare; under the sward half of them are hidden
+                }
+                let r = hash(seed as i32, 4, 5);
+                let across = s.size[0] + (s.size[1] - s.size[0]) * if s.kind == "pebble" { r * r } else { r };
+                match s.kind.as_str() {
+                    "clod" => g.clod(x, z, across, seed),
+                    _ => g.stone(x, z, across, seed),
+                }
             }
         }
     }

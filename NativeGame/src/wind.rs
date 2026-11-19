@@ -21,6 +21,9 @@ pub struct WindParams {
     pub params: Vec4,
     /// xyz: the eye; w: 1 for the close layer (fine blades that sink into the ground away from the eye).
     pub eye: Vec4,
+    /// The biome's grass: its deepest green and its shortest height (w), its lightest green and how much taller (w).
+    pub deep: Vec4,
+    pub light: Vec4,
 }
 
 impl MaterialExtension for Wind {

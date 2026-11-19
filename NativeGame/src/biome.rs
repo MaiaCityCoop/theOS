@@ -43,6 +43,25 @@ pub struct Grass {
     pub height_range: f32,
 }
 
+/// Something that lies on the ground: generated shapes, so many to the square metre, this big.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Scatter {
+    /// `clod`, `pebble` or `stone`; the shape's generator in `terrain.rs`.
+    pub kind: String,
+    /// How many to the square metre near the eye.
+    pub per_m2: f32,
+    /// Smallest and largest, metres across.
+    pub size: [f32; 2],
+}
+
+/// A plant that grows among the grass: its generator, how many to the square metre near the eye.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Plant {
+    /// `clover`, `plantain`, `dandelion`, `moss` or `seed_head`; the generator in `grass.rs`.
+    pub kind: String,
+    pub per_m2: f32,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Biome {
     pub name: String,
@@ -53,6 +72,28 @@ pub struct Biome {
     pub relief: f32,
     pub mottle: f32,
     pub grass: Grass,
+    pub plants: Vec<Plant>,
+    pub scatter: Vec<Scatter>,
+}
+
+static CURRENT: std::sync::RwLock<Option<Biome>> = std::sync::RwLock::new(None);
+
+/// The biome the land is being made from (set when a scene opens; the meadow until then).
+pub fn current() -> Biome {
+    CURRENT.read().ok().and_then(|b| b.clone()).unwrap_or_else(Biome::meadow)
+}
+
+pub fn set(b: Biome) {
+    if let Ok(mut c) = CURRENT.write() {
+        *c = Some(b);
+    }
+}
+
+impl Biome {
+    /// Per square metre of a plant kind (0 if the recipe has none).
+    pub fn plant(&self, kind: &str) -> f32 {
+        self.plants.iter().filter(|p| p.kind == kind).map(|p| p.per_m2).sum()
+    }
 }
 
 fn layer(name: &str, colour: [f32; 3], roughness: f32, cell: f32, threshold: f32, softness: f32, amount: f32) -> Layer {
@@ -77,6 +118,18 @@ impl Biome {
             relief: 0.6,
             mottle: 0.35,
             grass: Grass { deep: [0.045, 0.120, 0.018], light: [0.100, 0.230, 0.035], height: 0.12, height_range: 0.33 },
+            plants: vec![
+                Plant { kind: "clover".into(), per_m2: 2.5 },
+                Plant { kind: "plantain".into(), per_m2: 1.0 },
+                Plant { kind: "dandelion".into(), per_m2: 1.0 },
+                Plant { kind: "moss".into(), per_m2: 1.5 },
+                Plant { kind: "seed_head".into(), per_m2: 4.0 },
+            ],
+            scatter: vec![
+                Scatter { kind: "clod".into(), per_m2: 9.0, size: [0.02, 0.06] },
+                Scatter { kind: "pebble".into(), per_m2: 5.0, size: [0.01, 0.05] },
+                Scatter { kind: "stone".into(), per_m2: 0.3, size: [0.06, 0.25] },
+            ],
         }
     }
 

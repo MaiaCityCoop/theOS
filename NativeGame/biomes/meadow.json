@@ -108,5 +108,53 @@
     ],
     "height": 0.12,
     "height_range": 0.33
-  }
+  },
+  "plants": [
+    {
+      "kind": "clover",
+      "per_m2": 2.5
+    },
+    {
+      "kind": "plantain",
+      "per_m2": 1.0
+    },
+    {
+      "kind": "dandelion",
+      "per_m2": 1.0
+    },
+    {
+      "kind": "moss",
+      "per_m2": 1.5
+    },
+    {
+      "kind": "seed_head",
+      "per_m2": 4.0
+    }
+  ],
+  "scatter": [
+    {
+      "kind": "clod",
+      "per_m2": 9.0,
+      "size": [
+        0.02,
+        0.06
+      ]
+    },
+    {
+      "kind": "pebble",
+      "per_m2": 5.0,
+      "size": [
+        0.01,
+        0.05
+      ]
+    },
+    {
+      "kind": "stone",
+      "per_m2": 0.3,
+      "size": [
+        0.06,
+        0.25
+      ]
+    }
+  ]
 }

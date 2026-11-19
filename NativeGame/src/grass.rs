@@ -200,6 +200,8 @@ fn blades(cx: i32, cz: i32, share: f32, fine: bool) -> Mesh {
     let fold = fine; // the close blades fold along the midrib, as real ones do (only near the eye, where it shows)
     let count = if fine { count * 3 / 2 } else { count };
 
+    // the seed heads' share of the slots, from the recipe's seed heads per square metre
+    let seed_share = crate::biome::current().plant("seed_head") / (DENSITY * 2.0);
     let mut g = Geo::default();
     let (sx, sz) = if fine { (cx as u32 ^ 0x5151_5151, cz as u32 ^ 0xA7A7_A7A7) } else { (cx as u32, cz as u32) };
     for i in 0..count {
@@ -214,11 +216,11 @@ fn blades(cx: i32, cz: i32, share: f32, fine: bool) -> Mesh {
         let yaw = r(5) * std::f32::consts::TAU;
         // the ordinary blades are the GPU's now (`tile`); here only what grows among them: seed heads (below),
         // thatch and low plants
-        if r(8) >= 0.006 + 0.012 * dry {
+        if r(8) >= seed_share * (1.0 + 2.0 * dry) {
             continue;
         }
         // about one in forty goes to seed: a flowering stem with a head, in drier spots more often
-        if !fine && r(8) < 0.006 + 0.012 * dry {
+        if !fine && r(8) < seed_share * (1.0 + 2.0 * dry) {
             if detail {
                 let kind = match (r(12) * 3.0) as u32 {
                     0 => Head::Spike,
@@ -324,7 +326,11 @@ fn leaf(g: &mut Geo, base: Vec3, dir: Vec3, rise: f32, len: f32, width: f32, col
 /// The low plants of a meadow, under and between the grass: clover in patches, rosettes of plantain and dandelion,
 /// cushions of moss. Each grows where the field gives it room (where the grass is thinner).
 fn low_plants(g: &mut Geo, cx: i32, cz: i32, share: f32) {
-    let count = (6.0 * CHUNK * CHUNK * share) as u32;
+    // how many of each kind, from the biome's recipe (the kinds below pick from the total in proportion)
+    let biome = crate::biome::current();
+    let kinds = [biome.plant("clover"), biome.plant("plantain"), biome.plant("dandelion"), biome.plant("moss")];
+    let total: f32 = kinds.iter().sum();
+    let count = (total * CHUNK * CHUNK * share) as u32;
     let (sx, sz) = (cx as u32 ^ 0x3C3C, cz as u32 ^ 0xC3C3);
     for i in 0..count {
         let r = |k: u32| h(sx, sz, i * 17 + k);
@@ -335,7 +341,9 @@ fn low_plants(g: &mut Geo, cx: i32, cz: i32, share: f32) {
         }
         let at = Vec3::new(x, terrain::height(x, z) + 0.006, z);
         let a0 = r(3) * std::f32::consts::TAU;
-        match (r(4) * 10.0) as u32 {
+        let pick = r(4) * total.max(1e-6);
+        let which = if pick < kinds[0] { 0 } else if pick < kinds[0] + kinds[1] { 5 } else if pick < kinds[0] + kinds[1] + kinds[2] { 7 } else { 9 };
+        match which {
             // clover: a small patch of trifoliate leaves on short stalks (linear reflectance: a cool mid green)
             0..=4 => {
                 let col = Vec3::new(0.035, 0.10, 0.03) * (0.8 + 0.4 * r(5));

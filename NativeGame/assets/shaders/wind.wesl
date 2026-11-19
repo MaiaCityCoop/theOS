@@ -7,6 +7,8 @@ struct Wind {
     params: vec4<f32>,
     // xyz: the eye; w: 1 for the close layer of fine blades, which sinks into the ground away from the eye
     eye: vec4<f32>,
+    deep: vec4<f32>,
+    light: vec4<f32>,
 };
 
 // The close layer: fine blades drawn only around the eye. From 4 to 9 m away they sink smoothly into the ground (each
@@ -142,7 +144,7 @@ fn blade(slot: vec3<f32>, side: f32, t: f32, w: Wind, time: f32, before: f32) ->
     let lush = tnoise(p, 7.0, 40u);
     // a grazed meadow: 12 to 45 cm. Width: 3 to 8 mm, wider on coarser levels, and never under about a pixel at its
     // distance, or a far blade would flicker away between the pixels
-    let height = 0.12 + 0.22 * lush * lush + 0.11 * thash(ci, cj, seed + 5u);
+    let height = w.deep.w + w.light.w * (0.67 * lush * lush + 0.33 * thash(ci, cj, seed + 5u));
     // coarser levels have a quarter of the blades each: twice as wide, and never under about a pixel and a half
     let width = max((0.0018 + 0.0022 * thash(ci, cj, seed + 6u)) * pow(2.0, f32(level)), 0.0011 * d);
     let yaw = thash(ci, cj, seed + 7u) * 6.2831853;
@@ -171,7 +173,7 @@ fn blade(slot: vec3<f32>, side: f32, t: f32, w: Wind, time: f32, before: f32) ->
     }
     out.normal = normalize(mix(face, vec3<f32>(0.0, 1.0, 0.0), far));
     // each blade its own green, from deep to light yellow-green; a little straw where the field is dry
-    let green = mix(vec3<f32>(0.045, 0.120, 0.018), vec3<f32>(0.100, 0.230, 0.035), thash(ci, cj, seed + 9u));
+    let green = mix(w.deep.rgb, w.light.rgb, thash(ci, cj, seed + 9u));
     let dry = lush * 0.6; // one noise for both: drier where the sward is thinner
     let tip = mix(green, vec3<f32>(0.30, 0.24, 0.10), min(dry * dry * 0.35 * thash(ci, cj, seed + 10u), 0.2))
         * (0.95 + 0.3 * thash(ci, cj, seed + 11u));
