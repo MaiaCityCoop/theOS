@@ -162,6 +162,9 @@ const texBytes = (d) => {
 let NOW = 'other', made = 0, peakMade = 0;   // (whose code runs; what the device has made, bytes; the most it held)
 const MADE = Object.fromEntries(CLASS_NAMES.map((c) => [c, 0])), MADE_PEAK = { ...MADE }, KINDS = new Map(), SIZE = new WeakMap();
 /** make() run as `cls`'s: what the device makes meanwhile is that class's. */
+/** Whether the game holds less on the GPU than all it may (wholeBudget): what the device made, where it is counted
+    (the ledger's gpu); else what the pools note. */
+export const underBudget = () => (R ? made : [...HELD.values()].reduce((n, h) => n + h.gpu, 0)) < wholeBudget() * MB;
 const asClass = (cls, make) => { const was = NOW; NOW = cls in MADE ? cls : 'other'; try { return make(); } finally { NOW = was; } };
 const counted = (o, bytes, kind) => {
   const cls = NOW, key = `${cls}: ${kind}`, K = KINDS.get(key) ?? { cls, kind, bytes: 0, n: 0 };

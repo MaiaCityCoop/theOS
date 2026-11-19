@@ -13,7 +13,8 @@
 // gave each part 20 s, and then drew what had not come). What a frame asked for and is not made yet is out (the source
 // `compiling`): the world is not complete before (src/core/settle.js). Nothing is given up on by a clock: a compile the
 // GPU never answers holds the ones after it, and the veil says which it is (making: src/boot.js).
-import { source } from './settle.js';
+import { source, onSettled } from './settle.js';
+import { underBudget } from './gpu.js';
 
 let last = Promise.resolve(), turns = 0, ended = 0, active = 0;   // (turns: what the world waits for, waiting its turn here or being made; ended: turns over, of any kind; active: one being made now)
 
@@ -236,10 +237,33 @@ function made1(maker, list) {
       (err) => {
         t.failed = true;
         if (list.length > 1) { console.warn(`compile: one of ${list.length} (${names[0]}, …) could not be compiled: each made alone`); return list.reduce((p, e) => p.then(() => made1(maker, [e])), Promise.resolve()); }
-        stateOf(own(list[0].what)).set(list[0].pass, 'failed'); console.warn(`compile: ${names[0]} could not be compiled, and is not drawn`, err); over(list);
+        const e = list[0];
+        if (scarce(err)) { stateOf(own(e.what)).set(e.pass, 'waiting'); SCARCE.push({ ...e, maker, calm: calms }); console.warn(`compile: ${names[0]} could not be made for want of memory: asked again once the world has settled, while the GPU holds less than its budget`, err); }
+        else { stateOf(own(e.what)).set(e.pass, 'failed'); console.warn(`compile: ${names[0]} could not be compiled, and is not drawn`, err); }
+        over(list);
       })
-    .finally(() => { now = ''; });
+    .finally(() => { now = ''; if (again && list.some((e) => e.what === again.what && e.pass === again.pass)) { again = null; nextFrame(askAgain); } });
 }
+// ---- what memory refused: asked again ----
+// A make the device refused for want of memory (a buffer, a texture or a shader module it would not make: WebKit's
+// "Unable to create …", an out-of-memory error) is no fault of its code: it waits, and is asked again once the world has
+// settled (the start's peak past, idle workers let go: src/core/settle.js onSettled), one at a time a frame apart, while
+// the GPU holds less than its budget (src/core/gpu.js underBudget); one refused again waits for the next time the world
+// settles. A make whose code the GPU refused is left out for good, as before (2026-11-19, the master: on Samuel's iPhone
+// the Bell tent was never drawn, its prepass once refused a buffer: "Unable to create buffer").
+const SCARCE = [];   // (what waits: each an ask, with its maker and the settle it was last refused in)
+let calms = 0, again = null;   // (how many times the world has settled; the one asked again now)
+const scarce = (err) => (typeof GPUOutOfMemoryError !== 'undefined' && err instanceof GPUOutOfMemoryError) || /out of memory|unable to create|allocat/i.test(`${err?.message ?? err}`);
+const nextFrame = (fn) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => fn()) : setTimeout(fn, 0));
+function askAgain() {
+  if (again || !underBudget()) return;
+  const i = SCARCE.findIndex((e) => e.calm < calms); if (i < 0) return;
+  [again] = SCARCE.splice(i, 1); stateOf(own(again.what)).delete(again.pass);
+  ask(again.what, again.pass, again.maker, again.name, again.counted, again.near);
+}
+onSettled(() => { calms++; askAgain(); });
+/** How many makes wait for memory (the last start's note: src/core/lastrun.js). */
+export const waitingOnMemory = () => SCARCE.length + (again ? 1 : 0);
 /** Ask `maker` (make(list): a promise, see flush) for `what` to be made for `pass`, unless it is made, being made, or
     could not be: with all else asked of it before this frame is over, in turn. name: what it is, for the veil and the
     console. counted: whether the world waits for it (made ahead of need, src/boot.js: not). near: 0, what the first
