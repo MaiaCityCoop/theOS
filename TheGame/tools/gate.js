@@ -75,8 +75,9 @@
 //   bun tools/gate.js smoke [--views a,b]                        the GPU smoke: at HOURLY's views, the world settled
 //                                                                posed, turned about and walked on, and every WebGPU
 //                                                                error meanwhile
-//   bun tools/gate.js hourly [--views a,b] [--paths a,b]         the hour's measure of main, under the GPU lock once
-//                        [--ratchet]                             (--ratchet: the shader and the bench's ceilings
+//   bun tools/gate.js hourly [--views a,b] [--paths a,b]         the hour's measure of main, under the GPU lock once,
+//                        [--ratchet]                             taken first (ahead of all that wait: tools/gpu/lock.js)
+//                                                                (--ratchet: the shader and the bench's ceilings
 //                                                                lowered to it): the smoke, the stills, ?truth and FLIP
 //                                                                at HOURLY's views, the bench twice (the frame's rule:
 //                                                                fails a class or pass past its ceiling), the compile, the paths
@@ -84,9 +85,9 @@
 //                                                                board.md, against the hour before (tools/gate/ten.js)
 //
 // The GPU is shared with other runs: each part of a run that draws (a page come, a view or a tile, a path in motion, the
-// real gate on a GPU) takes the machine's GPU lock in its turn (tools/gpu/lock.js: one queue, oldest first; GPU_OWNER
-// names the run), and lets it go after; meanwhile the page is held on the gate's clock (tools/gate/clock.js) and draws
-// nothing. A gate run under `bun tools/gpu/lock.js take <owner> -- …` holds the lock whole.
+// real gate on a GPU) takes the machine's GPU lock in its turn (tools/gpu/lock.js: one queue, oldest first, the hour's
+// ahead of them; GPU_OWNER names the run), and lets it go after; meanwhile the page is held on the gate's clock
+// (tools/gate/clock.js) and draws nothing. A gate run under `bun tools/gpu/lock.js take <owner> -- …` holds the lock whole.
 //
 // A measure (device, walks, bench, compile, paths, all, motion, the hour) is taken only on a machine with the memory for it
 // (tools/gate/machine.js onMachine): where its turn starts with less free than the game takes there (its browsers' own
@@ -718,7 +719,7 @@ async function hourly(opt) {
     } finally { await closeHard(chrome, chrome.gateDir); }
     const unsettled = (set) => (set ? Object.entries(JSON.parse(readFileSync(`${OUT}${set}/gate.json`, 'utf8')).views ?? {}).filter(([, r]) => r.notSettled).map(([k]) => k) : []);
     return { tag, when: new Date().toISOString(), out: OUTPUT, device: dev, firstView: first, walks: w, start: s?.start, smoke: s, stills: { lod: unsettled(a), truth: unsettled(t) }, flip: await stage('flip', () => diff(a, t, { ...opt, views })), bench: b, compile: c, paths: await stage('paths', () => paths({ ...opt, paths: opt.paths ?? 'walk,zoom' })) };
-  }, (o) => ({ tag, when: new Date().toISOString(), ...o }))) }; });
+  }, (o) => ({ tag, when: new Date().toISOString(), ...o }))) }; }, { first: true });   // (first: ahead of every other that waits, the one measure that judges main)
   const machine = run.notMeasured && !run.device ? { state: 'not measured', why: run.notMeasured } : null;   // (the machine refused the game: every stage of it not measured, and why)
   run.stages = STAGES.map(([key, name]) => ({ key, name, ...(said[key] ?? (key === 'wgsl' ? null : machine) ?? { state: 'no report', why: 'it never said it ran: a line that did not run, a branch skipped' }) }));
   run.submissions = D.submitRule(run, lastMeasured(at, tag));   // (held against the last hour whose device was measured)
