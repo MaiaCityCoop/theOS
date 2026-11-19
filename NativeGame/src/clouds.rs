@@ -18,7 +18,7 @@ pub struct CloudLayer;
 pub fn layer(meshes: &mut Assets<Mesh>, materials: &mut Assets<StandardMaterial>, images: &mut Assets<Image>, cover: f32) -> impl Bundle {
     (
         CloudLayer,
-        Mesh3d(meshes.add(Plane3d::new(Vec3::NEG_Y, Vec2::splat(WIDE / 2.0)).mesh())),
+        Mesh3d(meshes.add(faded_plane())),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::WHITE,
             base_color_texture: Some(images.add(shapes(cover))),
@@ -139,4 +139,23 @@ fn shapes(cover: f32) -> Image {
         }),
         ..blank
     }
+}
+
+/// The layer's plane, its alpha falling from 1 at 7 km to 0 at 19 km from its centre (the eye), so it has no edge.
+/// It does not reach the horizon on purpose: past ~20 km a flat texture is seen so obliquely that it streaks toward
+/// the vanishing point (tried: 400 km); there the sky's own haze takes over, as with real cloud.
+fn faded_plane() -> Mesh {
+    let mut m = Plane3d::new(Vec3::NEG_Y, Vec2::splat(WIDE / 2.0)).mesh().subdivisions(48).build();
+    if let Some(bevy::mesh::VertexAttributeValues::Float32x3(pos)) = m.attribute(Mesh::ATTRIBUTE_POSITION) {
+        let col: Vec<[f32; 4]> = pos
+            .iter()
+            .map(|p| {
+                let r = (p[0] * p[0] + p[2] * p[2]).sqrt();
+                let t = ((r - 7_000.0) / 12_000.0).clamp(0.0, 1.0);
+                [1.0, 1.0, 1.0, 1.0 - t * t * (3.0 - 2.0 * t)]
+            })
+            .collect();
+        m.insert_attribute(Mesh::ATTRIBUTE_COLOR, col);
+    }
+    m
 }
