@@ -12,9 +12,15 @@ import { unpackMeasures } from '../../assets/kit/measures.js';
 // every asset is; none where the build made none: a tool's run, the dev server before it has measured. Never a path of
 // its own: one written here was left as it was where the build had no file, and asked at the site's root)
 const [AT = null] = Object.values(import.meta.glob('../../crowds.bin', { eager: true, query: '?url', import: 'default' }));
-/** Done once what the build measured is handed to the kit (or none was). */
-export const crowdsReady = (AT ? fetch(AT) : Promise.resolve(null)).then((r) => (r?.ok ? r.arrayBuffer() : null)).then((b) => {
-  if (!b) return;
-  const M = unpackMeasures(b);
-  takeMeasures((a, i, A) => { const v = manifest[a.uid]?.version; return (v && M.get(`${a.uid}:${a.placement?.seed ?? 1}@${v}#${i}|${A?.key ?? ''}`)) || null; });
-}, () => {});
+/** Done once what the build measured is handed to the kit, or none was, or what answered was not it: then every crowd
+    is measured as before (2026-11-19: a dev server's index.html, answered for a crowds.bin it had not made yet, read
+    as one, threw, and left the recipes' workers waiting for good: the start never settled). Never rejected. */
+export const crowdsReady = (AT ? fetch(AT) : Promise.resolve(null))
+  .then((r) => (r?.ok && !/text\/html/i.test(r.headers.get('content-type') ?? '') ? r.arrayBuffer() : null))
+  .then((b) => {
+    const M = b && unpackMeasures(b);
+    if (b && !M) console.warn("crowds: what answered for crowds.bin is not the build's measures; each crowd is measured as before");
+    if (!M) return;
+    takeMeasures((a, i, A) => { const v = manifest[a.uid]?.version; return (v && M.get(`${a.uid}:${a.placement?.seed ?? 1}@${v}#${i}|${A?.key ?? ''}`)) || null; });
+  })
+  .catch((e) => console.warn(`crowds: the build's measures could not be read (${e?.message ?? e}); each crowd is measured as before`));
