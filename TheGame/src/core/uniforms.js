@@ -41,14 +41,13 @@ export const U = {
   uShadowPen: uniform(0),                          // the widest penumbra the cascades are searched for (metres): the sun's disc over the tallest caster's way along the light (src/world/shadow.js)
   uShadowPull: uniform(0),                         // how far a caster drawn pulled towards the light is pulled (metres): the near cascade's bias (src/world/shadow.js, characters/kit/human.js)
   uFrame: uniform(0),                              // the world's frames drawn: the blue noise steps on with it (src/world/light/noise.js)
-  uSky: uniform(v3(0.4, 0.55, 0.7)), uHaze: uniform(1 / 6500), uHazeCol: uniform(v3(0.6, 0.7, 0.8)),
+  uHaze: uniform(1 / 6500), uHazeCol: uniform(v3(0.6, 0.7, 0.8)),
 };
 
 /** The set, bound to this camera, its sky at the start the given colour. */
 export function createUniforms(camera, skyHex) {
   const sky = new THREE.Color(skyHex).convertSRGBToLinear();
   U.uCam.value = camera.position;
-  U.uSky.value.set(sky.r, sky.g, sky.b);
   // the sky's colour as a light that comes out of toScreen() as exactly the sky
   U.uHazeCol.value.set(-Math.log(1 - sky.r) / 1.25, -Math.log(1 - sky.g) / 1.25, -Math.log(1 - sky.b) / 1.25);
   return U;
