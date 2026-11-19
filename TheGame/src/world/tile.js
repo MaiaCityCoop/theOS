@@ -9,7 +9,7 @@ import { abs, normalize, pow, vec3 } from 'three/tsl';
 import { byRole } from '../core/registry.js';
 
 let tex = null;
-/** The baked arrays: set once at the start, before any material is built (src/boot.js). */
+/** The baked arrays: set once at the start, before any material is built (src/main.js). */
 export const useTiles = (t) => { tex = t; };
 /** A read of the tile that plays `role`, at uv: a node, as any texture's (with .level(), .grad()). */
 export const tile = (role, uv) => tex.a(byRole(role), uv);

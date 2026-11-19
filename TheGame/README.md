@@ -6,7 +6,6 @@ shoot it with. `bun run dev` in this folder, then http://localhost:5173.
 - `/` walk the world (click, W A S D, Shift runs, F flies)
 - `/timeline.html` a kept film of camera moves, played live in the world; `?story=<id>` plays an intent's story (`../Stories/<id>/timeline.json`) with its captions
 - `/lenses.html` the lens bench: the live world through each lens of the kit
-- `/library.html` every recipe of the registry on one stage (`src/library/`); `/me.html` your person on it
 - `/callback` the way back from aven.id after signing in (`callback.html`; see Signing in, below)
 
 Work on it is tracked as intents (`../Intents/`). `LENS-REVIEW.md` is what is still wrong in the
@@ -28,7 +27,6 @@ the files named here.
 | `src/scatter/` | What stands on the land: every asset placed `at: 'scatter'`, placed by its engine (`grass.js`, `rocks.js`, `trees.js`; `index.js` finds them). `tier.js` draws a tier as instanced calls over the patches the view touches, packed by a compute pass; `drawer.js` is the one drawer (the heap of every kind's meshes at every level, one shader): the rocks are drawn by it, an engine saying only where they lie; `view.js` drops what stands outside the view; `ground.js` is the map of the ground the tiers read. | a new plant, rock or tree: a file in `assets/`; a new sort of thing: an engine module here |
 | `src/detail/` | Levels of detail by size on screen (`index.js`), and far cards (`impostor.js`). | an asset's own `detail` block |
 | `src/camera/` | The one camera (`rig.js`), the walker (`walk.js`), touch (`touch.js`), and the lens (`post.js`: depth of field and the glass, two stages of the one way to the screen, `src/core/screen.js`). | a new stage of the lens |
-| `src/stage/`, `src/library/`, `src/me/` | The library's stage (`studio.js`: the spot in the meadow, its round of bare ground, the studio light, the camera circling what stands on it), shared by the library (`src/library/`: the list, its pictures, the card, what each kind of recipe stands on the stage) and your person's page (`src/me/`). | a new kind of subject: a function in `src/library/subjects.js` |
 | `src/city/` | The city's plots over the land, seen from above (intent 0009): the plan on the real land (`plan.js`, run in `plan.worker.js`), drawn and picked (`index.js`), a village's card (`card.js`). Its numbers in `world/city.js`. | a number in `world/city.js` |
 | `src/account/` | Signing in with aven.id, and who is signed in (intent 0016): the numbers (`config.js`: the issuer, the client, the redirect, how long a session lasts), the protocol and the ID token's check (`oidc.js`, nothing of the page in it: `tools/account-check.js` runs it under bun), what is kept in the tab (`session.js`), the pill at the top right (`index.js`, loaded by its own script: it neither waits for the world nor holds it up), the way back (`callback.js`). Nothing else reads it but through `session()`. | a number in `config.js` |
 | `cine/` | The virtual camera, outside the game: it needs only `window.__game.camera` and `src/world/land.js`. Lenses, timelines, the composer, the bench. | see `cine/README.md` |
@@ -37,11 +35,8 @@ Drawn by three's `WebGPURenderer` (WebGL 2 where WebGPU is missing; `?webgl` for
 code (TSL, `three/tsl`): three writes WGSL for WebGPU and GLSL for the fallback from the same nodes. There is no
 hand-written shader text in the game.
 
-`src/boot.js` is the one start of every page that draws the world: `boot({ profile })` wires these and runs the
-frame: place the camera, let the governor name the detail, choose what to draw (ground map, terrain nodes, scatter
-patches), draw. Its `ready` is the page's first view complete. The profile `world` is the game (`/`, the lenses, a
-film's live world); `stage` is the library's stage (`/library.html`, `/me.html`: `src/stage/studio.js`): the land
-round the stage and only what the page shows on it, each subject compiled when it is shown.
+`src/main.js` only wires these and runs the frame: place the camera, let the governor name the
+detail, choose what to draw (ground map, terrain nodes, scatter patches), draw.
 
 ## Signing in
 

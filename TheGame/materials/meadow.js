@@ -16,8 +16,8 @@ export default {
   name: "Meadow floor",
   kind: 'ground',
   role: 'moss',   // the part it plays for the engine (src/core/registry.js: byRole)
-  about: 'Dark soil under a thatch of dead and green strands.',
-  usedBy: 'where grass grows; the moss on rocks',
+  about: "The ground under the grass: dark soil under a thatch of bent strands, dead and green, with leaf litter and moss.",
+  usedBy: "the terrain where grass grows; the moss on rocks",
   swatch: [0.07, 0.09, 0.04],
   bump: 0.014,   // how deep its relief reads in the normals: larger is flatter
   paint: (uv) => {

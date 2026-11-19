@@ -1,7 +1,0 @@
-// knip, the dead-code gate of tools/health.js. It finds the pages vite builds (vite.config.js) and all they import by
-// itself; besides them, what runs on its own: the tools, each a command, and the gate's three that run alone. jscpd is
-// run by its path, never imported.
-{
-  "entry": ["tools/*.js", "tools/gpu/lock.js", "tools/gate/cut.js", "tools/gate/pop.js", "tools/gate/ten.js"],
-  "ignoreDependencies": ["jscpd"]
-}

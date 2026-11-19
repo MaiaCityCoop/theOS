@@ -23,6 +23,8 @@ import { unionOf } from '../skeleton/mesh.js';
 import { slope } from '../field.js';
 
 import { MAXK } from './layout.js';
+/** How the muscles are drawn out, as a number: another, and a kept drawing is drawn again. */
+export const MADE = 6;
 
 const AROUND = 10, RING = 0.011, GAP = 0.0008, DEEP = 0.3;
 // The man these muscles are laid for is slightly muscular (intent 0036): his muscles the studies' means. They were a
@@ -42,7 +44,7 @@ const kappa = (e) => { let a = 0; for (let i = 0; i < 400; i++) { const x = (i +
 // ── the curve: the same numbers as the shader's (./flesh.js) ────────────────────────────────────────────────────────
 /** A strand's points with their ghosts, as the texture holds them (./layout.js): open (a ghost before, one after, and a
  *  spare) or closed (the last before, the first two after). */
-function slots(P, closed) {
+export function slots(P, closed) {
   const n = P.length;
   if (closed) return [P[n - 1], ...P, P[0], P[1]];
   return [sub(mul(P[0], 2), P[1]), ...P, sub(mul(P[n - 1], 2), P[n - 2]), P[n - 1]];
@@ -50,7 +52,7 @@ function slots(P, closed) {
 const cr = (p0, p1, p2, p3, t) => { const t2 = t * t, t3 = t2 * t; return [0, 1, 2].map((i) => 0.5 * (2 * p1[i] + (p2[i] - p0[i]) * t + (2 * p0[i] - 5 * p1[i] + 4 * p2[i] - p3[i]) * t2 + (3 * p1[i] - p0[i] - 3 * p2[i] + p3[i]) * t3)); };
 const crd = (p0, p1, p2, p3, t) => [0, 1, 2].map((i) => 0.5 * ((p2[i] - p0[i]) + 2 * (2 * p0[i] - 5 * p1[i] + 4 * p2[i] - p3[i]) * t + 3 * (3 * p1[i] - p0[i] - 3 * p2[i] + p3[i]) * t * t));
 /** The place at segment i, t along it: { C, T, O, B } (S: the slots of the points, Q: the slots of their outs). */
-function frameAt(S, Q, i, t) {
+export function frameAt(S, Q, i, t) {
   const C = cr(S[i], S[i + 1], S[i + 2], S[i + 3], t), T = norm(crd(S[i], S[i + 1], S[i + 2], S[i + 3], t));
   const o = lerp(Q[i + 1], Q[i + 2], t), O = norm(sub(o, mul(T, dot(o, T)))), B = cross(T, O);
   return { C, T, O, B, o };   // (o: the out as mixed, before it is squared to the curve: two frames are mixed by it, as the shader mixes them)

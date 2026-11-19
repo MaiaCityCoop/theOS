@@ -2,14 +2,12 @@
 // draw is the ground the walker stands on. Every material that needs the land (terrain, water, grass, rocks, the ground
 // pass) builds from these. The biomes (biomes/*.js) bring their own rules; the library's sandbox lays one biome over
 // all the land round its stage.
-import { Fn, float, int, uint, vec2, vec3, vec4, abs, max, clamp, mix, smoothstep, length, atan, sin, cos, If, Loop, uniformArray, uniform, renderGroup, array } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, abs, max, clamp, mix, smoothstep, length, atan, sin, cos, If, Loop, uniformArray, uniform, renderGroup } from 'three/tsl';
 import { Vector4 } from 'three/webgpu';
 import { U } from '../core/uniforms.js';
 import { hashI, rnd, noised, vnoise, camDist, edgeJit, groveAt, leadAt, bent, turned, second } from './noise.nodes.js';
 export { hashI, rnd, noised, vnoise, camDist, edgeJit, groveAt, leadAt, bent, turned, second };
 import { OCT_LAM, OCT_AMP, WATER_DROP, PADS, PAD_FALL, BEND, MEANDER, LAKE_MAX } from './land.js';
-import { BAND } from '../detail/error.js';
-import { uPxK, dialPxAt } from '../detail/measure.js';
 import { BIOMES, BASE, WATER } from './biomes.js';
 import { PLACES } from '../../world/places.js';
 import { recipe, byRole } from '../core/registry.js';
@@ -20,20 +18,16 @@ const noise = byRole('noise');   // the baked cloudy noise: whichever material p
 // base biome lies under all of them; the water's is drawn as the water. Nothing here knows a biome by name.
 const LAID = BIOMES.filter((b) => b.where).sort((a, b) => a.layer - b.layer);
 export { BASE, LAID };
-/** how much of p the library's sandbox covers: round (x, z) of uSand the land is one biome (uSand.w: its number); sand:
-    uSand, or what a function is handed of it (riverRaw) */
-const sandOf = (p, sand) => sand.z.greaterThan(0).select(float(1).sub(smoothstep(220, 340, length(p.sub(sand.xy)))), float(0));
-export const sandW = Fn(([p]) => sandOf(p, U.uSand));
-const sandIs = (b, sand = U.uSand) => abs(sand.w.sub(BIOMES.indexOf(b))).lessThan(0.5).select(float(1), float(0));
-const riverSand = (sand = U.uSand) => (WATER ? sandIs(WATER, sand).greaterThan(0.5) : float(0).greaterThan(1));   // the river's sandbox brings its own river
+/** how much of p the library's sandbox covers: round (x, z) of uSand the land is one biome (uSand.w: its number) */
+export const sandW = Fn(([p]) => U.uSand.z.greaterThan(0).select(float(1).sub(smoothstep(220, 340, length(p.sub(U.uSand.xy)))), float(0)));
+const sandIs = (b) => abs(U.uSand.w.sub(BIOMES.indexOf(b))).lessThan(0.5).select(float(1), float(0));
+const riverSand = () => (WATER ? sandIs(WATER).greaterThan(0.5) : float(0).greaterThan(1));   // the river's sandbox brings its own river
 // a biome's share at p: its own rule; in a sandbox, the sandbox's biome all round the stage (what lies by a river keeps to
-// the river in the river's sandbox; sand: uSand, or what a function is handed of it)
-const placed = (b, natural, p, sand = U.uSand) => { const s = mix(natural, sandIs(b, sand), sandOf(p, sand)); return b.river ? riverSand(sand).select(natural, s) : s; };
+// the river in the river's sandbox)
+const placed = (b, natural, p) => { const s = mix(natural, sandIs(b), sandW(p)); return b.river ? riverSand().select(natural, s) : s; };
 /** paths, bare patches, outcrops (the base biome's own): none in a sandbox */
-/** one biome's share at a point (ctx as biomesAt's): its rule, placed (the library's sandbox: ctx.sand, what a function
-    is handed of uSand; else uSand); as biomesAt kept it with the place, where it has (its variables: one shader works a
-    rule out once, however many ask) */
-export const shareOf = (b, ctx) => ctx.shares?.get(b) ?? placed(b, clamp(b.where(ctx), 0, 1), ctx.p, ctx.sand);
+/** one biome's share at a point (ctx as biomesAt's): its rule, placed (the library's sandbox) */
+export const shareOf = (b, ctx) => placed(b, clamp(b.where(ctx), 0, 1), ctx.p);
 export const placeOff = (p, natural) => natural.mul(float(1).sub(sandW(p)));
 /** 1 under the roof of what stands at a place (its asset's `roofed`), 0 in the open: where no snow falls */
 export const roofAt = (p) => Object.values(PLACES).map((P) => [P, recipe(P.asset)?.roofed]).filter(([, r]) => r).reduce((a, [P, r]) => max(a, float(1).sub(smoothstep(r - 0.15, r + 0.1, length(p.sub(vec2(P.x, P.z)))))), float(0));
@@ -42,26 +36,19 @@ export const roofAt = (p) => Object.values(PLACES).map((P) => [P, recipe(P.asset
 const riverWorld = Fn(([p]) => {
   const n1 = noised(p.mul(1 / 1600), uint(40)), n2 = noised(p.mul(1 / 330).add(17.3), uint(41));
   return vec3(n1.x.sub(0.5).add(n2.x.sub(0.5).mul(0.28)), n1.yz.mul(1 / 1600).add(n2.yz.mul(0.28 / 330)));
-}).setLayout({ name: 'riverWorld', type: 'vec3', inputs: [{ name: 'p', type: 'vec2' }] });
-/** the river in its sandbox, meandering round its middle (sand: U.uSand, its middle in xy; s: how much of p is the
-    sandbox's): its field, as riverRaw's (a function of its own: written once in a shader that reads the river at
-    several places; the uniforms handed to it, as a function may not name one) */
-const riverMeander = Fn(([p, sand, s]) => {
-  const d = p.sub(sand.xy), c = Math.cos(MEANDER.turn), sn = Math.sin(MEANDER.turn), k = (2 * Math.PI) / MEANDER.wave;
-  const u = d.x.mul(c).add(d.y.mul(sn)), v = d.x.mul(-sn).add(d.y.mul(c));
-  const g = v.sub(sin(u.mul(k)).mul(MEANDER.swing)), gu = cos(u.mul(k)).mul(-MEANDER.swing * k);
-  const gr = vec2(gu.mul(c).sub(sn), gu.mul(sn).add(c)).div(1600);
-  return vec3(g.greaterThanEqual(0).select(1, -1).mul(abs(g).div(1600).add(float(1).sub(s).mul(2).mul(length(gr)).mul(1600))), gr);
-}).setLayout({ name: 'riverMeander', type: 'vec3', inputs: [{ name: 'p', type: 'vec2' }, { name: 'sand', type: 'vec3' }, { name: 's', type: 'float' }] });
-/** the river's raw field: (r, 0 on the stream's line; its gradient). A function of its own (until 2026-11-19 written out
-    wherever it was read: riverInfo reads it three times, and every packing of the plants twice over): written once in
-    a shader, the sandbox's uniform handed to it (sand: uSand), as a function may not name one */
-const riverRawAt = Fn(([p, sand]) => {
-  const R = riverWorld(p).toVar(), s = sandOf(p, sand);
-  If(sand.z.greaterThan(0).and(riverSand(sand)).and(s.greaterThan(0)), () => { R.assign(riverMeander(p, sand.xyz, s)); });
+});
+/** the river's raw field: (r, 0 on the stream's line; its gradient) */
+export const riverRaw = Fn(([p]) => {
+  const R = riverWorld(p).toVar(), s = sandW(p);
+  If(U.uSand.z.greaterThan(0).and(riverSand()).and(s.greaterThan(0)), () => {
+    const d = p.sub(U.uSand.xy), c = Math.cos(MEANDER.turn), sn = Math.sin(MEANDER.turn), k = (2 * Math.PI) / MEANDER.wave;
+    const u = d.x.mul(c).add(d.y.mul(sn)), v = d.x.mul(-sn).add(d.y.mul(c));
+    const g = v.sub(sin(u.mul(k)).mul(MEANDER.swing)), gu = cos(u.mul(k)).mul(-MEANDER.swing * k);
+    const gr = vec2(gu.mul(c).sub(sn), gu.mul(sn).add(c)).div(1600);
+    R.assign(vec3(g.greaterThanEqual(0).select(1, -1).mul(abs(g).div(1600).add(float(1).sub(s).mul(2).mul(length(gr)).mul(1600))), gr));
+  });
   return R;
-}).setLayout({ name: 'riverRaw', type: 'vec3', inputs: [{ name: 'p', type: 'vec2' }, { name: 'sand', type: 'vec4' }] });
-export const riverRaw = (p) => riverRawAt(p, U.uSand);
+});
 // ---- the lakes (src/world/land.js: what a ring of river closes round is water): their middles, how far they reach,
 // the sign of the river's field inside, as the CPU found them (setLakes; none: radius 0) ----
 // (looked through as many as there are, a number the loop does not know when it is compiled: a loop of a fixed 32 is
@@ -84,13 +71,11 @@ export const nearLake = (p, margin = 40) => {
 /** 1 in a lake, 0 elsewhere (its water stands still: src/terrain/water.js) */
 export const lakeAt = Fn(([p]) => inLake(p, riverRaw(p).x));
 /** (signed distance from the channel's middle, half-width, which bank: > 0 a bend's outside, the bend) */
-/** A path's width before it wanders, metres: its least (src/terrain/layers.js lets its ground go by it). */
-export const PATH_W = 4.5;
 export const riverInfo = Fn(([p]) => {
   const R = riverRaw(p).toVar(), gl = max(length(R.yz), 2e-4), t = vec2(R.z.negate(), R.y).div(gl);
   const A = riverRaw(p.add(t.mul(20))), Bk = riverRaw(p.sub(t.mul(20)));
   const dt0 = atan(A.z, A.y).sub(atan(Bk.z, Bk.y)), dt = atan(sin(dt0), cos(dt0)), bend = clamp(dt.div(40).mul(BEND), -1, 1);
-  const w = float(PATH_W).add(smoothstep(0.25, 0.75, vnoise(p.mul(1 / 90), uint(42))).mul(3.5)).add(abs(bend).mul(7)).mul(vnoise(p.mul(1 / 14), uint(43)).mul(0.28).add(0.86));
+  const w = float(4.5).add(smoothstep(0.25, 0.75, vnoise(p.mul(1 / 90), uint(42))).mul(3.5)).add(abs(bend).mul(7)).mul(vnoise(p.mul(1 / 14), uint(43)).mul(0.28).add(0.86));
   // (inside a lake: the channel's middle all over. Its numbers held first: a choice between two values that both
   // work them out would write the river out twice over)
   const W = w.toVar(), Bd = bend.toVar(), sd = R.x.div(gl).sub(W.mul(0.25).mul(Bd)).toVar(), out = vec4(sd, W, Bd.mul(sd.greaterThanEqual(0).select(1, -1)), Bd).toVar();
@@ -104,72 +89,32 @@ export const riverNear = Fn(([q, I]) => {
   If(inLake(q, R.x).greaterThan(0.5), () => { out.assign(vec4(0, I.y, 0, 0)); });
   return out;
 });
-// (the height and its parts, which read no uniform: each a function of the shader's own, its layout, written once in a
-// shader and not again at every call: intent 0038. What reads a uniform, the river, stays written out where it is
-// called: three r187 names a uniform inside such a function apart from the shader's own, and the shader does not compile)
 export const riverCarve = Fn(([d, w, b]) => {
   const cut = max(b, 0), bar = max(b.negate(), 0), D = clamp(float(9).div(w), 0.75, 1.7).mul(1.2);
   return D.mul(float(1).sub(smoothstep(w.mul(cut.mul(0.4).add(0.55).sub(bar.mul(0.35))), w.mul(float(1.1).sub(cut.mul(0.06)).add(bar.mul(0.25))), d)));
-}).setLayout({ name: 'riverCarve', type: 'float', inputs: [{ name: 'd', type: 'float' }, { name: 'w', type: 'float' }, { name: 'b', type: 'float' }] });
+});
 export const riverBank = Fn(([d, w, b]) => {
   const cut = max(b, 0), bar = max(b.negate(), 0);
   return smoothstep(w, w.add(5).add(bar.mul(8)), d).mul(0.3).add(cut.mul(1.3).mul(smoothstep(w, w.add(1.2), d)).mul(float(1).sub(smoothstep(w.add(6), w.add(30), d).mul(0.6))));
-}).setLayout({ name: 'riverBank', type: 'float', inputs: [{ name: 'd', type: 'float' }, { name: 'w', type: 'float' }, { name: 'b', type: 'float' }] });
-/** the valley's floor at p and its slope: vec3(h, ∂h/∂x, ∂h/∂z) */
-const floorOf = Fn(([p]) => {
-  const n1 = noised(p.mul(1 / 2600), uint(11)), n2 = noised(p.mul(1 / 900).add(3.7), uint(12));
-  return vec3(n1.x.sub(0.5).mul(40).add(n2.x.sub(0.5).mul(14)), n1.yz.mul(40 / 2600).add(n2.yz.mul(14 / 900)));
-}).setLayout({ name: 'floorOf', type: 'vec3', inputs: [{ name: 'p', type: 'vec2' }] });
+});
 /** the valley's floor */
-export const baseB = (p) => floorOf(p).x;
+export const baseB = Fn(([p]) => vnoise(p.mul(1 / 2600), uint(11)).sub(0.5).mul(40).add(vnoise(p.mul(1 / 900).add(3.7), uint(12)).sub(0.5).mul(14)));
 export const WATER_DROP_N = float(WATER_DROP);
 
-// (the octaves' numbers as arrays a loop reads, made where a shader is built: their wavelengths and amplitudes)
-const octaves = () => ({ lam: array(OCT_LAM.map((v) => float(v))).toVar(), amp: array(OCT_AMP.map((v) => float(v))).toVar() });
-// (a smoothstep's slope at x: 0 outside a … b)
-const stepSlope = (a, b, x) => { const t = clamp(x.sub(a).div(b.sub(a)), 0, 1); return t.mul(float(1).sub(t)).mul(6).div(b.sub(a)); };
-/** The ground's height at p and its slope, worked out together (src/world/land.js heightSlopeAt, its twin, proven on the
-    CPU against the land's own finite difference). pe: the dial's pixels a metre of height covers there
-    (src/detail/measure.js). The land's octaves, each kept as long as its height shows (its amplitude over a dial pixel
-    on screen, handed over within BAND: the land's mesh is fine enough to carry every octave that shows,
-    src/terrain/terrain.js), each with its own slope (noised); the river, its part of the slope over e ahead in x and in
-    z (dX, dZ: its distance there, read with its width and bend kept: riverNear); the pads under what stands.
-    vec4(h, ∂h/∂x, ∂h/∂z, the valley's floor). One evaluation of the land where its slope took three; and the land's one
-    function: its height alone is this one's first number (heightAt), so the prepass and the colour pass, one asking the
-    height and one the slope too, put the ground at the same depth to the last bit (src/core/pass.js: the equal test). */
-const heightSlopeOf = Fn(([p, d, w, b, pe, dX, dZ, e]) => {
-  const mF = (v) => smoothstep(w, w.add(80), v), rvF = (v) => mF(v).mul(3).add(riverBank(v, w, b)).sub(riverCarve(v, w, b));
-  const m = mF(d).toVar(), dmx = mF(dX).sub(m).div(e).toVar(), dmz = mF(dZ).sub(m).div(e).toVar(), rv = rvF(d).toVar();
-  const rx = rvF(dX).sub(rv).div(e), rz = rvF(dZ).sub(rv).div(e);
-  // (T: the turn the octave reads the point through, the rows of the matrix q = T·p: its slope turned back by T's transpose)
-  const h = float(0).toVar(), hx = float(0).toVar(), hz = float(0).toVar(), q = vec2(p).toVar(), T = vec4(1, 0, 0, 1).toVar(), O = octaves();
-  Loop(OCT_LAM.length, ({ i }) => {   // (the octaves in a loop: written once in a shader, not once an octave)
+/** The ground's height at p: the land's octaves (each let go with distance), the river, and the pads under what stands */
+export const heightAt = Fn(([p, dist, d, w, b]) => {
+  const m = smoothstep(w, w.add(80), d), mm = mix(0.35, 1, m), h = float(0).toVar(), q = vec2(p).toVar();
+  for (let i = 0; i < OCT_LAM.length; i++) {
     q.assign(vec2(q.x.mul(0.8).sub(q.y.mul(0.6)), q.x.mul(0.6).add(q.y.mul(0.8))));
-    T.assign(vec4(T.x.mul(0.8).sub(T.z.mul(0.6)), T.y.mul(0.8).sub(T.w.mul(0.6)), T.x.mul(0.6).add(T.z.mul(0.8)), T.y.mul(0.6).add(T.w.mul(0.8))));
-    const lam = O.lam.element(i), A = O.amp.element(i), e1 = pe.mul(A);
-    If(e1.greaterThan(1), () => {
-      const n = noised(q.div(lam).add(float(i).mul(7.31)), uint(i).add(uint(20))), k = smoothstep(1, BAND, e1).mul(A), v = n.x.sub(0.5);
-      // (the last two octaves keep 0.35 of themselves on the river's banks: mix(0.35, 1, m))
-      const s = i.greaterThanEqual(6).select(float(0.65), float(1)), f = m.sub(1).mul(s).add(1), fx = dmx.mul(s), fz = dmz.mul(s);
-      const px = n.y.mul(T.x).add(n.z.mul(T.z)).div(lam), pz = n.y.mul(T.y).add(n.z.mul(T.w)).div(lam);
-      h.addAssign(v.mul(f).mul(k)); hx.addAssign(px.mul(f).add(v.mul(fx)).mul(k)); hz.addAssign(pz.mul(f).add(v.mul(fz)).mul(k));
+    const lam = OCT_LAM[i];
+    If(dist.lessThan(lam * 19.2), () => {
+      h.addAssign(vnoise(q.div(lam).add(i * 7.31), uint(20 + i)).sub(0.5).mul(OCT_AMP[i]).mul(float(1).sub(smoothstep(lam * 9.6, lam * 19.2, dist))).mul(i >= 6 ? mm : m));
     });
-  });
-  const F = floorOf(p).toVar(), H = F.x.add(h).add(rv).toVar(), HX = F.y.add(hx).add(rx).toVar(), HZ = F.z.add(hz).add(rz).toVar();
-  for (const P of PADS) {
-    const dv = p.sub(vec2(P.x, P.z)), len = length(dv), sP = smoothstep(P.r, P.r + PAD_FALL, len), dsP = stepSlope(float(P.r), float(P.r + PAD_FALL), len).div(max(len, 1e-4)), over = H.sub(P.h);
-    HX.assign(HX.mul(sP).add(over.mul(dsP).mul(dv.x))); HZ.assign(HZ.mul(sP).add(over.mul(dsP).mul(dv.y))); H.assign(over.mul(sP).add(P.h));
   }
-  return vec4(H, HX, HZ, F.x);
-}).setLayout({ name: 'heightSlopeAt', type: 'vec4', inputs: [{ name: 'p', type: 'vec2' }, { name: 'd', type: 'float' }, { name: 'w', type: 'float' }, { name: 'b', type: 'float' }, { name: 'pe', type: 'float' }, { name: 'dX', type: 'float' }, { name: 'dZ', type: 'float' }, { name: 'e', type: 'float' }] });
-/** The ground's height at p seen dist metres off, and its slope (d, w, b: the river there, riverInfo; dX, dZ: its
-    distance e ahead in x and in z, riverNear's): vec4(h, ∂h/∂x, ∂h/∂z, the valley's floor). (The measure is read here,
-    outside the land's function: a uniform named inside one does not compile; through the lens, as its mesh is made:
-    src/terrain/terrain.js) */
-export const heightSlopeAt = (p, dist, d, w, b, dX, dZ, e) => heightSlopeOf(p, d, w, b, dialPxAt(uPxK.div(max(dist, 1e-3))), dX, dZ, e);
-/** The ground's height at p, seen dist metres off (d, w, b: the river there, riverInfo): the land's function's height
-    (its slope asked of nothing: a shader's compiler drops what of it is not used). */
-export const heightAt = (p, dist, d, w, b) => heightSlopeAt(p, dist, d, w, b, d, d, float(1)).x;
+  const H = baseB(p).add(h).add(m.mul(3)).add(riverBank(d, w, b)).sub(riverCarve(d, w, b)).toVar();
+  for (const P of PADS) H.assign(mix(float(P.h), H, smoothstep(P.r, P.r + PAD_FALL, length(p.sub(vec2(P.x, P.z))))));
+  return H;
+});
 /** the height at p, the river worked out here */
 export const groundAt = (p, dist) => { const I = riverInfo(p); return heightAt(p, dist, abs(I.x), I.y, I.z); };
 
@@ -190,13 +135,12 @@ export const stageAt = (p) => U.uStage.z.greaterThan(0).select(float(1).sub(smoo
 
 /** What the biomes make of a point. ctx: { p, dist, d, w, b } (d, w, b: the river here, riverInfo). Returns each laid
     biome's share, lowest layer first, and what they add up to: the grass's cover (all ground, and among the grassy
-    biomes only), its height (a share of the grass asset's own), the dryness, and the chance of a stone. Every biome laid
-    is worked out. */
-export function biomesAt(ctx, vars = false) {   // vars: inside a Fn, each share kept in a variable, worked out once
+    biomes only), its height (a share of the grass asset's own), the dryness, and the chance of a stone. list: the
+    biomes worked out (the slots' biomes: those round the camera, src/world/slots.js; none named: every biome laid). */
+export function biomesAt(ctx, vars = false, list = LAID) {   // vars: inside a Fn, each share kept in a variable, worked out once
   // (the place as the rules read it, bent: worked out once for all of them; world/outlines.js)
   const B = bent(ctx.p), at = { ...ctx, B: vars ? B.toVar() : B };
-  const shares = LAID.map((b) => { const w = placed(b, clamp(b.where(at), 0, 1), ctx.p); return { b, w: vars ? w.toVar() : w }; });
-  if (vars) ctx.shares = new Map(shares.map(({ b, w }) => [b, w]));   // (kept with the place: what else asks of it there reads these, shareOf)
+  const shares = list.map((b) => { const w = placed(b, clamp(b.where(at), 0, 1), ctx.p); return { b, w: vars ? w.toVar() : w }; });
   let cover = float(1), height = float(1), stones = float(BASE.stones);
   const tufts = ctx.dist.lessThan(900).select(mix(tuftMask(ctx.p), 0.5, smoothstep(350, 900, ctx.dist)), float(0.5));   // grass in tufts, let go far off
   for (const { b, w } of shares) {

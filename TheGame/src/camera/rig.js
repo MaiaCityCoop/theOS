@@ -6,7 +6,6 @@
 // height is in camera/rig.js; here only the mechanics. Walls, rocks and the ground stop it (src/world/solids.js).
 import RIG from '../../camera/rig.js';
 import { heightAt } from '../world/land.js';
-import { pxThrough } from '../detail/measure.js';
 import { step, ceilingAt, clear, within } from '../world/solids.js';
 import { createTouch } from './touch.js';
 import { ANAMORPHIC } from '../../cine/lenses.js';
@@ -70,7 +69,7 @@ export function heightFor(x, z, yaw, dist) {
 
 /** The camera's height as words and a scale bar: '40 m · town', and how many metres a bar of px pixels spans. */
 export function scaleAt(camera, x, z, px = 48) {
-  const d = camera.position.distanceTo({ x, y: heightAt(x, z), z }), mPerPx = d / pxThrough(camera, innerHeight);   // (the window's own pixels, as a pointer moves by: the measure's, src/detail/measure.js)
+  const d = camera.position.distanceTo({ x, y: heightAt(x, z), z }), mPerPx = (2 * d * Math.tan((camera.fov * Math.PI) / 360)) / innerHeight;
   const raw = mPerPx * px, p10 = 10 ** Math.floor(Math.log10(raw)), nice = [1, 2, 5, 10].map((k) => k * p10).find((k) => k >= raw * 0.75) || 10 * p10;
   return { metres: nice, px: nice / mPerPx };
 }

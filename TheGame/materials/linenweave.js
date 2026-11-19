@@ -10,8 +10,8 @@ export default {
   type: 'material',
   name: 'Linen weave',
   kind: 'cloth',
-  about: 'Undyed homespun linen in a plain weave, slubbed and fuzzy.',
-  usedBy: 'the shirts of the characters',
+  about: 'Undyed homespun linen in a plain weave: every thread over one and under the next, slubbed and uneven, a fuzz of loose fibre over it.',
+  usedBy: 'the shirts of the characters (dyed by the garment)',
   swatch: [0.74, 0.7, 0.62],
   bump: 0.012,
   paint: (uv) => {

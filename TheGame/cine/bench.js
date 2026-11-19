@@ -2,11 +2,8 @@
 // a lens puts the virtual camera on that lens's master shot, in the real, running world. From
 // there the view can be turned and moved by hand, to judge and tune the land from every angle and
 // distance; the lens's button (or R) goes back to the master.
-import { boot } from '../src/boot.js';   // (first: the world, and the virtual camera with it)
 import { masters, floor } from './trailer.js';
 import { LENSES, hfov } from './lenses.js';
-
-boot({ profile: 'world' });
 
 const cine = window.__cine, q = new URLSearchParams(location.search);
 const list = masters(+(q.get('seed') || 1));

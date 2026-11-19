@@ -1,5 +1,5 @@
-// Cloud field: the shapes of the sky's cumulus, painted once into a tile the cloud layer reads (src/world/weather/clouds.js:
-// its field and its shadow): heaped masses in red, their finer billows in green (materials/README.md).
+// Cloud field: the shapes of the sky's cumulus, painted once into a tile the cloud layer reads (src/world/light.js:
+// cloudField): heaped masses in red, their finer billows in green (materials/README.md).
 import { float, vec3 } from 'three/tsl';
 import { pfbm, warp } from '../src/materials/paint.js';
 export default {
@@ -8,8 +8,8 @@ export default {
   name: 'Cloud field',
   kind: 'noise',
   role: 'billows',   // the part it plays for the engine (src/core/registry.js: byRole)
-  about: 'Cumulus as a field, for the cloud layer to read.',
-  usedBy: 'the clouds and their shadows',
+  about: "The sky's cumulus as a field: heaped masses, and their finer billows, for the cloud layer to read.",
+  usedBy: 'the clouds in the sky, and their shadows on the land',
   swatch: [0.8, 0.82, 0.86],
   bump: 0.05,
   paint: (uv) => {

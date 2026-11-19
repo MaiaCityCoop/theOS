@@ -184,30 +184,30 @@ function ashBed(f, K, N) {
   skin(f, P, C, 'ash', [true, false]);
 }
 
-/** The pit: `stones` round the ring, `sides` to every round thing. */
-function pit(stones, sides) {
+/** The pit at one level: `stones` round the ring, `sides` to every round thing, and what else it carries. */
+function pit(stones, sides, { ash = true, coals = true, logs = true, seats = true, bench = true } = {}) {
   const f = [], R = lcg(90210), N = sides * 2 + 2;   // (sides round a round thing)
-  {
+  if (ash) {
     ashBed(f, Math.max(5, sides * 3), Math.max(12, sides * 7));
     // charcoal in the ash: lumps of it, more towards the middle, and the ends of sticks that did not burn through
-    for (let k = 0; k < 30; k++) {
+    if (coals) for (let k = 0; k < 30; k++) {
       const C = lcg(3000 + k * 13), t = C() * 2 * Math.PI, d = Math.sqrt(C()) * RING * 0.8, s = 0.022 + C() * C() * 0.07;
       const y0 = ashAt(Math.cos(t) * d, Math.sin(t) * d) + 0.04 - s * 0.3;   // (half sunk in the ash: ashAt)
       riverStone(f, Math.cos(t) * d, Math.sin(t) * d, s, s * 0.9, C, t + Math.PI, C() * 6.3, Math.max(5, sides), Math.max(3, Math.round(sides / 2)), 'ash', coal, y0);
     }
-    for (let k = 0; k < 4; k++) {   // burnt sticks lying across the coals, their middles gone to charcoal
+    if (coals) for (let k = 0; k < 4; k++) {   // burnt sticks lying across the coals, their middles gone to charcoal
       const C = lcg(4000 + k * 7), a = k * 1.7 + C() * 0.5, len = 0.42 + C() * 0.25, r = 0.028 + C() * 0.022, d = RING * 0.12 * k;
       const ca = Math.cos(a), sa = Math.sin(a), ox = Math.cos(k * 2.3) * d, oz = Math.sin(k * 2.3) * d;
       wood(f, [ox - ca * len / 2, ashAt(ox, oz) + r * 0.4 + k * 0.012, oz - sa * len / 2], [ca, (C() - 0.5) * 0.15, sa], len, r, C, { N: Math.max(6, sides + 1), K: 6, char: 0.85 + C() * 0.15 });
     }
   }
   // the ring itself: river stones laid end to end round it, each its own worn round body, sooted on the inside. Each
-  // stone has its own seed
+  // stone has its own seed, so it is the same stone at every level, only drawn with fewer sides further off
   for (let i = 0; i < stones; i++) {
     const S = lcg(1000 + i * 17), t = (i / stones) * 2 * Math.PI + (S() - 0.5) * 0.14, d = RING * (1.03 + S() * 0.08);
     riverStone(f, Math.cos(t) * d, Math.sin(t) * d, 0.11 + S() * 0.07, 0.13 + S() * 0.12, S, t + Math.PI, t + Math.PI / 2 + (S() - 0.5) * 0.5, Math.max(5, sides * 2 - 2), Math.max(3, sides - 1));
   }
-  {   // the wood still to go on, stacked clear of the flame: two side by side, one across them
+  if (logs) {   // the wood still to go on, stacked clear of the flame: two side by side, one across them
     const t = 2.25, cx = Math.cos(t) * (RING + 0.5), cz = Math.sin(t) * (RING + 0.5), along = t + Math.PI / 2, ca = Math.cos(along), sa = Math.sin(along);
     const W = lcg(5000), L = 0.78;
     for (const [off, y, turn, r] of [[-0.09, 0.07, 0, 0.068], [0.08, 0.065, 0.06, 0.062], [0.0, 0.19, 0.35, 0.058]]) {
@@ -215,11 +215,11 @@ function pit(stones, sides) {
       wood(f, [px - c * L / 2, y - 0.01, pz - sn * L / 2], [c, 0, sn], L, r, W, { N, K: 6, taper: 0.08 });
     }
   }
-  for (let i = 0; i < 3; i++) {
+  if (seats) for (let i = 0; i < 3; i++) {
     const t = (i / 3) * 2 * Math.PI - 0.5;
     seat(f, Math.cos(t) * SEAT_R, Math.sin(t) * SEAT_R, (SEAT_W / 2) * (0.92 + R() * 0.16), SEAT_H + (R() - 0.5) * 0.06, N + 4, lcg(6000 + i));
   }
-  {   // a pine log lying on the ground to sit on: round, a little sunk in, sawn at both ends
+  if (bench) {   // a pine log lying on the ground to sit on: round, a little sunk in, sawn at both ends
     const a = 2.6 + Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a), cx = Math.cos(2.6) * (SEAT_R + 0.12), cz = Math.sin(2.6) * (SEAT_R + 0.12), L = 1.6, r = 0.2;
     wood(f, [cx - ca * L / 2, r * 0.86, cz - sa * L / 2], [ca, 0.012, sa], L, r, lcg(7000), { N: N + 6, K: 10, taper: 0.14 });
   }
@@ -231,7 +231,7 @@ export default {
   type: 'asset',
   name: 'Fire pit',
   kind: 'default',
-  about: 'A ring of sooted stones round ash, with stacked wood and log seats.',
+  about: 'A ring of sooted river stones round a bed of ash and charcoal, the wood that will burn on it, wood stacked ready, and log rounds cut from a pine to sit on. It stands out on the grass in front of the tent.',
   measure: MEASURE,
   size: { length: 2 * (SEAT_R + SEAT_W), width: 2 * (SEAT_R + SEAT_W), height: 0.95 },
   // what it is made of: the world's own materials, wrapped round it from three sides (src/world/place.js). A face
@@ -245,9 +245,15 @@ export default {
   texture: 0.42,   // metres a tile of them spans: the stone's plates and the bark's ridges at the size they really are
   relief: 1.4,     // their bumps read deep: rough stone, ridged bark
   colours: { stone: [0.33, 0.31, 0.29], soot: [0.07, 0.06, 0.06], ash: [0.57, 0.55, 0.52], coal: [0.09, 0.09, 0.09], wood: [0.67, 0.52, 0.34], bark: [0.36, 0.2, 0.12] },   // (for a picture without the materials)
-  // all it is, up close, every facet of every stone and the rings of the sawn seats: every coarser version of it is the
-  // builder's (assets/kit/made.js)
-  faces: pit(13, 9),
+  // near to far: every facet of every stone and the rings of the sawn seats; then fewer sides; then no fire and no ash
+  detail: {
+    levels: [
+      { faces: pit(13, 9) },
+      { faces: pit(13, 6) },
+      { faces: pit(13, 4, { logs: false, coals: false }) },
+      { faces: pit(13, 3, { ash: false, coals: false, logs: false, bench: false }) },
+    ],
+  },
   placement: { at: 'places', clearsGround: 2.6 },
   // what a walker cannot pass: the seats and the bench. The stone ring is ankle high and is stepped over.
   solid: {

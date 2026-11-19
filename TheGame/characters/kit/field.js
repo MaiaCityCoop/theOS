@@ -1,6 +1,6 @@
 // A shape as a field: how far each point is from its surface (negative inside), made of simple solids blended into one
-// another, and the surface drawn out of it as triangles. Plain JS, no three: the body is grown from it (its bones:
-// ./skeleton/mesh.js; its skin: ./skin/build.js), in the page or in a worker, and a tool can run it under node.
+// another, and the surface drawn out of it as triangles. Plain JS, no three: the person is grown from it (./body.js),
+// in the page or in a worker, and a tool can run it under node.
 //
 //   solid(kind, …)   a solid: ball, egg (an ellipsoid), rod (a cone with round ends), box (rounded), ring (a torus),
 //                    plane, strand (a muscle, a band), loft (a shaft with its section along it), plate (a blade of

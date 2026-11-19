@@ -9,6 +9,10 @@
 //                                      surface's own way out, 2 round it too
 import { fieldOf, meshOf, slope } from '../field.js';
 
+/** How the surfaces are drawn out, as a number: changed with the rules below, so a surface kept from other rules is
+ *  grown again (./grow.worker.js: the digest). */
+export const DRAWN = 2;
+
 // The thinnest blade among a bone's solids (a plate's thickness in its middle, m): a sheet thinner than the cells it
 // is drawn with comes out full of holes.
 const thinOf = (ops) => { let t = Infinity; for (const o of ops) { if (o.op !== 'add') continue; if (o.s.t === 9) t = Math.min(t, 2 * o.s.tc); else if (o.s.t === 6) t = Math.min(t, thinOf(o.s.ops)); } return t; };

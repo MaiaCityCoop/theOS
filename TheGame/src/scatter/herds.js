@@ -56,47 +56,12 @@ function pathsOf(n) {
   return rows;
 }
 
-/** The creatures by where their rounds lie (rows: pathsOf's), n of them: a grid over their rounds' middles, its side
-    a round's widest (its radius twice), each cell its creatures (counted, then laid end to end: two typed arrays).
-    near(x, z, R) -> m: the creatures whose rounds may pass within R of (x, z) (its middle within R and its radius),
-    the cells round it only, not a walk of all n: the first m of `list` (a typed array, kept: nothing made a look);
-    where every round lies within R, all n as they lie, none looked at one by one. */
-function roundsOf(rows, n) {
-  let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity, rMost = 0;
-  for (let i = 0; i < n; i++) { const o = i * 12; x0 = Math.min(x0, rows[o]); x1 = Math.max(x1, rows[o]); z0 = Math.min(z0, rows[o + 1]); z1 = Math.max(z1, rows[o + 1]); rMost = Math.max(rMost, rows[o + 2]); }
-  const side = Math.max(1e-3, 2 * rMost), nx = n ? Math.floor((x1 - x0) / side) + 1 : 1, nz = n ? Math.floor((z1 - z0) / side) + 1 : 1;
-  const cellOf = (i) => Math.floor((rows[i * 12 + 1] - z0) / side) * nx + Math.floor((rows[i * 12] - x0) / side), start = new Uint32Array(nx * nz + 1), items = new Uint32Array(n);
-  for (let i = 0; i < n; i++) start[cellOf(i) + 1]++;
-  for (let c = 0; c < nx * nz; c++) start[c + 1] += start[c];
-  const fill = start.slice(0, nx * nz); for (let i = 0; i < n; i++) items[fill[cellOf(i)]++] = i;
-  const found = new Uint32Array(Math.max(1, n));
-  const G = {
-    list: items,
-    near(x, z, R) {
-      if (Math.hypot(Math.max(x - x0, x1 - x), Math.max(z - z0, z1 - z)) + rMost <= R) { G.list = items; return n; }   // (all of them within it)
-      const reach = R + rMost, i0 = Math.max(0, Math.floor((x - reach - x0) / side)), i1 = Math.min(nx - 1, Math.floor((x + reach - x0) / side)), j0 = Math.max(0, Math.floor((z - reach - z0) / side)), j1 = Math.min(nz - 1, Math.floor((z + reach - z0) / side));
-      let m = 0;
-      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
-        const c = j * nx + i, a = start[c], b = start[c + 1]; if (a === b) continue;
-        const fx = Math.max(Math.abs(x0 + i * side - x), Math.abs(x0 + (i + 1) * side - x)), fz = Math.max(Math.abs(z0 + j * side - z), Math.abs(z0 + (j + 1) * side - z));
-        if (Math.hypot(fx, fz) + rMost <= R) { found.set(items.subarray(a, b), m); m += b - a; continue; }   // (the cell all within it: its creatures as they lie)
-        for (let k = a; k < b; k++) { const n0 = items[k], o = n0 * 12, dx = rows[o] - x, dz = rows[o + 1] - z, r = R + rows[o + 2]; if (dx * dx + dz * dz <= r * r) found[m++] = n0; }
-      }
-      G.list = found; return m;
-    },
-  };
-  return G;
-}
-
 function createHerds(scene, renderer, tex) {
   const rows = pathsOf(N), ROWS = storage(new THREE.StorageBufferAttribute(rows, 4), 'vec4', N * 3), strideT = uniform(0), HK = uniform(nameKey('herds'), 'uint');
   const sizes = [Infinity, 0]; for (let i = 0; i < N; i++) { sizes[0] = Math.min(sizes[0], rows[i * 12 + 6]); sizes[1] = Math.max(sizes[1], rows[i * 12 + 6]); }
   const D = createDrawer(scene, renderer, tex, { name: 'herds', LEVELS, SHADE, SMOOTH: uniform(1), skins: 64, zoo: { first: STAND, ALL: MOVING, STAND: 0, MOVING, lookOfKind: (k) => lookOfKind(STAND + k), fingerprint } });
-  // where creature i is at time t (radians round its round), as the GPU reckons it and the CPU again: into `out`
-  // ([x, z, its turn]), nothing made a creature a frame
-  const into = (i, t, out) => { const o = i * 12, th = rows[o + 3] + TAU * ((((rows[o + 4] / TAU) * t) % 1) + 1); out[0] = rows[o] + rows[o + 2] * Math.cos(th); out[1] = rows[o + 1] + rows[o + 2] * Math.sin(th); out[2] = th + Math.sign(rows[o + 4]) * Math.PI / 2; return out; };
-  const at = (i, t) => into(i, t, [0, 0, 0]);   // (a look's: window.__herds)
-  const ROUNDS = roundsOf(rows, N), here = new Float64Array(3);   // (each creature by where its round lies: what looks near a point visits only those whose round passes near it);
+  // where creature i is at time t (radians round its round), as the GPU reckons it and the CPU again
+  const at = (i, t) => { const o = i * 12, th = rows[o + 3] + TAU * ((((rows[o + 4] / TAU) * t) % 1) + 1); return [rows[o] + rows[o + 2] * Math.cos(th), rows[o + 1] + rows[o + 2] * Math.sin(th), th + Math.sign(rows[o + 4]) * Math.PI / 2]; };
   const place = (c, part, found) => {
     const i = int(c.y).mul(int(P)).add(int(c.x)), u = uint(i).mul(uint(3));
     If(i.lessThan(int(N)), () => {
@@ -122,14 +87,14 @@ function createHerds(scene, renderer, tex) {
     D.start(); D.skinsIn();
     const L = D.scan(); if (!L) return;
     const cam = U.uCam.value, dy = U.uDy.value, t = U.uTime.value, far = L.reach(sizes[1]);
-    for (let k = 0, m = ROUNDS.near(cam.x, cam.z, far), F = ROUNDS.list; k < m; k++) { const i = F[k], o = i * 12; into(i, t, here); const d = Math.hypot(here[0] - cam.x, here[1] - cam.z, dy); if (d < far) L.wants(rows[o + 5], rows[o + 6], d, Math.abs(rows[o + 4] * rows[o + 2]) * 0.35); }
+    for (let i = 0; i < N; i++) { const [x, z] = at(i, t), d = Math.hypot(x - cam.x, z - cam.z, dy); if (d < far) L.wants(rows[i * 12 + 5], rows[i * 12 + 6], d, Math.abs(rows[i * 12 + 4] * rows[i * 12 + 2]) * 0.35); }
     L.done();
   };
   // what of them is solid round a point: each its kind's colliders, carried by its bones as it walks
   addBodies((x, z, reach) => {
     const out = [], t = U.uTime.value, g = t % WRAP;
-    for (let k = 0, m = ROUNDS.near(x, z, reach + sizes[1] + 1), F = ROUNDS.list; k < m; k++) {
-      const i = F[k], o = i * 12, S = rows[o + 6]; into(i, t, here); const mx = here[0], mz = here[1], yaw = here[2]; if (Math.hypot(mx - x, mz - z) > reach + S + 1) continue;
+    for (let i = 0; i < N; i++) {
+      const o = i * 12, [mx, mz, yaw] = at(i, t), S = rows[o + 6]; if (Math.hypot(mx - x, mz - z) > reach + S + 1) continue;
       const k = rows[o + 5], zk = STAND + k, bones = D.boneRows.array.subarray(k * BONES * 12, (k + 1) * BONES * 12), gi = rows[o + 7] * g + rows[o + 8];
       out.push({ id: `herds:${i}`, thing: idOf('herds', i, 0), x: mx, z: mz, y: heightAt(mx, mz), up: 0, yaw, s: S, kind: zk, body: bodyOf(zk), pose: (bone, q, out) => moved(bones, bone, gi, q, out) });
     }
@@ -139,7 +104,7 @@ function createHerds(scene, renderer, tex) {
   return tiers;
 }
 
-/** A scatter engine (src/scatter/index.js loads it where `?herds=N` asks): what it places of its own. */
+/** A scatter engine (src/scatter/index.js finds it): what it places of its own, where `?herds=N` asks. */
 export const engine = {
   id: 'herds',
   createOwn: (scene, tex, ground, gpu, renderer) => (gpu && N && MOVING ? createHerds(scene, renderer, tex) : []),

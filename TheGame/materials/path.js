@@ -6,8 +6,8 @@ export default {
   type: 'material',
   name: "Path",
   kind: 'ground',
-  about: 'Trodden earth, packed smooth, pebbles bedded in it.',
-  usedBy: 'paths; bare patches; outcrops; the stage',
+  about: "Trodden earth, packed smooth where feet go, with loose crumbs and pebbles of three sizes bedded in it.",
+  usedBy: "paths, bare patches, the outcrops' floor, the library stage",
   swatch: [0.17, 0.12, 0.08],
   bump: 0.016,   // how deep its relief reads in the normals: larger is flatter
   paint: (uv) => {

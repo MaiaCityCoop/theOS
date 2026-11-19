@@ -8,7 +8,7 @@ export default {
   type: 'material',
   name: 'Wood ash',
   kind: 'ground',
-  about: 'Fine pale ash drifted into hollows, charcoal through it.',
+  about: 'A fire pit the morning after: fine pale grey ash drifted into hollows, black flecks and broken charcoal through it.',
   usedBy: 'the bed of the fire pit',
   swatch: [0.52, 0.5, 0.48],
   bump: 0.02,

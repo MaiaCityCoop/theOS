@@ -1,9 +1,8 @@
-// The body of the library (intents 0036, 0041): the skeleton (./skeleton.js), the muscles on it (./muscles.js), and over
-// them the fat and the skin: a man of 1.80 m as he stands, naked. One layer outermost at a time (skin, fat, muscles,
-// bones), all of them on the skeleton's rig and moving with it. The skin is one closed surface, made as a film's or a
-// game's body is: a cage of four-sided faces wrapped on the shape the anatomy gives and made smooth (./kit/skin/), each
-// of its points carried by the joints nearest under it (it does not yet swell with the muscles). Grown in the page from
-// our own code. A character is a recipe like any other (src/core/registry.js).
+// The body of the library (intent 0036): the skeleton (./skeleton.js), the muscles on it (./muscles.js), and over them
+// the fat and the skin: a man of 1.80 m as he stands, naked. One layer outermost at a time (skin, fat, muscles, bones),
+// all of them on the skeleton's rig and moving with it: the skin is carried by the bones nearest under it, as a game's
+// skin is (it does not yet swell with the muscles). Grown in the page from our own code. A character is a recipe like
+// any other (src/core/registry.js).
 import { skeletonOf, MOVES } from './kit/bones.js';
 import { PERSON } from '../world/scale.js';
 
@@ -12,8 +11,8 @@ const body = {
   type: 'character',
   name: 'Body',
   kind: 'anatomy',
-  about: 'A man of 1.80 m: skin over fat, muscles and bones, each a layer.',
-  made: 'The skeleton and its muscles (see Skeleton and Muscles); the fat\'s and the skin\'s thickness place by place from skinfold and soft-tissue depth tables (Jackson & Pollock 1978, Durnin & Womersley 1974, Stephan & Simpson 2008); the body\'s outline from the US Army\'s survey of men (ANSUR II, 2012); the nose\'s and the ears\' gristle and the eyes; the head\'s form from its skull\'s own levels and the face\'s measured profile and breadths (Arnett et al. 1999, Farkas 1994). The skin a cage of about 5 000 four-sided faces wrapped on that shape and made smooth (Catmull & Clark 1978), lit as skin is: light spreading under it as measured (d\'Eon, Luebke & Enderton 2007), two lobes of gloss. Grown in the page from our own code.',
+  about: 'A man of 1.80 m as he stands, naked: his skin over his fat, over his muscles, over his bones, each a layer that can be shown outermost. The skin lies as far over the muscles and the bones as the fat and the skin are thick there, and rides on them as they move.',
+  made: 'The skeleton and its muscles (see Skeleton and Muscles); the fat\'s and the skin\'s thickness place by place from skinfold and soft-tissue depth tables (Jackson & Pollock 1978, Durnin & Womersley 1974, Stephan & Simpson 2008); the body\'s outline from the US Army\'s survey of men (ANSUR II, 2012); the nose\'s and the ears\' gristle and the eyes. Grown in the page from our own code.',
   layers: ['bones', 'muscles', 'fat', 'skin'],
   height: 1.8,   // the man of reference (./kit/skeleton.js)
   // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)

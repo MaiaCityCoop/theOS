@@ -1,68 +1,26 @@
-// The ground round the camera, written by the GPU into small maps: windows of 512² texels, level 0's a texel every
-// 0.5 m (the terrain's own nearest vertices), each level's texel twice the one before's, as many levels as reach the
-// meadow's end (where its blades are gone: src/scatter/grass.js bandsOf, at the most pixels the screen can draw). Blades
-// and stones read their height, density, grass height, stone chance, colour and dryness from them instead of working
-// the land's noise out again at every vertex, from the finest level that holds them, going over into the next over its
-// window's outer eighth. A level is drawn again each time the camera has walked 32 of its texels, or when the library's
-// stage or sandbox changed (src/stage/studio.js: the land's nodes read them): in pieces, a piece a submission, into a
-// staging window, then copied into its place whole, nearest level first; what reads it reads the window it had until
-// then. As much of it a frame as the GPU draws in the ground's share of a frame (behind the veil, the whole frame's), by
-// each piece's own time on the GPU (src/core/pace.js, as the land's pages are laid), and never a piece past what one
-// submission may take (budget.js SUBMIT_MS): a 128² piece of the land's whole evaluation was 0.1 to 0.5 s on the Mac
-// mini (2026-11-19), one of them 3.1 s, the device lost; a 512² window in one pass, seconds.
-// Its texels grow with a longer lens in steps (a step a half stop: √2), not with every change of the lens, and from one
-// step to the next what is read passes from the maps before to the new ones over FADE frames: a blade comes or goes by
+// The ground under the camera, written by the GPU into two small textures: 256 m square, a texel every 0.5 m (the
+// terrain's own nearest vertices). Blades and stones read their height, density, grass height, stone chance, colour and dryness from
+// them instead of working the land's noise out again at every vertex. Drawn again, whole (two 512² passes), each time
+// the camera has walked 8 m. It also holds the library's stage and sandbox, which the land's nodes read.
+// Its texel grows with a longer lens in steps (a step a half stop: √2), not with every change of the lens, and from one
+// step to the next what is read passes from the map before to the new one over FADE frames: a blade comes or goes by
 // itself as the density it reads passes its own, its height and colour slide, nothing changes at once (intent 0033)
 import * as THREE from 'three/webgpu';
-import { float, vec2, vec3, vec4, uv, uniform, texture, mrt, positionGeometry, abs, length, mix, smoothstep, sqrt, max, clamp, If } from 'three/tsl';
+import { float, vec2, vec3, vec4, uv, uniform, texture, mrt, positionGeometry, abs, length, mix, smoothstep, sqrt } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { note, budgetOf, plan, PORTABLE } from '../core/gpu.js';
+import { note } from '../core/gpu.js';
 import { compileFor } from '../core/compile.js';
-import { heightAt as heightCPU } from '../world/land.js';
-import { camDist, riverInfo, heightAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, biomesAt } from '../world/land.nodes.js';
+import { heightAt as heightCPU, SAND } from '../world/land.js';
+import { camDist, riverInfo, heightAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, biomesAt, LAID } from '../world/land.nodes.js';
 import { CLEARINGS } from '../../world/places.js';
 import { offWays, waysVersion } from '../world/ways.js';
-import { source } from '../core/settle.js';
-import { FADE_FRAMES, BUDGET_MB } from '../core/budget.js';
-import { ownGpuMs, pace, frameShare } from '../core/pace.js';
-import { recipes } from '../core/registry.js';
-import { pxKMost, farMost } from '../detail/measure.js';
-import { GONE } from '../detail/error.js';
-import { most } from '../../assets/kinds.js';
-import { ringsOf, bandsOf } from './grass.js';
-import { BLOCK } from './regions.js';
-import { SLOT } from '../terrain/pages.js';
+import { BIOMES } from '../world/biomes.js';
 
-const SIDE = 512;   // texels a side of every level, on the Mac (sideOf: a device with less room, fewer); level 0's texel is 0.5 m to the 68° lens and grows with a longer one, so it always covers what reads it
-/** How far round the camera level 0 surely reaches with N texels a side, metres as the 68° lens sees them: half its
-    side, less the 32 texels the camera walks before it is drawn again (update); each level after reaches twice as far.
-    What reads level 0 alone (the CPU's copy, src/world/rocksolid.js) ends within it. */
-const reachAt = (N) => (N * 0.5) / 2 - 32 * 0.5;
-/** How far the maps reach: as far as what reads them is drawn at the most pixels the screen can draw (the maps are a
-    capacity: src/detail/measure.js pxKMost, farMost): the meadow's end, and where the largest of the stones that lie
-    by them is gone (src/scatter/rocks.js: every rock to where it is, by the one rule); never less than level 0's. At
-    the dial at rest, or another (dial: the start's plan's). */
-const reachOf = (level0, dial) => Math.max(level0, ...recipes('asset').filter((a) => a.placement?.engine === 'grass').map((a) => bandsOf(ringsOf(a), a.height, pxKMost(dial)).end),
-  ...recipes('asset').filter((a) => a.placement?.engine === 'rocks' && !a.placement.outcrops).map((a) => farMost(GONE, most(a.size.length), dial)));
-/** How many levels reach as far as the maps must with N texels a side (each twice the one before's): no more than the
-    ground's class holds in all (its budget: bytesAt's two sets and a staging window, 8 bytes a texel), at a dial of 0
-    as many as that, the rest the dial's; and no more side by side than one target is wide (the device's widest, which
-    it is not asked for: WebGPU's own, src/core/gpu.js PORTABLE). */
-const levelsAt = (N, dial) => Math.min(Math.max(1, Math.ceil(Math.log2(reachOf(reachAt(N), dial) / reachAt(N)) - 1e-9) + 1), Math.max(1, Math.floor(((budgetOf('ground') * 2 ** 20) / (2 * N * N * 8) - 1) / 2)), Math.max(1, Math.floor(PORTABLE.maxTextureDimension2D / N)));
-/** What the maps hold with N texels a side, bytes: two sets of their levels and a staging window, two maps each, 8
-    bytes a texel. */
-const bytesAt = (N, dial) => (2 * levelsAt(N, dial) + 1) * 2 * N * N * 8;
-/** Their side on this device: as large a share of the ground's room as SIDE's take of the Mac's (budget.js BUDGET_MB;
-    src/core/gpu.js budgetOf, the device's, at boot): the largest whole number of a page's sides (SLOT) that fits it, at
-    least one. SIDE on the Mac. */
-const sideOf = (dial) => { const fits = (bytesAt(SIDE, dial) * budgetOf('ground')) / BUDGET_MB.ground; let N = SIDE; while (N > SLOT && bytesAt(N, dial) > fits) N -= SLOT; return N; };
-// (the start's plan: the maps, as they are made at a dial, said before anything is made: src/core/gpu.js planDial)
-plan("the ground's maps", 'ground', (dial) => bytesAt(sideOf(dial), dial));
-const FADE = FADE_FRAMES;   // (from the map before to the new one, where its texel steps: src/core/budget.js)
-// (G: the map being drawn; R[set][level]: what each map of the two sets was drawn with, for reading it; W: how much of
-// the second set is read)
-const G = { o: uniform(new THREE.Vector2(1e9, 1e9)), base: uniform(0), texel: uniform(0.5) }, W = uniform(0);
-const drawnWith = () => ({ o: uniform(new THREE.Vector2(1e9, 1e9)), base: uniform(0), texel: uniform(0.5) });
+const N = 512;   // texels a side; a texel is 0.5 m to the 68° lens and grows with a longer one, so it always covers the blades' reach
+const FADE = 36;   // frames (0.6 s at 60 fps; counted in frames, so no frame changes more than a 36th, however slow): from the map before to the new one, where its texel steps
+// (G: the map being drawn; R: what each of the two maps was drawn with, for reading it; W: how much of the second is read)
+const G = { o: uniform(new THREE.Vector2(1e9, 1e9)), base: uniform(0), texel: uniform(0.5) };
+const R = [0, 1].map(() => ({ o: uniform(new THREE.Vector2(1e9, 1e9)), base: uniform(0), texel: uniform(0.5) })), W = uniform(0);
 /** The map's texel for a lens factor s: 0.5 m at 1, larger by a half stop (√2) at a time, never smaller than s asks
     (the blades' reach is s times as far); held while s comes down by less than a step more (no stepping to and fro). */
 const stepOf = (s, was) => (was && s <= was * 1.0001 && s > was / (Math.SQRT2 * 1.15) ? was : 2 ** (Math.ceil(Math.log2(Math.max(1, s)) * 2 - 1e-6) / 2));
@@ -70,28 +28,21 @@ const stepOf = (s, was) => (was && s <= was * 1.0001 && s > was / (Math.SQRT2 * 
 // what stands at a named place keeps its floor clear (its `clear`, metres round it): 1 where grass and stones may be
 const clearOf = (pos) => CLEARINGS.reduce((k, p) => k.mul(smoothstep(p.clear - 0.4, p.clear + 0.3, length(pos.sub(vec2(p.x, p.z))))), float(1));
 
-export function createGround(renderer, tex) {
+export function createGround(renderer, tex, list = LAID) {
   const opts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false };
-  // as many levels as reach as far as the maps must (each twice the one before's); a level's pass one, two outputs
-  // (MRT): the ground (height, grass, its height, stones) and the grass's colour (and its dryness), the levels side by
-  // side in one target (what reads them binds two textures a set, whatever the levels: a stage binds 16 at most). Two
-  // sets of them: the one read, and the one before it while what is read passes from it to the new one
-  const N = sideOf(), REACH = reachAt(N), LV = levelsAt(N);   // (the levels side by side in one target: no wider than the device's widest, levelsAt)
-  const rts = [0, 1].map(() => new THREE.RenderTarget(N * LV, N, { ...opts, type: THREE.HalfFloatType, count: 2 }));
-  // (and a staging window: a level drawn in it a piece at a time, then copied into its place whole)
-  const stage = new THREE.RenderTarget(N, N, { ...opts, type: THREE.HalfFloatType, count: 2 });
-  note(`the ground round the camera (${LV} levels of two maps, twice, and a staging window)`, (2 * LV + 1) * 2 * N * N * 8, 0, 'ground', rts, stage);
-  for (const rt of [...rts, stage]) { rt.textures[0].name = 'ground'; rt.textures[1].name = 'tint'; rt.scissorTest = true; }
-  const R = [0, 1].map(() => Array.from({ length: LV }, drawnWith));
+  // one pass, two outputs (MRT): the ground (height, grass, its height, stones) and the grass's colour (and its dryness)
+  // (two of them: the one read, and the one before it while what is read passes from it to the new one)
+  const rts = [0, 1].map(() => new THREE.RenderTarget(N, N, { ...opts, type: THREE.HalfFloatType, count: 2 })); note('the ground round the camera (two maps, twice)', 2 * 2 * N * N * 8, 0);
+  for (const rt of rts) { rt.textures[0].name = 'ground'; rt.textures[1].name = 'tint'; }
   let cur = 0, fadeAt = -1;   // (fadeAt: frames into the fade; -1: none)
   // the texel's centre, in metres; three's node reads turn a target's rows the other way up, so the writer turns them too
   const posOf = () => G.o.add(vec2(uv().x, float(1).sub(uv().y)).mul(N).sub(0.5).mul(G.texel));
-  // the pass's material
-  const build = () => {
+  // the pass's material, for a list of biomes (the slots': those round the camera, src/world/slots.js)
+  const build = (list) => {
     // (plain shared nodes, not a function: three works a shared node out once, and hands the two to the two targets)
     const pos = posOf(), I = riverInfo(pos), w = I.y, d = abs(I.x), b = I.z, dist = camDist(pos);
-    const L = biomesAt({ p: pos, dist, d, w, b });   // every biome's share here: their grass, its height, their stones, the dryness
-    const path = placeOff(pos, pathMask(pathN(pos))), oc = outcropMask(pos), stage = stageAt(pos), keep = offWays(clearOf(pos).mul(float(1).sub(stage)), pos);   // (and no grass or stone on a way, a blade's or a stone's middle: src/world/ways.js; a stone by its own size there too, src/scatter/rocks.js)
+    const L = biomesAt({ p: pos, dist, d, w, b }, false, list);   // every biome's share here: their grass, its height, their stones, the dryness
+    const path = placeOff(pos, pathMask(pathN(pos))), oc = outcropMask(pos), stage = stageAt(pos), keep = offWays(clearOf(pos).mul(float(1).sub(stage)), pos, 1);   // (and no grass or stone on a way: src/world/ways.js)
     const dens = float(1).sub(path).mul(float(1).sub(bareMask(pos))).mul(float(1).sub(oc.mul(0.25))).mul(L.cover).mul(keep);
     const stone = keep.mul(L.stones.add(oc.mul(0.5))).mul(float(1).sub(path.mul(0.8)));
     const t = grassTint(tex, pos, L.dry, 0);
@@ -102,100 +53,20 @@ export function createGround(renderer, tex) {
     });
     return mat;
   };
-  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), build()), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1); quad.frustumCulled = false;
-  // (level l's texel at pos: its place in its own window, within half a texel of its edge, l windows along)
-  const read = (t, pos, M, l) => { const u = clamp(pos.sub(M.o).div(M.texel).add(0.5).div(N), 0.5 / N, 1 - 0.5 / N); return texture(t, vec2(u.x.add(l).div(LV), u.y)).level(0); };
-  // (a set's maps at pos: the finest level whose window holds it, going over into the next over the window's outer
-  // eighth, the last holding all it has; f: a level's value from its texel and what it was drawn with)
-  const levels = (set, i, pos, f) => {
-    const out = vec4(0).toVar(), left = float(1).toVar();
-    for (let l = 0; l < LV; l++) {
-      const M = R[set][l], u = pos.sub(M.o).div(M.texel).sub(N / 2 - 0.5), e = max(abs(u.x), abs(u.y)).div(N / 2 - 1);
-      If(left.greaterThan(0).and(e.lessThan(1)), () => {
-        const k = l < LV - 1 ? left.mul(float(1).sub(clamp(e.sub(7 / 8).mul(8), 0, 1))) : left;
-        out.addAssign(f(read(rts[set].textures[i], pos, M, l), M).mul(k)); left.subAssign(k);
-      });
-    }
-    return out;
-  };
-  // (both sets read, as much of each as W says: read where a blade is packed, once a blade, not at its every vertex)
-  const both = (i, pos, f) => mix(levels(0, i, pos, f), levels(1, i, pos, f), W);
-  const lastDy = Array(LV).fill(-1);   // (the camera's height over the ground each level was last asked for at)
-  let lastS = 0, lastW = 0, laid = '', cpu = null, reading = false, reads = 0;   // (laid: the stage and sandbox it was drawn for; reads: how many read-backs have come)
-  // the CPU's copy of the ground under the camera (read back after level 0 is in, a moment later): what runs on the CPU
-  // and must agree with what is drawn reads it, the rocks' bodies first (src/world/rocksolid.js)
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), build(list)), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1); quad.frustumCulled = false;
+  const read = (t, pos, M) => texture(t, pos.sub(M.o).div(M.texel).add(0.5).div(N)).level(0);
+  // (both maps read, as much of each as W says: read where a blade is packed, once a blade, not at its every vertex)
+  const both = (i, pos, f) => mix(f(read(rts[0].textures[i], pos, R[0]), R[0]), f(read(rts[1].textures[i], pos, R[1]), R[1]), W);
+  let lastDy = -1, lastS = 0, lastW = 0, cpu = null, reading = false;
+  // the CPU's copy of the ground under the camera (read back after each pass, a moment later): what runs on the CPU and
+  // must agree with what is drawn reads it, the rocks' bodies first (src/world/rocksolid.js)
   const h2f = (h) => { const e = (h >> 10) & 31, f = h & 1023, sg = h & 32768 ? -1 : 1; return e === 0 ? sg * f * 2 ** -24 : e === 31 ? NaN : sg * (1 + f / 1024) * 2 ** (e - 15); };
   const readBack = (o, texel, base) => {
     if (reading) return; reading = true;
-    renderer.readRenderTargetPixelsAsync(rts[cur], 0, 0, N, N, 0).then((px) => { cpu = { x: o.x, z: o.y, texel, base, px }; reads++; }).catch(() => {}).finally(() => (reading = false));
+    renderer.readRenderTargetPixelsAsync(rts[cur], 0, 0, N, N, 0).then((px) => { cpu = { x: o.x, z: o.y, texel, base, px }; }).catch(() => {}).finally(() => (reading = false));
   };
-  // what is to be drawn: a level of a set at a place ({ set, l, ox, oz, texel, base, dy, t: its pieces drawn, next: the
-  // place asked for since it began }), nearest level first; a lens step's levels go into the set not read (`aim`), which
-  // is read, faded to, once all of them are in; and the texel each set was drawn at (S)
-  // (a window in blocks, BLOCK × BLOCK texels each (a workgroup's: src/scatter/regions.js), K a side, drawn in raster
-  // order: a piece is a rectangle of them, whole rows where as many fit, else the rest of a row)
-  const K = N / BLOCK, jobs = [], setS = [0, 0];
-  let aim = -1;
-  const ask = (set, l, ox, oz, texel, dy, again = false) => {
-    const at = { ox, oz, texel, base: Math.round(heightCPU(ox + (N * texel) / 2, oz + (N * texel) / 2)), dy }, J = jobs.find((j) => j.set === set && j.l === l);
-    if (!J) { jobs.push({ set, l, ...at, t: 0, next: null }); jobs.sort((x, y) => x.l - y.l || x.set - y.set); }
-    else if (J.t === 0) Object.assign(J, at);
-    else if (again || J.ox !== ox || J.oz !== oz || J.texel !== texel) J.next = at;   // (one begun is finished where it began, and drawn again after: its pieces are of it; `again`: what it is drawn from changed)
-  };
-  // (still out, for the world complete: src/core/settle.js): what is still to be drawn, what reads the map passing from
-  // the one before to the new, and the map being read back for the CPU
-  source('ground', () => jobs.length + (fadeAt >= 0 ? 1 : 0) + (reading ? 1 : 0));
-  // (passing from the maps before to the new ones: what reads them packs again each frame of it; and, none fading, the
-  // library's stage or sandbox moved: drawn again whole)
-  function fadeOn() {
-    if (fadeAt >= 0) { const t = Math.min(1, ++fadeAt / FADE), e = t * t * (3 - 2 * t); W.value = cur ? e : 1 - e; this.version++; if (t >= 1) fadeAt = -1; }
-    if (fadeAt < 0 && aim < 0) { const k = `${U.uSand.value.toArray()}|${U.uStage.value.toArray()}`; if (k !== laid) { laid = k; lastS = 0; } }
-  }
-  // level l of set `set` asked for where it must be (the camera walked 32 of its texels, rose or sank by a quarter of its
-  // height, or `whole`), not at all too high up for anything to read it
-  const levelAt = (set, l, cx, cz, dy, whole) => {
-    const S = setS[set], TEXEL = 0.5 * S * 2 ** l, SNAP = 32 * TEXEL, reach = REACH * S * 2 ** l, J = jobs.find((j) => j.set === set && j.l === l), o = J?.next ?? J ?? { ox: R[set][l].o.value.x, oz: R[set][l].o.value.y }, was = lastDy[l];
-    const ox = Math.round(cx / SNAP) * SNAP - (N * TEXEL) / 2, oz = Math.round(cz / SNAP) * SNAP - (N * TEXEL) / 2;
-    if (!whole && ((ox === o.ox && oz === o.oz && Math.abs(dy - was) < Math.max(4, was * 0.25)) || (dy > reach && was > reach))) return;   // (higher than it reaches: nothing reads it)
-    lastDy[l] = dy; ask(set, l, ox, oz, TEXEL, dy, whole);
-  };
-  // a level in: the staging window copied into its place, what reads it told (that set read: its version), level 0's
-  // read back for the CPU; and a lens step's last: the set it drew read from now, faded to
-  function land(J) {
-    for (const i of [0, 1]) renderer.copyTextureToTexture(stage.textures[i], rts[J.set].textures[i], null, new THREE.Vector2(J.l * N, 0));
-    const M = R[J.set][J.l]; M.o.value.set(J.ox, J.oz); M.texel.value = J.texel; M.base.value = J.base;
-    if (J.set === cur) { this.version++; if (J.l === 0 && J.dy < 30) readBack(M.o.value.clone(), J.texel, J.base); }   // only a walker near the ground needs the CPU's copy (the rocks' bodies): level 0's
-    jobs.splice(jobs.indexOf(J), 1);
-    if (J.next) ask(J.set, J.l, J.next.ox, J.next.oz, J.next.texel, J.next.dy);
-    if (J.set === aim && !jobs.some((j) => j.set === aim)) { cur = aim; aim = -1; fadeAt = 0; }
-  }
-  // ---- the blocks a frame draws: held to what the GPU does in the ground's share of a frame (behind the veil, till the
-  // first view is shown, the whole frame's), by each piece's own time on the GPU (src/core/pace.js); and a piece never
-  // more blocks than one submission may take (pace.js most: SUBMIT_MS at what a block cost last). Its unit, never fewer a frame on a
-  // time heard on the page's thread, a page of the land's texels (SLOT²: as many as a piece before #324 drew; one is
-  // about 4 ms of the Mac mini's GPU, timed with the frame held, 2026-11-19) ----
-  const UNIT = (SLOT / BLOCK) ** 2, PACE = pace(UNIT);
-  const timed = (n, draw) => ownGpuMs(renderer, draw)?.then((ms) => PACE.measured(n, ms, frameShare('ground'))).catch(() => {});   // (src/core/pace.js frameShare)
-  // this frame's pieces: the first job's next blocks, a piece a submission, as many as the frame's pace leaves
-  function pieces() {
-    PACE.tick();
-    const before = renderer.getRenderTarget(), ac = renderer.autoClear;
-    renderer.autoClear = false;   // (the pieces drawn before kept)
-    while (PACE.left > 0 && jobs.length) {
-      const J = jobs[0], bx = J.t % K, by = Math.floor(J.t / K), n0 = Math.min(PACE.left, PACE.most(UNIT));
-      const [w, h] = bx === 0 && n0 >= K ? [K, Math.min(Math.floor(n0 / K), K - by)] : [Math.min(n0, K - bx), 1], n = w * h;
-      G.o.value.set(J.ox, J.oz); G.texel.value = J.texel; G.base.value = J.base;
-      stage.viewport.set(0, 0, N, N); stage.scissor.set(bx * BLOCK, by * BLOCK, w * BLOCK, h * BLOCK);   // (the whole window's mapping, its piece's pixels only)
-      renderer.setRenderTarget(stage); timed(n, () => renderer.render(quad, cam));
-      PACE.left -= n;
-      if ((J.t += n) === K * K) land.call(this, J);
-    }
-    renderer.setRenderTarget(before); renderer.autoClear = ac;
-  }
   return {
     version: 0,
-    /** How many times the CPU's copy has been read back (what looks at it knows it has new ground: src/scatter/rocks.js). */
-    get reads() { return reads; },
     /** height, grass density, grass height (a share of the asset's), stone chance at pos (a node; one filtered read) */
     A: (pos) => both(0, pos, (g, M) => vec4(g.x.add(M.base), g.y, g.z, g.w)),
     /** the grass's colour at pos, and in w its dryness (a node) */
@@ -209,24 +80,45 @@ export function createGround(renderer, tex) {
       const k = (j * N + i) * 4, v = cpu.px, f = v instanceof Uint16Array ? h2f : (n) => n;
       return { height: f(v[k]) + cpu.base, density: f(v[k + 1]), grassHeight: f(v[k + 2]), stone: f(v[k + 3]) };
     },
+    /** The library's stage: a round at (x, z), r metres across the middle, laid in a material (its recipe or uid; none:
+        the base biome's bare earth) at tile metres a tile; r 0 takes it away. */
+    stage(x, z, r, material = null, tile = 2) { U.uStage.value.set(x, z, r); U.uStageGround.value.set(material ? tex.layer(material) : -1, tile); lastS = 0; },
+    /** The library's sandbox: round (x, z) the land is all one biome (its number in biomes/); no arguments: off. */
+    sandbox(x = 0, z = 0, biome = -1) { U.uSand.value.set(x, z, biome < 0 ? 0 : 1, biome); Object.assign(SAND, { on: biome >= 0, x, z, river: !!BIOMES[biome]?.water }); lastS = 0; },
+    /** Its pass for another list of biomes (the slots' have changed): compiled aside, then taken, and drawn again.
+        now: taken at once (before the start compiles everything). */
+    async biomes(next, now = false) {
+      const m = build(next);
+      if (!now) { const was = renderer.getRenderTarget(), q = new THREE.Mesh(quad.geometry, m); q.frustumCulled = false; renderer.setRenderTarget(rts[cur]); const done = renderer.compileAsync(q, cam).catch(() => {}); renderer.setRenderTarget(was); await done; }   // (for its own target: the pipeline it is drawn with)
+      quad.material.dispose(); quad.material = m; lastS = 0;
+    },
     /** Drawn again at the next update (the land under it changed: the lakes, src/world/lakes.js). */
     refresh() { lastS = 0; },
     /** Its pass compiled for its own two maps, before it is first drawn, in turn (src/core/compile.js; a promise). */
-    compile() { return compileFor(renderer, stage, quad, cam); },
-    /** s: the lens factor; a level drawn again when the camera has walked 32 of its texels, or risen or sunk by a quarter
-        of its height, or the lens's step changed (stepOf); none at all too high up for anything to read it */
+    compile() { return compileFor(renderer, rts[0], quad, cam); },
+    /** s: the lens factor; drawn again when the camera has walked 16 texels, or the lens's step changed (stepOf) */
     update(cx, cz, dy, s = 1) {
-      fadeOn.call(this);
-      const S = fadeAt >= 0 || aim >= 0 ? lastS : stepOf(s, lastS), wv = waysVersion();   // (no other step while one is drawn or fades: the next waits for it; and when the ways are others than they were)
-      // its texels stepped (not its first, nor maps drawn again for what lies on the land: lastS 0): the new ones drawn
-      // into the other set, read once all are in and faded to over FADE frames; else each level of the set read is drawn
-      // again where it must be
-      const step = lastS > 0 && S !== lastS, whole = !step && (S !== lastS || wv !== lastW);
-      if (step) { aim = 1 - cur; setS[aim] = S; for (let l = 0; l < LV; l++) levelAt(aim, l, cx, cz, dy, true); }
-      else if (whole) { fadeAt = -1; W.value = cur; setS[cur] = S; }
-      lastS = S; lastW = wv;
-      for (let l = 0; l < LV; l++) levelAt(cur, l, cx, cz, dy, whole);
-      pieces.call(this);
+      // drawn again when the camera has walked 32 texels (16 m: the blades reach 105 m of the map's 128), when it has
+      // risen or sunk by a quarter of its height, or when the lens's step changed; not at all too high up for anything to read it
+      if (fadeAt >= 0) {   // (passing from the map before to the new one: what reads it packs again each frame of it)
+        const t = Math.min(1, ++fadeAt / FADE), e = t * t * (3 - 2 * t);
+        W.value = cur ? e : 1 - e; this.version++; if (t >= 1) fadeAt = -1;
+      }
+      const S = fadeAt >= 0 ? lastS : stepOf(s, lastS), TEXEL = 0.5 * S, SNAP = 32 * TEXEL, o = R[cur].o.value;   // (no other step while one fades: the next waits for it, FADE frames)
+      const ox = Math.round(cx / SNAP) * SNAP - (N * TEXEL) / 2, oz = Math.round(cz / SNAP) * SNAP - (N * TEXEL) / 2;
+      const wv = waysVersion();   // (and when the ways are others than they were)
+      if (ox === o.x && oz === o.y && Math.abs(dy - lastDy) < Math.max(4, lastDy * 0.25) && S === lastS && wv === lastW) return;
+      if (dy > 160 * S && lastDy > 160 * S && S === lastS && wv === lastW) return;
+      // its texel stepped (not its first, nor a map drawn again for what lies on the land: lastS 0): the new one drawn
+      // into the other, and read more and more from it over FADE frames; else the one read is drawn again where it is
+      const step = lastS > 0 && S !== lastS;
+      if (step) { cur = 1 - cur; fadeAt = 0; } else if (lastS === 0) { fadeAt = -1; W.value = cur; }
+      lastDy = dy; lastS = S; lastW = wv;
+      G.o.value.set(ox, oz); G.texel.value = TEXEL; G.base.value = Math.round(heightCPU(ox + (N * TEXEL) / 2, oz + (N * TEXEL) / 2));
+      const M = R[cur]; M.o.value.copy(G.o.value); M.texel.value = TEXEL; M.base.value = G.base.value;
+      const was = renderer.getRenderTarget();
+      renderer.setRenderTarget(rts[cur]); renderer.render(quad, cam); renderer.setRenderTarget(was); this.version++;   // what reads the map knows it is new
+      if (dy < 30) readBack(M.o.value.clone(), TEXEL, G.base.value);   // only a walker near the ground needs the CPU's copy (the rocks' bodies)
     },
   };
 }

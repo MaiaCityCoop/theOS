@@ -11,11 +11,6 @@
 //                             verts: Uint32Array }, packed as assets/kit/solid.js says: every vertex with its place on
 //                             the next coarser level's mesh (a level turns into the next with nothing to see) and the
 //                             two bones that move it; no larger than the level's room (ladder.js: roomOf)
-//     bandOf?(i, l, room)     kind i's band l of the surfaces' (src/detail/error.js surfaceBand), packed as
-//                             assets/kit/surface.js lays a still solid's (packLevel; its vertices assets/kit/solid.js
-//                             stillOf) from its cluster hierarchy, no larger than room ({ tris, elems }); `short` where
-//                             it is anywhere drawn coarser than a pixel (cut down to its room). A family with bands is
-//                             drawn by them where they have come, by its ladder meanwhile (src/scatter/stress.js)
 //     skinOf?(i, size)        its own texture: { levels: [Uint8Array rgba (colours as their square roots, height in
 //                             a), … down to one pixel] }, painted to the mean colour its look says. Without: it
 //                             wears one of the world's materials (its look's `material`)
@@ -70,9 +65,8 @@ export const KINDS = HERD.reduce((n, E) => n + E.count, 0), STAND = HERD.reduce(
     { first (the number of the first), count, families: [{ id, first (among them), count, F }] }. */
 export const placedBy = (engine) => { const Fs = FAMILIES.filter((E) => E.placed === engine), first = Fs[0]?.first ?? 0; return { first, count: Fs.reduce((n, E) => n + E.count, 0), families: Fs.map((E) => ({ id: E.id, first: E.first - first, count: E.count, F: E.F })) }; };
 const of = (k) => { for (const E of FAMILIES) if (k < E.first + E.count) return E; throw new Error(`zoo: no kind ${k}`); };
-export const meshOf = (k, l, room = null) => { const E = of(k); return E.F.meshOf(k - E.first, l, room); };
+export const meshOf = (k, l) => { const E = of(k); return E.F.meshOf(k - E.first, l); };
 export const skinOf = (k, size) => { const E = of(k); return E.F.skinOf(k - E.first, size); };
-export const bandOf = (k, l, room = null) => { const E = of(k); return E.F.bandOf(k - E.first, l, room); };
 export const lookOf = (k) => { const E = of(k); return E.F.lookOf(k - E.first); };
 export const bonesOf = (k) => { const E = of(k); return E.F.bonesOf?.(k - E.first) ?? null; };
 const HULL = LADDER.findIndex((L) => L.n > 0 && L.n <= 2), BODIES = new Map();   // HULL: the level a kind's collider is taken from where its family names none

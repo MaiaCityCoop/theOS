@@ -10,7 +10,7 @@
 //     createOwn?(scene, tex, ground, gpu, renderer) -> tiers,   what it places of its own, no asset of the library (stress.js, herds.js)
 //     // for the asset library (library.html), each as the engine sees fit:
 //     thumb?(tex, row) -> { things, eye, look },       its picture for the list
-//     stage?(tex, row, { x, z, heightAt, studio, level, seed, … }) -> Object3D,   how it stands on the stage (studio: src/stage/studio.js)
+//     stage?(tex, row, { x, z, heightAt, ground, level, seed, … }) -> Object3D,   how it stands on the stage
 //     frame?(asset, opts) -> { height, dist, pitch, span },   how the camera frames it there
 //   }
 import { U } from '../core/uniforms.js';
@@ -20,15 +20,9 @@ import { recipes } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
 import { waysVersion } from '../world/ways.js';
 import { flushThings, thingsVersion } from '../world/things.js';
-import { flag } from '../core/flags.js';
-import { occlusion } from '../core/occlusion.js';
-import { ready, tick } from './tier.js';
 
-// (the stress stand and the herds are tools that measure: loaded only where the address asks for them, `?stress`,
-// `?herds=N`, as the bench and the flyby are: src/boot.js)
-const FOUND = import.meta.glob(['./*.js', '!./index.js', '!./*.worker.js', '!./stress.js', '!./herds.js'], { eager: true });   // (whole modules: a named import would fail where a module has none)
-const TOOLS = await Promise.all([flag('stress') && import('./stress.js'), flag('herds') && import('./herds.js')].filter(Boolean));
-export const ENGINES = Object.fromEntries([...Object.values(FOUND), ...TOOLS].map((m) => m.engine).filter(Boolean).map((e) => [e.id, e]));
+const FOUND = import.meta.glob(['./*.js', '!./index.js', '!./*.worker.js'], { eager: true });   // (whole modules: a named import would fail where a module has none)
+export const ENGINES = Object.fromEntries(Object.values(FOUND).map((m) => m.engine).filter(Boolean).map((e) => [e.id, e]));
 
 /** An asset's engine, and the row it reads of it. */
 export const engineOf = (asset) => (asset?.placement?.at === 'scatter' ? ENGINES[asset.placement.engine] : null) ?? null;
@@ -36,8 +30,8 @@ export const rowOf = (asset) => engineOf(asset)?.row?.(asset) ?? scatterRow(asse
 
 export function createScatter(scene, tex, ground, renderer, camera = null) {
   const gpu = !!renderer?.backend?.isWebGPUBackend;   // compute-packed tiers where WebGPU is (tier.js)
-  const tiers = [], solid = [], before = [], more = [], bakes = [];
-  const take = (made, name) => { if (made.solid) solid.push(made.solid); if (made.bakes) bakes.push(made.bakes); if (made.before) before.push(made.before); if (made.compile) more.push(made.compile); for (const t of made) { t.asset ??= name; tiers.push(t); } };   // solid: what reads its packing back as bodies (trees.js)
+  const tiers = [], solid = [];
+  const take = (made, name) => { if (made.solid) solid.push(made.solid); for (const t of made) { t.asset ??= name; tiers.push(t); } };   // solid: what reads its packing back as bodies (trees.js)
   const rows = new Map();   // each engine's assets
   for (const a of recipes('asset').filter((r) => r.placement?.at === 'scatter')) {
     const E = engineOf(a); if (!E) { console.warn(`no scatter engine '${a.placement.engine}' (${a.name})`); continue; }
@@ -45,42 +39,25 @@ export function createScatter(scene, tex, ground, renderer, camera = null) {
   }
   // an engine makes its tiers asset by asset (create), or all of its assets at once (createAll: what shares tiers, as
   // the kinds of one stand do: trees.js)
-  // (the engines that place the larger things first: what is smaller reads what they leave, src/scatter/growth.js)
-  for (const [E, list] of [...rows].sort(([a], [b]) => !!b.createAll - !!a.createAll)) { if (E.createAll) take(E.createAll(scene, tex, ground, list, gpu, renderer), E.id); else for (const row of list) take(E.create(scene, tex, ground, row, gpu, renderer), row.name); }
+  for (const [E, list] of rows) { if (E.createAll) take(E.createAll(scene, tex, ground, list, gpu, renderer), E.id); else for (const row of list) take(E.create(scene, tex, ground, row, gpu, renderer), row.name); }
   for (const E of Object.values(ENGINES)) if (E.createOwn) take(E.createOwn(scene, tex, ground, gpu, renderer), E.id);   // what an engine places of its own
-  let turn = 0;   // (which tier runs first this frame)
   return {
     tiers,
-    /** The meshes that bake what the engines draw far off (trees.js: a stand's impostors and clumps), drawn by no tier:
-        each with its materials (userData.materials), for whatever builds every material the start makes (tools/smoke.js) */
-    bakes: () => bakes.flatMap((f) => f()),
     /** Choose, for this frame, the patches each tier draws (after the frustum's planes are set: core/frustum.js). */
     select(cx, cz, h0, lod, dy) {
       for (let i = 0; i < tiers.length; i++) tiers[i].select(cx, cz, h0, lod, dy);
       const view = camera ? setView(camera) : '';   // the eye's view, for what is tested against it one by one (view.js)
       flushThings();   // (what was done to single things since the last frame, to the GPU before anything packs: src/world/things.js)
-      // what the packing reads besides the cells and the cam: `kept`, what a resident tier's store is made again for (the
-      // lens, the stage, the weather, the ways, things' own state); and the ground's map besides, drawn again round the
-      // camera every few metres with the same ground where it overlaps (what its gather and its own patches read)
-      const v = (u) => u.value.toArray?.().join(',') ?? u.value, kept = `${lod}|${v(U.uSand)}|${v(U.uStage)}|${v(U.uStageGround)}|${weatherKey()}|${waysVersion()}|${thingsVersion()}`, world = `${ground.version}|${kept}`;
-      for (const f of before) f(cx, cz, `${v(U.uSand)}|${v(U.uStage)}`);   // (what the larger things leave for the smaller, before any packs: growth.js; worked out again whole only when the sandbox or the stage moves)
-      tick();   // (the frame's cells for the resident tiers' packings to share: tier.js)
-      turn = (turn + 1) % Math.max(1, tiers.length);   // (each frame another tier first: where the frame's packings are spent, the rest take turns, tier.js)
-      for (let i = 0; i < tiers.length; i++) tiers[(i + turn) % tiers.length].run(renderer, world, cx, h0 + dy, cz, view, kept);
+      const v = (u) => u.value.toArray?.().join(',') ?? u.value, world = `${ground.version}|${lod}|${v(U.uSand)}|${v(U.uStage)}|${v(U.uStageGround)}|${weatherKey()}|${waysVersion()}|${thingsVersion()}`;   // what the packing reads besides the cells and the camera
+      for (const t of tiers) t.run(renderer, world, cx, h0 + dy, cz, view);
       for (const f of solid) f(renderer);
     },
-    get over() { for (let i = 0; i < tiers.length; i++) if (tiers[i].over || tiers[i].short) return true; return false; },   // (short: its own patches found more than their rooms hold: tier.js)
+    get over() { for (let i = 0; i < tiers.length; i++) if (tiers[i].over) return true; return false; },
     get instances() { let n = 0; for (const t of tiers) n += t.geometry.instanceCount; return n; },
     warm() { for (const t of tiers) t.warm(); },
-    /** What making every tier's packing ahead of need asks (src/core/compile.js ahead). */
-    ahead() { return tiers.map((t) => () => t.make(renderer, false)); },
-    /** What every tier's packing shares, compiled before the first packing (a promise): the culling's passes
-        (src/core/occlusion.js) and what the larger things leave for the smaller (growth.js). They read no target, so this
-        may run beside anything. A tier's own passes are made when it first has something to pack, aside, and it packs
-        nothing until they are (tier.js run, src/core/compile.js): the start makes those of the tiers its first view
-        packs, not all of them (177 of the 308 pipelines a cold start compiled before its first frame were compute,
-        2026-11-18). ready: the resident tiers' shared rows made as large as all of them, before anything binds them
-        (tier.js). */
-    compile() { ready(); const passes = occlusion.passes(); return Promise.all([passes.length ? renderer.compileComputeAsync(passes) : null, ...more.map((f) => f())]); },
+    /** Every tier's packing passes compiled side by side, before the first packing (a promise): they read no target, so
+        this may run beside anything. Compiled as each tier first packed, one after another, the GPU did nothing else
+        meanwhile (63 passes, 8 s of a start of 35 without a GPU, 2026-11-15). */
+    compile() { const passes = tiers.flatMap((t) => t.passes ?? []); return passes.length ? renderer.compileComputeAsync(passes) : Promise.resolve(); },
   };
 }
