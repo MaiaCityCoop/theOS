@@ -687,8 +687,18 @@ export function ready() {
 // in, a piece at a time) it only adds to the store it holds: nothing is copied forward.
 // From one piece a tier, a workgroup's cells, at the start.
 const CELLS = pace(WG), FRAME = {};   // (the frame's cells; and, each frame: how many tiers asked for cells the frame before, how many ask in this one)
+// (and its packings, held to geometry's share of the page's thread as their visits are to the GPU's: each packing's
+// own time on the page, what it hands three and the GPU (its submissions, its uniforms, its tables), measured, fewer a
+// frame where they took longer; the tiers taking turns, src/scatter/index.js. 2026-11-19, WebKit: 1.5 s of a loading
+// frame in scatter select)
+const PACKS = pace(1);
 /** Each frame, before any tier packs (src/scatter/index.js select): the frame's cells to share out. */
-export const tick = () => { CELLS.tick(); FRAME.asked = Math.max(1, FRAME.asking ?? 0); FRAME.asking = 0; };
+export const tick = () => { CELLS.tick(); PACKS.tick(); FRAME.asked = Math.max(1, FRAME.asking ?? 0); FRAME.asking = 0; };
+// (the resident tiers' own numbers read back once for all that ask while it is out: every tier's are in the one Z, and a
+// read is a buffer made, a copy, a submission and a mapping (2026-11-19: one a tier a frame while they filled). SEQ: the
+// order of packings and reads, so a tier answers only from a read made after its last packing)
+let SEQ = 0, ZREAD = null;
+const zRead = (renderer) => { if (!ZREAD) { const r = { seq: ++SEQ }; r.data = renderer.getArrayBufferAsync(GR.Zs.attr).finally(() => { if (ZREAD === r) ZREAD = null; }); ZREAD = r; } return ZREAD; };
 /** A tier's share of this frame's cells. */
 const shareOf = () => CELLS.n / FRAME.asked;
 /** A packing of `cells` handed to the GPU in turn: what goes before its visit (copying forward), the visit, what comes
@@ -712,7 +722,7 @@ function residentOf(T, me, s, ends) {
   const G = GR, regions = new Resident({ cell: T.cell, fixed: T.metres, room: LEAVES - 16 }), alive = new Uint32Array(LEAVES + 1);
   const ids = [], freed = [];   // (numbers free; and those let go this packing, free from the next: the store still holds their things till it is copied forward)
   let at = 0, key = null, gkey = null, asking = false, packs = 0, asked = 0, epoch = -1, fresh = 1, gathers = 0, gathered = 0;   // (gathered: a gather since its counts were read; asked: its packings when it was last read)
-  const S = storeOf(() => s.dirty), last = { at: -1, whole: false };   // (whether its store fits what it found, storeOf; last: its last packing's layout, and whether it held all it was to then)
+  const S = storeOf(() => s.dirty), last = { at: -1, whole: false, seq: 0 };   // (whether its store fits what it found, storeOf; last: its last packing's layout, and whether it held all it was to then)
   const H = holdOf();   // (what its draws keep while its store fills anew)
   const drop = (id) => { alive[id] = 0; freed.push(id); };
   const letGo = (L) => { if (L.id != null) { drop(L.id); L.id = null; } };
@@ -759,8 +769,9 @@ function residentOf(T, me, s, ends) {
   // of it asking then has answered)
   const ask = (renderer) => {
     if (asking) return;
+    const R = zRead(renderer); if (R.seq < last.seq) return;   // (the read out now was made before its last packing: the next one)
     asking = true; s.asking.add(me); asked = packs; const read = { ...last }, seen = gathers;
-    renderer.getArrayBufferAsync(G.Zs.attr).then((b) => {
+    R.data.then((b) => {
       // (held to its class's room: no more than it was held to: a decision, not a wait)
       const z = new Uint32Array(b), f = z[me.zi + ZAT.found], p = z[me.zi + ZAT.packed], room = roomsFor([f, p], [me.N, me.P], read.whole && read.at === S.at());
       T.over = f > me.N || p > me.P;
@@ -809,7 +820,7 @@ function residentOf(T, me, s, ends) {
     const held = H.holds(s.swap);   // (filling anew: what is drawn kept, its count sealed for the next packing, nothing gathered)
     timed(renderer, cells, s.before, [s.visit], held ? [G.seal] : [...s.after, ...ends]); if (!adds) at = 1 - at; gkey = held ? null : g; packs++; fresh = 0;
     if (!held) H.gathered(T.n);
-    last.at = S.at(); last.whole = !waits.size;   // (what a read of it is of: its layout, and whether nothing waited to be visited)
+    last.at = S.at(); last.whole = !waits.size; last.seq = ++SEQ;   // (what a read of it is of: its layout, whether nothing waited to be visited, and when)
     did('packs'); did('kcells', Math.round(cells / 1000));
   };
   // (its gather alone, from the store it holds: where the camera moved by a step, or what it gathers from changed; and
@@ -834,12 +845,12 @@ function residentOf(T, me, s, ends) {
       const k = `${kept}|${T.reads?.() ?? ''}`;
       if (k !== key) { empty(); key = k; }
       update(c, near, far, k); H.waiting(waits.keys());
-      const { n, cells } = visits(sc);
+      const { n, cells } = PACKS.left > 0 ? visits(sc) : { n: 0, cells: 0 };   // (its visits wait their turn where the frame's packings are spent)
       T.n = regions.leaves.size; for (const m of T.meshes) m.visible = T.n > 0;
       if (!T.n && !waits.size && !freed.length) S.fit(S.at());   // (nothing in its band, nothing to let go: it needs no room)
       if (S.wrong() || gathered || packs !== asked) ask(renderer);
       const g = `${world}|${near}|${far}|${Math.round(cx / q)},${Math.round(cy / q)},${Math.round(cz / q)}`;
-      if (n || freed.length) pack(renderer, n, cells, g); else step(renderer, g);
+      if (n || freed.length) { const t0 = performance.now(); pack(renderer, n, cells, g); PACKS.left--; PACKS.measured(1, performance.now() - t0, FRAME_MS_BY_CLASS.geometry); } else step(renderer, g);
       through(renderer);   // (every tier of its kind holding again what it held: what is drawn made anew, all of it at once)
     },
   };

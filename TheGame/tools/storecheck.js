@@ -117,6 +117,24 @@ async function resident(per, { frames, visit, means, first, cells }) {
   return out;
 }
 
+/** The resident tiers filling at once (a start, a jump), each packing holding the page's thread `cost` ms (what it
+    hands three and the GPU; the CPU's stand-in hands nothing), `fills` packings each: as tier.js holds them, the frame's
+    packings to geometry's share of the page (PACKS: pace, measured), the tiers taking turns (src/scatter/index.js turn),
+    or, as main, every tier that waits packing every frame. -> { most: the most page ms a frame, frames: till all are
+    filled } */
+function paged(tiers, cost, fills, held) {
+  const P = pace(1), budget = FRAME_MS_BY_CLASS.geometry, left = new Array(tiers).fill(fills); let most = 0, frames = 0, turn = 0;
+  while (left.some((n) => n > 0) && frames < 10000) {
+    frames++; P.tick(); turn = (turn + 1) % tiers; let ms = 0;
+    for (let i = 0; i < tiers; i++) {
+      const k = (i + turn) % tiers; if (!left[k] || (held && P.left <= 0)) continue;
+      left[k]--; ms += cost; if (held) { P.left--; P.measured(1, cost, budget); }
+    }
+    most = Math.max(most, ms);
+  }
+  return { most, frames };
+}
+
 /** The sequences, each said and failed on where it breaks: the own-patch tiers, and a resident store over fills of a
     frame to sixteen, the camera jumping and still (2026-11-19, live on next: where Samuel stood, the world's plants
     popped in and out over and over). */
@@ -129,6 +147,12 @@ async function check() {
     if (o.stuck) fail(`${name}: not known to fit ${o.stuck} frames past a read of its last layout, while it packed`);
     if (o.past) fail(`${name}: laid out ${o.past} times for no more found than it held`);
     if (o.rest == null) fail(`${name}: never at rest`);
+  }
+  const RES_TIERS = 42;   // (the world's resident tiers: tools/smoke.js's scatter, 2026-11-19)
+  for (const cost of [0.25, 2, 10]) {
+    const now = paged(RES_TIERS, cost, 8, true), main = paged(RES_TIERS, cost, 8, false);
+    console.log(`  the page: ${RES_TIERS} resident tiers filling, a packing ${cost} ms of it: at most ${now.most.toFixed(1)} ms a frame, filled in ${now.frames} frames (every tier every frame: ${main.most.toFixed(1)} ms, ${main.frames} frames)`);
+    if (now.most > FRAME_MS_BY_CLASS.geometry + cost) fail(`the page: ${now.most} ms a frame, past geometry's share (${FRAME_MS_BY_CLASS.geometry} ms) and a packing`);
   }
   for (const [how, R] of [['the camera jumping', MOVED], ['the camera still', { ...MOVED, visit: Infinity }]]) {
     const places = Number.isFinite(R.visit) ? Math.ceil(R.frames / R.visit) : 1;
