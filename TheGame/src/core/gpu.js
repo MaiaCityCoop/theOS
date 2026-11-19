@@ -180,7 +180,7 @@ const within = (bytes, name) => { const most = Math.min(limitOf('maxStorageBuffe
     the page runs (arenas, pages, cascades) takes the adapter's own. */
 export const PORTABLE = { maxTextureDimension2D: 8192, maxTextureArrayLayers: 256, maxUniformBufferBindingSize: 65536 };
 
-const TYPES = { uint: [Uint32Array, 1], float: [Float32Array, 1], vec4: [Float32Array, 4], uvec4: [Uint32Array, 4] };
+const TYPES = { uint: [Uint32Array, 1], float: [Float32Array, 1], uvec2: [Uint32Array, 2], vec4: [Float32Array, 4], uvec4: [Uint32Array, 4] };   // (uvec2: a BC4 block, the land's relief: src/terrain/pages.js)
 /** The bytes one element of a storage type is (gpuStorage's types). */
 export const bytesOf = (type) => TYPES[type][1] * TYPES[type][0].BYTES_PER_ELEMENT;
 /** A storage buffer of `count` items of `type` (uint, float, vec4, uvec4), nothing in it yet:
