@@ -21,14 +21,14 @@
 // says none writes 0. Its prepass twin writes both, by name (three applies a renderer's MRT only to a material with no
 // fragment of its own). What reads the id comes in the steps after (a shading pass that reads each family's things as data).
 //
-// A family whose light is worked out where its pixels are, after the prepass (deferred: userData.deferred; the stands',
-// src/scatter/trees.js), writes in its prepass what that light needs (GA, GB: its target's `gA` and `gB`), and is drawn
-// in no colour pass: its pass of light (LIT) lights its pixels before the colour pass draws the rest. Its geometry is
-// drawn once, not twice (2026-11-19: the stands' second pass, 6 to 7 ms of the forest's frame at 1080). Any other
-// material writes nothing there (0).
+// A family lit where its pixels are, after the prepass (deferred: userData.deferred; the stands', src/scatter/trees.js),
+// writes in its prepass what its light needs (the G-buffer: src/core/gbuffer.js), and is drawn in no colour pass: the
+// one pass of light lights its pixels before the colour pass draws the rest. Its geometry is drawn once, not twice. Any
+// other material writes nothing there (0).
 import * as THREE from 'three/webgpu';
-import { context, float, vec2, vec4, uint, uvec2, varying, varyingProperty, property, screenCoordinate, vertexIndex, Discard, mrt } from 'three/tsl';
+import { context, float, vec2, vec4, uint, uvec2, varying, varyingProperty, screenCoordinate, vertexIndex, Discard, mrt } from 'three/tsl';
 import { U } from './uniforms.js';
+import { GA, GB } from './gbuffer.js';
 
 const PRE = context({ pass: 'pre', invariant: true }), MAIN = context({ pass: 'main', invariant: true }), SHADOW = context({ pass: 'shadow' }), SOLID = vec4(0);
 
@@ -43,12 +43,6 @@ export const idClass = (what) => { if (ID_CLASSES.length >= 255) { if (!fullSaid
     the triangle itself where a draw's corners are its own, three a triangle; else the vertex it begins with). */
 export const drawnId = (cls, place) => varying(uvec2(uint(cls).shiftLeft(uint(24)).bitOr(uint(place).bitAnd(uint(0xffffff))), vertexIndex), 'vId').setInterpolation(THREE.InterpolationSamplingType.FLAT, THREE.InterpolationSamplingMode.FIRST);
 
-/** What a deferred material's prepass writes for its light (src/core/screen.js prepassTarget `gA`, `gB`): set in its
-    fragment, 0 in any other's. */
-export const GA = property('vec4', 'gA'), GB = property('uvec2', 'gB');
-/** The passes of light of the deferred families, each { mesh, camera, frame({ camera, textures, w, h }) }: drawn by the
-    screen into the colour's target before the colour pass (src/core/screen.js). */
-export const LIT = new Set();
 
 /** The pass a material is being built for ('pre', 'main'; undefined: none), from what node code is handed. */
 export const passOf = (builder) => builder?.context?.pass;
