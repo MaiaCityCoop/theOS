@@ -103,6 +103,14 @@ const SIDES = [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [1, -1, 0], [1, 0, 1]
 /** The share of its pictures a thing covers. P its vertices (n of them), I its corners, stop how much of the light a
     triangle stops (by its first corner: a number a vertex), F the frame { c, r } the pictures are taken in, R their
     pixels a side. */
+/** How much of its pictures a shape covers (coverOf): what the build measured (K.measured), else reckoned here, each
+    triangle of a card stopping STOPS of the light; none without sprigs. */
+function coverFor(m, K, N, frame) {
+  if (K.measured) return K.measured.cover;
+  if (!N) return 0;
+  const n = m.part.length, stop = Float32Array.from({ length: n }, (_, v) => (m.part[v] === 1 ? K.STOPS : 1));
+  return coverOf(m.position, n, m.index, stop, frame, K.PIC);
+}
 function coverOf(P, n, I, stop, F, R) {
   const T = new Float32Array(R * R), X = new Float32Array(n), Y = new Float32Array(n); let sum = 0;
   for (const side of SIDES) { pictureOf(P, n, I, stop, F, R, side, T, X, Y); for (let i = 0; i < T.length; i++) sum += 1 - T[i]; }
@@ -402,7 +410,7 @@ export function crowd(m, opts = {}) {
   const K = { ...CROWD, ...opts }, P = m.position, I = m.index, n = m.part.length, R = m.root;
   const H = headOf(m, K), { size, frame, sprigs, solids, N, M, mid, sd: spread, order, sphere, win, go } = H;
   // how much of its pictures the plant covers
-  const stop = K.measured ? null : Float32Array.from({ length: n }, (_, v) => (m.part[v] === 1 ? K.STOPS : 1)), cover = K.measured ? K.measured.cover : N ? coverOf(P, n, I, stop, frame, K.PIC) : 0;
+  const cover = coverFor(m, K, N, frame);
 
   // ---- its solid pieces: how wide each is, its go (widthsOf). Thick wood, what is still there where the crowd ends, is
   // never gone by itself (go 0): the impostor takes it; so is what was laid without a part ----
