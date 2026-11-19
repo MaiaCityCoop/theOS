@@ -24,7 +24,7 @@ import { placedBy, lookOf as zooLook, fingerprint } from '../../assets/zoo/index
 import { rockFull, rockBody } from '../../assets/kit/rock.js';
 import { STILL_PER } from '../../assets/kit/solid.js';
 import { roomsOf, mostOf } from './rooms.js';
-import { roomOf } from '../core/gpu.js';
+import { byDial } from '../core/gpu.js';
 import { SURFACE_LEVELS, surfaceBand, surfacePx, GONE, BAND } from '../detail/error.js';
 import { rocksAround, rocksDrawn } from '../world/rocksolid.js';
 
@@ -33,16 +33,16 @@ import { rocksAround, rocksDrawn } from '../world/rocksolid.js';
 // drawn by the cut; every coarser level always there. A level's room: the most any shape's level holds (rooms.json,
 // measured from each shape's own hierarchy: src/scatter/rooms.js). Level 0 has a slot a shape that can lie near at
 // once: no more than an asset's shapes, nor than its rocks that can be at level 0 at once (the cut's own bound: a rock
-// a cell within where its largest is level 0's size, src/scatter/cut.js cutThings), and only while the geometry's class
-// has room for them beside every shape's coarser levels (src/core/classes.js); fewer, said, where it has not (the
-// nearest shapes' then: tiers.solid, below)
+// a cell within where its largest is level 0's size at the dial at rest, src/scatter/cut.js cutThings). That is their
+// need, never what the geometry's class has left: made once at the dial at rest (src/core/gpu.js byDial), which rises
+// where the class cannot hold them beside the rest, and they are reckoned at it
 const levelsOf = (Z, rows, famOf) => {
   const LV = Array.from({ length: SURFACE_LEVELS }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), delta: 0, room: mostOf(Z.families.flatMap((F) => roomsOf(F.F.asset, i, STILL_PER).slice(0, F.count))) }));
   const bytes = (r) => r.tris * 3 * 4 + r.verts * 16;   // (a level's place in the heap: its corners, 4 bytes each, its elements, 16: src/scatter/heap.js)
-  const near = Math.min(Z.count, rows.reduce((n, row) => n + Math.min(famOf(row).count, cutThings(row.size[1], row.cell, LV[0].px)), 0));
-  const rest = LV.slice(1).reduce((s, l) => s + Z.count * bytes(l.room), 0), slots = Math.max(1, Math.min(near, Math.floor((roomOf('geometry') - rest) / bytes(LV[0].room))));
-  if (slots < near) console.warn(`rocks: the geometry's class has room for ${slots} of the ${near} shapes' full meshes that can lie near at once (src/core/classes.js): the nearest are drawn so`);
-  Object.assign(LV[0], { cut: true, slots });
+  const near = () => Math.min(Z.count, rows.reduce((n, row) => n + Math.min(famOf(row).count, cutThings(row.size[1], row.cell, LV[0].px)), 0));
+  const rest = LV.slice(1).reduce((s, l) => s + Z.count * bytes(l.room), 0);
+  byDial('rocks: meshes', 'geometry', rest + near() * bytes(LV[0].room), false);
+  Object.assign(LV[0], { cut: true, slots: Math.max(1, near()) });   // (at the dial at rest, as byDial left it)
   return LV;
 };
 // RELIEF: the size on screen from which a rock's relief is read (under that its texture's mipmaps have none left);

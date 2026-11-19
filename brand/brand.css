@@ -292,3 +292,11 @@ html.os-loading:not(.os-loaded) #os-stuck { display: block; position: fixed; z-i
 #os-stuck button { margin-top: 10px; padding: 9px 20px; border: 1px solid rgba(251, 246, 234, .5); border-radius: 999px; background: rgba(251, 246, 234, .12);
   font: 500 11px/1 var(--mono); letter-spacing: .18em; text-transform: uppercase; color: #fbf6ea; cursor: pointer; }
 #os-stuck button:hover, #os-stuck button:focus-visible { background: rgba(251, 246, 234, .24); }
+/* which build this is (TheGame/vite.config.js writes it into the game's page): one quiet line at the top right, under the account's pill (30 px tall,
+   TheGame/src/account/index.js; its card, opened, lies over it), and over the veil while it is up, where a start that
+   dies is seen; nothing to press. A crisp shadow under it, and a faint halo: read over a bright sky too, as quiet */
+#os-build { position: fixed; right: var(--edge); top: calc(var(--edge-t) + 36px); z-index: 6; font: 400 10.5px/1 var(--mono); letter-spacing: .04em;
+  color: var(--muted); text-shadow: 0 1px 1px rgba(8, 18, 30, .5), 0 0 3px rgba(8, 18, 30, .35); white-space: nowrap; pointer-events: none; user-select: none; -webkit-user-select: none; }
+html.os-loading:not(.os-loaded) #os-build { z-index: 99991; color: rgba(251, 246, 234, .42); }
+body.framed #os-build { top: calc(88px + var(--safe-t) + 36px); }   /* inside the dashboard, under the pill where it stands there */
+body.embed #os-build { top: var(--edge-t); }   /* a picture in the website: no pill above it */

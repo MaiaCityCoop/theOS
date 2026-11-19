@@ -5,7 +5,7 @@ import { writeFileSync, appendFileSync, mkdirSync, readdirSync, readFileSync, ex
 import { resolve, join, extname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { brotliCompressSync, gzipSync, constants as zlibConstants } from 'node:zlib';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { buildRegistry, FOLDERS, SHARED, PAINTS, MEASURES } from './tools/registry.js';
 import * as repo from '../server/repo.js';
 
@@ -57,6 +57,18 @@ const publish = {
   writeBundle({ dir }) { repo.write(dir, repo.game()); },
 };
 
+// Which build this is, at the top right of the game (brand/brand.css #os-build), so a screenshot says it: the commit's
+// short id and its time, by the commit's own clock ("8100cb4 · 09:13"), from git, written into the page itself, so it
+// is there from the first paint, over the loading veil too, where a start that dies is seen; the dev server writes
+// "dev". One source, read once. A build without git to ask fails: no release goes out saying it is another.
+const git = (...a) => execFileSync('git', a, { cwd: ROOT, encoding: 'utf8' }).trim();
+let stamp = 'dev';
+const version = {
+  name: 'version',
+  configResolved(c) { if (c.command === 'build') stamp = `${git('rev-parse', '--short=7', 'HEAD')} · ${git('show', '-s', '--format=%cI', 'HEAD').slice(11, 16)}`; },
+  transformIndexHtml: (html, { path }) => (path === '/index.html' ? html.replace(/<body[^>]*>/, (b) => `${b}\n<div id="os-build">${stamp}</div>`) : html),
+};
+
 // The dev server sends what compresses compressed (gzip, where the browser takes it): its modules come with their source
 // maps written into them, three times their size, 17.6 MB in all for one start, which a phone on the dev server
 // (`bun run lan`) fetches over the air (intent 0026). Each answer is compressed once, kept by its ETag.
@@ -88,7 +100,7 @@ export default {
   // the pages a build makes: the game, the way back from aven.id (src/account/callback.js), and the views the website frames:
   // a story's film (timeline.html), the lenses and the library
   build: { rolldownOptions: { input: Object.fromEntries(['index', 'callback', 'timeline', 'lenses', 'library', 'me'].map((n) => [n, resolve(ROOT, n + '.html')])) } },
-  plugins: [registry, publish, squeezeDev, {
+  plugins: [registry, publish, squeezeDev, version, {
     name: 'cine-keep',
     configureServer(server) {
       const B = (server.config.base || '/').replace(/\/$/, '');   // '' on its own, '/game' inside the dashboard's server

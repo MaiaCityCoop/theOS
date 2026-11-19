@@ -5,7 +5,9 @@
 //
 // Their layout, all of it derived (useCascades, at the start, before any material is built):
 //   texels   S a side: a texel one dial pixel at its own cascade's edge on the output (the one measure: two of the pixels
-//            a metre covers a metre off on the output's rows, src/core/budget.js OUTPUT, which no canvas exceeds)
+//            a metre covers a metre off on the output's rows, src/core/budget.js OUTPUT, which no canvas exceeds: as many
+//            of them as the device's share of the GPU's budget leaves a canvas, src/core/output.js; so its light class's
+//            pools follow its budget, src/core/gpu.js budgetShare)
 //   the near its texel the sun's own penumbra under the lowest crown that casts (SUN_DIAMETER × CASTERS.crown: a texel finer
 //            than the narrowest penumbra a crown throws resolves nothing the sun's disc does not blur away), a third of
 //            it ahead of the eye. Read with a penumbra as wide as the sun's disc makes it: the farther the blocker from
@@ -40,7 +42,7 @@ import { U } from '../core/uniforms.js';
 import { compileFor, compileList, made, ask, pending, labelled, nearFrom } from '../core/compile.js';
 import { shown, arriving } from '../core/settle.js';
 import { twinOf, passOf } from '../core/pass.js';
-import { note, mark } from '../core/gpu.js';
+import { note, mark, budgetShare } from '../core/gpu.js';
 import { stood, moves } from '../core/work.js';
 import { pxKAt } from '../detail/measure.js';
 import { OUTPUT } from '../core/budget.js';
@@ -68,9 +70,10 @@ let C = null;
 export function useCascades({ reach, crown, top, radius }) {
   if (!(reach > 0 && crown > 0 && crown < Infinity && top > 0 && radius > 0 && radius < Infinity)) throw new Error(`the shadow cascades are laid out from what casts in the stands (reach ${reach} m, lowest crown ${crown} m, tallest ${top} m, smallest crown ${radius} m round): none of it there`);
   // a cascade's texels a side: a texel one dial pixel at its own cascade's edge (h metres from the eye, 2h / S a texel,
-  // and a metre a metre off is pxKAt(OUTPUT.height) pixels on the output, the dial at rest: what is made once is made
-  // for the most any canvas has, src/core/output.js, whatever the window at the start)
-  const S = Math.ceil(2 * pxKAt(OUTPUT.height));
+  // and a metre a metre off is pxKAt(rows) pixels on the output's rows, the dial at rest: what is made once is made for
+  // the most any canvas has on this device, src/core/output.js: OUTPUT's pixels of the device's share, its rows by its
+  // root, whatever the window at the start)
+  const S = Math.ceil(2 * pxKAt(OUTPUT.height * Math.sqrt(budgetShare())));
   const finest = (SUN_DIAMETER * crown * S) / 2;   // (the near one's half side at the most: its texel the lowest crown's penumbra)
   // as many as reach `reach`, each twice the one before; two at the least: three binds a depth texture of one layer as no
   // array, which the materials are built for
@@ -164,17 +167,21 @@ export function createShadows(renderer) {
   // depth as the backend keeps it (WebGPU 0..1; WebGL -1..1)
   const webgpu = renderer.coordinateSystem === THREE.WebGPUCoordinateSystem;
   const toMap = new THREE.Matrix4().set(0.5, 0, 0, 0.5, 0, -0.5, 0, 0.5, 0, 0, webgpu ? 1 : 0.5, webgpu ? 0 : 0.5, 0, 0, 0, 1);
-  const up = new THREE.Vector3(), target = new THREE.Vector3(), snap = new THREE.Vector3(), off = new THREE.Vector3(), ahead = new THREE.Vector3();
+  const up = new THREE.Vector3(), target = new THREE.Vector3(), snap = new THREE.Vector3(), off = new THREE.Vector3(), ahead = new THREE.Vector3(), turned = new THREE.Quaternion();
   // a cascade's camera: its box round the eye (the near one a third of its side ahead, where the eye looks), held to
-  // whole texels in the light's view so its edges do not crawl
+  // whole texels in the light's view so its edges do not crawl: its middle taken in the light's own frame about the
+  // world's origin (its turn alone), which stays put as the eye moves and turns, and moved there to the nearest whole
+  // texels. (Till 2026-11-19 it was taken in the cascade's own view, which looks at it: always 0, never moved, and the
+  // grid slid under the world by up to a texel as the eye turned and walked; shadows' edges crawled, on a phone's
+  // coarser texels the more)
   const aim = (k, camera, groundY) => {
     const cam = cams[k], L = U.uSunDir.value, h = half[k], texel = (2 * h) / S, span = spanOf(h);
     cam.left = -h; cam.right = h; cam.top = h; cam.bottom = -h; cam.near = span.near; cam.far = span.far; cam.updateProjectionMatrix();
     camera.getWorldDirection(ahead); ahead.y = 0; if (ahead.lengthSq() > 1e-6) ahead.normalize().multiplyScalar(k === 0 ? h / 3 : 0);
     up.set(Math.abs(L.y) > 0.99 ? 1 : 0, Math.abs(L.y) > 0.99 ? 0 : 1, 0); target.set(camera.position.x + ahead.x, groundY, camera.position.z + ahead.z);
     cam.position.copy(target).addScaledVector(L, span.back); cam.up.copy(up); cam.lookAt(target); cam.updateMatrixWorld();
-    snap.copy(target).applyMatrix4(cam.matrixWorldInverse);
-    off.set(-(snap.x - Math.round(snap.x / texel) * texel), -(snap.y - Math.round(snap.y / texel) * texel), 0).applyQuaternion(cam.quaternion);
+    snap.copy(target).applyQuaternion(turned.copy(cam.quaternion).invert());
+    off.set(Math.round(snap.x / texel) * texel - snap.x, Math.round(snap.y / texel) * texel - snap.y, 0).applyQuaternion(cam.quaternion);
     cam.position.add(off); cam.updateMatrixWorld();
     return cam;
   };
