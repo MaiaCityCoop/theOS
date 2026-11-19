@@ -52,3 +52,9 @@ export const ATLASES_SHARE = 1 / 4;
     reads on average, at most (a uvec4 each), for every packed thing at every packing while any thing is changed: what
     the table's fill follows from. unit: places. source: Intents/0038, Build (the solids' builder and cut) */
 export const PROBES = 4;
+/** How long the start waits for what may be stopped on its way (a worker's file an ad or content blocker held back, or
+    served something else in its place) before the veil says so, with what may help and a way to reload
+    (src/core/waits.js): a worker starts in a moment, and the stage waits as long for its first subject (src/boot.js).
+    unit: ms. source: the master, 2026-11-19 (Samuel's Safari with an ad blocker, the veil at "Raising the land" for
+    good: "or hasn't answered in a reasonable time puts a line on the veil") */
+export const STUCK_MS = 20000;

@@ -119,11 +119,10 @@ const ownMakers = new WeakMap();
     there, at once, and the frame waits for the GPU to compile it (2026-11-19: the start's first frames in WebKit, 0.9
     to 1 s each, the master's own-time trace). name: what it is, for the veil and the console. */
 export function drawMade(renderer, mesh, camera, name) {
-  if (made(mesh, 'own')) { renderer.render(mesh, camera); return true; }
   let maker = ownMakers.get(mesh);
   if (!maker) { const target = renderer.getRenderTarget(); ownMakers.set(mesh, (maker = (list) => compileList(renderer, target, list, camera, mesh))); }
-  ask(mesh, 'own', maker, (mesh.material.name ||= name));
-  return false;
+  if (!ready(mesh, 'own', maker, (mesh.material.name ||= name))) return false;
+  renderer.render(mesh, camera); return true;
 }
 /** What makes compute passes (lists of them) on `renderer`, side by side: a maker for ask. */
 export const computeMaker = (renderer) => { let m = computeMakers.get(renderer); if (!m) computeMakers.set(renderer, (m = (lists) => renderer.compileComputeAsync(lists.flat()).then(() => null))); return m; };
