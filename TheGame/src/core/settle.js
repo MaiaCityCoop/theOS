@@ -38,7 +38,7 @@ export function waiting() {
   return out;
 }
 
-import { FADE_FRAMES } from './budget.js';
+import { FADE_FRAMES, SETTLE_MS } from './budget.js';
 let V = null, clock = NaN, frames = 0, still = 0, need = 32, first = null;
 const asks = new Set(), seen = new Float64Array(37), broke = new Set();
 /** A promise: the world complete for the page's first view, and the picture built over time come to rest on it (what
@@ -117,9 +117,8 @@ export const onSettled = (fn) => void CALM.add(fn);
     itself (the library's stage circling its subject: src/stage/studio.js) stands still meanwhile, or it never would. */
 export const settling = () => asks.size > 0;
 
-/** How long the world may take to come complete, or to settle again, before what waits for it calls it broken (ms):
-    settle's own timeout, and the start's view's in the tools (tools/census.js --settle, the smoke's). */
-export const SETTLE_MS = 300000;
+/** How long the world may take to come complete before what waits for it calls it broken (src/core/budget.js). */
+export { SETTLE_MS };
 /** A promise: the world complete for the camera as it stands now, resolved at a frame drawn after this call, once
     nothing has been out and nothing has changed for as long as the picture built over time takes to come to rest.
     { frames, ms, still }: how long it took, and for how many frames nothing changed. timeout (ms): rejected after it,

@@ -63,10 +63,11 @@ export async function mock({ webgl = false, dpr = 1, record = false, lean = fals
   const kept = new WeakMap(), keptOf = (o) => { if (o === null || typeof o !== 'object') return {}; let k = kept.get(o); if (!k) kept.set(o, (k = {})); return k; };
   const device = { features, limits: { maxStorageBufferBindingSize: 2 ** 30, maxBufferSize: 2 ** 30, maxComputeWorkgroupsPerDimension: 65535, maxTextureArrayLayers: 2048, maxUniformBufferBindingSize: 65536, maxTextureDimension2D: 8192 },
     createBuffer: buffer, createTexture: done, queue: { writeBuffer() {}, writeTexture() {}, submit() {}, onSubmittedWorkDone: () => Promise.resolve() },   // (done at once: it draws nothing, so what is paced by its time on the GPU takes none here, src/core/pace.js ownGpuMs)
-    createCommandEncoder: () => ({ copyBufferToTexture() {}, copyBufferToBuffer() {}, copyTextureToTexture() {}, beginComputePass: () => ({ end() {} }), resolveQuerySet() {}, finish: () => ({}) }),   // (an encoder of copies: what the game copies on the GPU itself, src/materials/bake.js's packed blocks into their layers; and the marks of its clock)
+    createCommandEncoder: () => ({ copyBufferToTexture() {}, copyBufferToBuffer() {}, copyTextureToTexture() {}, beginComputePass: () => ({ setPipeline() {}, dispatchWorkgroups() {}, end() {} }), resolveQuerySet() {}, finish: () => ({}) }),   // (an encoder of copies: what the game copies on the GPU itself, src/materials/bake.js's packed blocks into their layers; and the marks of its clock)
     // (its clock, src/core/pace.js: a set of timestamps it never writes, read back as zeros: no time, so what is paced by
     // its time on the GPU is heard, by its queue, done at once)
-    createQuerySet: done, pushErrorScope() {}, popErrorScope: () => Promise.resolve(null) };
+    // (and the pass its marks dispatch, a workgroup doing nothing: a pipeline made of a module, never run here)
+    createShaderModule: done, createComputePipeline: done, createQuerySet: done, pushErrorScope() {}, popErrorScope: () => Promise.resolve(null) };
   const backend = { isWebGPUBackend: !webgl, isWebGLBackend: webgl, compatibilityMode: false, parameters: {}, get: keptOf, has: () => false, device: webgl ? null : device,   // (get: what it keeps of an object, as three's backends ask it; has: whether three made it, never)
     coordinateSystem: webgl ? THREE.WebGLCoordinateSystem : THREE.WebGPUCoordinateSystem,   // (as each of three's backends says it: the node code built for it, MathNode's atan2, the shadows' and the screen's depth, as the game's)
     capabilities: { getUniformBufferLimit: () => 65536 }, utils: { getTextureSampleData: () => ({ primarySamples: 1, samples: 1, isMSAA: false }) },
