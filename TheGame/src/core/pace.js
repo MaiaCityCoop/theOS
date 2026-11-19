@@ -5,6 +5,8 @@
 //   ownGpuMs(renderer, submit)   a submission's own time on the GPU, ms: from when it is handed over (submit()), or when
 //                                the GPU has done all handed before it, whichever is later, to when it is done; a promise
 //                                (null where there is no queue to ask: the CPU's stand-in, tools/gpu-mock.js)
+//   frameShare(cls)              the ms a frame what is paced in class cls may take now: the whole frame (FRAME_MS)
+//                                behind the veil, its class's share (FRAME_MS_BY_CLASS) once the first view shows
 //   pace(least)                  how many of something a frame: { n, left, tick(), measured(count, ms, budget) }: a frame
 //                                begins with tick() (left = n); a piece of `count` of them took `ms` of a `budget` (ms a
 //                                frame): fewer at once where they took longer, at most twice as many, once a frame, where
@@ -18,6 +20,18 @@
 //   frameDone()                  the frame's passes are all handed over (src/boot.js, after it draws): a promise of its
 //                                own time on the GPU, its passes' together, once they are done (null where there is no
 //                                queue to ask): what the governor judges (src/core/governor.js)
+
+import { FRAME_MS, FRAME_MS_BY_CLASS } from './budget.js';
+import { ready } from './settle.js';
+
+// ---- a class's share of the frame ----
+// Behind the veil, till the first view is shown, nothing is seen moving: what is paced may take the whole frame
+// (FRAME_MS); once it shows, its class's share (FRAME_MS_BY_CLASS, src/core/budget.js). One rule, read by everything
+// paced (the land's pages, the ground's maps, the tiers' visits and packings, the far ends' bakes).
+let veiled = true; ready.then(() => { veiled = false; });
+/** The ms a frame what is paced in class `cls` may take now (a GPU's, or a packing's on the page's thread): the whole
+    frame's behind the veil, its class's share once the first view shows. */
+export const frameShare = (cls) => (veiled ? FRAME_MS : FRAME_MS_BY_CLASS[cls]);
 
 /** A submission's own time on the GPU (ms, a promise; null without a queue to ask). */
 export function ownGpuMs(renderer, submit) {

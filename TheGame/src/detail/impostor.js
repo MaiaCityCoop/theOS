@@ -31,10 +31,9 @@ import { passOf } from '../core/pass.js';
 import { IN, PLANE } from '../../assets/kit/crowd.js';
 import { UV_TILES } from '../../assets/kit/plant.js';
 import { makeOwned, PORTABLE } from '../core/gpu.js';
-import { ownGpuMs, pace } from '../core/pace.js';
+import { ownGpuMs, pace, frameShare } from '../core/pace.js';
 import { shown } from '../core/settle.js';
 import { compileFor } from '../core/compile.js';
-import { FRAME_MS_BY_CLASS } from '../core/budget.js';
 import { SHARE_MB } from '../core/classes.js';
 import { FNV, fnv } from '../core/hash.js';
 import { asking } from '../core/workers.js';
@@ -232,7 +231,7 @@ export function createBaker(renderer, { per, px }) {
         for (let r = 0; r < count; r++) for (let a = 0; a < per; ) {
           if (P.left <= 0) { await nextFrame(); P.tick(); }
           const at = a, n = shown() ? Math.min(per - a, P.left) : per - a; a += n; P.left -= n;
-          ownGpuMs(renderer, () => pieceOf(r, at, n, draw))?.then((ms) => P.measured(n, ms, FRAME_MS_BY_CLASS.geometry)).catch(() => {});
+          ownGpuMs(renderer, () => pieceOf(r, at, n, draw))?.then((ms) => P.measured(n, ms, frameShare('geometry'))).catch(() => {});
         }
         const [c, d, l] = await Promise.all(out.map((o) => renderer.readRenderTargetPixelsAsync(o, 0, 0, W, W)));
         // (of its pictures' levels, what the atlas keeps: from its own cell's on, a view's never-read finest not: atlasesOf STORED)

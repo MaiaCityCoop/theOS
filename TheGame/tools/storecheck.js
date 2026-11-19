@@ -28,7 +28,7 @@ import './glob.js';
 const { ownOf, storeOf, roomsFor, holdOf } = await import('../src/scatter/tier.js');
 const { WG, MARGIN } = await import('../src/scatter/regions.js');
 const { pace } = await import('../src/core/pace.js');
-const { FRAME_MS_BY_CLASS } = await import('../src/core/budget.js');
+const { FRAME_MS, FRAME_MS_BY_CLASS } = await import('../src/core/budget.js');
 const { waiting } = await import('../src/core/settle.js');
 
 let failed = 0;
@@ -119,11 +119,11 @@ async function resident(per, { frames, visit, means, first, cells }) {
 
 /** The resident tiers filling at once (a start, a jump), each packing holding the page's thread `cost` ms (what it
     hands three and the GPU; the CPU's stand-in hands nothing), `fills` packings each: as tier.js holds them, the frame's
-    packings to geometry's share of the page (PACKS: pace, measured), the tiers taking turns (src/scatter/index.js turn),
-    or, as main, every tier that waits packing every frame. -> { most: the most page ms a frame, frames: till all are
-    filled } */
-function paged(tiers, cost, fills, held) {
-  const P = pace(1), budget = FRAME_MS_BY_CLASS.geometry, left = new Array(tiers).fill(fills); let most = 0, frames = 0, turn = 0;
+    packings to `budget` ms of the page (PACKS: pace, measured; src/core/pace.js frameShare: the whole frame behind the
+    veil, geometry's share once the first view shows), the tiers taking turns (src/scatter/index.js turn), or, as main,
+    every tier that waits packing every frame. -> { most: the most page ms a frame, frames: till all are filled } */
+function paged(tiers, cost, fills, held, budget) {
+  const P = pace(1), left = new Array(tiers).fill(fills); let most = 0, frames = 0, turn = 0;
   while (left.some((n) => n > 0) && frames < 10000) {
     frames++; P.tick(); turn = (turn + 1) % tiers; let ms = 0;
     for (let i = 0; i < tiers; i++) {
@@ -150,9 +150,12 @@ async function check() {
   }
   const RES_TIERS = 42;   // (the world's resident tiers: tools/smoke.js's scatter, 2026-11-19)
   for (const cost of [0.25, 2, 10]) {
-    const now = paged(RES_TIERS, cost, 8, true), main = paged(RES_TIERS, cost, 8, false);
-    console.log(`  the page: ${RES_TIERS} resident tiers filling, a packing ${cost} ms of it: at most ${now.most.toFixed(1)} ms a frame, filled in ${now.frames} frames (every tier every frame: ${main.most.toFixed(1)} ms, ${main.frames} frames)`);
-    if (now.most > FRAME_MS_BY_CLASS.geometry + cost) fail(`the page: ${now.most} ms a frame, past geometry's share (${FRAME_MS_BY_CLASS.geometry} ms) and a packing`);
+    const main = paged(RES_TIERS, cost, 8, false), cells = [['behind the veil', FRAME_MS], ['shown', FRAME_MS_BY_CLASS.geometry]].map(([how, budget]) => {
+      const r = paged(RES_TIERS, cost, 8, true, budget);
+      if (r.most > budget + cost) fail(`the page ${how}: ${r.most} ms a frame, past its ${budget} ms and a packing`);
+      return `${how} at most ${r.most.toFixed(1)} ms a frame, filled in ${r.frames} frames`;
+    });
+    console.log(`  the page: ${RES_TIERS} resident tiers filling, a packing ${cost} ms of it: ${cells.join('; ')} (every tier every frame: ${main.most.toFixed(1)} ms, ${main.frames} frames)`);
   }
   for (const [how, R] of [['the camera jumping', MOVED], ['the camera still', { ...MOVED, visit: Infinity }]]) {
     const places = Number.isFinite(R.visit) ? Math.ceil(R.frames / R.visit) : 1;
