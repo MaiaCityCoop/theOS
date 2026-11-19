@@ -205,8 +205,7 @@ from `main`). `?hud` shows the frame, memory and settle readout on any device; t
 5. **Data lives once:** workers hand results over and let them go; nothing is kept on the page that is on the GPU.
 
 **Next steps, in order (each a small PR, merged on green CPU CI, then checked on next):**
-1. **Mac reload and phone memory:** branch `aven/0038-outlines-baked` (commit f13ae843) exists only on the MacBook's worktree,
-   committed but never pushed. Push it from there, or redo it: bake
+1. **Mac reload and phone memory:** PR #398 (ready; check it on a device after merge): bake
    outlines.json and crowds.bin for every device class's atlases, and fail the build if one is missing. Without it, next
    measures outlines at runtime and Safari reloads the page for memory.
 2. **Trees missing at the phone's share** even after #385 (the rest dial is sane at 2.27): bisect main 48c7e58 → 289c988
