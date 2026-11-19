@@ -680,11 +680,11 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // blows, and the snow lying on it). far: the bucket of its far end's quad (MAKE.far: it stands over its whole sphere,
   // half of it towards the eye), drawn round half again the box's corner. A kind whose box is not known yet is never hidden
   const GROWN = grownOf(SOLID, MAKE);
-  const boundsOf = (grow, far = -1) => (A, B, k) => {
+  const boundsOf = (grow, far = -1) => { const uFar = far >= 0 ? uniform(far, 'uint') : null; return (A, B, k) => {   // (uFar: a uniform, so a level's culling is one pipeline whatever its far end's bucket)
     const R = lookOf(uint(B.y.add(0.5)), BR).toVar(), s = A.w;
-    const half = vec3(R.x, R.z.sub(R.y).mul(0.5), R.x).mul(s), h = far >= 0 ? k.equal(uint(far)).select(vec3(length(half).mul(1.5)), half) : half;
+    const half = vec3(R.x, R.z.sub(R.y).mul(0.5), R.x).mul(s), h = uFar ? k.equal(uFar).select(vec3(length(half).mul(1.5)), half) : half;
     return { c: vec3(A.x, A.z.add(R.y.add(R.z).mul(0.5).mul(s)), A.y), h: R.w.greaterThan(0.5).select(h.add(s.mul(grow)).add(0.05), vec3(1e6)), w: s.mul(0.1).add(1.5) };
-  };
+  }; };
   // The draws level i's tier has (shadow: the shadow's stand-in). The full meshes are a draw a slot of the heap, each as
   // long as the mesh that lies in it (set when it is put in: arrive, above): a full mesh is 50 000 to 200 000 triangles,
   // and one draw as long as the longest for all of them worked out 200 000 for each (perSlot, only where its finest

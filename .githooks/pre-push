@@ -1,7 +1,9 @@
 #!/bin/sh
 # Before every push: what breaks without vite build seeing it, checked here in seconds, so it is never pushed red
 # (the same first steps as CI, .github/workflows/ci.yml). Turned on once per clone: git config core.hooksPath .githooks
-# Skipped only when nothing under TheGame/ is being pushed.
+# Skipped only when nothing under TheGame/ is being pushed. Where asked (git config gate.wgsl true: for whoever changes
+# shaders), every shader module the smoke builds is compiled on this machine's GPU too (tools/gate.js wgsl, a minute);
+# where another run holds the GPU (tools/gpu/lock.js), that is said and the push goes on.
 PATH="$HOME/.bun/bin:$PATH"
 root=$(git rev-parse --show-toplevel) || exit 1
 changed=0
@@ -17,3 +19,10 @@ echo "pre-push: lint and smoke (TheGame/tools/lint.js, smoke.js)…"
 nice -n 15 bun tools/lint.js || { echo "pre-push: lint failed; fix it before pushing"; exit 1; }
 log=$(mktemp) && nice -n 15 bun tools/smoke.js >"$log" 2>&1 || { tail -20 "$log"; rm -f "$log"; echo "pre-push: smoke failed"; exit 1; }
 rm -f "$log"
+if [ "$(git config --bool gate.wgsl)" = true ]; then
+  if bun tools/gpu/lock.js status --json | grep -q '"holder":null'; then
+    echo "pre-push: every shader on the device (tools/gate.js wgsl; git config gate.wgsl false to stop)…"
+    log=$(mktemp) && GPU_OWNER=pre-push nice -n 15 bun tools/gate.js wgsl >"$log" 2>&1 || { tail -20 "$log"; rm -f "$log"; echo "pre-push: a shader does not compile on the device"; exit 1; }
+    rm -f "$log"
+  else echo "pre-push: the GPU is held by another run (bun tools/gpu/lock.js status): the shaders not compiled on the device this time"; fi
+fi
