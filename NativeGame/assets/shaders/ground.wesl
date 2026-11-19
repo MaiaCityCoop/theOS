@@ -91,17 +91,18 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
             let damp = smoothstep(0.52, 0.6, tnoise(p, 2.2, 80u));
             colour = mix(colour, colour * vec3<f32>(0.62, 0.6, 0.58), damp * bare);
             // dry soil cracks into plates a hand across: dark, narrow edges where the cells meet
-            let c = cells(p, 0.12, 81u);
-            let crack = (1.0 - smoothstep(0.0, 0.06, c.f2 - c.f1)) * (1.0 - damp) * bare * near;
-            colour = colour * (1.0 - 0.55 * crack);
+            let warp = vec2<f32>(tnoise(p, 0.09, 82u), tnoise(p, 0.09, 83u)) - 0.5;
+            let c = cells(p + warp * 0.05, 0.07, 81u);
+            let dry = smoothstep(0.35, 0.6, tnoise(p, 0.9, 87u)); // cracks only where the soil has dried out
+            let crack = (1.0 - smoothstep(0.0, 0.05, c.f2 - c.f1)) * (1.0 - damp) * dry * bare * near;
+            colour = colour * (1.0 - 0.35 * crack);
             lift = lift - crack * 0.5;
             // pebbles: one in some cells, a small grey dome
             let pc = cells(p, 0.05, 84u);
-            let pebble = (1.0 - smoothstep(0.25, 0.33, pc.f1)) * step(0.55, pc.id) * bare * near;
-            let grey = vec3<f32>(0.15, 0.14, 0.12) * (0.7 + 0.5 * fract(pc.id * 7.31));
+            let pebble = (1.0 - smoothstep(0.14, 0.22, pc.f1)) * step(0.8, pc.id) * bare * near;
+            let grey = colour * (0.75 + 0.5 * fract(pc.id * 7.31));
             colour = mix(colour, grey, pebble);
-            lift = lift + pebble * (1.0 - pc.f1 / 0.33);
-            rough = mix(rough, 0.55, pebble);
+            lift = lift + pebble * (1.0 - pc.f1 / 0.22);
             // grains: the finest speckle of sand and crumbs
             let grain = tnoise(p, 0.006, 86u) - 0.5;
             colour = colour * (1.0 + 0.35 * grain * bare * clamp(0.008 / px - 0.5, 0.0, 1.0));
@@ -121,6 +122,7 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
         colour = colour * (1.0 + biome.micro.y * m * 1.6 * fine);
         pbr_input.material.base_color = vec4<f32>(colour, 1.0);
         pbr_input.material.perceptual_roughness = rough;
+        pbr_input.material.reflectance = vec3<f32>(0.0);
         // the fine relief: the slope of small noise tilts the normal, so tiny bumps catch and lose the light
         let e = 0.01;
         let h0 = tnoise(p, 0.12, 92u) * 0.6 + tnoise(p, 0.04, 93u) * 0.4;
