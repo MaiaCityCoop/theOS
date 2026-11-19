@@ -108,7 +108,6 @@ export function createSky(scene, camera, renderer) {
     // but up, and before the sun is up, the key's light stands
     const share = sun.alt > 0 ? skyShare(sun.alt) : 1, want = share < 1 ? (lum(L.sun) * Math.sin(sun.alt) * share) / (1 - share) : Infinity;
     v3(U.uAmb, L.amb.map((a) => a * Math.min(1, want / lum(L.amb))));
-    v3(U.uHazeCol, L.horizon);   // the far land melts into the sky's horizon of this hour
     U.uExposure.value = L.exposure;
     v3(D.zenith, L.zenith); v3(D.horizon, L.horizon); v3(D.glow, L.glow); v3(D.sunL, L.sun); D.sunD.value.copy(sun.dir); D.moonD.value.copy(moon.dir);
     D.dark.value = 1 - Math.min(1, Math.max(0, (sun.alt / RAD + 14) / 12)); D.phase.value = moon.phase;

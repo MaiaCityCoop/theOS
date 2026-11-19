@@ -16,7 +16,7 @@
 //                           rule's own expectation: src/scatter/rule.js densOf) and their crowns' pattern
 //   the grass's colour      the meadow's as its blades' tips show it (the carpet's), and which two stands those are
 import * as THREE from 'three/webgpu';
-import { If, Loop, float, int, uint, vec2, vec3, abs, max, clamp, smoothstep, log2, sqrt, round, uniformArray, renderGroup } from 'three/tsl';
+import { If, Loop, float, int, uint, vec2, vec3, abs, max, clamp, smoothstep, log2, sqrt, round, uniformArray, renderGroup, array } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { byRole } from '../core/registry.js';
 import { riverInfo, biomesAt, grassFrom, groveAt, leadAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, BASE, LAID, PATH_W } from '../world/land.nodes.js';
@@ -25,7 +25,8 @@ import { byte, un } from '../scatter/growth.js';
 import { BAND } from '../detail/error.js';
 import { standsOf, rowsOf, densOf } from '../scatter/rule.js';
 import { detailOf } from '../detail/index.js';
-import { seenOf, seenVersion } from '../detail/seen.js';
+import { seenOf, crownOf, seenVersion } from '../detail/seen.js';
+import { CROWN_EXTINCTION } from '../world/light/physics.js';
 import { sizeOf } from '../../assets/kinds.js';
 const noise = byRole('noise');   // the baked cloudy noise: whichever material plays that part (its `role`)
 
@@ -140,7 +141,7 @@ export const CASTERS = Object.freeze({
 
 // the layers' table: a layer's material (its number: src/materials/bake.js), its tile (metres), its pattern's size
 // (metres; 0: none), and whether it goes with the meadow's blades (1)
-let TABLE = null, STAND_T = null;
+let TABLE = null, STAND_T = null, STAND_K = null, crowned = 0;
 /** The layers' and the stands' tables, made once the world's textures are there (before node code reads them). */
 export const layerTables = (tex) => {
   if (TABLE) return;
@@ -148,7 +149,40 @@ export const layerTables = (tex) => {
   // the stands': (its crowns' colour (-1: none yet), its grain), (its plants' span (0: none), from, to (shares of where
   // they are gone), how far its shadows reach (-1: none))
   STAND_T = uniformArray(STANDS.flatMap((S) => [new THREE.Vector4(...(S.colour ?? [-1, -1, -1]), S.grain), new THREE.Vector4(S.span, ...S.fade, S.reach)]).concat([new THREE.Vector4(), new THREE.Vector4()]), 'vec4').setGroup(renderGroup);
+  // and how much of the light a metre of each stand's crowns takes (per metre): the light's own till its kinds' crowns
+  // are measured (crownK, as standColours finds them)
+  STAND_K = uniformArray(STANDS.map(() => CROWN_EXTINCTION), 'float').setGroup(renderGroup);
 };
+/** How much of the light a metre of a stand's crowns takes (per metre; null while none of its kinds' crowns is
+    measured): each kind's from how much of its round its crown covers seen from above (seen.js crownOf), that much of
+    the light taken through its depth, Beer–Lambert's (-ln(1 - cover) / depth; its depth its crown's at its oldest, at
+    its mean scale), weighted as their colours are (seenColour: its share of the stand times its crown's round). */
+const crownK = (S) => {
+  let sum = 0, of = 0;
+  for (const e of S.entries) {
+    const a = e.asset, w = e.from ? 0 : e.most * e.reach * e.reach, cover = w > 0 ? crownOf(a) : null;
+    if (cover == null) continue;
+    const base = a.growth?.base ? a.growth.base(a.growth.years.at(-1)) : 0, scale = a.placement.scale ? (a.placement.scale[0] + a.placement.scale[1]) / 2 : 1, depth = ((a.measure?.most ?? a.size.height) - base) * scale;
+    if (depth > 0) { sum += (w * -Math.log(1 - cover)) / depth; of += w; }
+  }
+  return of > 0 ? sum / of : null;
+};
+/** How many times what a metre of the stands' crowns takes has changed (the canopy's probes are made again: src/world/
+    light/canopy.js). */
+export const crownsVersion = () => crowned;
+/** How much of the ground a stand's crowns cover at a point (0 … 1): each of its things' chance to stand in a cell there
+    (D: its layer's densOf there) by its crown's round of the cell. Node code. */
+const coverOf = (T, D) => clamp(T.entries.reduce((s, e) => s.add(D[e.i].mul((Math.PI * e.reach * e.reach) / (T.L.cell * T.L.cell))), float(0)), 0, 1);
+/** How much of the light a metre of crown takes at p (per metre): each stand's (STAND_K), by how much of the ground its
+    crowns cover there (coverOf, as the layer map counts it), the light's own (physics.js CROWN_EXTINCTION) for what of
+    the ground none covers. Node code, in a Fn: for the canopy's probes (src/world/light/canopy.js). */
+export function crownsAt(p) {
+  if (!STAND_K) return float(CROWN_EXTINCTION);
+  const I = riverInfo(p).toVar(), ctx = { p, dist: float(0), d: abs(I.x), w: I.y, b: I.z }, dens = new Map(), sum = float(0).toVar(), of = float(0).toVar();
+  for (const T of STANDS) if (!dens.has(T.L)) dens.set(T.L, densOf(T.L, p, ctx));
+  STANDS.forEach((T, id) => { const c = coverOf(T, dens.get(T.L)).toVar(); sum.addAssign(c.mul(STAND_K.element(id))); of.addAssign(c); });
+  return sum.add(max(float(1).sub(of), 0).mul(CROWN_EXTINCTION)).div(max(of, 1));
+}
 /** What a stand whose kinds have far ends shows ([r, g, b], linear albedo; null while none of them does): each kind's
     that shows (src/detail/seen.js) by how much of the ground it covers where the stand is thick, as its cover counts it
     (layerWords): its share of the stand (its `most`, the slice of the patches it leads in: rule.js densOf) times its
@@ -168,6 +202,7 @@ let seenAt = -1;
 export function standColours() {
   if (!STAND_T || seenVersion() === seenAt) return -1;
   seenAt = seenVersion();
+  STANDS.forEach((S, i) => { const k = crownK(S); if (k != null && k !== STAND_K.array[i]) { STAND_K.array[i] = k; crowned++; } });   // (and what a metre of its crowns takes, as its kinds' crowns are measured)
   let near = Infinity;
   STANDS.forEach((S, i) => {
     if (!S.seen) return;
@@ -190,8 +225,10 @@ export function layerWords(tex, p, texel) {
   const stage = stageAt(p).toVar(), bare0 = bareMask(p).toVar(), dry = Lb.dry.toVar();
   // ---- the layers, each laid over what is under it as much as its rule says (a layer's share of the ground shrinks by
   // what is laid over it) ----
-  const S = LAYERS.map(() => float(0).toVar()); S[FLOOR].assign(1);
-  const over = (id, t) => { const k = float(t).toVar(); for (const s of S) s.mulAssign(float(1).sub(k)); S[id].addAssign(k); };
+  // (each step: k of what is there replaced by what it lays, adds [[id, how much]]; worked out from the last back, each
+  // what it adds times what the steps after it leave of it: a step costs a few numbers, not one a layer)
+  const steps = [{ k: float(1), adds: [[FLOOR, float(1)]]}];
+  const over = (id, t) => { const k = float(t).toVar(); steps.push({ k, adds: [[id, k]] }); };
   // a biome's ground: its floor, its spots and its trees' litter laid over each other, then all of it over what is there
   const biome = ({ bio, groves, floor, spots, litter }) => {
     const wt = share.get(bio).mul(bio.mix ?? 1).toVar(), own = new Map([[floor, float(1)]]);
@@ -201,8 +238,7 @@ export function layerWords(tex, p, texel) {
       const lead = leadAt(p, groves).mul(0.7).add(0.15).toVar(), thick = smoothstep(0.1, 0.6, groveAt(p, groves)).toVar();
       for (const { id, slice: [a, b] } of litter) put(id, (a > 0 ? smoothstep(a - 0.06, a + 0.06, lead) : float(1)).mul(b < 1 ? float(1).sub(smoothstep(b - 0.06, b + 0.06, lead)) : float(1)).mul(thick).toVar());
     }
-    for (const s of S) s.mulAssign(float(1).sub(wt));
-    for (const [id, v] of own) S[id].addAssign(wt.mul(v));
+    steps.push({ k: wt, adds: [...own].map(([id, v]) => [id, wt.mul(v)]) });
   };
   UNDER.forEach(biome);
   over(BARE, max(bare0.sub(stage), 0).mul(float(1).sub(dry)));
@@ -210,14 +246,21 @@ export function layerWords(tex, p, texel) {
   over(PATHS, placeOff(p, pathMask(pathN(p))));
   OVER.forEach(biome);
   over(STAGE, stage);
-  // the four strongest, then in the order they are laid
-  const top = [0, 1, 2, 3].map(() => ({ id: int(EMPTY).toVar(), w: float(0).toVar() }));
-  S.forEach((s, id) => {
+  const S = LAYERS.map(() => float(0).toVar()), left = float(1).toVar();
+  for (let i = steps.length - 1; i >= 0; i--) {
+    for (const [id, a] of steps[i].adds) S[id].addAssign(a.mul(left));
+    if (i > 0) left.mulAssign(float(1).sub(steps[i].k));
+  }
+  // the four strongest, then in the order they are laid (the layers' shares looked through in a loop, so its body is
+  // written once, not once a layer)
+  const top = [0, 1, 2, 3].map(() => ({ id: int(EMPTY).toVar(), w: float(0).toVar() })), SA = array(S).toVar();
+  Loop(S.length, ({ i }) => {
+    const s = SA.element(i).toVar(), id = int(i);
     const c = top.map((t) => s.greaterThan(t.w).toVar());   // (held: the slots change as they are assigned)
-    for (let i = 3; i >= 0; i--) {   // (from the last: each takes what was before it, if what comes is stronger than that)
-      const fromAbove = i > 0 ? c[i - 1] : null, here = c[i];
-      if (fromAbove) { top[i].id.assign(fromAbove.select(top[i - 1].id, here.select(int(id), top[i].id))); top[i].w.assign(fromAbove.select(top[i - 1].w, here.select(s, top[i].w))); }
-      else { top[i].id.assign(here.select(int(id), top[i].id)); top[i].w.assign(here.select(s, top[i].w)); }
+    for (let k = 3; k >= 0; k--) {   // (from the last: each takes what was before it, if what comes is stronger than that)
+      const fromAbove = k > 0 ? c[k - 1] : null, here = c[k];
+      if (fromAbove) { top[k].id.assign(fromAbove.select(top[k - 1].id, here.select(id, top[k].id))); top[k].w.assign(fromAbove.select(top[k - 1].w, here.select(s, top[k].w))); }
+      else { top[k].id.assign(here.select(id, top[k].id)); top[k].w.assign(here.select(s, top[k].w)); }
     }
   });
   const sum = top.reduce((a, t) => a.add(t.w), float(0)).max(1e-6).toVar();
@@ -241,7 +284,7 @@ export function layerWords(tex, p, texel) {
   const st = [0, 1].map(() => ({ id: int(NO_STAND).toVar(), c: float(0).toVar(), n: float(0).toVar() }));
   STANDS.forEach((T, id) => {
     const g = T.grain;
-    const D = dens.get(T.L), c = clamp(T.entries.reduce((s, e) => s.add(D[e.i].mul((Math.PI * e.reach * e.reach) / (T.L.cell * T.L.cell))), float(0)), 0, 1).toVar();
+    const c = coverOf(T, dens.get(T.L)).toVar();
     If(c.greaterThan(st[1].c), () => {
       const n = nz(p.div(23 * g).add(0.7), 23 * g).r.mul(0.35).add(nz(prr.div(31.7 * g).add(0.2), 31.7 * g).g.mul(0.35)).add(nz(pr.div(CROWNS * g), CROWNS * g).g.mul(0.3)).toVar();
       If(c.greaterThan(st[0].c), () => { st[1].id.assign(st[0].id); st[1].c.assign(st[0].c); st[1].n.assign(st[0].n); st[0].id.assign(id); st[0].c.assign(c); st[0].n.assign(n); })

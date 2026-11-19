@@ -16,6 +16,7 @@ import { cascades } from './shadow.js';
 import { blueAt } from './light/noise.js';
 import { SUN_DIAMETER } from './light/physics.js';
 import { SCREEN } from './light/screen.js';
+import { skyAlong, glowAlong } from './sky/dome.js';
 import { canopyAt, groundColour } from './light/canopy.js';
 
 export { snowDepth, snowCover, snowDrift, snowLift, snowLiftAtVertex, SNOW } from './weather/snow.js';
@@ -29,18 +30,18 @@ export const useBackend = (renderer) => { texelReads = !!renderer?.backend?.isWe
 // air: the far land takes the sky's colour; one height fog for everything, thickest at the ground, thinning upwards
 // (by e every airScale metres), so a line of sight from high up passes through less of it. The weather's fog (its lane) thickens it.
 const airMean = Fn(([h]) => { const k = h.div(max(U.uAirScale, 1)); return k.lessThan(1e-3).select(float(1).sub(k.mul(0.5)), float(1).sub(exp(k.negate())).div(k)); });
-// the air lit by the sun: looking towards it, the haze glows warm (light scattered forward by the air), away from it
-// it keeps the horizon's colour; the more air in the line of sight, the more of it
+// the air's own light: what the sky shows along the same way (src/world/sky/dome.js: its colour from the horizon up, and
+// its glow round the sun), so the far land melts into the very sky behind it; the more air in the line of sight, the
+// more of it
 /** The air between the eye and w, as its two parts: k, how much of a surface's colour comes through, and col, the air's
-    own light: a height fog lit by the sun, worked out here. A material that lights itself per vertex (a tree:
+    own light: a height fog, its light the sky's along the same way. A material that lights itself per vertex (a tree:
     src/scatter/trees.js) carries them to its pixels; airAt mixes them. (Hillaire's air in froxels, stage 9b, is on its
     own branch, aven/0038-stage9b, until it fits the light's 3 ms.) */
 const airHere = Fn(([w, eye]) => {
-  const d = w.sub(eye), dist = length(d), towards = max(normalize(d).dot(U.uSunDir), 0);
-  const glow = U.uSun.mul(pow(towards, 6).mul(0.22).add(pow(towards, 40).mul(0.25))).mul(U.uSunDir.y.max(0).mul(-1).add(1).mul(0.6).add(0.4));
+  const d = w.sub(eye), dist = length(d), v = normalize(d);
   // (and by where the land is no longer drawn it is all air: from high up the land's end is not an edge against the sky)
   const end = smoothstep(U.uLandEnd.mul(0.55), U.uLandEnd.mul(0.94), dist), k0 = exp(dist.negate().mul(U.uHaze).mul(airMean(U.uAirH)).mul(lane.fog.mul(40).add(1))).mul(float(1).sub(end));
-  return vec4(U.uHazeCol.add(glow), k0);
+  return vec4(skyAlong(v).add(glowAlong(v)), k0);
 });
 export const airOf = (w, eye = U.uCam) => {
   const A = airHere(w, eye), dist = length(w.sub(eye));
@@ -96,17 +97,19 @@ export const ign = (p) => fract(fract(dot(p, vec2(0.06711056, 0.00583715))).mul(
 // A point is read in the first one it lies inside, the hand-over to the next dithered over a cascade's last tenth (the
 // picture built over time averages it), and the last fades out at its own edge.
 //
-// The near one is soft as the sun makes it (PCSS, Fernando 2005): six reads round the point find how far the casters
-// above it stand (the blockers' mean depth), and its penumbra is that distance times the width of the sun's disc
-// (0.53°): a leaf a hand above the path throws a sharp shadow, a crown 15 m up a soft one, so a canopy's light falls as
-// the round flecks a real one does. Then eight taps over that penumbra, each compared and filtered over 2 x 2 texels by
-// the GPU (a comparison sampler), on a disc turned by the blue noise from pixel to pixel and frame to frame (one turn a
-// pixel: its cosine and sine once, not a tap's each), the blockers looked for as far round as the widest penumbra reaches
-// (U.uShadowPen: the sun's disc over the tallest caster's way along the light, src/world/shadow.js). The others take four
-// taps each, about a texel and a half out.
+// Every cascade is soft as the sun makes it (PCSS, Fernando 2005), as far as its texels can show it: six reads round the
+// point find how far the casters above it stand (the blockers' mean depth), and its penumbra is that distance times the
+// width of the sun's disc (0.53°): a leaf a hand above the path throws a sharp shadow, a crown 15 m up a soft one, so a
+// canopy's light falls as the round flecks a real one does, near and far. Then eight taps over that penumbra, each
+// compared and filtered over 2 x 2 texels by the GPU (a comparison sampler), on a disc turned by the blue noise from
+// pixel to pixel and frame to frame (one turn a pixel: its cosine and sine once, not a tap's each), the blockers looked
+// for as far round as the widest penumbra reaches (U.uShadowPen: the sun's disc over the tallest caster's way along the
+// light, src/world/shadow.js). No penumbra is narrower than a texel and a half of its cascade, what its texels can show;
+// where even the widest is narrower than that (a far cascade, whose texels are wider than the sun blurs anything), four
+// taps over that texel and a half, and no blockers looked for.
 // a Vogel disc of n taps (radius 1), its first turned by a0: as numbers, turned for a pixel by its (cos, sin)
 const disc = (n, a0 = 0) => Array.from({ length: n }, (_, i) => { const r = Math.sqrt((i + 0.5) / n), a = a0 + i * 2.399963; return [Math.cos(a) * r, Math.sin(a) * r]; });
-const BLOCKERS = disc(6), TAPS = disc(8, 1.3);
+const BLOCKERS = disc(6), TAPS = disc(8, 1.3), FEW = disc(4, 0.4);
 const turned = ([x, y], cs) => vec2(cs.x.mul(x).sub(cs.y.mul(y)), cs.y.mul(x).add(cs.x.mul(y)));
 /** a point in cascade k (a number, or an index in a shader): { q (u, v, depth), e (how far inside: 0 at its edge, 1 a
     tenth in) } */
@@ -116,18 +119,20 @@ const cascade = (w, k) => {
 };
 const depthAt = (uv, k) => { const S = cascades().S; return float(U.tShadow.load(ivec2(clamp(uv.mul(S), vec2(0), vec2(S - 1)))).depth(int(k))); };
 const compareAt = (uv, k, z) => U.tShadow.sample(uv).depth(int(k)).level(0).compare(z);
-// the near cascade, soft as the sun's disc makes it (the taps over a penumbra `pen` metres wide); the others, four taps
-const taps = (q, z, cs, pen) => { const perM = 1 / (2 * cascades().half[0]), k = float(0).toVar(); for (const d of TAPS) k.addAssign(compareAt(q.xy.add(turned(d, cs).mul(pen.mul(0.5 * perM))), 0, z)); return k.div(TAPS.length); };
-const nearSoft = (q, z, cs) => {
-  const C = cascades(), perM = 1 / (2 * C.half[0]);
-  if (!texelReads) return taps(q, z, cs, float(3 * C.texel[0]));   // (WebGL 2 reads no texel of a texture it compares: no blockers, a penumbra of three texels)
-  const found = float(0).toVar(), sum = float(0).toVar();
-  for (const d of BLOCKERS) { const b = depthAt(q.xy.add(turned(d, cs).mul(U.uShadowPen.mul(0.5 * perM))), 0); If(b.lessThan(z), () => { sum.addAssign(b); found.addAssign(1); }); }
-  const r = float(1).toVar();
-  If(found.greaterThan(0), () => { r.assign(taps(q, z, cs, clamp(z.sub(sum.div(found)).mul(C.range[0]).mul(SUN_DIAMETER), 1.5 * C.texel[0], U.uShadowPen))); });
+// cascade k's taps D (TAPS, or FEW) over a penumbra `pen` metres wide (perM: its texture's units a metre)
+const taps = (q, z, cs, pen, perM, k, D = TAPS) => { const s = float(0).toVar(); for (const d of D) s.addAssign(compareAt(q.xy.add(turned(d, cs).mul(pen.mul(perM).mul(0.5))), k, z)); return s.div(D.length); };
+/** cascade k at q (z: its depth less its bias; cs: the pixel's turn), as soft as the sun's disc makes it, as far as its
+    texels can show it (above) */
+const softIn = (q, z, cs, k) => {
+  const C = cascades(), t = C.texelAt.element(k), perM = float(1).div(t.mul(C.S)), least = t.mul(1.5), r = float(1).toVar();
+  if (!texelReads) { r.assign(taps(q, z, cs, t.mul(3), perM, k)); return r; }   // (WebGL 2 reads no texel of a texture it compares: no blockers, a penumbra of three texels)
+  If(U.uShadowPen.greaterThan(least), () => {
+    const found = float(0).toVar(), sum = float(0).toVar();
+    for (const d of BLOCKERS) { const b = depthAt(q.xy.add(turned(d, cs).mul(U.uShadowPen.mul(perM).mul(0.5))), k); If(b.lessThan(z), () => { sum.addAssign(b); found.addAssign(1); }); }
+    If(found.greaterThan(0), () => { r.assign(taps(q, z, cs, clamp(z.sub(sum.div(found)).mul(C.rangeAt.element(k)).mul(SUN_DIAMETER), least, U.uShadowPen), perM, k)); });
+  }).Else(() => { r.assign(taps(q, z, cs, least, perM, k, FEW)); });
   return r;
 };
-const farSoft = (q, z, k) => { const s = float(0).toVar(); for (const [i, j] of [[-0.62, -0.24], [0.24, -0.62], [0.62, 0.24], [-0.24, 0.62]]) s.addAssign(compareAt(q.xy.add(vec2(i, j).mul(1.7 / cascades().S)), k, z)); return s.div(4); };
 /** The shadow at w, a pixel's (n: its normal, for the offset that keeps a surface from shading itself). how: 'soft',
     'one' (one tap), 'pulled' (what is drawn into the map pulled towards the light allows for its own pull too). */
 const shadowOf = (w, n, how) => {
@@ -148,8 +153,8 @@ const shadowOf = (w, n, how) => {
     If(share.greaterThan(0), () => {
       const A = at(k), z = A.q.z.sub(C.backAt.element(k).mul(pull)), read = float(1).toVar();
       if (how === 'one') read.assign(compareAt(A.q.xy, k, z));
-      else If(k.equal(0), () => { read.assign(nearSoft(A.q, z, cs)); }).Else(() => { read.assign(farSoft(A.q, z, k)); });
-      r.assign(mix(1, read, share));
+      else read.assign(softIn(A.q, z, cs, k));
+      r.assign(mix(1, read, share.mul(C.on.element(k))));   // (as much of it as its cascade casts: a far one fades in as it comes, src/world/shadow.js)
     });
   });
   return r;
@@ -195,7 +200,7 @@ const shadowAtVertex = Fn(([w]) => {
     const left = float(1).toVar(), s = float(0).toVar();
     Loop({ start: int(0), end: int(cascades().n), type: 'int', condition: '<' }, ({ i }) => {
       const A = cascade(w, i);
-      If(A.e.greaterThan(0), () => { s.addAssign(left.mul(A.e).mul(vertexIn(A, i))); left.mulAssign(float(1).sub(A.e)); });
+      If(A.e.greaterThan(0), () => { s.addAssign(left.mul(A.e).mul(mix(1, vertexIn(A, i), cascades().on.element(i)))); left.mulAssign(float(1).sub(A.e)); });   // (as much as its cascade casts: shadowOf)
       If(left.lessThanEqual(0), () => { Break(); });
     });
     r.assign(s.add(left));

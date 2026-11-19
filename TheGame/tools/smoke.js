@@ -61,7 +61,7 @@ const nameOf = (o) => { let p = o; while (p && !p.name) p = p.parent; return p?.
 // ---- the world, as src/boot.js makes it ----
 const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(68, innerWidth / innerHeight, 0.15, 30000); scene.add(camera);
 const game = await tryTo('the screen', async () => {
-  const { createUniforms } = await import('../src/core/uniforms.js'), U = createUniforms(camera, 0x9fc2e6);
+  const { createUniforms } = await import('../src/core/uniforms.js'), U = createUniforms(camera);
   (await import('../src/detail/impostor.js')).setImpostorRenderer(renderer);
   const { createTemporal } = await import('../src/core/temporal.js'), { createScreen } = await import('../src/core/screen.js'), { createLens } = await import('../src/camera/post.js');
   const temporal = createTemporal(renderer), screen = createScreen(renderer, { temporal, lens: createLens(renderer) });

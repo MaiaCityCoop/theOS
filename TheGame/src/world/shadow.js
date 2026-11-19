@@ -38,7 +38,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, bool, uniformArray, vec4, abs, max, cameraProjectionMatrix, cameraViewMatrix } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { compileFor, compileList, made, ask, pending, labelled } from '../core/compile.js';
-import { shown } from '../core/settle.js';
+import { shown, arriving } from '../core/settle.js';
 import { twinOf, passOf } from '../core/pass.js';
 import { note, mark } from '../core/gpu.js';
 import { stood, moves } from '../core/work.js';
@@ -80,16 +80,19 @@ export function useCascades({ reach, crown, top, radius }) {
   // (what a shader reads of cascade k, k its index: its matrix, its texel, and its bias in its own depth's units, so one
   // loop reads them all, src/world/light.js)
   const mats = uniformArray(half.map(() => new THREE.Matrix4()), 'mat4');
-  const texelAt = uniformArray(texel, 'float'), backAt = uniformArray(bias.map((b, k) => b / range[k]), 'float');
-  C = { S, n, half, texel, bias, range, top, casters: { reach, crown, top, radius }, mats, texelAt, backAt };
+  const texelAt = uniformArray(texel, 'float'), backAt = uniformArray(bias.map((b, k) => b / range[k]), 'float'), rangeAt = uniformArray(range, 'float');
+  // (and how much of its shadow each casts, the shaders' on.element(k): the near one all of it; a far one none until it
+  // is first drawn with no caster left out, its casters made after the first view, then faded in: createShadows)
+  const on = uniformArray(half.map((_, k) => (k ? 0 : 1)), 'float');
+  C = { S, n, half, texel, bias, range, top, casters: { reach, crown, top, radius }, mats, texelAt, backAt, rangeAt, on };
   return C;
 }
 /** The cascades as useCascades laid them out: { S (texels a side), n (how many), half (each one's half side, m), texel (m), bias (m along the
     light a caster stands back before it shades: two of its texels, the 2 × 2 comparison's reach; what is steep to the
     light is moved off along its normal, light.js), range (the depth it holds, m), top (the tallest caster, m), casters
     (what they were laid out from: reach, crown, top, radius, m), mats (each one's matrix from the world to its u, v and
-    depth: one uniform array, mats.array[k] here, mats.element(k) in a shader), texelAt, backAt (each one's texel and
-    bias over its range, the same way, for the shaders) }. */
+    depth: one uniform array, mats.array[k] here, mats.element(k) in a shader), texelAt, backAt, rangeAt (each one's
+    texel, bias over its range and range, the same way, for the shaders) }. */
 export const cascades = () => {
   if (!C) throw new Error('the shadow cascades are laid out at the start, before any material is built (src/world/light/start.js startLight, where src/boot.js and tools/smoke.js start the light)');
   return C;
@@ -98,15 +101,16 @@ export const cascades = () => {
 /** What a caster is drawn as into a shadow cascade or the canopy map (src/world/light/canopy.js): its shadow twin, one
     pipeline for both. Drawn once it is made for them (made by need, src/core/compile.js): until then it is made aside,
     for target() as camera() sees it, left out, and missed(object) told of it (a map that keeps what it drew is made
-    again once what it left out has come: pending). route.twin: any caster drawn as its twin, made or not (what a
-    compile draws); route.ahead(object, scene): it asked to be made, not counted (src/core/compile.js ahead). */
-export const castRoute = (renderer, target, camera, missed = null) => {
+    again once what it left out has come: pending). near(): how near what it asks for now is (src/core/compile.js ask:
+    0, what the first view waits for). route.twin: any caster drawn as its twin, made or not (what a compile draws);
+    route.ahead(object, scene): it asked to be made, not counted (src/core/compile.js ahead). */
+export const castRoute = (renderer, target, camera, missed = null, near = () => 0) => {
   const draw = renderer.renderObject, makers = new Map();
   const twin = (object, scene, cam, geometry, material, ...rest) => draw.call(renderer, object, scene, cam, geometry, material.isNodeMaterial ? twinOf(material).shadow : material, ...rest);
   const makerOf = (scene) => { if (!makers.has(scene.id)) makers.set(scene.id, (list) => compileList(renderer, target, list, camera(), scene, twin)); return makers.get(scene.id); };
   const route = (object, scene, cam, geometry, material, ...rest) => {
     if (made(object, 'cast')) return twin(object, scene, cam, geometry, material, ...rest);
-    ask(object, 'cast', makerOf(scene), `${labelled(material, object)} (cast)`);
+    ask(object, 'cast', makerOf(scene), `${labelled(material, object)} (cast)`, true, near());
     if (pending(object, 'cast')) missed?.(object);
   };
   const ahead = (object, scene) => { const m = [object.material].flat()[0]; if (m && object.layers.test(camera().layers)) ask(object, 'cast', makerOf(scene), `${labelled(m, object)} (cast)`, false); };
@@ -139,7 +143,12 @@ export function createShadows(renderer) {
   // what a cascade draws of a caster: once it is made for them; until then it is made aside (the farthest cascade's
   // camera sees all that any does), left out, and the cascade that left it out drawn again once it has come
   // (src/core/compile.js)
-  const route = castRoute(renderer, rt, () => cams[n - 1], (o) => at[drawing].missing.add(o));
+  // (what the near cascade draws, the first view waits for: a missing near shadow is the most seen thing on the screen;
+  // what only a far one draws is made after it, the nearer cascades' first: src/core/compile.js ask)
+  const route = castRoute(renderer, rt, () => cams[n - 1], (o) => at[drawing].missing.add(o), () => (drawing ? half[drawing - 1] : 0));
+  // (and a far cascade's shadow comes in as it is first drawn with nothing left out: at once behind the veil, else faded
+  // in, src/core/settle.js arriving; what comes later, as the eye moves, comes as it always did)
+  const fades = half.map((_, k) => (k ? arriving((v) => { C.on.array[k] = v; }) : null));
   // (and what moves by itself, a person, standing in the cascade being drawn: that cascade is drawn again in turn)
   const pos = new THREE.Vector3();
   const draw = (object, ...rest) => {
@@ -199,6 +208,7 @@ export function createShadows(renderer) {
     /** Draw the casters from the light, round where the camera looks: the near cascade every frame, a far one only once
         what it shows has changed, one a frame in turn (the layout's `when`). */
     render(scene, camera, groundY) {
+      for (const f of fades) f?.step();
       const L = U.uSunDir.value, sun = U.uSun.value;
       if (L.y < 0.03 || sun.x + sun.y + sun.z < 0.02) { U.uShadowOn.value = 0; return; }   // no light to cast by
       const which = this.turns(camera, L);
@@ -209,6 +219,7 @@ export function createShadows(renderer) {
         mark(k ? 'far' : 'near');   // (whose passes these are, for a tool's timing: src/core/gpu.js)
         drawing = k; Object.assign(at[k], { due: false, lively: false, drawn: true }); at[k].sun.copy(L); at[k].eye.copy(camera.position);
         renderer.setRenderTarget(rt, k); renderer.render(scene, aim(k, camera, groundY)); matOf(k);
+        if (k && !at[k].missing.size) fades[k].arrive();
       }
       mark(null); renderer.setRenderObjectFunction(null); renderer.autoClear = ac; renderer.autoClearDepth = acd; renderer.setRenderTarget(prev);
       U.uShadowPass.value = 0;

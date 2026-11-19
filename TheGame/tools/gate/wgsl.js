@@ -9,8 +9,9 @@
 //
 // And what each costs (the master, 2026-11-19: single pipelines took seconds to compile, and the start waited minutes
 // for them): every pipeline's WGSL bytes, its modules' compile and its own making, ms, one at a time, in each engine;
-// the worst, and the world's total (every pipeline the world's start may make: the smoke's world, not the library),
-// against their ceilings (tools/gate/shaders.json: set from main's run with --ratchet, only ever lowered). A driver
+// the worst of all the smoke builds, and the first view's total (its own programs, as the game made them before its
+// first frame showed: the hour's device run, tools/gate/device.js; firstView), against their ceilings
+// (tools/gate/shaders.json: set from main's run with --ratchet, only ever lowered). A driver
 // keeps what it compiled from run to run (a Mac's Metal cache: a second run here took a tenth of the first), so a set
 // measured again would read the cache: each set is marked (a private variable its entry point writes, which no compiler
 // leaves out, so the driver's source is new), measured once cold, and its numbers kept (.gate/wgsl/) for every run of
@@ -111,9 +112,12 @@ async function compileAll(S) {
   return out;
 }
 
-/** The modules marked (above): `mark` written by each entry point, so the driver compiles the set anew. */
-const markedOf = (S, mark) => {
-  const m = (code) => code.replace(/(@(?:vertex|fragment|compute)\b[^{]*?\bfn\s+main\s*\([^{]*\{)/, `var<private> gate_mark: u32 = ${mark}u;\n$1\n  gate_mark += 1u;`);
+/** A module's WGSL marked (above): `n` written by its entry point, which no compiler leaves out, so the driver's source
+    is new and compiled anew. Whole in itself: a page is handed it too (tools/gate/device.js, a cold start's shaders). */
+export const mark = (code, n) => code.replace(/(@(?:vertex|fragment|compute)\b[^{]*?\bfn\s+main\s*\([^{]*\{)/, `var<private> gate_mark: u32 = ${n}u;\n$1\n  gate_mark += 1u;`);
+/** The modules marked (mark), so the driver compiles the set anew. */
+const markedOf = (S, n) => {
+  const m = (code) => mark(code, n);
   return { compute: S.compute.map((c) => ({ ...c, code: m(c.code) })), render: S.render.map((r) => ({ ...r, vertex: m(r.vertex), fragment: m(r.fragment) })) };
 };
 const hashOf = (...x) => createHash('sha1').update(x.join('\0')).digest('hex');
@@ -135,50 +139,81 @@ async function engine(name, launch, S, set) {
   } catch (e) { return { error: String(e?.message ?? e).split('\n')[0] }; }
   finally { await b?.close(); }
 }
+/** A set's pipelines (S: render and compute, each with its label), one row each: label, kind, bytes. */
+const rowsOf = (S) => [...S.compute.map((c) => ({ label: c.label, kind: 'compute', bytes: Buffer.byteLength(c.code) })), ...S.render.map((r) => ({ label: r.label, kind: 'render', bytes: Buffer.byteLength(r.vertex) + Buffer.byteLength(r.fragment) }))];
+const codesOf = (S) => [...S.compute.map((c) => c.code), ...S.render.flatMap((r) => [r.vertex, r.fragment])];
 /** The check: the smoke's modules, compiled and timed in each engine (above). { modules (render, compute: how many the
     smoke built), engines: { chrome, webkit: { adapter, modules, pipelines, errors, ms, host, notMeasured, kept } or
-    { error } }, list (each pipeline: label, kind, bytes, ms by engine), cost (by engine: worst, world, all, against the
-    ceilings), errors, pass }. opt.ratchet: the ceilings lowered to what was measured (main's run). */
+    { error } }, list (each pipeline: label, kind, bytes, ms by engine), cost (by engine: the worst pipeline against its
+    ceiling, and the whole), errors, pass }; and, not kept with it, names (each program's code: the smoke's name for it,
+    firstView's). opt.ratchet: the ceiling lowered to what was measured (main's run). */
 export async function wgsl(opt = {}) {
   const S = built();
   if (S.error) { const out = { error: S.error, pass: false }; say(out); return out; }
-  const set = hashOf(...S.compute.map((c) => c.code), ...S.render.flatMap((r) => [r.vertex, r.fragment]));
-  const out = { modules: { render: S.render.length, compute: S.compute.length }, engines: {}, list: [...S.compute.map((c) => ({ label: c.label, kind: 'compute', bytes: Buffer.byteLength(c.code) })), ...S.render.map((r) => ({ label: r.label, kind: 'render', bytes: Buffer.byteLength(r.vertex) + Buffer.byteLength(r.fragment) }))] };
+  const out = { modules: { render: S.render.length, compute: S.compute.length }, engines: {}, list: rowsOf(S) }, set = hashOf(...codesOf(S));
   for (const [name, launch] of Object.entries(ENGINES)) out.engines[name] = await engine(name, launch, S, set);
   out.errors = Object.entries(out.engines).flatMap(([n, e]) => (e.errors ?? []).map((x) => `${n}: ${x}`));   // (what the shaders got wrong: it fails)
   out.unchecked = Object.entries(out.engines).filter(([, e]) => e.error).map(([n, e]) => `${n}: ${e.error}`);   // (an engine that did not come to them, no adapter, say: said, it fails nothing)
   out.pass = !out.errors.length;
-  costs(out, opt);
+  out.cost = held('worst', costs(out.list, out.engines), (c) => c.worst?.ms, opt.ratchet);
+  Object.defineProperty(out, 'names', { value: new Map([...S.compute.map((c) => [c.code, c.label]), ...S.render.map((r) => [`${r.vertex}\0${r.fragment}`, r.label])]) });
   say(out);
   return out;
 }
-/** Each pipeline's cost by engine (its modules' compile and its making, ms), and each engine's worst, world total and
-    whole total, judged against tools/gate/shaders.json (and lowered to them with ratchet, where measured). */
-function costs(out, { ratchet = false } = {}) {
+/** The first view's own programs (P: as the game made them before its first frame showed, tools/gate/device.js
+    programs), compiled and timed cold in each engine as the smoke's are, each named as the smoke names it where its code
+    is the smoke's (W.names). { shown, made (pipelines asked before the first frame), programs, smoke's (of them, the
+    smoke's own code), engines, list, cost (by engine: the total against its ceiling, and the worst) }, or null. */
+export async function firstView(P, W, opt = {}) {
+  if (!P || !(P.render.length + P.compute.length)) return null;
+  const names = W?.names ?? new Map(), as = (k, label) => names.get(k) ?? `as the game labels it: ${label || 'unlabelled'}`;
+  const S = { compute: P.compute.map((c) => ({ ...c, label: as(c.code, c.label) })), render: P.render.map((r) => ({ ...r, label: as(`${r.vertex}\0${r.fragment}`, r.label) })) };
+  const out = { shown: P.shown, made: P.made, programs: { render: S.render.length, compute: S.compute.length }, smokes: [...P.compute.map((c) => c.code), ...P.render.map((r) => `${r.vertex}\0${r.fragment}`)].filter((k) => names.has(k)).length, engines: {}, list: rowsOf(S) };
+  const set = hashOf('the first view', ...codesOf(S));
+  for (const [name, launch] of Object.entries(ENGINES)) out.engines[name] = await engine(name, launch, S, set);
+  out.cost = held('firstView', costs(out.list, out.engines), (c) => c.total, opt.ratchet);
+  console.log(`  ${firstLine(out).replace(/\*\*/g, '')}`);
+  return out;
+}
+/** Each pipeline's cost by engine (its modules' compile and its making, ms, kept on its row), and each engine's worst
+    and total. */
+function costs(list, engines) {
+  const cost = {};
+  for (const [n, e] of Object.entries(engines)) {
+    if (!e.ms) continue;
+    list.forEach((x, i) => { const [m, p] = e.ms[i] ?? []; (x.ms ??= {})[n] = p == null ? null : Math.round(m + p); });
+    const timed = list.filter((x) => x.ms[n] != null), worst = timed.reduce((w, x) => (x.ms[n] > (w?.ms[n] ?? -1) ? x : w), null);
+    cost[n] = { worst: worst && { label: worst.label, ms: worst.ms[n] }, total: timed.reduce((t, x) => t + x.ms[n], 0), notMeasured: e.notMeasured ?? null };
+  }
+  return cost;
+}
+/** Each engine's `key` (worst: the costliest pipeline of all the smoke builds; firstView: the first view's total, ms,
+    value(cost)) against its ceiling (tools/gate/shaders.json), over where it is past it; lowered to what was measured
+    with ratchet (main's run), never raised. */
+function held(key, cost, value, ratchet) {
   const C = existsSync(CEILINGS) ? JSON.parse(readFileSync(CEILINGS, 'utf8')) : {};
-  out.cost = {};
-  for (const [n, e] of Object.entries(out.engines)) if (e.ms) out.cost[n] = costOf(out.list, n, e, C[n] ?? null);
-  if (!ratchet) return;
-  for (const [n, c] of Object.entries(out.cost)) if (!c.notMeasured && c.worst) C[n] = { worst: Math.min(C[n]?.worst ?? Infinity, c.worst.ms), world: Math.min(C[n]?.world ?? Infinity, c.world) };
-  writeFileSync(CEILINGS, JSON.stringify({ ...C, measured: spawnSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).stdout.trim() }, null, 1) + '\n');
+  for (const [n, c] of Object.entries(cost)) {
+    const v = value(c), ceiling = C[n]?.[key] ?? null;
+    Object.assign(c, { ceiling, over: !c.notMeasured && ceiling != null && v > ceiling });
+    if (ratchet && !c.notMeasured && v != null) (C[n] ??= {})[key] = Math.min(ceiling ?? Infinity, v);
+  }
+  if (ratchet) writeFileSync(CEILINGS, JSON.stringify({ ...C, measured: spawnSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).stdout.trim() }, null, 1) + '\n');
+  return cost;
 }
-/** Engine n's costs (e: its run), each pipeline's kept on list: its worst, the world's and the whole, against `ceiling`. */
-function costOf(list, n, e, ceiling) {
-  list.forEach((x, i) => { const [m, p] = e.ms[i] ?? []; (x.ms ??= {})[n] = p == null ? null : Math.round(m + p); });
-  const timed = list.filter((x) => x.ms[n] != null), sum = (l) => l.reduce((t, x) => t + x.ms[n], 0), worst = timed.reduce((w, x) => (x.ms[n] > (w?.ms[n] ?? -1) ? x : w), null);
-  const c = { worst: worst && { label: worst.label, ms: worst.ms[n] }, world: sum(timed.filter((x) => !/^the library/.test(x.label))), all: sum(timed), notMeasured: e.notMeasured ?? null, ceiling };
-  c.over = c.notMeasured || !ceiling ? [] : [...(c.worst?.ms > ceiling.worst ? [`the worst pipeline ${c.worst.ms} ms over its ceiling ${ceiling.worst}`] : []), ...(c.world > ceiling.world ? [`the world's ${c.world} ms over its ceiling ${ceiling.world}`] : [])];
-  return c;
-}
-/** The costs' line: each engine's worst pipeline and the world's total, against their ceilings. */
-export const costLine = (W) => (!W?.cost || !Object.keys(W.cost).length ? 'Shader cost: not timed.' : `Shader cost (each pipeline's compile and making, one at a time, cold): ${Object.entries(W.cost).map(([n, c]) => `${n}${c.notMeasured ? ' (**not measured**: ' + c.notMeasured + ')' : ''}: the worst ${c.worst?.ms} ms (${c.worst?.label}), the world's ${(c.world / 1e3).toFixed(1)} s${c.ceiling ? ` (ceilings ${c.ceiling.worst} ms, ${(c.ceiling.world / 1e3).toFixed(1)} s${c.over.length ? `: **${c.over.join('; ')}**` : ''})` : ' (no ceiling yet)'}`).join('; ')}.`);
-/** The hour's board's WGSL lines, after Ready: whether every module compiles, and what they cost. */
-export const wgslLines = (W) => [wgslLine(W), costLine(W)];
-/** The board's table of the costliest pipelines, with its heading, where they were timed. */
-export const costBlock = (W) => (W?.cost ? ['', 'The costliest pipelines, each compiled and made one at a time, cold (tools/gate/wgsl.js):', '', ...costTable(W), ''] : []);
-/** The most costly pipelines, n of them, as a table: KB, and ms in each engine. */
-export const costTable = (W, n = 20) => (!W?.cost || !Object.keys(W.cost).length ? [] : ['| Pipeline (where it is made) | KB | ' + Object.keys(W.cost).map((e) => `${e} ms`).join(' | ') + ' |', '| --- | --- | ' + Object.keys(W.cost).map(() => '---').join(' | ') + ' |',
-  ...W.list.filter((x) => x.ms).sort((a, b) => Math.max(...Object.values(b.ms).map((v) => v ?? 0)) - Math.max(...Object.values(a.ms).map((v) => v ?? 0))).slice(0, n).map((x) => `| ${x.label} | ${(x.bytes / 1024).toFixed(0)} | ${Object.keys(W.cost).map((e) => x.ms[e] ?? '–').join(' | ')} |`)]);
+const against = (c, v, unit) => (c.notMeasured ? ` (**not measured**: ${c.notMeasured})` : c.ceiling == null ? ' (no ceiling yet)' : c.over ? ` (**over its ceiling, ${unit(c.ceiling)}**)` : ` (ceiling ${unit(c.ceiling)})`);
+const secs = (ms) => `${(ms / 1e3).toFixed(1)} s`, ms = (v) => `${v} ms`;
+/** The costs' line: each engine's costliest pipeline of all the smoke builds, against its ceiling. */
+export const costLine = (W) => (!W?.cost || !Object.keys(W.cost).length ? 'Shader cost: not timed.' : `Shader cost (each pipeline's compile and making, one at a time, cold): ${Object.entries(W.cost).map(([n, c]) => `${n}: the worst ${c.worst?.ms} ms (${c.worst?.label})${against(c, c.worst?.ms, ms)}, every pipeline the smoke builds ${secs(c.total)}`).join('; ')}.`);
+/** The first view's line: its own programs, how many the smoke builds as they are, and each engine's total against its
+    ceiling. */
+export const firstLine = (F) => (!F ? "The first view's shaders: not timed (no game came to give them)." : `The first view's shaders${F.shown ? '' : ' (**the first frame never showed: every program made in the run**)'}: ${F.made} pipelines asked, ${F.programs.render + F.programs.compute} programs (${F.programs.render} render, ${F.programs.compute} compute; ${F.smokes} of them the smoke's code), cold one at a time: ${Object.entries(F.cost ?? {}).map(([n, c]) => `${n} ${secs(c.total)}${against(c, c.total, secs)}, the worst ${c.worst?.ms} ms (${c.worst?.label})`).join('; ')}.`);
+/** The hour's board's WGSL lines, after Ready: whether every module compiles, what they cost, and the first view's. */
+export const wgslLines = (W, F) => [wgslLine(W), costLine(W), firstLine(F)];
+/** The board's table of the costliest pipelines (the first view's, where it was timed; else the smoke's), with its heading. */
+export const costBlock = (W, F) => { const T = F?.cost ? F : W?.cost ? W : null; return T ? ['', `The costliest pipelines${T === F ? ' of the first view' : ' the smoke builds'}, each compiled and made one at a time, cold (tools/gate/wgsl.js):`, '', ...costTable(T), ''] : []; };
+/** The most costly pipelines of a timed set, n of them, as a table: KB, and ms in each engine. */
+export const costTable = (T, n = 20) => (!T?.cost || !Object.keys(T.cost).length ? [] : ['| Pipeline (where it is made) | KB | ' + Object.keys(T.cost).map((e) => `${e} ms`).join(' | ') + ' |', '| --- | --- | ' + Object.keys(T.cost).map(() => '---').join(' | ') + ' |',
+  ...T.list.filter((x) => x.ms).sort((a, b) => Math.max(...Object.values(b.ms).map((v) => v ?? 0)) - Math.max(...Object.values(a.ms).map((v) => v ?? 0))).slice(0, n).map((x) => `| ${x.label} | ${(x.bytes / 1024).toFixed(0)} | ${Object.keys(T.cost).map((e) => x.ms[e] ?? '–').join(' | ')} |`)]);
 /** The check's line, as the hour's board has it after Ready. */
 export const wgslLine = (W) => (!W ? 'WGSL: not checked.' : W.error ? `**WGSL: not checked**: ${W.error}.`
   : `${W.pass ? 'WGSL: every module compiles' : `**WGSL: ${W.errors.length} error${W.errors.length === 1 ? '' : 's'}**`}${W.unchecked?.length ? ` (**not checked** in ${W.unchecked.join('; ')})` : ''} on the device (${W.modules.render} render and ${W.modules.compute} compute pipelines the smoke builds; ${Object.entries(W.engines).map(([n, e]) => (e.error ? `${n}: ${e.error}` : `${n} on ${e.adapter}: ${e.modules} modules, ${e.pipelines} pipelines`)).join('; ')})${W.pass ? '.' : `: ${W.errors.slice(0, 3).join(' | ')}${W.errors.length > 3 ? ` (and ${W.errors.length - 3} more)` : ''}`}`);
