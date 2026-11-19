@@ -187,7 +187,7 @@ const regionOf = (t) => (t.fold ? Math.ceil(t.total / 2) : t.total);
     a bucket (where a bucket's last chunk is part full). */
 const chunksOf = (t) => (t.caps ? t.caps.reduce((a, c) => a + Math.ceil(c / WG), 0) : Math.ceil(regionOf(t) / WG) + t.K);
 /** What the culling holds for a thing, bytes: its box and its two places in the lists (what an arena makes: build). */
-export const CULL_BYTES = bytesOf('uvec4') + 2 * bytesOf('uint');
+const CULL_BYTES = bytesOf('uvec4') + 2 * bytesOf('uint');
 /** A culled tier's numbers as the mesh drawing it tells them (mesh.userData.cull: its culler's own, src/scatter/tier.js
     meshesOf): its place in its arena, where its draws' things begin, its region. Every tier of an arena reads its list by
     one piece of code with these, so the levels of a family drawn alike are one material (src/scatter/drawer.js). */

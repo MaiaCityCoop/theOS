@@ -19,14 +19,14 @@
 import * as THREE from 'three/webgpu';
 import { Fn, If, Loop, uint, int, ivec2, vec4, uniform, uniformArray, instancedArray, storage, atomicAdd, atomicStore, atomicLoad, min, instanceIndex, localId, workgroupArray, workgroupBarrier, cameraProjectionMatrix, cameraViewMatrix, uintBitsToFloat } from 'three/tsl';
 import { boxIn } from '../core/frustum.js';
-import { gpuStorageLater, more, note, hasFeature, limitOf, roomOf, bytesOf } from '../core/gpu.js';
-import { cullOf, cullable, MANY, wgOf, sizeTo, useLimits, CULL_BYTES } from '../core/occlusion.js';
+import { gpuStorageLater, more, note, hasFeature, limitOf, bytesOf, byDial, retiring, roomOf } from '../core/gpu.js';
+import { cullOf, cullable, MANY, wgOf, sizeTo, useLimits } from '../core/occlusion.js';
 import { did } from '../core/work.js';
 import { FNV, fnv } from '../core/hash.js';
 import { passOf, vWas } from '../core/pass.js';
 import { ask, made, computeMaker, nearFrom } from '../core/compile.js';
 import { source } from '../core/settle.js';
-import { onMeasure, dialK } from '../detail/measure.js';
+import { onMeasure, dialK, restDial } from '../detail/measure.js';
 import { Resident, WG, BLOCK, MARGIN } from './regions.js';
 import { BAND } from '../detail/error.js';
 import { ownGpuMs, pace, frameShare } from '../core/pace.js';
@@ -248,7 +248,7 @@ function entriesOf(T, spans) {
 }
 /** Its packing: each bucket a room of its own, one after another, as large as it has found it needs (ownOf); till its
     count is read back, what its engine reckons (cap: one for all, or a list). */
-function packedOf(T, geos, material, { live, cap = 0, slots = 0, spans = null, bounds = null, family = null }) {
+function packedOf(T, geos, material, { live, cap = 0, slots = 0, spans = null, bounds = null, family = null, label = null, thing = null }) {
   const K = geos.length, S = uint(slots), { EN, nE, RN, STEPS } = entriesOf(T, spans);
   const caps = Array.isArray(cap) ? [...cap] : geos.map(() => cap), offs = caps.map(() => 0);   // (each bucket's room and where its things begin: laid out again from its count)
   const rooms = uniformArray(caps.map(() => new THREE.Vector2()), 'vec2');   // (the same, for its packing)
@@ -257,7 +257,8 @@ function packedOf(T, geos, material, { live, cap = 0, slots = 0, spans = null, b
   const OFF = new THREE.StorageBufferAttribute(new Uint32Array(K), 1), OFr = storage(OFF, 'uint', K).toReadOnly();
   // (a thing's rows side by side in one buffer, `slots` of them: one buffer to bind, not one a row; what it packs lives
   // on the GPU only: the GPU writes it and the GPU reads it, src/core/gpu.js)
-  const packed = gpuStorageLater('vec4', 'tiers: what stands, packed', 'geometry');
+  T.storeName = `tiers: what stands, packed, ${thing ?? label ?? 'a tier'} (${owns++})`;   // (its own name: what the ledger holds of it is its own, src/core/gpu.js byDial)
+  const packed = gpuStorageLater('vec4', T.storeName, 'geometry');
   // (its rooms one after another, into everything that reads them: all the room they take)
   const lay = () => {
     let at = 0; caps.forEach((c, k) => { offs[k] = at; rooms.array[k].set(c, at); at += c; });
@@ -284,12 +285,13 @@ function packedOf(T, geos, material, { live, cap = 0, slots = 0, spans = null, b
 // (the store made again holds nothing), as a resident kind's relayout. (2026-11-19: the made things' levels were a
 // material each, seven built again in every pass with the same code)
 const FAMILIES = new WeakMap();
-let families = 0;
+let families = 0, owns = 0;
 /** The family of `key` (what its placer hands each of its tiers), its things `slots` rows each. */
 function familyOf(key, slots) {
   let F = FAMILIES.get(key);
   if (F) { if (F.slots !== slots) throw new Error(`tiers of one family with ${F.slots} and ${slots} rows a thing: a family packs alike`); return F; }
-  F = { id: families++, slots, tiers: [], rows: 0, total: 0, packed: gpuStorageLater('vec4', 'tiers: what stands, packed', 'geometry'), offs: gpuStorageLater('uint', "tiers: where each draw's things begin", 'geometry') };
+  const id = families++, name = `tiers: what stands, packed, family ${id}`;
+  F = { id, name, slots, tiers: [], rows: 0, total: 0, packed: gpuStorageLater('vec4', name, 'geometry'), offs: gpuStorageLater('uint', "tiers: where each draw's things begin", 'geometry') };
   F.lay = () => {
     const table = new Uint32Array(Math.max(1, F.rows)); let base = 0;
     for (const t of F.tiers) { t.lay(base, table); base += t.total; }
@@ -303,6 +305,7 @@ function familyOf(key, slots) {
 /** A tier of a family (packedOf's, its store and its table the family's): laid out with the family as it joins, and
     again with it as any of them lays its rooms out again. */
 function familyPackedOf(T, F, geos, material, { live, caps, offs, rooms, S, slots, bounds, pass }) {
+  T.storeName = F.name;   // (its store the family's)
   const K = geos.length, row = F.rows, uRow = uniform(row, 'uint'), page = new Uint32Array(K);   // (row: its first in the table; page: where its buckets begin, as they were set, tier.read)
   const me = { T, base: 0, total: 0, C: null,
     lay(base, table) { let n = 0; caps.forEach((c, k) => { offs[k] = n; rooms.array[k].set(c, base + n); table[row + k] = page[k] = base + n; n += c; }); me.base = base; me.total = n; me.C?.from(base); } };
@@ -322,18 +325,75 @@ function familyPackedOf(T, F, geos, material, { live, caps, offs, rooms, S, slot
 }
 /** A store's room for n things: a MARGIN more, in whole workgroups (a resident tier's and a bucket of its own patches'). */
 const roomFor = (n) => Math.max(WG, Math.ceil((n * MARGIN) / WG) * WG);
+/** Rooms R (a list, each in whole workgroups) found at the dial at rest `was`, at the dial at rest now: where its class
+    raised it for them (src/core/gpu.js byDial), what lies within a reach goes as the reach's square, and a dial D times
+    as coarse reaches 1/D as far, so they are laid out at what they will find at it, not at what they found. */
+export function atRest(R, was) {
+  const k = (was / restDial()) ** 2;
+  if (k < 1) R.forEach((n, i) => { R[i] = Math.max(WG, Math.ceil((n * k) / WG) * WG); });
+  return R;
+}
+// ---- the dial's rise: each store at its need, one at a time ----
+// Where the dial at rest rises (src/core/gpu.js byDial: its class cannot hold every store that follows the dial at it),
+// a store laid out at a finer one holds more than it needs at it, if less than BAND times more: on its next whole read
+// it is laid out again at its need (roomsFor, band 1). A store made again is held beside the one it was till that is
+// let go, so the stores of a class all made again at once hold both (2026-11-19: an iPhone's geometry at 482 of its
+// 384 MB when the dial rose, all its stores made again at once: about 800 MB). So a store is made again at once only
+// where its class has room for it beside all it holds, none of the class waits, and its need did not raise the dial
+// (what holds more than it needs at it gives that back first); else in its class's turn: one store of the class at a
+// time, the next only once what the last was is let go (src/core/gpu.js retiring), those made smaller before any made
+// larger (they give room back), the largest whose making its class has room for first; none fitting, the least.
+const TURNS = new Map();   // (a class's: the store laid out last in its turn, and those waiting: what each holds, how it is laid out, whether it is through)
+/** A store of class `cls` (key: its own) to be laid out again at its need in its class's turn, the dial at rest having
+    risen since it was laid out: `bytes` what it holds, `go` lays it out, `busy` whether it is not through yet (laid
+    out, and what it was let go). */
+export function inTurn(cls, key, bytes, held, go, busy) {
+  let t = TURNS.get(cls);
+  if (!t) TURNS.set(cls, (t = { now: null, waiting: new Map() }));
+  t.waiting.set(key, { bytes, held, go, busy, at: restDial() });
+}
+/** Each frame (tick), each class's turn: once the store laid out last in it is through, of those waiting (those made
+    smaller, where any is), the largest whose making its class has room for laid out; none, and nothing of the class
+    being let go, the least (so none waits for good). */
+function rise() {
+  for (const [cls, t] of TURNS) {
+    if (t.now?.busy() || !t.waiting.size) continue;
+    t.now = null;
+    const room = roomOf(cls), at = (c) => c.bytes * Math.min(1, (c.at / restDial()) ** 2);   // (what it makes at the dial at rest now)
+    const all = [...t.waiting], less = all.filter(([, c]) => at(c) < c.held), pool = less.length ? less : all;
+    let pick = null, least = null;
+    for (const e of pool) { const m = at(e[1]); if (m <= room && (!pick || m > at(pick[1]))) pick = e; if (!least || m < at(least[1])) least = e; }
+    pick ??= retiring(cls) ? null : least;
+    if (pick) { t.waiting.delete(pick[0]); t.now = pick[1]; pick[1].go(); }
+  }
+}
+/** A store of class `cls` (key: its own) to be laid out again, to hold `bytes` where it holds `held`: its need said to
+    its class at once (say: byDial), so the dial at rest rises as the stores are read, before they are made at it, not
+    as they are made; laid out at once (go) where its class has room for it beside all it holds (roomOf: what it was
+    among it till that is let go), else in its class's turn (busy: whether it is not through yet). -> what go
+    returned, or null: waiting its turn. */
+export function relayIn(cls, key, bytes, held, say, go, busy) {
+  const at = restDial(), t = TURNS.get(cls);
+  say();
+  t?.waiting.delete(key);
+  if (restDial() === at && !t?.waiting.size && roomOf(cls) >= bytes) return go();
+  inTurn(cls, key, bytes, held, go, busy);
+  return null;
+}
 const sum = (a) => a.reduce((n, x) => n + x, 0);
-/** Of its own patches' rooms N (what they need, a bucket each), as many as the room its class has left takes where
-    they grow (its own buffers still in it: what they were is let go only after what they are is made, src/core/gpu.js;
-    a resident kind's: relayout), and one binding: held to that, they ask for no more till the measure changes
-    (reband). A smaller room is always taken: it gives room back. */
+/** Of its own patches' rooms N (what they need, a bucket each): their need taken, at the dial at rest (byDial: where
+    geometry cannot hold every store that follows the dial at it, the dial rises for all, and every tier asks again at
+    it, reband; never what its class has left, so none is cut for coming late, src/core/gpu.js). Held only to what one
+    binding holds (the device's); held to that, they ask for no more till the measure changes (reband). */
 function holdOwn(T, row, caps, N, others = 0) {
-  const each = T.slots * bytesOf('vec4') + (T.culler ? CULL_BYTES : 0), need = others + sum(N);   // (others: what else its store holds, a family's other tiers')
+  const need = others + sum(N), was = restDial();   // (others: what else its store holds, a family's other tiers')
   const most = Math.floor(Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity) / (T.slots * bytesOf('vec4')));
-  const fit = Math.min(need > others + sum(caps) ? Math.max(0, roomOf('geometry')) / (need * each) : Infinity, most / need);
+  byDial(T.storeName, 'geometry', need * T.slots * bytesOf('vec4'));
+  atRest(N, was);
+  const fit = most / (others + sum(N));
   row.cap = null;
   if (fit >= 1) return;
-  console.warn(`tier ${T.asset ?? T.name ?? ''}: its own patches would hold ${Math.round((need * each) / 2 ** 20)} MB, past ${fit * need < most ? 'the room geometry has left' : `one binding (${most} things)`}: held to it, the rest is the dial's (the governor's)`);
+  console.warn(`tier ${T.asset ?? T.name ?? ''}: its own patches would hold ${others + sum(N)} things, past one binding (${most}): held to it, the rest is the dial's (the governor's)`);
   N.forEach((n, k) => { N[k] = Math.max(WG, Math.floor((n * fit) / WG) * WG); });
   row.cap = [...N];
 }
@@ -361,10 +421,11 @@ export function storeOf(pending = () => false) {
     (rooms) do: laid out again where any room found more than it holds, or where all of them hold BAND times more than
     they need and the read was whole (of all it is to hold: a store still filling, or one made again since, counts
     less than it will hold, and is never made smaller for it; nor is a room that found no more than it holds, made
-    again for another's). */
-export const roomsFor = (found, rooms, whole) => {
+    again for another's). band: how many times more they hold before they are made smaller (BAND; 1 where the dial at
+    rest has risen since they were laid out: at their need, rise). */
+export const roomsFor = (found, rooms, whole, band = BAND) => {
   const N = found.map((f, k) => (whole ? roomFor(f) : Math.max(roomFor(f), rooms[k])));
-  return found.some((f, k) => f > rooms[k]) || (whole && sum(N) * BAND < sum(rooms)) ? N : null;
+  return found.some((f, k) => f > rooms[k]) || (whole && sum(N) * band < sum(rooms)) ? N : null;
 };
 /** Its own patches' rooms (caps: each bucket's now; lay(N): laid out again at N, telling it so: relaid), as a resident
     tier's store is sized (residentOf ask): after a packing, its count read back (what each bucket found, past its room
@@ -373,12 +434,18 @@ export const roomsFor = (found, rooms, whole) => {
     The world is not complete till a packing at its rooms now is read back and fits (storeOf, src/core/settle.js). */
 export function ownOf(T, caps, lay, others = () => 0) {
   const row = { cap: null }, S = storeOf();
-  let asking = false, all = 0, seen = 0, at = -1;   // (all: its packings; seen: of them, read; at: the layout its last packing was at)
+  let asking = false, all = 0, seen = 0, at = -1, rest = restDial();   // (all: its packings; seen: of them, read; at: the layout its last packing was at; rest: the dial at rest it was laid out at)
   source(`tiers: a store made again (${T.asset ?? 'a tier'})`, () => (S.wrong() ? 1 : 0));
+  // (laid out again at N, found at the dial at rest `at`: its need taken at the dial at rest now; whether it was)
+  const relay = (N, at) => { holdOwn(T, row, caps, atRest(N, at), others()); rest = restDial(); const again = N.some((n, k) => n !== caps[k]); if (again) lay(N); return again; };
   const check = (z, read) => {
-    const found = caps.map((_, k) => z[k] ?? 0), N = roomsFor(found, caps, true)?.map((n, k) => Math.min(n, row.cap?.[k] ?? Infinity));
+    const risen = rest < restDial(), found = caps.map((_, k) => z[k] ?? 0), N = roomsFor(found, caps, true, risen ? 1 : BAND)?.map((n, k) => Math.min(n, row.cap?.[k] ?? Infinity));
     T.short = found.some((f, k) => f > caps[k]);   // (more found than it holds: said to the governor, as a resident tier's over)
-    if (N?.some((n, k) => n !== caps[k])) { holdOwn(T, row, caps, N, others()); if (N.some((n, k) => n !== caps[k])) { lay(N); return; } }
+    if (N?.some((n, k) => n !== caps[k])) {
+      const at = restDial(), each = T.slots * bytesOf('vec4'), o = others(), bytes = (o + sum(N)) * each;
+      const went = relayIn('geometry', T, bytes, (o + sum(caps)) * each, () => byDial(T.storeName, 'geometry', bytes), () => relay(N, at), () => retiring('geometry') > 0);
+      if (went || (went === null && T.short)) return;   // (laid out again; or more found than it holds and waiting its class's turn: not known to fit)
+    }
     S.fit(read);
   };
   return Object.assign(row, {
@@ -465,7 +532,7 @@ function patchPass({ K, S, data, count, rooms, entryOf: ofEntry }, live, RN) {
 // changed it; what it packed for its draws as large as that again where a thing of it may be drawn twice (handing over
 // to its far end), else once. Where it finds more than it holds, or BAND times less, it is made again at that and
 // everything of its kind packed again: its kind laid out once every tier of it then asking has answered, never once a
-// tier, and never past the room its class has (geometry: src/core/gpu.js roomOf).
+// tier, its need taken at the dial at rest (src/core/gpu.js byDial).
 //
 // Its passes are not its own. What every resident tier does alike is one pass for all of them (begin, seal, lay, and
 // the gather's begin where it only gathers), reading its numbers where they lie: each tier's two counts (Z), its
@@ -527,7 +594,8 @@ function shared() {
 function kindOf(key, { K, slots, found, select, twice, label, cls }) {
   const G = shared(), had = KINDS.get(key);
   if (had) { if (had.K !== K || had.slots !== slots) throw new Error(`tiers of one kind with ${had.K} and ${K} draws, ${had.slots} and ${slots} rows: a kind packs one way`); return had; }
-  const S = uint(slots), { u } = G, stores = lean('vec4', `tiers: what each holds (two stores), ${label}`, false, cls), leaves = lean('uint', `tiers: what each holds (two stores), ${label}`, false, cls), packed = lean('vec4', `tiers: what stands, packed, ${label}`, false, cls);   // (by its kind's name: which kind each is, in the ledger and in the GPU's own record of its buffers)
+  const names = { stores: `tiers: what each holds (two stores), ${label}`, packed: `tiers: what stands, packed, ${label}` };   // (the ledger's names: what each holds, byDial)
+  const S = uint(slots), { u } = G, stores = lean('vec4', names.stores, false, cls), leaves = lean('uint', names.stores, false, cls), packed = lean('vec4', names.packed, false, cls);   // (by its kind's name: which kind each is, in the ledger and in the GPU's own record of its buffers)
   const rows = stores.node, leaf = leaves.node, data = packed.node, into = intoBuckets(K), counts = { element: (b) => G.C.element(u.kb.add(b)) };
   const wgC = workgroupArray('uint', 1).toAtomic().setName('wgTierKeepCount'), wgB = workgroupArray('uint', 1).setName('wgTierKeepAt');
   // (into the store being made (to), a thing an invocation where it has one, by one atomic a workgroup; no more than its room)
@@ -566,7 +634,7 @@ function kindOf(key, { K, slots, found, select, twice, label, cls }) {
   // (offs: where each of its tiers' draws' things begin, K a tier, a row each: its copy of the tier's own (residentPackedOf),
   // which its draws' materials read by the tier their mesh says, OF_ROW: one material for all its levels)
   const offs = lean('uint', `tiers: where each draw's things begin, ${label}`, false, cls);
-  const s = { id: KINDS.size, K, slots, twice, cls, stores, leaves, packed, data, offs, tiers: [], visit, full: [G.begin, forward, visit, G.seal, gcount, G.lay, gwrite], before: [G.begin, forward], after: [G.seal, gcount, G.lay, gwrite], only: [G.gbegin, gcount, G.lay, gwrite], dirty: true, epoch: 0, asking: new Set(), wait: null };
+  const s = { id: KINDS.size, K, slots, twice, cls, names, stores, leaves, packed, data, offs, tiers: [], visit, full: [G.begin, forward, visit, G.seal, gcount, G.lay, gwrite], before: [G.begin, forward], after: [G.seal, gcount, G.lay, gwrite], only: [G.gbegin, gcount, G.lay, gwrite], dirty: true, epoch: 0, asking: new Set(), wait: null };
   KINDS.set(key, s);
   return s;
 }
@@ -597,18 +665,24 @@ function residentPackedOf(T, geos, material, { found, select, store = 0, slots =
     where each draw's things begin, their culling) laid out with them where nothing of it is drawn yet, else kept as it
     is till every tier of it holds again what it held (swapIn): what is drawn is never emptied (2026-11-19: every tier
     of the kind hidden and emptied at once, drawn again as it filled in, a piece a frame: the meadow, the trees and
-    shrubs popping). Never past the room its class has left (geometry, its own buffers still in it: what it was is let
-    go only after what it is is made, src/core/gpu.js), nor past what one binding holds: held to that, the rest is the
-    dial's (the governor's). */
+    shrubs popping). Its stores take their need at the dial at rest (src/core/gpu.js byDial: where their class cannot
+    hold every store that follows the dial at it, the dial rises for all, never what is left of it: 2026-11-19, an
+    iPhone's stores cut to what was left, the last made with nothing); held only to what one binding holds, the rest
+    the dial's (the governor's). */
 function relayout(s) {
   const again = s.epoch > 0; s.dirty = false; s.wait = null; s.epoch++;
   const P = (me) => me.P, row = s.slots * bytesOf('vec4');
-  const own = s.tiers.reduce((n, me) => n + 2 * me.N * (row + bytesOf('uint')) + P(me) * row, 0), cull = s.tiers.reduce((n, me) => n + (me.T.culler ? P(me) * CULL_BYTES : 0), 0), need = own + cull;
   const most = Math.floor(Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity) / row);   // (things one binding holds)
-  // (its stores and what it packed are its class's (its tiers say which); its culling's arena is geometry's)
-  const room = Math.max(0, roomOf(s.cls)), things = s.tiers.reduce((n, me) => n + Math.max(2 * me.N, P(me)), 0), fit = Math.min(room / own, cull ? Math.max(0, roomOf('geometry')) / cull : Infinity, most / things);
+  // (its stores' needs and what it packs for its draws, its class's (its tiers say which), taken at the dial at rest:
+  // where the class cannot hold every store that follows the dial at it, the dial rises for all and every tier asks
+  // again at it, reband (src/core/gpu.js byDial); held only to what one binding holds)
+  const was = s.rest ?? restDial();
+  sayKind(s);
+  for (const me of s.tiers) { [me.N, me.P] = atRest(me.want ?? [me.N, me.P], me.want ? me.wantAt : was); me.want = null; }   // (each at what it asks for, or holds, found at a dial at rest that may have risen since)
+  s.rest = restDial(); TURNS.get(s.cls)?.waiting.delete(s);
+  const things = s.tiers.reduce((n, me) => n + Math.max(2 * me.N, P(me)), 0), fit = most / things;
   if (fit < 1) {
-    console.warn(`tiers ${s.tiers.map((me) => `${me.T.asset ?? ''} ${me.T.level ?? ''}`.trim()).join(', ')}: they would hold ${Math.round(need / 2 ** 20)} MB, past ${room / own < most / things ? `the ${Math.round(room / 2 ** 20)} MB their class has left (${s.cls})` : `one binding (${most} things)`}: held to it, the rest is the dial's (the governor's)`);
+    console.warn(`tiers ${s.tiers.map((me) => `${me.T.asset ?? ''} ${me.T.level ?? ''}`.trim()).join(', ')}: they would hold ${things} things, past one binding (${most}): held to it, the rest is the dial's (the governor's)`);
     for (const me of s.tiers) { me.N = Math.max(WG, Math.floor((me.N * fit) / WG) * WG); me.P = Math.max(WG, Math.floor((me.P * fit) / WG) * WG); }
   }
   // (held to it, a tier is complete for what it holds: what it finds past that it asks no room for, till the measure
@@ -619,18 +693,31 @@ function relayout(s) {
   s.stores.make(sb * s.slots); s.leaves.make(sb);
   if (again) s.swap = true; else drawnOf(s);
 }
+/** A resident tier's read asks for rooms N, P: its kind laid out again at once (true), or, less where the dial at rest
+    has risen since it was laid out, in its class's turn (rise). */
+function relayKind(s, me, N, P) {
+  const held = needOf(s); me.want = [N, P]; me.wantAt = restDial();
+  const went = relayIn(s.cls, s, sum(Object.values(needOf(s))), sum(Object.values(held)), () => sayKind(s), () => { relaid(s); return true; }, () => s.dirty || !!s.swap || retiring(s.cls) > 0);
+  if (went) { me.N = N; me.P = P; }   // (what it packs at till its kind is laid out, as ever)
+  return went;
+}
+/** What a kind's stores and what its draws read need, bytes: each tier at what it asks for (want), else at what it holds. */
+function needOf(s) {
+  const row = s.slots * bytesOf('vec4'); let stores = 0, packed = 0;
+  for (const me of s.tiers) { const [N, P] = me.want ?? [me.N, me.P]; stores += 2 * N * (row + bytesOf('uint')); packed += P * row; }
+  return { stores, packed };
+}
+/** A kind's need said to its class (src/core/gpu.js byDial: where its class cannot hold every store that follows the
+    dial at it, the dial at rest rises for all). */
+const sayKind = (s) => { const n = needOf(s); byDial(s.names.stores, s.cls, n.stores); byDial(s.names.packed, s.cls, n.packed); };
+/** A kind to be laid out again, once every tier of it asking now has answered (ready). */
+const relaid = (s) => { if (!s.dirty) s.wait = new Set(s.asking); s.dirty = GR.stale = true; };
 /** What a kind's draws read laid out at its tiers' rooms now: what it packed for them (each tier's range, its culling's
     too) and where each draw's things begin, made as large as all of them. Made beside what its draws read till now,
-    which is let go only once nothing uses it (src/core/gpu.js retire): within the room its class has left with that
-    still in it (roomOf), each tier held to it where it is less, the rest the dial's (as relayout holds its stores). Its
-    relayout reserved that room for it, beside all it held; what came between (its fill anew, a few frames: swapIn) may
-    have taken some of it. */
+    which is let go only once nothing uses it (src/core/gpu.js retire); its need taken at the dial at rest, as relayout
+    takes its stores' (byDial). */
 function drawnOf(s) {
-  const row = s.slots * bytesOf('vec4'), need = s.tiers.reduce((n, me) => n + me.P * row, 0), room = Math.max(0, roomOf(s.cls));
-  if (need > room) {
-    console.warn(`tiers ${s.tiers.map((me) => `${me.T.asset ?? ''} ${me.T.level ?? ''}`.trim()).join(', ')}: what their draws read would hold ${Math.round(need / 2 ** 20)} MB, past the ${Math.round(room / 2 ** 20)} MB their class has left (${s.cls}): held to it, the rest is the dial's (the governor's)`);
-    for (const me of s.tiers) { me.P = Math.max(WG, Math.floor((me.P * room) / need / WG) * WG); me.cap = { N: me.N, P: me.P }; }
-  }
+  byDial(s.names.packed, s.cls, s.tiers.reduce((n, me) => n + me.P * s.slots * bytesOf('vec4'), 0));   // (its need at the dial at rest, as relayout's)
   let db = 0; const arenas = new Set();
   for (const me of s.tiers) {
     me.dbase = db; me.uBase.value = db; db += me.P;
@@ -693,7 +780,7 @@ const CELLS = pace(WG), FRAME = {};   // (the frame's cells; and, each frame: ho
 // frame in scatter select)
 const PACKS = pace(1);
 /** Each frame, before any tier packs (src/scatter/index.js select): the frame's cells to share out. */
-export const tick = () => { CELLS.tick(); PACKS.tick(); FRAME.asked = Math.max(1, FRAME.asking ?? 0); FRAME.asking = 0; };
+export const tick = () => { CELLS.tick(); PACKS.tick(); FRAME.asked = Math.max(1, FRAME.asking ?? 0); FRAME.asking = 0; rise(); };
 // (the resident tiers' own numbers read back once for all that ask while it is out: every tier's are in the one Z, and a
 // read is a buffer made, a copy, a submission and a mapping (2026-11-19: one a tier a frame while they filled). SEQ: the
 // order of packings and reads, so a tier answers only from a read made after its last packing)
@@ -773,10 +860,11 @@ function residentOf(T, me, s, ends) {
     asking = true; s.asking.add(me); asked = packs; const read = { ...last }, seen = gathers;
     R.data.then((b) => {
       // (held to its class's room: no more than it was held to: a decision, not a wait)
-      const z = new Uint32Array(b), f = z[me.zi + ZAT.found], p = z[me.zi + ZAT.packed], room = roomsFor([f, p], [me.N, me.P], read.whole && read.at === S.at());
+      const risen = s.rest < restDial(), z = new Uint32Array(b), f = z[me.zi + ZAT.found], p = z[me.zi + ZAT.packed], room = roomsFor([f, p], [me.N, me.P], read.whole && read.at === S.at(), risen ? 1 : BAND);
       T.over = f > me.N || p > me.P;
       const N = room && Math.min(room[0], me.cap?.N ?? Infinity), P = room && Math.min(room[1], me.cap?.P ?? Infinity);
-      if (room && (N !== me.N || P !== me.P)) { me.N = N; me.P = P; if (!s.dirty) s.wait = new Set(s.asking); s.dirty = G.stale = true; return; }
+      const went = room && (N !== me.N || P !== me.P) ? relayKind(s, me, N, P) : false;
+      if (went || (went === null && T.over)) return;   // (laid out again; or more found than it holds and waiting its class's turn: not known to fit)
       S.fit(read.at);
       if (seen === gathers) gathered = 0;
     }).catch(() => {}).finally(() => { asking = false; s.asking.delete(me); s.wait?.delete(me); });
