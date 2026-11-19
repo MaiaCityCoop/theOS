@@ -27,6 +27,7 @@ import { passBegins, timesOn } from './pace.js';
 import { pass as framePass } from './frames.js';
 import { aboutToTake } from './journal.js';
 import { restDial, raiseRest } from '../detail/measure.js';
+import { BAND } from '../detail/error.js';
 
 // ---- a compute pass called by its maker ----
 // three calls a compute pipeline by its node's name (computePipeline_compute_<name>); one made without a name is just
@@ -90,14 +91,21 @@ export const wholeBudget = () => GPU_MB * SHARE;
 const heldBy = (cls) => { let n = 0; for (const h of HELD.values()) if (h.cls === cls) n += h.gpu; return n; };
 /** The room a class has left on the GPU, bytes: its budget less what it holds, as its pools say it or as the device made
     it for its code (the more of the two: what three makes for it too). */
-export const roomOf = (cls) => budgetOf(cls) * MB - Math.max(heldBy(cls), MADE[cls] ?? 0);
+export const roomOf = (cls) => budgetOf(cls) * MB - Math.max(heldBy(cls) + (LETTING[cls]?.bytes ?? 0), MADE[cls] ?? 0);
 // ---- what follows the dial: memory's one knob (src/detail/measure.js restDial) ----
 // A store sized by what lies within reach at the dial at rest (its things, cells, rings) takes its need there, never
 // what its class has left, so none is short for having come late. Where its class's stores sized anew as the dial moves
 // (V, their needs) and the rest of what the class holds (F, with what is about to be made once) would pass its budget
-// (B), the dial at rest rises to D √(V / (B − F)): what lies within a reach goes as the reach's square, and a dial D
-// times as coarse reaches 1/D as far. Each of them is sized again at it (onMeasure), all a little coarser; it is
-// checked again as they say what they need there, till they fit.
+// (B), the dial at rest rises to D √(BAND (V + W) / (B − F)): what lies within a reach goes as the reach's square, and a
+// dial D times as coarse reaches 1/D as far; a BAND to spare, so what grows as the camera moves raises it again only
+// once it has grown a BAND, not at every read that finds more (2026-11-19, Samuel's iPhone walking into a forest: the
+// dial raised at every such read, every store laid out again each time, the trees there blinking and the far ones
+// never filled in). Each of them is sized again at it (onMeasure), all a little coarser; it is checked again as they
+// say what they need there, till they fit. W: the room one of them takes while it is made again
+// (the largest's need: what it was is held beside it till what it is is bound everywhere, retire, and they are made
+// again one at a time where their class has no room for more, src/scatter/tier.js rise), so no making of one takes its
+// class past its budget (2026-11-19: an iPhone's geometry, every store made again at once, old and new); what a class
+// is letting go is not in F: it is gone in frames.
 const BY_DIAL = new Map();   // (a store sized anew as the dial moves, by its pool's name: its class, its need, bytes)
 /** A store that follows the dial (name: its pool's, as it notes itself; cls its class) needs `bytes` at the dial at rest
     now: again, it is sized anew whenever the dial moves (a tier, through onMeasure); else it is about to be made once at
@@ -105,13 +113,13 @@ const BY_DIAL = new Map();   // (a store sized anew as the dial moves, by its po
     rest, which a store made once is made at. */
 export function byDial(name, cls, bytes, again = true) {
   if (again) BY_DIAL.set(name, { cls, bytes });
-  let V = 0, own = 0;
-  for (const [n, s] of BY_DIAL) if (s.cls === cls) { V += s.bytes; own += HELD.get(n)?.gpu ?? 0; }
-  const B = budgetOf(cls) * MB, F = Math.max(heldBy(cls), MADE[cls] ?? 0) - own + (again ? 0 : Math.max(0, bytes - (HELD.get(name)?.gpu ?? 0)));
-  if (V + F <= B) return restDial();
+  let V = 0, W = 0, own = 0;
+  for (const [n, s] of BY_DIAL) if (s.cls === cls) { V += s.bytes; W = Math.max(W, s.bytes); own += HELD.get(n)?.gpu ?? 0; }
+  const B = budgetOf(cls) * MB, F = Math.max(heldBy(cls), (MADE[cls] ?? 0) - (LETTING[cls]?.bytes ?? 0)) - own + (again ? 0 : Math.max(0, bytes - (HELD.get(name)?.gpu ?? 0)));
+  if (V + W + F <= B) return restDial();
   if (!(B - F > 0)) { past(cls, `what does not follow the dial (${name} last)`, F, budgetOf(cls), true); return restDial(); }   // (no dial fits it: said, counted)
   const was = restDial();
-  if (V > 0 && raiseRest(was * Math.sqrt(V / (B - F)))) { const k = (was / restDial()) ** 2; for (const t of BY_DIAL.values()) t.bytes *= k; }   // (each store's need at the new dial, by the same rule, till it says its own there: none counted at the old one)
+  if (V > 0 && raiseRest(was * Math.sqrt((BAND * (V + W)) / (B - F)))) { const k = (was / restDial()) ** 2; for (const t of BY_DIAL.values()) t.bytes *= k; }   // (each store's need at the new dial, by the same rule, till it says its own there: none counted at the old one)
   return restDial();
 }
 /** A make that took `who` (a class, or the whole GPU) past its budget (MB), `by` (the pool, or what the device was asked
@@ -355,10 +363,19 @@ let REMADE = 0;
 /** A number that moves on whenever a buffer here is made again: what records its bindings records them again. */
 export const remade = () => REMADE;
 const nextFrame = (f) => (globalThis.requestAnimationFrame ? requestAnimationFrame(f) : setTimeout(f, 16));
-const retire = (attr) => nextFrame(() => nextFrame(() => {
+const retire = (attr, cls) => { const b = R.backend.get(attr).buffer?.size ?? 0; letting(cls, b, 1); nextFrame(() => nextFrame(() => {
   const own = R.backend.get(attr).buffer, done = R.backend.device.queue?.onSubmittedWorkDone?.() ?? Promise.resolve();
-  done.then(() => { attr.dispose(); if (own && R.backend.get(attr).buffer === own) own.destroy(); });   // (three's, let go by three; one three never bound, by us)
-}));
+  done.then(() => { attr.dispose(); if (own && R.backend.get(attr).buffer === own) own.destroy(); }).finally(() => letting(cls, -b, -1));   // (three's, let go by three; one three never bound, by us)
+})); };
+// (what a class holds that it is letting go: buffers made again, held beside what replaced them till that is bound
+// everywhere, retire. Its room counts them (roomOf); what it holds for good does not (byDial): they are gone in frames)
+const LETTING = {};
+/** Bytes of class `cls` made again, held till what replaced them is bound everywhere (n: 1), or let go (bytes less than
+    0, n: -1). */
+export function letting(cls, bytes, n = Math.sign(bytes)) { const l = (LETTING[cls] ??= { n: 0, bytes: 0 }); l.n += n; l.bytes += bytes; }
+/** How many buffers of class `cls` made again are still held beside what replaced them: what a store laid out again in
+    its class's turn waits on (src/scatter/tier.js rise). */
+export const retiring = (cls) => LETTING[cls]?.n ?? 0;
 /** A draw's index, its corners (list: a Uint32Array), made on the GPU at its true size and written there once (one
     sized writeBuffer: nothing mapped at its making, and no copy of it kept on the page). three is given a placeholder
     of one corner, its buffer handed to the backend before it would make its own: a draw so indexed takes its count
@@ -368,7 +385,7 @@ const retire = (attr) => nextFrame(() => nextFrame(() => {
 const INDICES = new WeakSet();
 export function gpuIndex(list, old = null) {
   if (!R) return new THREE.BufferAttribute(list, 1);
-  if (old && INDICES.has(old)) retire(old);
+  if (old && INDICES.has(old)) retire(old, 'geometry');
   const dev = R.backend.device, attr = new THREE.BufferAttribute(new Uint32Array(1), 1);
   const buffer = asClass('geometry', () => dev.createBuffer({ label: "a draw's corners", size: Math.max(4, list.byteLength), usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST }));
   if (list.byteLength) dev.queue.writeBuffer(buffer, 0, list.buffer, list.byteOffset, list.byteLength);
@@ -382,7 +399,7 @@ export function gpuIndex(list, old = null) {
     code, so the node is the same whatever it is made as. cls: the class its bytes are noted under (src/core/classes.js). */
 export function gpuStorageLater(type, name = null, cls = 'other') {
   const [Arr, size] = TYPES[type], node = storage(new THREE.StorageBufferAttribute(new Arr(size), size), type, 1); let made = 0;
-  return {
+  const me = {
     node, get attr() { return node.value; },
     make(count) {
       const bytes = Math.max(1, count) * size * 4;
@@ -390,12 +407,23 @@ export function gpuStorageLater(type, name = null, cls = 'other') {
       within(bytes, name);
       const old = node.value, attr = made ? new THREE.StorageBufferAttribute(new Arr(size), size) : old;
       R.backend.get(attr).buffer = asClass(cls, () => R.backend.device.createBuffer({ label: name ?? 'lean', size: Math.max(16, bytes), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST }));
-      if (made) { node.value = attr; REMADE++; retire(old); }
+      if (made) { node.value = attr; REMADE++; retire(old, cls); }
       if (name) more(name, bytes - made, 0, cls);
       made = bytes;
       return bytes;
     },
     /** Write `data` (a typed array of its numbers) from its `at`-th number on, at once (made: the GPU's own buffer). */
     write(at, data) { const a = node.value; if (R) R.backend.device.queue.writeBuffer(R.backend.get(a).buffer, at * 4, data); else { a.array.set(data, at); a.addUpdateRange(at, data.length); a.needsUpdate = true; } },
+    /** Made again for count, what it held kept: copied into the new one on the GPU before the old is let go (a heap's
+        level laid later, at its end: src/scatter/heap.js grow). */
+    grow(count) {
+      const was = made, a0 = node.value, old = R ? R.backend.get(a0).buffer : null, kept = R ? null : a0.array;
+      const bytes = me.make(count);
+      if (!was) return bytes;
+      if (R) { const e = R.backend.device.createCommandEncoder({ label: `${name ?? 'lean'}: kept` }); e.copyBufferToBuffer(old, 0, R.backend.get(node.value).buffer, 0, Math.min(was, bytes)); R.backend.device.queue.submit([e.finish()]); }
+      else node.value.array.set(kept.subarray(0, Math.min(kept.length, node.value.array.length)));
+      return bytes;
+    },
   };
+  return me;
 }

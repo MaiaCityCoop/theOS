@@ -62,23 +62,27 @@ export function createHeap({ kinds, levels, name = 'heap', later = false, table:
   // a heap laid out later), never more than there are (a slot holds one kind's), and only as many as the device's
   // largest buffer and binding hold beside the rest of the heap (src/core/gpu.js limitOf: what the device was granted);
   // a level held to fewer than it asked is said. And where each level lies in the two buffers
+  // (level i's pool: as many kinds' as it asked (a slotted level's, held to fit), from corner i0 and element e0 on)
+  const poolOf = (l, i, asked, fit, i0, e0) => {
+    const n = l.slots ? (asked ? Math.max(1, Math.floor(asked * fit)) : 0) : asked, own = !l.slots && !l.one, many = !own && !l.one;
+    if (n < asked) console.warn(`${name}: level ${i} holds ${n} kinds' meshes at once, not the ${asked} it asks: the device's largest buffer holds no more`);
+    const sz = own && l.sizes ? l.sizes : null, at = (list) => { const o = new Uint32Array(n + 1); for (let k = 0; k < n; k++) o[k + 1] = o[k] + list[k]; return o; };
+    const io = sz ? at(sz.idx) : null, eo = sz ? at(sz.elems) : null;   // (where each kind's place begins, and its size: the next one's start)
+    return { idx: l.idx, elems: l.elems, io, eo, n, own, shares: l.shares ?? null, one: !!l.one, shape: l.shape || null, i0, e0, held: 0, shaped: 0, who: many ? new Int32Array(n).fill(-1) : null, used: many ? new Float64Array(n) : null, slot: many ? new Int32Array(kinds).fill(-1) : null };
+  };
   const layOut = (slots) => {
     let iAt = 0, eAt = 0;
     const asked = levels.map((l, i) => (l.one ? 1 : l.slots ? Math.min(kinds, slots(l, i)) : kinds)), most = Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity);
     const share = (key, bytes) => { let fixed = 0, slotted = 0; levels.forEach((l, i) => { const b = (l.sizes && !l.slots && !l.one ? l.sizes[key].reduce((a, c) => a + c, 0) : asked[i] * l[key]) * bytes; if (l.slots) slotted += b; else fixed += b; }); return slotted ? Math.min(1, (most - fixed) / slotted) : 1; };
     const fit = Math.min(share('idx', 4), share('elems', 16));
-    const pools = levels.map((l, i) => {
-      const n = l.slots ? (asked[i] ? Math.max(1, Math.floor(asked[i] * fit)) : 0) : asked[i], own = !l.slots && !l.one;
-      if (n < asked[i]) console.warn(`${name}: level ${i} holds ${n} kinds' meshes at once, not the ${asked[i]} it asks: the device's largest buffer holds no more`);
-      const sz = own && l.sizes ? l.sizes : null, at = (list) => { const o = new Uint32Array(n + 1); for (let k = 0; k < n; k++) o[k + 1] = o[k] + list[k]; return o; };
-      const io = sz ? at(sz.idx) : null, eo = sz ? at(sz.elems) : null;   // (where each kind's place begins, and its size: the next one's start)
-      const p = { idx: l.idx, elems: l.elems, io, eo, n, own, shares: l.shares ?? null, one: !!l.one, shape: l.shape || null, i0: iAt, e0: eAt, held: 0, shaped: 0, who: own || l.one ? null : new Int32Array(n).fill(-1), used: own || l.one ? null : new Float64Array(n), slot: own || l.one ? null : new Int32Array(kinds).fill(-1) };
-      iAt += io ? io[n] : n * l.idx; eAt += eo ? eo[n] : n * l.elems; return p;
-    });
+    // (a level laid later lies last in the two buffers: grown, it moves no other: grow)
+    const pools = new Array(levels.length), order = levels.map((_, i) => i).sort((a, b) => !!levels[a].later - !!levels[b].later);
+    for (const i of order) { const p = (pools[i] = poolOf(levels[i], i, asked[i], fit, iAt, eAt)); iAt += p.io ? p.io[p.n] : p.n * p.idx; eAt += p.eo ? p.eo[p.n] : p.n * p.elems; }
     return { pools, iAt, eAt };
   };
-  const { pools, iAt, eAt } = layOut((l) => (later ? 0 : l.slots));
-  const index = later ? gpuStorageLater('uint', `${name}: corners`, 'geometry') : gpuStorage('uint', Math.max(4, iAt), `${name}: corners`, 'geometry'), elems = later ? gpuStorageLater('uvec4', `${name}: vertices`, 'geometry') : gpuStorage('uvec4', eAt, `${name}: vertices`, 'geometry');
+  const { pools, iAt, eAt } = layOut((l) => (later || l.later ? 0 : l.slots)), grows = later || levels.some((l) => l.later);   // (a level laid later: none of its slots till it is grown)
+  const index = grows ? gpuStorageLater('uint', `${name}: corners`, 'geometry') : gpuStorage('uint', Math.max(4, iAt), `${name}: corners`, 'geometry'), elems = grows ? gpuStorageLater('uvec4', `${name}: vertices`, 'geometry') : gpuStorage('uvec4', eAt, `${name}: vertices`, 'geometry');
+  if (grows && !later) { index.make(Math.max(4, iAt)); elems.make(Math.max(1, eAt)); }
   const tab = rows ?? heapTable(kinds * L, name), at = tab.take(kinds * L), table = tab.attr, own = kinds * L * 16;   // (its rows: from at, in its own table or one it shares; own: their bytes)
   const T = table.array, mask = new Uint32Array(kinds), came = new Uint32Array(kinds * L);   // came: when a kind's level was put in, sixteenths of a second
   const row = (k, l) => (at + k * L + l) * 4;
@@ -155,6 +159,15 @@ export function createHeap({ kinds, levels, name = 'heap', later = false, table:
       const p = pools[l], s = p.slot ? p.slot[k] : -1; if (s < 0) return;
       if (T[row(k, l) + 2] >= SHAPED) p.shaped--;
       p.who[s] = -1; p.slot[k] = -1; p.held--; T[row(k, l) + 2] = 0; mask[k] &= ~(1 << l); masked(k); H.version++; H.versions[l]++;
+    },
+    /** Level i, made `later` (its own: the rest of the heap laid at once), given n kinds' slots now: its place at the
+        end of the two buffers, made larger with what they hold kept (src/core/gpu.js grow), every other level where it
+        lay. */
+    grow(i, n) {
+      const P = layOut((l, j) => (j === i ? n : l.later ? pools[j].n : l.slots));
+      if (P.pools.some((p, j) => j !== i && (p.i0 !== pools[j].i0 || p.e0 !== pools[j].e0 || p.n !== pools[j].n))) throw new Error(`${name}: level ${i} grown would move another`);
+      Object.assign(pools[i], P.pools[i]); index.grow(Math.max(4, P.iAt)); elems.grow(Math.max(1, P.eAt));
+      H.bytes = P.iAt * 4 + P.eAt * 16 + own; H.version++; H.versions[i]++;
     },
     /** A heap made `later`: its levels laid out now, slots[i] kinds' at slotted level i, and its buffers made. */
     lay(slots) {

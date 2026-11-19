@@ -6,10 +6,12 @@
 //                                one (stampedMs); else heard, a bound: from when it is handed over (submit()), or when
 //                                the GPU has done all handed before it, whichever is later, to when it is done (null
 //                                where there is no queue to ask: the CPU's stand-in, tools/gpu-mock.js)
-//   stampedMs(device, submit)    submit() run with its own GPU time taken by the GPU's own timestamps: a promise of ms;
-//                                null where the device has none ('timestamp-query'), submit() not run then. The one
-//                                reader of a submission's GPU time: ownGpuMs, and the gate's watch (tools/gate/device.js,
-//                                globalThis.__stampedMs; isMark: the clock's own command buffers)
+//   stampedMs(device, submit)    submit() run with its own GPU time taken by the GPU's own timestamps: a promise of ms
+//                                (null where the GPU wrote them not, or alike: no time, heard then); null where the
+//                                device has none ('timestamp-query'), or every pair of its clock's slots is in flight
+//                                (heard then), submit() not run then. The one reader of a submission's GPU
+//                                time: ownGpuMs, and the gate's watch (tools/gate/device.js, globalThis.__stampedMs;
+//                                isMark: the clock's own command buffers)
 //   frameShare(cls)              the ms a frame what is paced in class cls may take now: the whole frame (FRAME_MS)
 //                                behind the veil, its class's share (FRAME_MS_BY_CLASS) once the first view shows
 //   pace(unit)                   how many of something a frame: { n, left, tick(), measured(count, ms, budget, exact) }:
@@ -45,25 +47,69 @@ let veiled = true; ready.then(() => { veiled = false; });
 export const frameShare = (cls) => (veiled ? FRAME_MS : FRAME_MS_BY_CLASS[cls]);
 
 // ---- a submission's own time on the GPU by the GPU's own clock: two timestamps the GPU writes itself, one before the
-// submission's work and one after it (an empty compute pass each, in command buffers of their own about it), resolved
-// and read back. Not heard on the page's thread, so a stall of it is not charged to the GPU (2026-11-19: the ground's
-// pieces, well under a millisecond each, were heard 231 and 461 ms late, frame after frame) ----
-const CLOCK = "the GPU's clock", POOLS = new WeakMap();
+// submission's work and one after it (an empty compute pass each, in command buffers of their own about it), read back.
+// Not heard on the page's thread, so a stall of it is not charged to the GPU (2026-11-19: the ground's pieces, well
+// under a millisecond each, were heard 231 and 461 ms late, frame after frame) ----
+// One query set a device, made at its first stamp and never again: Metal gives a process 32 counter sample buffers, a
+// query set one each where the browser does not pool them (Dawn, src/dawn/native/metal/QuerySetMTL.h; pooled since
+// 2026-07, after Chrome 138), so a set a stamp in flight, made whenever none was free, ran out of them: some 6,000
+// "Cannot allocate sample buffer" a Chrome run, at both shares, every stamp past them heard after all (2026-11-19, the
+// draw path's runs). Its slots are taken a pair a stamp, in turn, held from the stamp's first mark till the batch that
+// reads it is back; with the next pair still held, a submission is not stamped (heard). A batch is every stamp whose
+// marks are handed over: the whole set resolved, copied and mapped at once, one batch in flight, the next asked as it
+// comes back.
+const CLOCK = "the GPU's clock", CLOCKS = new WeakMap();
+/** The most queries one query set holds (WebGPU: a set of more is invalid; Dawn pools its sample buffers at as many):
+    the clock's slots, a pair a stamp, so the most stamps in flight on a device. 8 bytes a slot, 16 more read back.
+    unit: queries. source: WebGPU, https://www.w3.org/TR/webgpu/#dom-gpudevice-createqueryset */
+const QUERIES = 4096;
+/** The device's clock: its one query set, what it is resolved to and read back through, the pairs held; made at its
+    first stamp, the make's errors caught (made: whether it could be made; dead: not, or the device is gone). */
+function clockOf(device) {
+  let C = CLOCKS.get(device);
+  if (C) return C;
+  const bytes = QUERIES * 8, buf = (usage) => device.createBuffer({ size: bytes, usage, label: CLOCK });
+  device.pushErrorScope('out-of-memory'); device.pushErrorScope('validation');
+  C = { device, set: device.createQuerySet({ type: 'timestamp', count: QUERIES, label: CLOCK }), res: buf(GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC), out: buf(GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ), held: new Uint8Array(QUERIES / 2), next: 0, due: [], reading: false, dead: false, raw: null };
+  C.made = Promise.all([device.popErrorScope(), device.popErrorScope()]).then((e) => !e.some(Boolean), () => false);
+  CLOCKS.set(device, C);
+  return C;
+}
 /** submit() run with its own time on the GPU taken by the GPU's timestamps: a promise of ms (null where they could not
-    be read); null where the device has no 'timestamp-query', and submit() not run. raw: how the clock's own marks are
-    handed to the queue (the gate's watch hands its unwatched submit). */
+    be read); null where the device has no 'timestamp-query' or every pair of its clock is in flight, and submit() not
+    run. raw: how the clock's own command buffers are handed to the queue (the gate's watch hands its unwatched submit). */
 function stampedMs(device, submit, raw = (cbs) => device.queue.submit(cbs)) {
   if (!device?.features?.has('timestamp-query')) return null;
-  const free = POOLS.get(device) ?? POOLS.set(device, []).get(device);
-  const s = free.pop() ?? { set: device.createQuerySet({ type: 'timestamp', count: 2, label: CLOCK }), res: device.createBuffer({ size: 16, usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC, label: CLOCK }), out: device.createBuffer({ size: 16, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ, label: CLOCK }) };
+  const C = clockOf(device), i = C.next;
+  if (C.dead || C.held[i]) return null;   // (the pairs all in flight: heard, never another set)
+  C.held[i] = 1; C.next = (i + 1) % C.held.length; C.raw = raw;
   const mark = (end) => {
     const e = device.createCommandEncoder({ label: CLOCK });
-    e.beginComputePass({ label: CLOCK, timestampWrites: end ? { querySet: s.set, endOfPassWriteIndex: 1 } : { querySet: s.set, beginningOfPassWriteIndex: 0 } }).end();
-    if (end) { e.resolveQuerySet(s.set, 0, 2, s.res, 0); e.copyBufferToBuffer(s.res, 0, s.out, 0, 16); }
+    e.beginComputePass({ label: CLOCK, timestampWrites: end ? { querySet: C.set, endOfPassWriteIndex: 2 * i + 1 } : { querySet: C.set, beginningOfPassWriteIndex: 2 * i } }).end();
     return e.finish({ label: CLOCK });
   };
   raw([mark(false)]); submit(); raw([mark(true)]);
-  return s.out.mapAsync(GPUMapMode.READ).then(() => { const [a, b] = new BigUint64Array(s.out.getMappedRange()); s.out.unmap(); free.push(s); return Math.max(0, Number(b - a) / 1e6); }, () => null);
+  return new Promise((done) => { C.due.push({ i, done }); if (!C.reading) read(C); });
+}
+/** A stamp's time, ms, from its two timestamps (ns): none (null) where the first was never written (a query never
+    written resolves to 0) or the second is not after it. A time of nought is no time: the GPU's word that its work cost
+    nothing would let what is paced by it grow without end (src/core/pace.js pace: budget × count / 0). (2026-11-19, the
+    hour on ba6bea3, WebKit at Retina: "19842 of 19842 timed by the GPU's timestamps; the longest 0 ms".) */
+const spanOf = (a, b) => (a > 0n && b > a ? Number(b - a) / 1e6 : null);
+/** The clock's stamps whose marks are handed over, read at once: the set resolved and copied after them on the queue,
+    then mapped; each stamp given its time (spanOf; null where the set could not be made or the device is gone), its
+    pair let go, and the next batch asked. */
+function read(C) {
+  const batch = C.due; C.due = [];
+  C.reading = batch.length > 0;
+  if (!C.reading) return;
+  const back = (ms) => { batch.forEach((s, k) => { C.held[s.i] = 0; s.done(ms ? ms[k] : null); }); read(C); };
+  if (C.dead) { back(null); return; }
+  const cmd = C.device.createCommandEncoder({ label: CLOCK });
+  cmd.resolveQuerySet(C.set, 0, QUERIES, C.res, 0); cmd.copyBufferToBuffer(C.res, 0, C.out, 0, QUERIES * 8);
+  C.raw([cmd.finish({ label: CLOCK })]);
+  Promise.all([C.made, C.out.mapAsync(GPUMapMode.READ)]).then(([ok]) => { const t = ok && new BigUint64Array(C.out.getMappedRange()), ms = t && batch.map((s) => spanOf(t[2 * s.i], t[2 * s.i + 1])); C.out.unmap(); return ms; })
+    .then((ms) => { C.dead ||= !ms; back(ms); }, () => { C.dead = true; back(null); });
 }
 /** Whether a command buffer is one of the clock's own marks (handed on unwatched: tools/gate/device.js). */
 const isMark = (cb) => cb?.label === CLOCK;

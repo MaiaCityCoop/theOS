@@ -34,14 +34,14 @@ export async function buildOutlines(root) {
   const manifest = buildRegistry(root), path = resolve(root, 'outlines.json'), load = (f) => import(pathToFileURL(resolve(root, f)).href);
   await mock();
   const { OUTLINES } = await load('assets/kit/tree.js'), A = (await load('src/detail/impostor.js')).atlases();
-  const { crowdOf } = await load('assets/kit/plant.js'), measures = [];
+  const { crowdOf } = await load('assets/kit/plant.js'), { jobDone } = await load('assets/kit/job.js'), measures = [];
   for (const uid of Object.keys(manifest).sort()) {
     const r = manifest[uid];
     if (r.type !== 'asset') continue;
     const a = (await load(r.file)).default;
     if (!a?.outlineFor) continue;
     a.outlineFor(A);   // (its outline, as the page's first ask of its heights measures it, and its rooms and far ends: what the start asked the workers for)
-    for (let i = 0; i < a.shapeCount; i++) measures.push([`${uid}:${a.placement?.seed ?? 1}@${r.version}#${i}|${A.key}`, crowdOf(a, i, A).measure]);   // (each shape's crowd as the workers ask it: for the world's atlases' numbers)
+    for (let i = 0; i < a.shapeCount; i++) { measures.push([`${uid}:${a.placement?.seed ?? 1}@${r.version}#${i}|${A.key}`, crowdOf(a, i, A).measure]); jobDone(); }   // (each shape's crowd as the workers ask it: for the world's atlases' numbers)
   }
   const bin = packMeasures(measures), at = resolve(root, 'crowds.bin');
   if (!existsSync(at) || !Buffer.from(readFileSync(at)).equals(Buffer.from(bin))) writeFileSync(at, bin);

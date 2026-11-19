@@ -69,6 +69,7 @@ import { wayAt, waysVersion } from '../world/ways.js';
 import { pxOf, turnOf, seedOf } from './row.js';
 import { levelOf as crowdLevelOf, RULE } from '../../assets/kit/crowd.js';
 import { crowdOf, bandsOf, baseShare, goneOf, FOOT } from '../../assets/kit/plant.js';
+import { jobDone } from '../../assets/kit/job.js';
 import { ringsOf, bandsOf as ringBands } from './grass.js';
 import { farMost, pxKMost, measureVersion, dialPxAt } from '../detail/measure.js';
 import { BAND, FADE } from '../detail/error.js';
@@ -809,6 +810,7 @@ function standBodies(G, KINDS, ground, renderer) {
 export function treeSample(tex, row, x = 0, y = 0, z = 0, s = 1, form = 0, px = null) {
   // (its whole crowd as one mesh, its last parts kept: it wears no clumps and has no impostor, it is seen near)
   const a = row.asset, S = crowdOf(a, form, atlases()), M = crowdLevelOf(S, 0, Infinity, { keep: true, clumps: false }), g = new THREE.BufferGeometry();
+  jobDone();   // (what the kit built for it let go: M is its own, assets/kit/job.js)
   const four = (f) => { const a = new Float32Array(M.count * 4); for (let v = 0; v < M.count; v++) a.set(f(v), v * 4); return new THREE.BufferAttribute(a, 4); };
   for (const [k, w] of [['position', 3], ['normal', 3], ['uv', 2], ['cn', 3], ['root', 3]]) g.setAttribute(k, new THREE.BufferAttribute(M[k], w));
   g.setAttribute('partAo', four((v) => [M.part[v], M.ao[v], M.twig[v], 0]));

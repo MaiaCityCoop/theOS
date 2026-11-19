@@ -35,6 +35,7 @@ import { budgetOf } from './crowd.js';
 import { bandsOf, shapeSize, hasFar, onGrid } from './plant.js';
 import { add, sub, mul, dot, len, norm, cross, lerp, bez } from './math.js';
 import { rng } from '../../src/core/hash.js';
+import { jobCache } from './job.js';
 
 /** a way picked at random on the upper side of a ball (more up than down as lift nears 1) */
 export const outward = (R0, lift) => { const a = R0() * 2 * Math.PI, y = lift + (1 - lift) * R0() * 2 - (1 - lift), r = Math.sqrt(Math.max(0, 1 - y * y)); return [Math.cos(a) * r, y, Math.sin(a) * r]; };
@@ -441,8 +442,9 @@ export function tree(recipe) {
   // each a first share of its finest, down to where it is gone: assets/kit/plant.js bandsOf, from what is measured of it)
   const far = hasFar(rest);
   const G = growth ? stagesOf(growth, seed) : null, shapes = G ? G.shapes : own;
-  // (the last few made are kept as the builder left them: the crowd kit builds a shape's levels one after another)
-  const memo = new Map(), once = (key, make) => { let m = memo.get(key); if (!m) { if (memo.size >= 6) memo.delete(memo.keys().next().value); memo.set(key, (m = make())); } return m; };
+  // (what is made for the job under way is kept as the builder left it: the crowd kit builds a shape's levels one after
+  // another; let go when the job is done, assets/kit/job.js)
+  const memo = jobCache(), once = (key, make) => memo.get(key) ?? memo.set(key, make());
   /** Shape `shape` at its finest, as the builder made it (its attributes lists of numbers): grown whole, and where its
       file says `fine` every sprig splayed into its twigs (splayOf). The crowd kit makes every level of it from this. */
   const finest = (shape) => once(shape, () => { const m = grow(shapes[shape], shape); return fine ? splayOf(m, fine.sprig, seed + shape) : m; });
