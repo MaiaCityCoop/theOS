@@ -45,7 +45,7 @@ import { U } from '../core/uniforms.js';
 import { rnd, camDist, heightAt } from '../world/land.nodes.js';
 import { layersOf, posIn, placeIn, grownIn, grovesOf, writersOf } from './rule.js';
 import { createGrowth } from './growth.js';
-import { toScreen, airOf, lightOn, sunAt, contactShade, weatherOn, snowLiftAtVertex, unlit, windAt, windDir, windStrength, ign } from '../world/light.js';
+import { toScreen, airOf, lightOn, shineOf, sunAt, contactShade, weatherOn, snowLiftAtVertex, unlit, windAt, windDir, windStrength, ign } from '../world/light.js';
 import { passOf, cut, motion, vWas } from '../core/pass.js';
 import { CLEARINGS } from '../../world/places.js';
 import { recipe, recipes, versionOf } from '../core/registry.js';
@@ -207,18 +207,22 @@ const ofMesh = (key, start, type) => uniform(start, type).onObjectUpdate(({ obje
     snow (in clumps); the air before it. n0: its way, turned with the plant; Ve: the way to the eye; share: the share of the
     sun that reaches w; tint: its own green (a card's; its wood's, white); leaf: how much of it is leaf, 0 … 1 (a far
     end's texel, which may be part leaf and part wood: src/detail/impostor.js impostorRead; else its part's, a card and a
-    plane all, its wood none), what its leaves' light is mixed in by. -> { sky, sun: what its texture's colour is
+    plane all, its wood none), what its leaves' light is mixed in by; rough, ns: a card's painting's roughness where the
+    pixel is (src/materials/bake.js tex.r) and the way its own card faces: its leaves' highlight (shineOf), reflected
+    off the card, not the dome (what a leaf reflects is as it faces). -> { sky, sun: what its texture's colour is
     multiplied by, the sky's part and the sun's apart (a pixel takes the sun's less what the contact shadows say), add:
-    what is added (the snow on it, the air before it), through: the sun through its needles } */
-const standLight = ({ w, n0, Ve, part, leaf = part.greaterThan(0.5).select(float(1), float(0)), ao, wrap, shines, clumps, tint, share }) => {
+    what is added (the snow on it, the air before it), through: the sun through its needles, spec: its leaves'
+    highlight, added } */
+const standLight = ({ w, n0, Ve, part, leaf = part.greaterThan(0.5).select(float(1), float(0)), ao, wrap, shines, clumps, tint, share, rough = null, ns = null }) => {
   const n = n0.dot(Ve).lessThan(0).select(n0.negate(), n0), sd = n.dot(U.uSunDir);
   const ndl = mix(sd, sd.add(wrap).div(wrap.add(1)), leaf).max(0);   // needles take the light round their edge
-  const Lo = lightOn({ n, w, V: Ve, sun: share, ndl, through: shines.mul(leaf), ao });   // the sun behind a brush of needles shines through it
+  const own = ns ? ns.dot(Ve).lessThan(0).select(ns.negate(), ns) : null, shine = rough ? shineOf(rough, max(own.dot(U.uSunDir), 0)) : {};   // (its leaves' highlight: off its own card, the side the eye sees)
+  const Lo = lightOn({ n, w, V: Ve, sun: share, ndl, through: shines.mul(leaf), ao, ...shine, ns: own ?? undefined });   // the sun behind a brush of needles shines through it
   const through = pow(Lo.back, 3).mul(shines).mul(leaf);
   const W = weatherOn(n, snowLiftAtVertex(w, clumps)), air = airOf(w);   // what the weather does to it (wet, its snow in clumps), and the air before it
   // (a chunk's plane is lit texel by texel, as its leaves are: here only what that light is multiplied by)
-  const keep = tint.mul(W.keep).mul(air.k), plane = step(1.5, part).greaterThan(0.5);
-  return { through, sky: plane.select(keep, Lo.sky.mul(keep)), sun: plane.select(vec3(0), Lo.sun.mul(keep)), add: W.add.mul(Lo.sky.add(Lo.sun)).mul(air.k).add(air.col.mul(float(1).sub(air.k))) };
+  const keep = tint.mul(W.keep).mul(air.k), plane = step(1.5, part).greaterThan(0.5), card = part.greaterThan(0.5).and(plane.not());
+  return { through, sky: plane.select(keep, Lo.sky.mul(keep)), sun: plane.select(vec3(0), Lo.sun.mul(keep)), add: W.add.mul(Lo.sky.add(Lo.sun)).mul(air.k).add(air.col.mul(float(1).sub(air.k))), spec: card.select(Lo.spec.mul(W.keep).mul(air.k), vec3(0)) };
 };
 
 // the one material of everything that stands in a stand, whatever its kind: shape(A, B) its vertex from what plantIn
@@ -255,7 +259,8 @@ function plantMaterial(tex, D) {
     // cost seven times a pixel's. Anywhere else (a library's picture) it is worked out at its corners (vMul: the sky's part
     // of what its texture's colour is multiplied by, vSun: the sun's, which a pixel takes less what the contact shadows
     // say; vAdd: what is added), and a pixel reads its texture and is done.
-    const vUv = varyingProperty('vec2', 'tUv'), vMul = varyingProperty('vec3', 'tMul'), vSun = varyingProperty('vec3', 'tSun'), vAdd = varyingProperty('vec3', 'tAdd');
+    const vUv = varyingProperty('vec2', 'tUv'), vMul = varyingProperty('vec3', 'tMul'), vSun = varyingProperty('vec3', 'tSun'), vAdd = varyingProperty('vec3', 'tAdd'), vSpec = varyingProperty('vec3', 'tSpec');
+    const vCn = varyingProperty('vec3', 'tCn');   // (the way its own card faces: what its leaves' highlight is reflected off, standLight)
     const vW = varyingProperty('vec3', 'tW'), vN = varyingProperty('vec3', 'tN'), vTint = varyingProperty('vec3', 'tTint'), vK = varyingProperty('vec4', 'tK');
     const vPart = varyingProperty('float', 'tPart'), vCut = varyingProperty('vec2', 'tCut');   // vCut: the needles' cut, and how far a card is from edge-on
     const vLay = varyingProperty('vec2', 'tLay');   // (the layers of its leaves' and its wood's textures: its kind's)
@@ -334,14 +339,17 @@ function plantMaterial(tex, D) {
       const leaf = part.greaterThan(0.5), n0 = normalize(turn(V.normal));
       const tint = leaf.select(mix(vec3(1.07, 1.0, 0.78), vec3(0.86, 0.98, 1.1), B.z.mul(1.1631).fract()).mul(V.shade.mul(0.3).add(0.84)).mul(Tn), vec3(1));
       if (pass === 'main') {   // (the colour pass: what its pixels light themselves by; a chunk's plane's wrap and turn)
-        vW.assign(w); vN.assign(n0); vTint.assign(tint); vK.assign(vec4(ao, wrap, shines, clumps));
+        vW.assign(w); vN.assign(n0); vTint.assign(tint); vK.assign(vec4(ao, wrap, shines, clumps)); vCn.assign(normalize(turn(cardN).add(vec3(0, 1e-6, 0))));
         if (vLit) vLit.assign(vec4(0, 0, wrap, B.x));
       } else if (pass !== 'pre' && pass !== 'shadow') {   // (the prepass and the shadow map: only its depth and its cut-out count)
-        vMul.assign(vec3(0)); vSun.assign(vec3(0)); vAdd.assign(vec3(0));
+        vMul.assign(vec3(0)); vSun.assign(vec3(0)); vAdd.assign(vec3(0)); vSpec.assign(vec3(0));
         If(unlit().not(), () => {
           // its light at each corner: one look at the shadow map (nine taps) and the clouds' map; a chunk's plane's light
           // reads it too (vLit: the sun as it reaches this corner, through-light, wrap, the turn)
-          const share = sunAt(w, 'vertex').toVar(), S = standLight({ w, n0, Ve, part, ao, wrap, shines, clumps, tint, share });
+          // (and its leaves' highlight at each corner: its painting's roughness at its card's middle, read at its level 0)
+          const rough = tex.r(floor(V.twig.greaterThan(0.5).select(V.Tw, V.Lf.z).add(0.5)), vec2(0.5), null, null, 0);
+          const share = sunAt(w, 'vertex').toVar(), S = standLight({ w, n0, Ve, part, ao, wrap, shines, clumps, tint, share, rough, ns: normalize(turn(cardN).add(vec3(0, 1e-6, 0))) });
+          vSpec.assign(S.spec);
           if (vLit) vLit.assign(vec4(share, S.through, wrap, B.x));
           vMul.assign(S.sky); vSun.assign(S.sun); vAdd.assign(S.add);
         });
@@ -360,7 +368,7 @@ function plantMaterial(tex, D) {
       const leaf = vPart.greaterThan(0.5), T = vec4(1).toVar(), alpha = float(1).toVar(), shadow = unlit();
       // (the colour pass: its light where the pixel is, the same light its corners would have had (standLight), the sun
       // as it reaches the pixel looked up as a corner looks it up: one look at the shadow map, nine taps)
-      const lit = pass === 'main' ? (() => { const w = vW, share = sunAt(w, 'vertex').toVar(); return { share, ...standLight({ w, n0: normalize(vN), Ve: normalize(U.uCam.sub(w)), part: vPart, ao: vK.x, wrap: vK.y, shines: vK.z, clumps: vK.w, tint: vTint, share }) }; })() : null;
+      const lit = pass === 'main' ? (() => { const w = vW, share = sunAt(w, 'vertex').toVar(); return { share, ...standLight({ w, n0: normalize(vN), Ve: normalize(U.uCam.sub(w)), part: vPart, ao: vK.x, wrap: vK.y, shines: vK.z, clumps: vK.w, tint: vTint, share, rough: tex.r(floor(vLay.x.add(0.5)), vUv), ns: vCn }) }; })() : null;
       // (while its impostor comes, as much of its mesh as is still its own: meshShare, cross-faded under the picture built
       // over time (handing); cut in the prepass)
       const fading = () => { if (FAR) cut(builder, handing(vFade).not()); };
@@ -400,7 +408,7 @@ function plantMaterial(tex, D) {
       // (its fourth number: in the world's frame what was kept may be trusted, its motion said; drawn where the target is
       // multisampled, a library's picture, it is the coverage)
       // (the sun's part less what the contact shadows say: leaf on leaf)
-      If(shadow.not(), () => { out.assign(vec4(toScreen(T.rgb.mul(T.rgb).mul(lit ? lit.sky.add(lit.sun.mul(contactShade())) : vMul.add(vSun.mul(contactShade()))).add(lit ? lit.add : vAdd)).rgb, pass ? float(1) : alpha)); });
+      If(shadow.not(), () => { out.assign(vec4(toScreen(T.rgb.mul(T.rgb).mul(lit ? lit.sky.add(lit.sun.mul(contactShade())) : vMul.add(vSun.mul(contactShade()))).add(lit ? lit.add : vAdd).add(lit ? lit.spec : vSpec)).rgb, pass ? float(1) : alpha)); });   // (and its leaves' highlight: standLight)
       return out;
     });
     const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.alphaToCoverage = true; m.userData.pre = true; m.userData.shadow = true;   // (it takes part in the prepass: src/core/pass.js)
