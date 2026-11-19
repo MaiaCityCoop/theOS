@@ -68,8 +68,9 @@
 //   bun tools/gate.js device [--secs s]                          the device on the machine the 8 GB gate is for
 //                                                                (budget.js MACHINE, in WebKit): GPU memory by the
 //                                                                game's ledger, its peak and where it settles, the
-//                                                                longest submission, whether the device survives (a
-//                                                                lost one fails): tools/gate/device.js
+//                                                                longest submission and every one over budget.js
+//                                                                SUBMIT_MS with what it held, whether the device
+//                                                                survives (a lost one fails): tools/gate/device.js
 //   bun tools/gate.js smoke [--views a,b]                        the GPU smoke: at HOURLY's views, the world settled
 //                                                                posed, turned about and walked on, and every WebGPU
 //                                                                error meanwhile
@@ -658,26 +659,27 @@ async function moves(page, v) {
 }
 /** The hour's walk: twenty seconds of the walk path (PATHS walk) as a player walks it, at the output, in the world and in
     the stress world (?stress): each frame's time and the GPU's (p50, p99), the frames that hitched (longer than two
-    frames at 60 fps), and the longest submission's own GPU time (tools/gate/device.js watch). */
+    frames at 60 fps), and the submissions' own GPU time from the page's start through the walk: the longest and every one
+    over SUBMIT_MS, with what each held (tools/gate/device.js watch). */
 async function walks(chrome) {
-  const { watch } = await import('./gate/device.js'), p = PATHS.find((x) => x.name === 'walk'), out = {};
+  const D = await import('./gate/device.js'), p = PATHS.find((x) => x.name === 'walk'), out = {};
   for (const world of ['world', 'stress']) {
-    const P = await open(chrome, { query: world === 'stress' ? 'gputime&stress' : 'gputime', init: `(${watch})(${BUDGET})` });
+    const P = await open(chrome, { query: world === 'stress' ? 'gputime&stress' : 'gputime', init: D.watching() });
     try {
       await P.page.evaluate(() => { window.__cine.dof = false; }); await P.page.evaluate(course, p);
       const g = await P.page.evaluate(settled, { wait: WAIT, at: `the walk's start, ${world}`, keep: KEEP.on });
       if (g.settled === false) { out[world] = { notSettled: g.said }; continue; }
       const r = told(await P.page.evaluate(ride, { fly: false, limit: 20e3 })), d = await P.page.evaluate(() => window.__device);
-      out[world] = { ...r, longest: Math.round(d?.longest ?? 0), long: d?.long ?? null };
+      out[world] = { ...r, longest: Math.round(d?.longest ?? 0), long: d?.long ?? null, slow: d?.slow ?? [], slowN: d?.slowN ?? 0, sure: d?.sure ?? 0 };
     } finally { said(P.errors); await P.close(); }
   }
-  console.log(`  ${walkLines(out).join('\n  ')}`);
+  console.log(`  ${walkLines(out, D.submissions).join('\n  ').replace(/\*\*/g, '')}`);
   return out;
 }
-/** The walk's lines on the board: each world's frames and GPU against 60 fps and BUDGET, its hitches, its longest
-    submission. */
-const walkLines = (W) => Object.entries(W ?? {}).map(([w, r]) => (r.notSettled ? `The walk, ${w}: not settled (${String(r.notSettled).slice(0, 160)}).`
-  : `The walk, ${w}: frames p50 ${f(r.frame?.median, 1).trim()} ms, p99 ${f(r.frame?.p99, 1).trim()} ms (60 fps: ${FRAME.toFixed(1)}); GPU p50 ${f(r.gpu?.median, 2).trim()} ms, p99 ${f(r.gpu?.p99, 2).trim()} ms (budget ${BUDGET}); ${r.frame?.hitches ?? 0} hitches over ${(2 * FRAME).toFixed(0)} ms; the longest submission ${r.longest} ms.`));
+/** The walk's lines on the board: each world's frames and GPU against 60 fps and BUDGET, its hitches, its submissions
+    (said: tools/gate/device.js submissions). */
+const walkLines = (W, said) => Object.entries(W ?? {}).map(([w, r]) => (r.notSettled ? `The walk, ${w}: not settled (${String(r.notSettled).slice(0, 160)}).`
+  : `The walk, ${w}: frames p50 ${f(r.frame?.median, 1).trim()} ms, p99 ${f(r.frame?.p99, 1).trim()} ms (60 fps: ${FRAME.toFixed(1)}); GPU p50 ${f(r.gpu?.median, 2).trim()} ms, p99 ${f(r.gpu?.p99, 2).trim()} ms (budget ${BUDGET}); ${r.frame?.hitches ?? 0} hitches over ${(2 * FRAME).toFixed(0)} ms; submissions from the page's start, ${said(r)}.`));
 /** The hour's measure of main (ship-first: a PR merges when its CI is green, main is measured once an hour, and what
     got worse goes back as work): one run under the GPU lock taken once (tools/gpu/lock.js), at the output (OUTPUT): the
     GPU smoke (smoke), the stills and ?truth at HOURLY's views and FLIP between them, the bench by class (each part against its ceiling: a row
@@ -729,7 +731,7 @@ async function measuresOf(R, H, here, mem) {
     ...(await import('./gate/device.js')).lines(R.device), '',
     S?.settled === false ? `**The start did not settle** in ${(S.ms / 1000).toFixed(0)} s: ${String(S.said).slice(0, 300)}` : `The start settled in ${((S?.ms ?? 0) / 1000).toFixed(1)} s.`,
     out.length ? `Not settled, so not measured: ${out.join(', ')}.` : 'Every view and path settled.', '',
-    ...walkLines(R.walks), '', H ? H.text : `The first hour kept: nothing before it to hold it against.`, '',
+    ...walkLines(R.walks, (await import('./gate/device.js')).submissions), '', H ? H.text : `The first hour kept: nothing before it to hold it against.`, '',
     `Each part of each bench view against its ceiling (tools/gate/ceilings.json), shown, never blocking:`, '', '| View | Part | ms | Ceiling | Over |', '| --- | --- | --- | --- | --- |',
     ...rows.map((r) => `| ${r.view} | ${r.part} | ${r.ms.toFixed(2)} | ${r.ceiling.toFixed(2)} | ${r.over ? 'over' : ''} |`)];
 }

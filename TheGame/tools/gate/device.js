@@ -16,8 +16,9 @@
 //   holds at least those (textures are the ledger's alone: one count of them, not two);
 // - WebKit's own processes' resident memory beside it (every process of the browser Playwright runs);
 // - every submission's own GPU time (the queue runs in order: done less the later of its submit and the one before's
-//   done), the longest with the passes it held (where each began, its pipeline, its calls), and how many took more than
-//   a frame's budget (FRAME_MS); any destroyed buffer a submission binds (WebKit says only "Validation failure.");
+//   done), the longest and every one over budget.js SUBMIT_MS with what it held (each pipeline with its draws and
+//   instances or its dispatches and workgroups, where its pass began, what was written before it), and how many took
+//   more than a frame's budget (FRAME_MS); any destroyed buffer a submission binds (WebKit says only "Validation failure.");
 // - whether the device survives (device.lost), and what the device said wrong (uncaptured errors);
 // - till ready, what held it: each source src/core/settle.js counts as still out (window.__game.waiting(), the game's
 //   own registry), from and till when, the start's last stage (window.__game.boot, its own marks) and the veil's words.
@@ -29,50 +30,90 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mark } from './wgsl.js';
-import { MACHINE, BUDGET_MB, FRAME_MS } from '../../src/core/budget.js';
+import { MACHINE, BUDGET_MB, FRAME_MS, SUBMIT_MS } from '../../src/core/budget.js';
 
 /** In the page, before anything of it runs: the device as the gate sees it. The buffers it makes (net of destroy); what
-    each command buffer holds (its passes, where in the page's code each began, its pipeline, its calls, the buffers it
-    binds); each submission's own GPU time (the queue runs in order: from when it was submitted or the one before it was
-    done, whichever was later, to its own done), the longest with what it held, and how many took more than a frame; a
-    destroyed buffer a submission uses (WebKit says only "Validation failure."); the device's loss and its errors. */
-export function watch(frameMs, salt = 0) {
-  const W = (window.__device = { buffers: 0, submits: 0, longest: 0, over: 0, lost: null, errors: [], top: null, long: null, dead: [] });
+    each command buffer holds (its passes, where in the page's code each began, each pipeline they used with its draws
+    and instances or its dispatches and workgroups, the render bundles they ran counted in them, the buffers they bind);
+    each submission's own GPU time (the queue runs in order: from when it was submitted or the one before it was done,
+    whichever was later, to its own done) with what it held: the longest, every one over submitMs (budget.js SUBMIT_MS:
+    all counted, the worst kept), and how many took more than frameMs; a destroyed buffer a submission uses (WebKit says
+    only "Validation failure."); the device's loss and its errors. A done is heard only when the page's own thread is
+    free, so a submission's time is at most so: how late its done may have been heard is kept with it (late, the thread
+    busy just before), and a submission over submitMs even so is surely over (sure). */
+export function watch(frameMs, submitMs, salt = 0) {
+  const W = (window.__device = { buffers: 0, submits: 0, longest: 0, over: 0, slow: [], slowN: 0, sure: 0, lost: null, errors: [], top: null, long: null, dead: [] });
   // (the ledger's most, read in the page every frame, what it held then with it: it rises by gigabytes the seconds before
   // a device is lost, between two of the gate's looks)
   const keep = () => { const L = window.__game?.memory?.(); if (L && L.gpu > (W.top?.device ?? -1)) W.top = { device: L.gpu, classes: L.classes, rows: L.rows.slice(0, 8), makers: L.makers.slice(0, 8), over: L.over, unnoted: L.unnoted, buffers: W.buffers }; requestAnimationFrame(keep); };
   requestAnimationFrame(keep);
-  const DEAD = new WeakSet(), LABEL = new WeakMap(), GROUP = new WeakMap(), HOLDS = new WeakMap();
+  const DEAD = new WeakSet(), LABEL = new WeakMap(), GROUP = new WeakMap(), HOLDS = new WeakMap(), BUNDLE = new WeakMap(), USED = new WeakSet();
   const where = () => (new Error().stack || '').split('\n').map((l) => l.trim().replace(/^at\s+/, '').replace(/https?:\/\/[^/]+\//, '').replace(/\?[^:)]*/, '')).filter((l) => /(^|\W)(src|assets)\//.test(l)).slice(0, 2).join(' < ');
+  // (the page's thread: when it was last free, and the spans it was not; a done heard right after one may have come any
+  // time in it. A timer, not a frame: a frame waits for the GPU too)
+  let free = performance.now();
+  const gaps = [], tick = () => { const now = performance.now(); if (now - free > 12) { gaps.push([free, now]); if (gaps.length > 32) gaps.shift(); } free = now; setTimeout(tick, 4); };
+  setTimeout(tick, 4);
+  const lateBy = (now) => Math.max(now - free, ...gaps.filter(([, b]) => b >= now - 12).map(([a]) => now - a));
   const buffers = (dev) => {
     const make = dev.createBuffer.bind(dev), group = dev.createBindGroup.bind(dev);
     dev.createBuffer = (d) => { const b = make(d), destroy = b.destroy.bind(b); let gone = false; W.buffers += d.size; LABEL.set(b, d.label || '?'); b.destroy = () => { if (!gone) { gone = true; DEAD.add(b); W.buffers -= d.size; } destroy(); }; return b; };
     dev.createBindGroup = (d) => { const g = group(d); GROUP.set(g, (d.entries ?? []).map((e) => e.resource?.buffer ?? (e.resource instanceof GPUBuffer ? e.resource : null)).filter(Boolean)); return g; };
   };
+  const named = (l) => (l || '?').replace(/^(render|compute)Pipeline_(compute_)?/, '').replace(/_\d+$/, '');   // (three's labels: renderPipeline_<material>_<id>, computePipeline_compute_<name>)
   const pass = (p, kind, list) => {
-    const r = { kind, by: where(), pipe: '', calls: 0, bufs: new Set() }, bind = p.setBindGroup.bind(p), pipe = p.setPipeline.bind(p);
+    const r = { kind, by: where(), uses: new Map(), bufs: new Set() }, bind = p.setBindGroup.bind(p), pipe = p.setPipeline.bind(p);
+    const use = (name) => r.uses.get(name) ?? r.uses.set(name, { n: 0, inst: 0, wg: 0, ind: 0, fresh: false }).get(name);
+    let u = null;
     list.push(r);
     p.setBindGroup = (i, g, ...a) => { for (const b of GROUP.get(g) ?? []) r.bufs.add(b); return bind(i, g, ...a); };
-    p.setPipeline = (x) => { r.pipe ||= x.label || ''; return pipe(x); };
+    p.setPipeline = (x) => { u = use(named(x.label)); if (!USED.has(x)) { USED.add(x); u.fresh = true; } return pipe(x); };   // (fresh: its first use, which may wait for its compile)
     for (const f of ['setVertexBuffer', 'setIndexBuffer', 'dispatchWorkgroups', 'dispatchWorkgroupsIndirect', 'draw', 'drawIndexed', 'drawIndirect', 'drawIndexedIndirect']) if (p[f]) {
       const o = p[f].bind(p), set = f.startsWith('set'), buf = f === 'setVertexBuffer' ? 1 : f === 'setIndexBuffer' || f.endsWith('Indirect') ? 0 : -1;
-      p[f] = (...a) => { if (buf >= 0 && a[buf]) r.bufs.add(a[buf]); if (!set) r.calls++; return o(...a); };
+      p[f] = (...a) => {
+        if (buf >= 0 && a[buf]) r.bufs.add(a[buf]);
+        if (!set) { const c = (u ??= use('?')); c.n++; if (f.endsWith('Indirect')) c.ind++; else if (f === 'dispatchWorkgroups') c.wg += a[0] * (a[1] ?? 1) * (a[2] ?? 1); else c.inst += a[1] ?? 1; }   // (an indirect call's counts are the GPU's: counted as calls)
+        return o(...a);
+      };
     }
+    if (p.executeBundles) { const run = p.executeBundles.bind(p); p.executeBundles = (bs) => { for (const b of bs) { const x = BUNDLE.get(b); if (!x) continue; for (const [k, c] of x.uses) { const t = use(k); t.n += c.n; t.inst += c.inst; t.ind += c.ind; t.fresh ||= c.fresh; c.fresh = false; } for (const v of x.bufs) r.bufs.add(v); } return run(bs); }; }   // (a bundle's draws, each time it runs, in the pass that runs it)
     return p;
   };
   const encoders = (dev) => {
-    const make = dev.createCommandEncoder.bind(dev);
+    const make = dev.createCommandEncoder.bind(dev), bundle = dev.createRenderBundleEncoder?.bind(dev);
     dev.createCommandEncoder = (d) => { const e = make(d), list = [], c = e.beginComputePass.bind(e), r = e.beginRenderPass.bind(e), fin = e.finish.bind(e); e.beginComputePass = (x) => pass(c(x), 'compute', list); e.beginRenderPass = (x) => pass(r(x), 'render', list); e.finish = (x) => { const b = fin(x); HOLDS.set(b, list); return b; }; return e; };
+    if (bundle) dev.createRenderBundleEncoder = (d) => { const list = [], e = pass(bundle(d), 'bundle', list), fin = e.finish.bind(e); e.finish = (x) => { const b = fin(x); BUNDLE.set(b, list[0]); return b; }; return e; };
   };
-  const held = (list, ms, t) => { const by = {}; for (const r of list) { const k = `${r.kind} ${r.pipe || '?'}, begun at ${r.by || '?'}`, a = (by[k] ||= { passes: 0, calls: 0 }); a.passes++; a.calls += r.calls; } return { at: Math.round(t), ms: Math.round(ms), passes: list.length, what: Object.entries(by).sort((x, y) => y[1].calls - x[1].calls).slice(0, 8).map(([k, a]) => `${a.passes}× ${k}: ${a.calls} calls`) }; };
+  /** A submission's own time ms, submitted at t, what it held (list: its passes), what was written to the device before
+      it (up: [bytes, writes]), how late its done may have been heard. */
+  const held = (list, ms, t, up, late) => {
+    const by = {}, of = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+    for (const r of list) for (const [name, c] of r.uses) { const a = (by[`${r.kind} ${name}, begun at ${r.by || '?'}`] ||= { kind: r.kind, passes: 0, n: 0, inst: 0, wg: 0, ind: 0, fresh: false }); a.passes++; a.n += c.n; a.inst += c.inst; a.wg += c.wg; a.ind += c.ind; a.fresh ||= c.fresh; }
+    const what = Object.entries(by).sort(([, x], [, y]) => y.inst + y.wg + y.ind - (x.inst + x.wg + x.ind) || y.n - x.n).slice(0, 8)
+      .map(([k, a]) => `${a.passes}× ${k}: ${a.kind === 'compute' ? `${of(a.n, 'dispatch', 'dispatches')}, ${of(a.wg, 'workgroup', 'workgroups')}` : `${of(a.n, 'draw', 'draws')}, ${of(a.inst, 'instance', 'instances')}`}${a.ind ? ` (${a.ind} of them indirect)` : ''}${a.fresh ? ', its first use' : ''}`);
+    return { at: Math.round(t), ms: Math.round(ms), late: late > 12 ? Math.round(Math.min(late, ms)) : 0, passes: list.length, up: { bytes: up[0], writes: up[1] }, what };
+  };
   const timed = (dev) => {
     const q = dev.queue, submit = q.submit.bind(q);
-    let last = 0;
+    let last = 0, up = 0, ups = 0;
+    const upload = (f, bytes) => { const o = q[f].bind(q); q[f] = (...a) => { up += bytes(...a); ups++; return o(...a); }; };   // (what is written to the device before a submission is done on the queue before it: in its time)
+    upload('writeBuffer', (b, o, d, at = 0, n) => { const e = d.BYTES_PER_ELEMENT ?? 1; return n != null ? n * e : (d.byteLength ?? 0) - at * e; });
+    upload('writeTexture', (to, d) => d.byteLength ?? 0);
+    upload('copyExternalImageToTexture', (from, to, s) => (s.width ?? s[0] ?? 0) * (s.height ?? s[1] ?? 1) * 4);
     q.submit = (cbs) => {
-      const t = performance.now(), list = [...cbs].flatMap((c) => HOLDS.get(c) ?? []);
-      for (const r of list) for (const b of r.bufs) if (DEAD.has(b) && W.dead.length < 12) W.dead.push(`the destroyed buffer "${LABEL.get(b)}" bound by a ${r.kind} pass (${r.pipe || 'no pipeline'}) begun at ${r.by || '?'}, ${Math.round(t / 1e3)} s in`);
+      const t = performance.now(), list = [...cbs].flatMap((c) => HOLDS.get(c) ?? []), before = [up, ups];
+      up = ups = 0;
+      for (const r of list) for (const b of r.bufs) if (DEAD.has(b) && W.dead.length < 12) W.dead.push(`the destroyed buffer "${LABEL.get(b)}" bound by a ${r.kind} pass (${r.uses.keys().next().value ?? 'no pipeline'}) begun at ${r.by || '?'}, ${Math.round(t / 1e3)} s in`);
       submit(cbs); W.submits++;
-      q.onSubmittedWorkDone().then(() => { const now = performance.now(), ms = now - Math.max(t, last); last = now; if (ms > frameMs) W.over++; if (ms > W.longest) { W.longest = ms; W.long = held(list, ms, t); } }, () => {});
+      q.onSubmittedWorkDone().then(() => {
+        const now = performance.now(), ms = now - Math.max(t, last);
+        last = now;
+        if (ms > frameMs) W.over++;
+        if (ms <= W.longest && ms <= submitMs) return;
+        const h = held(list, ms, t, before, lateBy(now));
+        if (ms > W.longest) { W.longest = ms; W.long = h; }
+        if (ms > submitMs) { W.slowN++; if (h.ms - h.late > submitMs) W.sure++; W.slow = [...W.slow, h].sort((x, y) => y.ms - x.ms).slice(0, 12); }
+      }, () => {});
     };
   };
   // (every program the device is asked to make, with when, kept apart from W, which every look reads: the first view's,
@@ -95,6 +136,9 @@ export function watch(frameMs, salt = 0) {
     return dev;
   };
 }
+/** The watch as a page's init script (Playwright's addInitScript; tools/gate.js open's init): a frame's GPU budget and a
+    submission's limit from budget.js, every shader marked with salt (0: none). */
+export const watching = (salt = 0) => `(${watch})(${FRAME_MS}, ${SUBMIT_MS}, ${salt})`;
 /** In the page: the programs made before the first frame showed (all, where it never did), each once: { render: [{ label,
     vertex, fragment }], compute: [{ label, code }], shown (whether it did), made (the pipelines asked before it) }. */
 const firstMade = () => {
@@ -121,8 +165,9 @@ function gpuProcess() {
 }
 
 /** The device on MACHINE: { ready (s), peak and settled (MB, the ledger's), classes at the peak against BUDGET_MB, the
-    largest pools, unnoted, buffers (the gate's own count, at the peak), process (MB, its most), longest submission (ms),
-    over (how many took more than FRAME_MS), lost, errors, pass }. url: the game's. */
+    largest pools, unnoted, buffers (the gate's own count, at the peak), process (MB, its most), longest submission (ms)
+    and long (what it held), slow (the worst over SUBMIT_MS, what each held), slowN and sure (how many, and how many
+    surely), over (how many took more than FRAME_MS), lost, errors, pass }. url: the game's. */
 export async function device(url, { secs = 60, programs = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'gate-device-')), salt = 1 + Math.floor(Math.random() * 0x7fffffff);   // (a profile and a mark of this run's own: its start is cold)
   try { const out = await coldStart(url, { secs, programs, dir, salt }); if (out.ready != null) out.warm = await warmStart(url, { secs, dir, salt }); return out; }
@@ -133,7 +178,7 @@ export async function device(url, { secs = 60, programs = false } = {}) {
 async function opened(url, dir, salt) {
   const context = await webkit.launchPersistentContext(dir, { headless: true, ...webkitAt(), viewport: { width: MACHINE.width, height: MACHINE.height }, deviceScaleFactor: MACHINE.dpr });
   const page = context.pages()[0] ?? (await context.newPage());
-  await page.addInitScript(`window.__gateMark = ${mark}`); await page.addInitScript(`(${watch})(${FRAME_MS}, ${salt})`);
+  await page.addInitScript(`window.__gateMark = ${mark}`); await page.addInitScript(watching(salt));
   return { context, page, t0: Date.now(), go: () => page.goto(url, { waitUntil: 'load' }) };
 }
 /** A repeat start (a player's next): the same profile and the same mark as the cold one before it, so what the browser
@@ -152,7 +197,7 @@ async function coldStart(url, { secs, programs, dir, salt }) {
     await go();
     out.ready = await arrived(page, out, t0, secs);
     const s = out.ready == null ? await page.evaluate(look) : await stay(page, out, secs);
-    Object.assign(out, { shown: s.shown == null ? null : +(s.shown / 1e3).toFixed(1), settled: out.samples.at(-1) ?? null, longest: Math.round(s.longest ?? 0), over: s.over ?? 0, submits: s.submits ?? 0, lost: s.lost ?? null, errors: s.errors ?? [], long: s.long ?? null, dead: s.dead ?? [], process: Math.round(out.process) });
+    Object.assign(out, { shown: s.shown == null ? null : +(s.shown / 1e3).toFixed(1), settled: out.samples.at(-1) ?? null, longest: Math.round(s.longest ?? 0), over: s.over ?? 0, submits: s.submits ?? 0, lost: s.lost ?? null, errors: s.errors ?? [], long: s.long ?? null, slow: s.slow ?? [], slowN: s.slowN ?? 0, sure: s.sure ?? 0, dead: s.dead ?? [], process: Math.round(out.process) });
     out.honest = out.buffers == null || out.peak >= out.buffers;   // (the ledger holds at least the buffers the device made)
     out.pass = !out.lost && out.ready != null;
     say(out);
@@ -215,9 +260,16 @@ export function lines(d) {
     `The largest pools: ${(d.rows ?? []).map(([n, g]) => `${n} ${g} MB`).join('; ') || '–'}.`,
     `The largest makes, by class and what they were (the ledger's makers): ${(d.makers ?? []).map(([c, w, m, n]) => `${c}: ${w} ${m} MB (${n})`).join('; ') || '–'}.`,
     `Made past a budget (the ledger's over): ${(d.past ?? []).map((o) => `${o.who} with ${o.by} (${o.mb} MB of ${o.budget})`).join('; ') || 'none'}.`,
-    `The longest submission's own GPU time ${d.longest} ms (a frame's budget ${FRAME_MS} ms; ${d.over} of ${d.submits} over it)${d.long ? `, ${d.long.at / 1e3 | 0} s in, ${d.long.passes} passes: ${d.long.what.join('; ')}` : ''}.`,
+    `Submissions: ${d.over} of ${d.submits} over a frame's GPU budget (${FRAME_MS} ms); ${submissions(d)}.`,
     d.dead.length ? `**A destroyed buffer was used** (WebKit says only "Validation failure."): ${d.dead[0]}${d.dead.length > 1 ? ` (and ${d.dead.length - 1} more)` : ''}.` : 'No destroyed buffer was used.',
     ...(d.errors.length ? [`The device said: ${d.errors[0]}`] : []),
   ];
 }
+/** A submission as the board says it (watch: held): its own time, how late its done may have been heard, when, and what
+    it held: what was written before it, each pipeline with its draws and instances or its dispatches and workgroups,
+    where its pass began. */
+export const submission = (h) => `${h.ms} ms${h.late ? ` (its done heard up to ${h.late} ms late: the page's thread was busy)` : ''}, ${(h.at / 1e3).toFixed(1)} s in, ${h.passes} pass${h.passes === 1 ? '' : 'es'}${h.up?.writes ? `, ${h.up.bytes < 1048576 ? `${Math.ceil(h.up.bytes / 1024)} KB` : `${(h.up.bytes / 1048576).toFixed(1)} MB`} written before it in ${h.up.writes} write${h.up.writes === 1 ? '' : 's'}` : ''}: ${h.what.join('; ') || 'no draw or dispatch'}`;
+/** The submissions as the board says them (r: the device's run, or a world's walk: what watch kept): the longest with what
+    it held, how many were over SUBMIT_MS (how many surely, however late heard), and the next worst with what each held. */
+export const submissions = (r) => `the longest ${r.long ? submission(r.long) : `${r.longest ?? 0} ms`}${r.slow == null ? '' : r.slowN ? `; **${r.slowN} over ${SUBMIT_MS} ms** (budget.js SUBMIT_MS; ${r.sure} surely, however late heard)${r.slow.length > 1 ? `, the next worst: ${r.slow.slice(1, 3).map(submission).join(' | ')}` : ''}` : `; none over ${SUBMIT_MS} ms`}`;
 const say = (d) => console.log(`device:\n  ${[readyLine(d), ...lines(d)].join('\n  ').replace(/\*\*/g, '')}`);
