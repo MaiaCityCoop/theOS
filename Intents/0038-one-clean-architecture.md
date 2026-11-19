@@ -252,6 +252,22 @@ at a time under the lock. While Samuel works on it, it runs no full-game browser
 3 GB and swapped the machine. The memory guard passed it at 51 % free with 4.2 GB already swapped, so the proposal for the
 gate is to refuse when swap is high, too.
 
+**Branches left to finish (2026-11-19 13:10; every other 0038 branch was merged or deleted):**
+| Branch | PR | What finishing it takes |
+| --- | --- | --- |
+| aven/0038-far-module | #382 | CI red: 10 storage buffers against 8. Merge main (it has #379's fix: the wanted shapes read from the far tiers' own bucket counts, no T0/WANT buffers), make the same change in far.js, then a GPU check that a second start bakes nothing |
+| aven/0038-made-once-plan | none | Pools: the made-once stores plan themselves. Only the rocks' meshes are planned so far; add the growth map, the land lists and the ground maps, prove at dial 0 (geometry within its budget) and dial 1 (byte-identical), open a PR |
+| aven/0038-start-view-smoke | none | CI fails on an empty start view (every first-view drawer asks and puts; workers get the game's preload). It passed locally: open a PR |
+| aven/0038-canopy-error | #255 | The canopy by its stand's cover (with #256). The storage-texture fix is pushed; one GPU look at shares 1 and 0.375, then ready |
+| aven/0038-canopy-relief | #256 | The canopy's relief in the land's pages; it goes with #255 |
+| aven/0038-river-ripples | #265 | The river's stationary ripples. One clean GPU look, once water draws again (step 4) |
+| aven/0038-litter-sheen | #275 | The ground's sheen; it waits for a measured roughness source (Roth 2020, Bousquet 2005). Finish with a source or close |
+| aven/0038-paints-wip | none | tools/paints.js: the materials' painting checked texel by texel. Finish as a tool PR or drop |
+| aven/0038-shots | none | Screenshots for PRs (data, not code): keep as the picture store or delete |
+
+Kept on purpose, not 0038's: aven/0033-avenmac-wip, aven/0033-solids-wip, feat/bald (#5), claude/earth-data-skill-placeholder-fc1555,
+test/e2e-first-screen.
+
 **How to work here:** branch `aven/0038-*`; one PR a change; a root cause, not a patch; no reverts (fix forward);
 `bun tools/gate.js` and the CPU proofs in `TheGame/tools/` before pushing; GPU runs only under `tools/gpu/lock.js`
 (the Mac mini has 8 GB and swaps: numbers are valid only with the game's footprint free).
