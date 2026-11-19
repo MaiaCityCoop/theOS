@@ -12,6 +12,8 @@
 import { mock } from './gpu-mock.js';
 
 const M = await mock({ lean: true }), { THREE, renderer } = M;
+// (where each material and compute pass is made, as the loader hands it over: its place's own name, tools/glob.js)
+const SITE = new WeakMap(); globalThis.__made = (id, x) => { if (x && typeof x === 'object' && !SITE.has(x)) SITE.set(x, id); return x; };
 
 // ---- the stand-in walks a scene, a thing at a time, to the route a pass draws with ----
 let route = null;
@@ -75,6 +77,7 @@ const { heightAt, HMIN } = await import('../src/world/land.js'), { WALKER } = aw
 const { setPlanes } = await import('../src/core/frustum.js'), { farthest } = await import('../src/detail/extent.js');
 const tent = PLACES.tent, dx = -Math.sin(tent.yaw), dz = -Math.cos(tent.yaw), cx = tent.x + dx * 14, cz = tent.z + dz * 14;
 camera.rotation.order = 'YXZ'; camera.position.set(cx, heightAt(cx, cz) + WALKER.eye, cz); camera.rotation.set(0, Math.atan2(dx, dz), 0);
+tex.flush?.();   // (a frame's first: the materials asked for painted, src/boot.js step)
 sky.update(1 / 60); weather.update(1 / 60);
 const p = camera.position, gy = heightAt(p.x, p.z), dy = (U.uDy.value = Math.max(0, p.y - gy - 2, HMIN - p.y));
 U.uAirH.value = Math.max(0, p.y - gy); camera.updateMatrixWorld();
@@ -119,6 +122,16 @@ for (const e of first.filter((x) => x.pass === 'run')) for (const n of [e.what].
 // (each compute shader's size, the largest first: what a compiler reads of the packing)
 const shaders = [...passCodes].map((c) => ({ kb: +(c.length / 1024).toFixed(1), who: [...passWho.get(c)].slice(0, 3) })).sort((a, b) => b.kb - a.kb);
 pipes.run = passCodes;
+// (all the start makes before its first frame, as the device counts it, tools/gate/device.js firstMade: the first view's
+// asks; what a frame draws alone, a quad (the screen's passes, the materials painted); every compute pass handed to be
+// compiled or run (the ground's, the land's, the scatter's at boot, a frame's). Each program once, by its code)
+const madeR = new Map(), madeC = new Map(), keepAs = (m, code, who) => { if (!m.has(code)) m.set(code, who); };
+for (const e of first) { let c; try { c = codeOf(e); } catch { continue; } if (e.pass === 'run') for (const x of c.split('\0')) keepAs(madeC, x, `asked: ${familyOf(e)}, packing`); else keepAs(madeR, c, `asked: ${familyOf(e)} · ${e.pass}`); }
+const nameOf = (o) => [SITE.get(o.material) ?? SITE.get(o), o.material?.name || o.name].filter(Boolean).join(' ') || o.material?.type || 'a quad';
+for (const o of [...M.drawn].filter(drawnAlone)) { try { const s = M.build(o, o.material); keepAs(madeR, `${s.vertex}\0${s.fragment}`, `drawn alone: ${nameOf(o)}`); } catch { /* the stand-in cannot build it: the smoke says why */ } }
+for (const n of M.computed) { try { keepAs(madeC, M.compute(n), `handed: ${SITE.get(n) ?? (n.name || 'a compute pass')}`); } catch { /* as above */ } }
+const madeBy = (m) => count([...m.values()], (w) => w.replace(/ level \d+.*$/, '').replace(/ \d+$/, ''));
+const made = { programs: madeR.size + madeC.size, render: madeR.size, compute: madeC.size, kb: Math.round([...madeR.keys(), ...madeC.keys()].reduce((t, c) => t + c.length, 0) / 1024), outside: { render: madeBy(new Map([...madeR].filter(([, w]) => !w.startsWith('asked')))), compute: madeBy(new Map([...madeC].filter(([, w]) => !w.startsWith('asked')))) } };
 const programs = Object.fromEntries(Object.entries(codes).map(([k, s]) => [k, s.size])), pipelines = Object.fromEntries(Object.entries(pipes).map(([k, s]) => [k, s.size]));
 // (the programs drawn more than one way, and what differs between their ways)
 const several = [...ways.values()].filter((w) => w.by.size > 1).map((w) => {
@@ -129,11 +142,13 @@ const several = [...ways.values()].filter((w) => w.by.size > 1).map((w) => {
 const sizes = [...ways.values()].map((w) => ({ pass: w.pass, kb: Math.round(w.bytes / 1024), who: [...new Set([...w.by.values()].flatMap((x) => [...x]))].slice(0, 3) })).sort((a, b) => b.kb - a.kb);
 const result = {
   first: { asks: first.length, programs: Object.values(programs).reduce((a, b) => a + b, 0), pipelines: Object.values(pipelines).reduce((a, b) => a + b, 0), byPass: count(first, (e) => e.pass), programsByPass: programs, pipelinesByPass: pipelines, several, sizes, shaders, computeKb: Math.round(shaders.reduce((t, x) => t + x.kb, 0)), byFamily: count(first, (e) => `${familyOf(e)} · ${e.pass}`) },
+  made,
   after: { asks: after.length, byPass: count(after, (e) => e.pass), byFamily: count(after, (e) => `${familyOf(e)} · ${e.pass}`) },
   camera: [p.x, p.y, p.z].map((v) => +v.toFixed(1)), reach: +cascades().half[0].toFixed(1),
 };
 {
   console.log(`census: the first view waits for ${result.first.asks} asks, ${result.first.programs} programs, ${result.first.pipelines} pipelines; ${result.after.asks} more come after it (camera at ${result.camera}, the near cascade's reach ${result.reach} m)`);
+  console.log(`  made before its first frame, as the device counts (asked, drawn alone, handed): ${made.programs} programs (${made.render} render, ${made.compute} compute), ${made.kb} KB; outside the first view's asks:`); for (const [k, n] of [...Object.entries(made.outside.render), ...Object.entries(made.outside.compute)]) console.log(`    ${String(n).padStart(4)}  ${k}`);
   console.log(`  by pass: ${JSON.stringify(result.first.byPass)}; programs: ${JSON.stringify(result.first.programsByPass)}; pipelines: ${JSON.stringify(result.first.pipelinesByPass)}`);
   console.log(`  programs drawn more than one way (each way a pipeline): ${several.length}`); for (const w of several) console.log(`    ${w.ways}×  ${w.pass} ${w.kb} KB, ${w.differ.join(', ')} differ: ${w.who.join(' | ')}`);
   console.log('  the largest programs:'); for (const z of sizes.slice(0, 12)) console.log(`    ${String(z.kb).padStart(4)} KB  ${z.pass}: ${z.who.join(' | ')}`);
