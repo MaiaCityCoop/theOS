@@ -80,15 +80,20 @@ function drawnApart(screen, temporal, renderer, terrain, city) {
 
 export async function boot({ profile = 'world' } = {}) {
   const world = profile === 'world', t0 = performance.now();
-  // (what the stands need to know of each tree kind before they are made, its outline and rooms, reckoned in the recipes'
-  // workers from here on, beside the renderer, the textures, the ground and the land: src/scatter/trees.js outlinesAhead)
-  const outlines = outlinesAhead(world);
-  const canvas = document.getElementById('c');
   // (textures of many layers: more than a device gives unasked. The land's pages are two arrays of up to 2048,
   // src/terrain/pages.js; the stress stand keeps its kinds' own textures in one, src/scatter/stress.js. And buffers as
   // large as the GPU has them, not the 128 and 256 MB a device gives unasked: what is shared by many lies in buffers as
   // large as these say, src/core/occlusion.js)
-  const limits = await askedLimits();   // (every limit the design sizes against, as this adapter has it: src/core/gpu.js SIZED)
+  const asking = askedLimits();   // (every limit the design sizes against, as this adapter has it: src/core/gpu.js SIZED)
+  // (what the stands need to know of each tree kind before they are made, its outline and rooms, reckoned in the recipes'
+  // workers from here on, beside the renderer, the textures, the ground and the land: src/scatter/trees.js outlinesAhead.
+  // Once the adapter has said this device's share of the budget: the rooms are reckoned for the far ends' atlases, which
+  // are sized by it once, at the first ask (src/detail/impostor.js atlases), and the workers' pools by it too
+  // (src/core/workers.js). Asked before it, until 2026-11-19, every device had the Mac's atlases: over 200 MB of an iPhone's
+  // geometry, 384 MB, where their share is 96, and its trees' stores had none left)
+  const outlines = asking.then(() => outlinesAhead(world));
+  const canvas = document.getElementById('c');
+  const limits = await asking;
   const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, depth: false, powerPreference: 'high-performance', forceWebGL: flag('webgl'), trackTimestamp: flag('gputime') || flag('bench'), requiredLimits: limits });   // depth false: the canvas has none: nothing drawn onto it tests depth (the upscale lays one quad, src/core/temporal.js), and a 4K one stored every frame was 33 MB moved for nothing   // alpha false: the canvas is opaque (a frame's fourth number is not how see-through it is: it says how far what is kept may be trusted, src/core/pass.js; it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); neither the canvas nor any target is multisampled: the screen's picture is built over time (src/core/screen.js)
   if (flag('draws')) (await import('../tools/draws.js')).watch();   // ?draws: every pass and draw a frame asks of the GPU, counted (tools/draws.js: window.__draws), from before the first pipeline is made
   const dropped = renderer.onDeviceLost;   // (three's own, on the GPU taken from the page: said in the console, and nothing drawn after)
