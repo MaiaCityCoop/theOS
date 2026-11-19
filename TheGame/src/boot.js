@@ -314,7 +314,7 @@ export async function boot({ profile = 'world' } = {}) {
     game.loadMs = performance.now() - t0; mark('first');
     setTimeout(() => (game.outlines.made = keepOutlines()), 2500);   // what was measured anew this time, kept for the next start
     console.log(`[the game] ready in ${game.loadMs.toFixed(0)} ms`, marks);
-    const C = compiles(); console.log(`[the game] the first view: ${C.firstView.asks} asks, ${C.firstView.pipes} pipelines asked of the GPU in ${C.firstView.turns} turns, ${C.firstView.cpu} ms of them on the page's thread; compiled ${C.inFlight} at a time (__game.compiles())`);
+    const C = compiles(); console.log(`[the game] the first view: ${C.firstView.asks} asks, ${C.firstView.pipes} pipelines asked of the GPU in ${C.firstView.turns} turns, ${C.firstView.ms} ms; the GPU's own ${C.firstView.gpu} ms; ${C.parallel.overtook} of ${C.parallel.of} pipelines ready before one asked earlier (none: one at a time) (__game.compiles())`);
     loadingDone();
     if (world) makeAhead();
     if (world && flag('flyby')) import('../tools/flyby.js').then((m) => m.run());   // ?flyby: the camera flown by itself, to watch the plants' levels change (tools/flyby.js)
