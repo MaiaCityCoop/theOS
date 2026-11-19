@@ -7,10 +7,14 @@
 //                                (null where there is no queue to ask: the CPU's stand-in, tools/gpu-mock.js)
 //   frameShare(cls)              the ms a frame what is paced in class cls may take now: the whole frame (FRAME_MS)
 //                                behind the veil, its class's share (FRAME_MS_BY_CLASS) once the first view shows
-//   pace(least)                  how many of something a frame: { n, left, tick(), measured(count, ms, budget) }: a frame
-//                                begins with tick() (left = n); a piece of `count` of them took `ms` of a `budget` (ms a
-//                                frame): fewer at once where they took longer, at most twice as many, once a frame, where
-//                                they took less; never fewer than `least`
+//   pace(unit)                   how many of something a frame: { n, left, tick(), measured(count, ms, budget, exact) }:
+//                                a frame begins with tick() (left = n); a piece of `count` of them took `ms` of a
+//                                `budget` (ms a frame): fewer at once where they took longer, at most twice as many, once
+//                                a frame, where they took less. Never fewer than `unit`, the whole of its work it does at
+//                                the least a frame (a piece, a page, a window), on a time heard on the page's thread
+//                                (ownGpuMs: a busy frame holds it back, and charges its stall to what was handed over
+//                                before it); fewer only on the GPU's own time of it (exact: its timestamps, or the
+//                                frame held), down to one
 //   passBegins(name)             a pass named `name` begins (src/core/gpu.js mark; null: none): the one before ends, and
 //                                its own time on the GPU is added to its name's, as ownGpuMs takes it (from when it
 //                                began, or the GPU was done with all handed before, to when it is done)
@@ -73,15 +77,21 @@ export function spentSince(reader, names) {
   return first ? 0 : ms;
 }
 
-/** How many of something a frame, following their measured time to a budget (above). From `least` a frame. */
-export function pace(least = 1) {
+/** How many of something a frame, following their measured time to a budget (above). From `unit` a frame, the whole
+    of its work it does at the least, and never fewer on a time heard on the page's thread: what was done is heard when
+    the frame lets the page hear it, and a stall of the frame is charged to the piece handed over before it (2026-11-19,
+    WebKit: pieces of the ground's maps of about 4 ms of the GPU, timed with the frame held, heard as 231 and 0 ms, 461
+    and 0, a block of 64 texels as seconds; a pace held to one such piece a frame by them drew a window in minutes).
+    Fewer only where the time is the GPU's own (exact: its timestamps, or the frame held): down to one. */
+export function pace(unit = 1) {
   const P = {
-    n: least, left: least, frame: 0, grew: -1,
+    n: unit, left: unit, frame: 0, grew: -1,
     /** A frame begins: as many as the pace says. */
     tick() { P.frame++; P.left = P.n; },
-    /** `count` of them took `ms` on the GPU, of `budget` ms a frame: as many a frame as fit it. */
-    measured(count, ms, budget) {
-      const fit = Math.max(least, Math.floor((budget * count) / ms));
+    /** `count` of them took `ms` on the GPU (exact: its own time, not one heard on the page's thread), of `budget` ms a
+        frame: as many a frame as fit it. */
+    measured(count, ms, budget, exact = false) {
+      const fit = Math.max(exact ? 1 : unit, Math.floor((budget * count) / ms));
       if (fit < P.n) P.n = fit;
       else if (P.grew !== P.frame) { P.n = Math.min(fit, 2 * P.n); P.grew = P.frame; }   // (more at most once a frame, twice as many at most)
     },
