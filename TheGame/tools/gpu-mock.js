@@ -40,11 +40,12 @@ globalThis.GPUTextureUsage ??= { COPY_SRC: 1, COPY_DST: 2, TEXTURE_BINDING: 4, S
 export async function mock({ webgl = false, dpr = 1, record = false, lean = false, size = [1920, 1080] } = {}) {
   const THREE = await import('three/webgpu'), TSL = await import('three/tsl');
   globalThis.devicePixelRatio = dpr;
-  const Builder = webgl ? THREE.GLSLNodeBuilder : THREE.WGSLNodeBuilder, features = new Set(['indirect-first-instance', 'timestamp-query']);
+  const Builder = webgl ? THREE.GLSLNodeBuilder : THREE.WGSLNodeBuilder, features = new Set(['indirect-first-instance', 'timestamp-query', 'texture-compression-bc']);   // (every feature the game asks of a device: a Mac's, BC's packed paint among them, src/materials/bake.js)
   const ids = new Map(), id = (o) => (o == null ? null : (ids.has(o) || ids.set(o, `#${ids.size}`), ids.get(o)));
   const calls = [], drawn = new Set(), computed = new Set(), done = () => ({ destroy() {} });
   const device = { features, limits: { maxStorageBufferBindingSize: 2 ** 30, maxBufferSize: 2 ** 30, maxComputeWorkgroupsPerDimension: 65535, maxTextureArrayLayers: 2048, maxUniformBufferBindingSize: 65536, maxTextureDimension2D: 8192 },
-    createBuffer: done, createTexture: done, queue: { writeBuffer() {}, writeTexture() {}, submit() {} } };
+    createBuffer: done, createTexture: done, queue: { writeBuffer() {}, writeTexture() {}, submit() {} },
+    createCommandEncoder: () => ({ copyBufferToTexture() {}, copyBufferToBuffer() {}, copyTextureToTexture() {}, finish: () => ({}) }) };   // (an encoder of copies: what the game copies on the GPU itself, src/materials/bake.js's packed blocks into their layers)
   const backend = { isWebGPUBackend: !webgl, isWebGLBackend: webgl, compatibilityMode: false, parameters: {}, get: () => ({}), device: webgl ? null : device,
     coordinateSystem: webgl ? THREE.WebGLCoordinateSystem : THREE.WebGPUCoordinateSystem,   // (as each of three's backends says it: the node code built for it, MathNode's atan2, the shadows' and the screen's depth, as the game's)
     capabilities: { getUniformBufferLimit: () => 65536 }, utils: { getTextureSampleData: () => ({ primarySamples: 1, samples: 1, isMSAA: false }) },
@@ -56,7 +57,7 @@ export async function mock({ webgl = false, dpr = 1, record = false, lean = fals
     xr: { enabled: false }, shadowMap: { enabled: false }, lighting: { getNode: () => null }, isOutputTarget: false, highPrecision: false, autoClear: true,
     currentColorSpace: THREE.LinearSRGBColorSpace, outputColorSpace: THREE.LinearSRGBColorSpace, toneMapping: THREE.NoToneMapping,
     hasFeature: () => true, hasCompatibility: () => false,   // (every feature: every path of the node code is built)
-    getColorBufferType: () => THREE.HalfFloatType, getMRT: () => mrt, setMRT: (m) => { mrt = m; }, getOutputRenderTarget: () => null, getPixelRatio: () => dpr,   // (mrt: what a pass writes, src/core/pass.js twinOf)
+    getColorBufferType: () => THREE.HalfFloatType, getMRT: () => mrt, setMRT: (m) => { mrt = m; }, getOutputRenderTarget: () => null, getPixelRatio: () => dpr, initTexture() {},   // (initTexture: a texture made on the GPU before it is first drawn, src/materials/bake.js's packed layers)   // (mrt: what a pass writes, src/core/pass.js twinOf)
     size: { W: size[0] * dpr, H: size[1] * dpr }, getDrawingBufferSize: (v) => v.set(renderer.size.W, renderer.size.H), getSize: (v) => v.set(renderer.size.W / dpr, renderer.size.H / dpr), setSize() {}, setPixelRatio() {},
     getRenderTarget: () => target, setRenderTarget: (t) => { target = t; if (record) calls.push(`target ${id(t)}`); },
     render: (o) => { drawn.add(o); if (record) calls.push(`render ${id(o)}`); }, clear() {}, setRenderObjectFunction() {}, getRenderObjectFunction: () => null, setViewport() {}, setScissor() {}, setScissorTest() {}, copyTextureToTexture() {}, copyFramebufferToTexture() {}, setAnimationLoop() {}, dispose() {}, setClearColor() {}, getClearColor: (c) => c, getClearAlpha: () => 1, initRenderTarget() {},
