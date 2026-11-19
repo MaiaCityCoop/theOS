@@ -21,7 +21,8 @@ let K = null;
 /** The line no frame's worst tile may cross in motion, for a tile `size` pixels wide (every frame's worst tile's: the
     FLIP tiles', tools/gate/flip.js): a switch within the dial moves an edge by at most ERROR_PX pixels drawn, INSIDE
     canvas pixels each, so across the tile at full contrast (FLIP at most 1) it changes the tile's mean by at most
-    ERROR_PX × INSIDE / size (1 × 4/3 / 32 = 0.042). A pop is a tile over it. */
+    ERROR_PX × INSIDE / size (INSIDE: the most rows the game draws over the output's, src/core/output.js drawnRows: at
+    the gate's output 1, 1 × 1 / 32 = 0.031). A pop is a tile over it. */
 const lineOf = (size) => (ERROR_PX() * K.INSIDE) / size;   // (the dial as the gate holds it: at rest)
 /** What the filmstrip shows of a frame beside it: the squares round its worst tile, as `other` (the truth, or the game
     again) has them too. */

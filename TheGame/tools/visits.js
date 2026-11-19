@@ -1,14 +1,15 @@
 // The cells each tier's packing visits at the bench's six views (intent 0038, #82 v2; CPU only, `bun tools/visits.js
 // [per] [walk] [turn] [dial]`: per, each tier). The world's own tiers: the plants' levels and stand-ins (src/scatter/trees.js),
-// the meadow's rings (grass.js). The measure at the gate's: a 1080 window drawn at 4/3 (1440 pixels drawn), the dial at
-// rest. A view: the cells #82 looked at (patches of P x P cells, at most 384 a tier, in scan order) against the cells the
+// the meadow's rings (grass.js). The measure at the gate's: the output's window drawn at the most rows the game draws
+// (src/core/output.js drawnRows), the dial at rest. A view: the cells #82 looked at (patches of P x P cells, at most 384 a tier, in scan order) against the cells the
 // resident regions (src/scatter/regions.js Resident) visit to fill their store from nothing, every way round.
 // walk: from each view straight ahead, the cells the resident regions visit a metre (what is new or has run out), their
 // CPU time, and the cells they hold at the end. turn: from each view the camera turned 90° on the spot, a degree a frame:
 // the cells they visit (none: nothing they hold asks the view). dial: from each view the measure stepped as the governor
 // steps it (an eighth of the pixels drawn down, twice, and back), the cells visited each step, against packing it all again.
 const G = new URL('..', import.meta.url).pathname.replace(/\/$/, '');   // (TheGame/)
-Object.assign(globalThis, { innerHeight: 1440, innerWidth: 2560, window: globalThis, addEventListener() {}, devicePixelRatio: 1 });
+const { OUTPUT } = await import(`${G}/src/core/budget.js`), { drawnRows } = await import(`${G}/src/core/output.js`);
+Object.assign(globalThis, { innerHeight: OUTPUT.height, innerWidth: OUTPUT.width, window: globalThis, addEventListener() {}, devicePixelRatio: 1 });
 await import(`${G}/tools/glob.js`);
 await import(`${G}/src/core/registry.js`);
 const THREE = await import('three/webgpu');
@@ -25,7 +26,7 @@ const { recipes } = await import(`${G}/src/core/registry.js`);
 const { VIEWS } = await import(`${G}/tools/bench.js`);
 const K = dialK(), MAXP = 384, patch82 = (cell, reach) => Math.min(256, Math.max(4, 2 ** Math.ceil(Math.log2(Math.max(1, (0.105 * reach) / cell)))));
 const M = (x) => (x / 1e6).toFixed(2);
-console.log(`the measure: ${K.toFixed(1)} dial pixels a metre at a metre (1440 drawn, the dial at rest), gone at ${GONE.toFixed(2)} of them`);
+console.log(`the measure: ${K.toFixed(1)} dial pixels a metre at a metre (${drawnRows()} drawn, the dial at rest), gone at ${GONE.toFixed(2)} of them`);
 
 // ---- the tiers: { name, cell, P (#82's), near, far, cull, fixed, metres } ----
 const tiers = [];
@@ -33,7 +34,7 @@ for (const Gp of groupsOf(rowsOf())) {
   const L = Gp.L, lv = Gp.kinds[0].levels, sLo = Math.min(...Gp.kinds.map((k) => k.lo)), sHi = Math.max(...Gp.kinds.map((k) => k.hi));
   lv.forEach((l, i) => {
     const band = bandOf({ lo: l.lo, hi: i ? lv[i - 1].lo : Infinity }, Gp.fade, padOf(L.cell, l.P)), at = (k) => { const [n, f] = band.reach(sLo, sHi, k); return [i ? n : 0, f]; };
-    const reach82 = (sHi * K * Math.exp(Gp.fade)) / (l.lo * 0.75);   // (#82 cut its patches at a 1440 window's CSS pixels: 3/4 of these)
+    const reach82 = (sHi * K * Math.exp(Gp.fade)) / (l.lo * 0.75);   // (#82 cut its patches at the CSS pixels of a window 4/3 the output's rows, drawn at the output's: 3/4 of these)
     tiers.push({ name: `${Gp.name} ${i}`, cell: L.cell, P: patch82(L.cell, reach82), near: at(K)[0], far: at(K)[1], at, cull: 0 });
   });
   const casting = Gp.kinds.filter((Kd) => Kd.asset.detail.shadow && Kd.row.detail.casts);
