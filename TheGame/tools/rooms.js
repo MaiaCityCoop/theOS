@@ -13,12 +13,12 @@
 // The hierarchies are built here as the recipes' workers build them (the same code, meshoptimizer's WebAssembly), in a
 // process of its own each time (`node tools/rooms.js`: what it imports is read afresh, a kit as it is now). The dev
 // server runs it as it makes the registry (vite.config.js), and after.
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
-import { pathToFileURL, fileURLToPath } from 'node:url';
+import { readFileSync, existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { blake3 } from '@noble/hashes/blake3.js';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
-import { kitsOf, buildRegistry } from './registry.js';
+import { kitsOf, buildRegistry, writeIfChanged, runTool } from './registry.js';
 import { build, tailFrom, ready } from '../assets/kit/clusters.js';
 import { useBuilder, levelSizes } from '../assets/kit/surface.js';
 import { rockHierarchy } from '../assets/kit/rock.js';
@@ -62,11 +62,8 @@ export async function buildRooms(root) {
   }
   out['zoo: blobs'] = zooRooms(root, was['zoo: blobs']);
   const text = JSON.stringify(out, (k, v) => (Array.isArray(v) && v.every((x) => typeof x === 'number') ? `[${v.join(', ')}]` : v), 2).replace(/"\[([\d, ]*)\]"/g, '[$1]') + '\n';
-  if (!existsSync(path) || readFileSync(path, 'utf8') !== text) writeFileSync(path, text);
+  writeIfChanged(path, text);
   return out;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const t0 = performance.now(), R = await buildRooms(resolve(dirname(fileURLToPath(import.meta.url)), '..'));
-  console.log(`[rooms] ${Object.keys(R).length - 1} solids, ${Math.round(performance.now() - t0)} ms`);
-}
+await runTool(import.meta.url, buildRooms, (R) => `[rooms] ${Object.keys(R).length - 1} solids`);

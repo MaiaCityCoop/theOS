@@ -28,6 +28,18 @@ machine is too short for a measure. It is the hour's first line after Ready. Bef
 `git config gate.wgsl true`, or `git -c gate.wgsl=true push` once. Where another run holds the GPU, the push says
 so and goes on.
 
+It also times what each shader costs, so an owner knows which one to shrink and by how much:
+- **What is timed:** every pipeline's WGSL bytes, its modules' compile, and its own making, one pipeline at a time, in
+  each engine. The board shows the 20 costliest, each named by the step of the start that made it and the game's own
+  files where it is made (`src/terrain/pages.js:226 < src/terrain/terrain.js:61`).
+- **Ceilings:** the worst pipeline and the world's total are held to `tools/gate/shaders.json`, set from main's run
+  with `--ratchet` and only ever lowered.
+- **Cold, once per shader set:** a Mac keeps compiled shaders from run to run (Metal's cache: a second run took a
+  tenth of the first). So each set of shaders is marked (a private variable its entry point writes, so the driver's
+  source is new) and measured once cold. Its numbers are kept in `.gate/wgsl/` for later runs of the same set.
+- **Not measured:** where the machine was short of memory or swapped (`machine.js`), the run says so, and the set is
+  measured again next time under a new mark.
+
 ## Motion: nothing pops (check 4)
 
 `bun tools/gate.js motion --url <your server> --fresh [--paths walk,zoom] [--fps 60]`

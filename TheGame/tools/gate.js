@@ -57,10 +57,12 @@
 //                                                                stress world (src/scatter/stress.js)
 //   bun tools/gate.js all [--tag t] [--views a,b]                stills of this code and of ?truth, their diff, the
 //                                                                bench, the compile and the paths, in one table
-//   bun tools/gate.js wgsl                                       every shader module the smoke builds, compiled on this
+//   bun tools/gate.js wgsl [--ratchet]                           every shader module the smoke builds, compiled on this
 //                                                                machine's GPU in a blank page of Chrome and of WebKit,
 //                                                                no game loaded: each module's errors and every
-//                                                                pipeline made of them; exit 1 on any (tools/gate/wgsl.js)
+//                                                                pipeline made of them, exit 1 on any; and what each
+//                                                                costs, cold, the worst and the world's total against
+//                                                                tools/gate/shaders.json (--ratchet: lowered to them)
 //   bun tools/gate.js device [--secs s]                          the device on the machine the 8 GB gate is for
 //                                                                (budget.js MACHINE, in WebKit): GPU memory by the
 //                                                                game's ledger, its peak and where it settles, the
@@ -706,9 +708,10 @@ async function board(tag, at) {
   const R = JSON.parse(readFileSync(`${at}${tag}/summary.json`, 'utf8')), S = R.start;
   const out = [...(R.stills?.lod ?? []).map((v) => `${v} (stills)`), ...(R.stills?.truth ?? []).map((v) => `${v} (?truth)`), ...Object.keys(R.bench?.unsettled ?? {}).map((v) => `${v} (bench)`), ...['cold', 'warm'].flatMap((c) => Object.entries(R.paths?.[c]?.paths ?? {}).filter(([, r]) => r.notSettled).map(([k]) => `${k} (paths, ${c})`))];
   const mem = memoryOn(R.smoke);
-  const { wgslLine } = await import('./gate/wgsl.js');
+  const { wgslLines, costBlock } = await import('./gate/wgsl.js');
   const md = [`# The hour on main, ${tag} (${OUTPUT.width} × ${OUTPUT.height}), ${new Date().toISOString().slice(0, 16)}`, '',
-    ...head(R, (await import('./gate/device.js')).readyLine).flatMap((l, i) => (i ? [l] : [l, wgslLine(R.wgsl)])),   // (first: was it measured, did the game come at all; the WGSL on the device; the machine)
+    ...head(R, (await import('./gate/device.js')).readyLine).flatMap((l, i) => (i ? [l] : [l, ...wgslLines(R.wgsl)])),   // (first: was it measured, did the game come at all; the WGSL on the device and what it costs; the machine)
+    ...costBlock(R.wgsl),
     mem.line,
     ...(await import('./gate/device.js')).lines(R.device), '',
     S?.settled === false ? `**The start did not settle** in ${(S.ms / 1000).toFixed(0)} s: ${String(S.said).slice(0, 300)}` : `The start settled in ${((S?.ms ?? 0) / 1000).toFixed(1)} s.`,
@@ -759,7 +762,7 @@ try {
   else if (cmd === 'real') { const real = async () => (await import('./gate/real.js')).real(pos[0], opt); r = await ((opt.device ?? 'cpu') === 'cpu' ? real() : locked('real', real)); }   // (on a GPU, mps: in its turn)
   else if (cmd === 'all') r = await onMachine(() => all(opt));   // (its parts take their turns one by one: the machine read over the whole)
   else if (cmd === 'hourly') { r = await hourly(opt); if (r?.fails?.length) process.exitCode = 1; }   // (the hour fails where the GPU's memory went past a budget)
-  else if (cmd === 'wgsl') { r = await locked('wgsl', async () => (await import('./gate/wgsl.js')).wgsl()); if (!r.pass) process.exitCode = 1; }   // (no game, no measure: on any machine)
+  else if (cmd === 'wgsl') { r = await locked('wgsl', async () => (await import('./gate/wgsl.js')).wgsl(opt)); if (!r.pass) process.exitCode = 1; }   // (no game, no measure: on any machine)
   else if (cmd === 'device') r = await measured('device', async () => (await import('./gate/device.js')).device(BASE, opt.secs ? { secs: +opt.secs } : {}));
   else if (WITH[cmd]) { const chrome = await launch(opt); try { r = await WITH[cmd](chrome); } finally { await closeHard(chrome, chrome.gateDir); } }
   else { console.log('bun tools/gate.js wgsl | device | walks | smoke | stills | diff | noise | bench | compile | paths | motion | real | all | hourly: see the top of tools/gate.js'); process.exitCode = cmd ? 1 : 0; }

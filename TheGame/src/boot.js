@@ -33,6 +33,7 @@ import { taken, busy, changed } from './core/work.js';
 import { settle, ready as firstView, drawn, waiting, watch, tick, partOf, leave } from './core/settle.js';
 import { bakeTextures } from './materials/bake.js';
 import { createTerrain, landMaterials } from './terrain/terrain.js';
+import { waterReads, waterDrawn } from './terrain/water.js';
 import { createGround } from './scatter/ground.js';
 import { createScatter } from './scatter/index.js';
 import { outlinesAhead } from './scatter/trees.js';   // (what the stands need of each tree kind, reckoned in the recipes' workers)
@@ -145,6 +146,8 @@ export async function boot({ profile = 'world' } = {}) {
   const terrain = (game.terrain = createTerrain(scene, tex, renderer, world ? {} : { reach: REACH }));
   const layerPass = terrain.compile();   // the land's pages' passes, beside the others (they read no target)
   screen.afterPrepass(terrain.pages.ask, 'pages');   // (which pages the land's pixels read: src/terrain/pages.js)
+  screen.afterPrepass((f) => waterReads(f, temporal.history(), temporal.K.most), 'water');   // (what the water reflects of the world: the frame before, src/terrain/water.js)
+  screen.apart(terrain.waterMesh, (render) => waterDrawn(renderer, render), 'water');   // (drawn on its own, its time taken: its march held to its share)
   mark('terrain');
   const scatterOf = (g) => {
     g.scatter = createScatter(g.into, tex, g.ground, renderer, camera);
@@ -161,7 +164,7 @@ export async function boot({ profile = 'world' } = {}) {
   const weather = (game.weather = createWeather({ scene, renderer, camera }));
   for (const id of weather.ids) game[id] = weather[id];
   game.sky = sky;   // the sun and the sky: one time of day drives the light (intent 0007)
-  const shadows = createLight(renderer, { groundAt });   // the light's passes before a frame: the shadow cascades and the canopy map (src/world/light/index.js), read by every surface (src/world/light.js)
+  const shadows = createLight(renderer, { groundAt, land: terrain.pages });   // the light's passes before a frame: the shadow cascades and the canopy map (src/world/light/index.js), read by every surface (src/world/light.js)
   game.light = game.shadows = shadows;
   game.controls = controls;
   const city = world ? (game.city = createCity({ scene, camera, canvas, renderer, compile: (o) => screen.compile(o, camera, scene) })) : null;   // (compiled for the target the world is drawn into)
