@@ -17,6 +17,7 @@ import { dialK } from '../detail/measure.js';
 import { BAND, GONE } from '../detail/error.js';
 import { rankOf } from './rule.js';
 import { growthMap } from './growth.js';   // (a blade's turn in the one spread order, as everything placed has it)
+import { ARRIVED, sinkInto } from '../detail/handover.js';
 
 const u8 = (h, sh) => float(h.shiftRight(uint(sh)).bitAnd(uint(0xFF))).mul(1 / 256);   // one byte of a hash, 0..1
 
@@ -241,9 +242,11 @@ function bladeMaterial(T, tallest) {
         const k0 = windAt(pos, time).mul(flutter.add(1)).mul(float(1).sub(flower.mul(0.5))), kl = length(k0);
         return k0.mul(min(kl, 1.25).div(kl.max(1e-5)));   // in a storm a blade may lie nearly flat
       };
-      const at = (k) => {   // pushed, it bows
+      // pushed, it bows; and a ring that came after the first view rises out of the ground as it comes, as every last
+      // level sinks into it (its mesh's arrival, src/core/screen.js: sinkInto, src/detail/handover.js)
+      const at = (k) => {
         const up = hgt.mul(t).mul(float(1).sub(bend.mul(0.42).mul(t))).mul(float(1).sub(k.dot(k).mul(0.4).mul(t)));
-        return vec3(pos.x, R.gh, pos.y).add(vec3(side.x, 0, side.y).mul(s.mul(wd))).add(vec3(dir.x.mul(fw).add(k.x.mul(hgt).mul(lean)), up, dir.y.mul(fw).add(k.y.mul(hgt).mul(lean))));
+        return vec3(pos.x, R.gh, pos.y).add(sinkInto(vec3(side.x, 0, side.y).mul(s.mul(wd)).add(vec3(dir.x.mul(fw).add(k.x.mul(hgt).mul(lean)), up, dir.y.mul(fw).add(k.y.mul(hgt).mul(lean)))), ARRIVED));
       };
       const k = push(U.uTime), kk = k.dot(k), w = at(k);
       const tg = normalize(vec3(dir.x.mul(2).mul(bend).mul(t).add(k.x.mul(2.2).mul(t)), float(1).sub(bend.mul(0.6).mul(t)).sub(kk.mul(0.8).mul(t)), dir.y.mul(2).mul(bend).mul(t).add(k.y.mul(2.2).mul(t))));
@@ -272,7 +275,12 @@ function bladeMaterial(T, tallest) {
 /** The asset `grass`: a tier a ring (ringsOf). gpu: on WebGPU, what stands is packed by a compute pass (tier.js). Each
     ring's band is the measure's (bandsOf), reckoned again as it changes (the window, the governor's ratio, the dial:
     tier.js reband), its numbers uniforms. ?truth is the dial (src/detail/measure.js): its rings and its end by the same
-    rule, at its own pixel. */
+    rule, at its own pixel. On WebGPU the rings are one kind of tier (tier.js kindOf: one store, one set of its passes),
+    each ring's band told the kind's numbers before it packs (table), and drawn by one material wherever they read alike
+    (src.share: their kind, their culling): every ring is the blade in its own cells (ringsOf: the asset's cell and half
+    width), so all a material reads of its ring is what its mesh tells (where its things lie, its culling, its arrival).
+    (2026-11-19: a material and a set of passes a ring, each built again with the same code.) Each ring's meshes tell
+    where its band begins (userData.near): what lies past the near cascade comes after the first view, and rises. */
 export function createGrass(scene, tex, ground, asset, gpu = false) {
   const rings = asset.tiers, now = () => bandsOf(rings, asset.height, dialK());
   // (the tallest a blade stands: its own most (bladeIn: 0.5 of the asset's height, and its own and its tuft's share, a
@@ -280,16 +288,20 @@ export function createGrass(scene, tex, ground, asset, gpu = false) {
   const tallest = asset.height * (0.5 + 0.55 + 0.8 + 0.35) * Math.max(1, ...BIOMES.map((b) => b.grass?.height ?? 1));
   U.uMeadowTop.value = meanTop(asset.height);   // (what the carpet is raised to past the blades: src/terrain/material.js)
   U.uMeadowOptics.value.set(...opticsOf(asset.height, rings[0]));   // (how much of it shows from where the eye is: meadowSeen)
+  const BANDS = ['near', 'nearFade', 'far', 'farFade'], numbers = (R) => ({ cell: uniform(R.cell), w: uniform(R.w), ...Object.fromEntries(BANDS.map((key) => [key, uniform(0)])) });
+  const KIND = numbers(rings[0]), mats = new Map();   // (the kind's numbers, what packs every ring; its materials, by what they read)
   return rings.map((R, k) => {
-    const T = { cell: uniform(R.cell), w: uniform(R.w), near: uniform(0), nearFade: uniform(0), far: uniform(0), farFade: uniform(0) };
+    const own = numbers(R), T = gpu ? KIND : own;   // (a ring's own band; what reads it: the kind's, told it before it packs, or, worked out per vertex without WebGPU, its own)
     // (its store and its gather: tier.js; without WebGPU both at once, per vertex)
     const found = (c, Q) => bladeIn(c, asset, T, ground, Q.pad, tallest), select = (rows) => bladeOf(rows, T, tallest);
     const live = (c) => { const F = found(c, { pad: float(0) }), S = select(F.data); return { alive: F.alive.and(S.alive), data: S.data }; };
     const make = bladeMaterial(T, tallest);
     const material = (src) => {
+      if (src.share && mats.has(src.share)) return mats.get(src.share);
       const { m, shape } = make();
       m.vertexNode = src.read ? Fn(() => shape(src.read(0)))()   // ready-made by the compute pass
         : Fn(() => { const L = live(src), out = offScreen().toVar(); If(L.alive, () => { out.assign(shape(...L.data)); }); return out; })();   // the fallback: worked out here, per vertex
+      if (src.share) mats.set(src.share, m);
       return m;
     };
     // a blade's box, for the eye's culling (src/core/occlusion.js): from its foot up its height, out as far as it bends
@@ -298,11 +310,13 @@ export function createGrass(scene, tex, ground, asset, gpu = false) {
     // material reads it
     const wide = R.w * 1.25;
     const bounds = (A) => { const B = rowOf(A, T, tallest), L = looksOf(B, B.rgb, B.a), h = B.hgt, reach = h.mul(L.bend.add(0.6).mul(1.15)).add(wide + 0.02); return { c: vec3(B.pos.x, B.gh.add(h.mul(0.5)), B.pos.y), h: vec3(reach, h.mul(0.5).add(0.02), reach), w: h.mul(1.1) }; };
-    const t = new Tier(scene, blade(R.segs), material, { cell: R.cell, P: R.P, near: 0, far: 0, order: 0, found, select, metres: true, gpu, slots: 1, bounds, cls: 'ground', label: `the meadow, ring ${k}` });
+    const table = () => { for (const key of BANDS) KIND[key].value = own[key].value; };
+    const t = new Tier(scene, blade(R.segs), material, { cell: R.cell, P: R.P, near: 0, far: 0, order: 0, found, select, metres: true, gpu, slots: 1, bounds, cls: 'ground', kind: KIND, table, label: 'the meadow' });
     t.band = () => {   // (its band as the measure is now: tier.js reckons every tier's again when it changes)
       const N = now(), b = N.bands[k];
-      for (const key of ['near', 'nearFade', 'far', 'farFade']) T[key].value = b[key];
+      for (const key of BANDS) own[key].value = b[key];
       U.uMeadowEnd.value = N.end; t.near = Math.max(0, b.near - b.nearFade); t.far = b.far;
+      for (const m of t.meshes) m.userData.near = t.near;   // (where its band begins, metres: what the first view waits for, src/core/screen.js)
     };
     t.band(); t.label(`grass, ring ${k}`);
     if (growthMap()) t.reads = growthMap().version;   // (packed again when what grows over it changes)
