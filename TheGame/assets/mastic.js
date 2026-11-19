@@ -5,6 +5,7 @@
 // shares of it. An asset in the one recipe (assets/index.js), of kind `shrub` (assets/kinds.js), scattered by the
 // trees' engine in the pine forest's understory (biomes/pineforest.js `shrubs`), of which it takes its share.
 import { tree, builder, bush } from './kit/tree.js';
+import SHOOT from '../materials/masticleaf.twigs.js';
 
 const woodCol = [0.15, 0.13, 0.11], leafCol = [0.04, 0.075, 0.03];   // (for a picture without the textures)
 // the bush: its stems and branches, its branch ends; S its shape. As many cards as the mound it was (56 places, three
@@ -31,6 +32,9 @@ export default tree({
   colours: { wood: woodCol, leaves: leafCol },
   materials: { wood: 'fb5ce908-7437-45b6-879f-154de32d12b9' /* holm oak bark */, leaves: 'caac10dc-f24f-4509-a3b4-7f9c817afd63' /* mastic branch end */ },
   foliage: { wrap: 0.35, through: 0.2, flutter: 0.5 },   // (thick, leathery leaves: little light through them)
+  // its finest laid out as its branch ends' shoots, each a card of one shoot (assets/kit/tree.js splayOf), as a holm
+  // oak's is of its twigs: seen close, a cluster with depth, not two crossed pictures
+  fine: { sprig: SHOOT, twig: '419b2f7e-5c2b-484c-ab0e-d3396ab658ac' /* mastic shoot */ },
   shapes: [{ r: 1.5, h: 1.75, lobes: 3, seed: 611 }, { r: 1.15, h: 1.25, lobes: 2, seed: 612 }],
   grow,
   // where it grows (src/scatter/rule.js): under the pine forest's crowns and between them; light: how thick in deep
