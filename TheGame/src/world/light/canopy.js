@@ -36,7 +36,7 @@ import { Fn, float, vec2, vec3, vec4, ivec2, uniform, texture, screenCoordinate,
 import { castRoute, arrived, CASTS, cascades } from '../shadow.js';
 import { drawMade } from '../../core/compile.js';
 import { shown, arriving } from '../../core/settle.js';
-import { note, mark } from '../../core/gpu.js';
+import { note, more, mark } from '../../core/gpu.js';
 import { HMIN, HMAX } from '../land.js';
 import { WALKER } from '../../../world/scale.js';
 
@@ -98,7 +98,7 @@ export function createCanopy(renderer, { groundAt, land, crowns }) {
   const atlas = () => { const rt = new THREE.RenderTarget(2 * S, S, { count: 0, depthBuffer: true }); rt.depthTexture = new THREE.DepthTexture(2 * S, S); rt.depthTexture.type = THREE.FloatType; return rt; };
   const target = () => new THREE.RenderTarget(P, P, { type: THREE.HalfFloatType, depthBuffer: false, generateMipmaps: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
   const maps = [atlas(), atlas()], probes = [target(), target()];   // (each a pair: the one the materials read, the one being made)
-  note('the canopy map, its probes and the ground round the eye', 2 * (2 * S * S * 4 + P * P * 8) + 8, 0, 'light');
+  note('the canopy map, its probes and the ground round the eye', 2 * (2 * S * S * 4 + P * P * 8) + 8, 0, 'light', maps, probes);
   // the cameras: straight down from above, straight up from below (both with north at the top of their picture)
   const cam = (down) => { const c = new THREE.OrthographicCamera(-side / 2, side / 2, side / 2, -side / 2, 0, 2 * UP); c.layers.set(CASTS); c.up.set(0, 0, down ? -1 : 1); c.userData.shadow = true; return c; };   // (shadow: what is drawn keeps the levels the eye chose, src/detail/index.js)
   // (a caster drawn once it is made, and the map made again, all at once, once what it left out has come: made by need,
@@ -126,6 +126,7 @@ export function createCanopy(renderer, { groundAt, land, crowns }) {
   // the ground round the eye: the land's pages read at the level whose texels are that wide (lod: no steps in a quad's
   // pass to read by), into one texel
   const groundTo = new THREE.RenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: false, generateMipmaps: false }), R = 2 * cascades().casters.crown;
+  more('the canopy map, its probes and the ground round the eye', 0, 0, 'light', groundTo);   // (counted with the map's note: owned by it too)
   const groundMat = new THREE.NodeMaterial();
   groundMat.fragmentNode = Fn(() => vec4(land.read(CANOPY.mapAt.xy, vec2(R, 0), vec2(0, R), float(0), { lod: true }).c, 1))();
   const groundQuad = new THREE.QuadMesh(groundMat);

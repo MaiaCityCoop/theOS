@@ -131,7 +131,7 @@ export function createShadows(renderer) {
   const rt = new THREE.RenderTarget(S, S, { count: 0, depthBuffer: true, depth: n });
   rt.depthTexture = new THREE.DepthTexture(S, S, THREE.FloatType, undefined, undefined, undefined, THREE.LinearFilter, THREE.LinearFilter, undefined, THREE.DepthFormat, n);
   rt.depthTexture.compareFunction = THREE.LessEqualCompare;   // read with a comparison sampler: filtered PCF (src/world/light.js)
-  note('shadow cascades', n * S * S * 4, 0, 'light');
+  note('shadow cascades', n * S * S * 4, 0, 'light', rt);
   U.uShadowPull.value = C.bias[0];   // (what casts pulled towards the light, by the near cascade's bias: light.js casterPull)
   const cams = half.map(() => { const c = new THREE.OrthographicCamera(); c.layers.set(CASTS); c.userData.shadow = true; return c; });
   // each cascade as it was last drawn: the light and the eye it was drawn for, whether something that moves stood in

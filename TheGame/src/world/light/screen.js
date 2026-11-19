@@ -89,7 +89,7 @@ function createScreenLight(renderer) {
       if (!rt || rt.width !== w || rt.height !== h) {
         rt?.dispose();
         rt = new THREE.RenderTarget(w, h, { type: THREE.UnsignedByteType, format: THREE.RedFormat, depthBuffer: false, generateMipmaps: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
-        note('the contact shadows', w * h, 0, 'light');
+        note('the contact shadows', w * h, 0, 'light', rt);
       }
       depth.value = depthTex; size.value.set(w, h);
       proj.value.copy(camera.projectionMatrix); unproj.value.copy(camera.projectionMatrix).invert(); view.value.copy(camera.matrixWorldInverse); viewInv.value.copy(camera.matrixWorld);
