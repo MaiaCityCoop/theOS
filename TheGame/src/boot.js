@@ -31,7 +31,8 @@ import { setPlanes } from './core/frustum.js';
 import { createGovernor } from './core/governor.js';
 import { frameDone } from './core/pace.js';   // (each frame's own time on the GPU, what the governor judges)
 import { createHud } from './core/hud.js';
-import { useGPU, askedLimits, adapterOf, ledger } from './core/gpu.js';
+import { useGPU, askedLimits, adapterOf, ledger, planDial } from './core/gpu.js';
+import { makePools, flushPools } from './core/pool.js';
 import { taken, busy, changed } from './core/work.js';
 import { part as framePart, begin as frameBegins, enter as frameIn, end as frameEnds, now as frameSoFar, take as framesTaken } from './core/frames.js';   // where each frame's time went on the page's thread: __game.frames()
 import { settle, ready as firstView, drawn, waiting, watch, tick, partOf, leave } from './core/settle.js';
@@ -136,6 +137,7 @@ export async function boot({ profile = 'world' } = {}) {
   const governor = createGovernor(renderer, { apply: (r) => screen.set(r), most: () => screen.out });   // (the drawn ratio within the canvas's)
   game.governor = governor;   // the film holds it still while it plays
   keepMeasure(() => screen.drawn, () => screen.out);   // the one measure of size on screen, for every level of detail, at the rows drawn; capacities at the canvas's (src/detail/measure.js)
+  makePools(planDial());   // what is made once at the start, its need planned before any of it is made: the dial at rest solved once, the pools made at it (src/core/gpu.js, src/core/pool.js)
   governor.hold(DIAL_ASKED < 1);   // (a page drawn finer than the dial's rest, ?truth's, is a still, drawn offline: no frame's time turns its dials)
   // the game's own start, at the dial's rest (the world built at the game's pace), then, once that first view is
   // complete, the dial turned to the page's least (src/detail/measure.js: the truth's; what it brings in is waited for
@@ -217,6 +219,7 @@ export async function boot({ profile = 'world' } = {}) {
     frameIn(PART.terrain);
     terrain.update(camera, dy, 1 / lod);
     frameIn(PART.scatter);
+    flushPools();   // (the pools' tables to the GPU, what has cooled freed: before anything packs, src/core/pool.js)
     if (live()) grown.scatter.select(p.x, p.z, heightAt(p.x, p.z), lod, dy);
     bounds?.(p.x, p.z);
   }
