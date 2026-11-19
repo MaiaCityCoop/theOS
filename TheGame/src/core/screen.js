@@ -82,7 +82,9 @@ export function createScreen(renderer, { temporal, lens = null }) {
     if (main) ask(object, 'main', makerOf('main', camera, scene), labelled(main, object, 'main'));
     return false;
   };
-  const drawn = (pass) => (object, scene, camera, geometry, material, ...rest) => { const m = twin[pass](material); if (m && both(object, material, camera, scene)) drawObject.call(renderer, object, scene, camera, geometry, m, ...rest); };
+  // (what is drawn on its own after the rest of the colour, apart: left out of the scene's draw of it)
+  const apartFrom = new Map();
+  const drawn = (pass) => (object, scene, camera, geometry, material, ...rest) => { if (scene !== object && apartFrom.has(object)) return; const m = twin[pass](material); if (m && both(object, material, camera, scene)) drawObject.call(renderer, object, scene, camera, geometry, m, ...rest); };
   const pre = drawn('pre'), main = drawn('main');
   const clear = new THREE.Color(), sky = new THREE.Color(), prepassed = [];
   return {
@@ -111,6 +113,10 @@ export function createScreen(renderer, { temporal, lens = null }) {
         what they show (src/terrain/pages.js); the water takes what it reflects of the world from the frame before
         (src/terrain/water.js). name: whose its passes are, for a tool's timing (src/core/gpu.js mark). */
     afterPrepass(fn, name = null) { prepassed.push([fn, name]); },
+    /** An object of the scene drawn on its own, after the rest of the colour (into its target and depth), so its own time
+        on the GPU can be taken (src/core/pace.js ownGpuMs): draw(render) calls render(), which draws it. The water,
+        whose march is held to its share of the frame by it (src/terrain/water.js). name: whose its passes are. */
+    apart(object, draw, name = null) { apartFrom.set(object, { draw, name }); },
     /** Draw the world as this camera sees it, onto the canvas. */
     render(scene, camera) {
       const t = targetsNow(), was = T.turns[1 - turn], alpha = renderer.getClearAlpha(), clearDepth = renderer.autoClearDepth;
@@ -133,7 +139,9 @@ export function createScreen(renderer, { temporal, lens = null }) {
       const ac = renderer.autoClear;
       mark('colour'); renderer.setRenderObjectFunction(main); renderer.setRenderTarget(t.main);
       const L = lightPass(); if (L) { L.frame({ camera, textures: t.pre.textures, w: size.x, h: size.y }); renderer.render(L.mesh, L.camera); renderer.autoClear = false; }
-      renderer.render(scene, camera); renderer.autoClear = ac;
+      renderer.render(scene, camera); renderer.autoClear = false;
+      for (const [o, A] of apartFrom) if (o.visible && o.parent) { mark(A.name); A.draw(() => renderer.render(o, camera)); }
+      renderer.autoClear = ac;
       renderer.setRenderObjectFunction(null); renderer.autoClearDepth = clearDepth; renderer.setRenderTarget(null); renderer.setClearColor(clear, alpha);
       if (culls) occlusion.rest();   // (every other view draws all that was packed: the shadow map, a still, a bake)
       temporal.end(camera);

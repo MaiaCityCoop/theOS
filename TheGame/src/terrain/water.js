@@ -29,6 +29,8 @@ import { blueAt } from '../world/light/noise.js';
 import { gridPoint, GRID } from './material.js';
 import { WATER } from '../world/biomes.js';
 import { WATER_IOR, WATER_RED_ABSORPTION, WATER_REFLECTANCE_F } from '../world/physics.js';
+import { FRAME_MS_BY_CLASS } from '../core/budget.js';
+import { ownGpuMs, pace } from '../core/pace.js';
 
 const water = WATER;
 
@@ -48,7 +50,18 @@ const R_INF = water.colours.deep, BB = (WATER_RED_ABSORPTION * R_INF[0]) / WATER
 // (built: how many frames a screen pixel is built from at the most, and one: src/core/temporal.js K.most. A ray marched
 // a sample every that many dial pixels, from a start of its own each frame (the blue noise), has every dial pixel of it
 // looked at within the frames a pixel is built from)
-const WAS = { depth: texture(new THREE.DepthTexture(1, 1)), colour: texture(new THREE.Texture()), size: uniform(new THREE.Vector2(1, 1)), on: uniform(0), built: uniform(1) };
+// (steps: how many samples a pixel's march takes at the most this frame: PACE's)
+const WAS = { depth: texture(new THREE.DepthTexture(1, 1)), colour: texture(new THREE.Texture()), size: uniform(new THREE.Vector2(1, 1)), on: uniform(0), built: uniform(1), steps: uniform(1) };
+// how many samples a march takes at the most: held to what the water's own draw takes on the GPU, within the light's share
+// of the frame (src/core/budget.js FRAME_MS_BY_CLASS; its time measured each frame, src/core/pace.js), so it never costs
+// more than that on any GPU; from one
+const PACE = pace();
+/** The water drawn (src/core/screen.js apart: render() draws it), its own time on the GPU taken, the march's most samples
+    following it. */
+export function waterDrawn(renderer, render) {
+  PACE.tick(); WAS.steps.value = PACE.n;
+  ownGpuMs(renderer, render)?.then((ms) => PACE.measured(PACE.n, ms, FRAME_MS_BY_CLASS.light)).catch(() => {});
+}
 /** Each frame after the prepass (src/boot.js): the frame before's depth (src/core/screen.js afterPrepass: depthWas), its
     kept picture (src/core/temporal.js history: null after a cut or a new size), which the water reflects the world from,
     and how many frames the picture is built from at the most (temporal's K.most). */
@@ -60,8 +73,9 @@ export function waterReads({ depthWas, w, h }, history, most) {
 /** What the world shows along the ray from w (the way R), as the last frame drew it: { c: its colour (the light's numbers,
     the air before w taken off), hit: 1 where the ray meets what that frame drew, else 0 }. The ray from w to the far
     plane, through that frame's camera (U.uWas), cut where it leaves its picture; marched along it on the picture, evenly,
-    a sample every `built` dial pixels from this pixel's own start (blueAt); a surface as thick as one step (its distance's
-    change over it); the first met, bisected down to a dial pixel. */
+    a sample every `built` dial pixels from this pixel's own start (blueAt), never more samples than the frame's pace
+    allows (WAS.steps: then as many, further apart); a surface as thick as one step (its distance's change over it); the
+    first met, bisected down to a dial pixel. */
 const worldAlong = (w, R) => {
   const out = { c: vec3(0).toVar(), hit: float(0).toVar() };
   If(WAS.on.greaterThan(0.5), () => {
@@ -73,7 +87,7 @@ const worldAlong = (w, R) => {
       If(g1.lessThan(0).and(g0.greaterThan(0)), () => { s.assign(min(s, g0.div(g0.sub(g1)))); });
     }
     const e = mix(c0, c1, s), size = WAS.size, pA = c0.xy.div(c0.w).mul(vec2(0.5, -0.5)).add(0.5).mul(size), pB = e.xy.div(e.w).mul(vec2(0.5, -0.5)).add(0.5).mul(size);
-    const step = U.uErrorPx.mul(WAS.built), n = int(min(ceil(length(pB.sub(pA)).div(step)), ceil(length(size).div(step)))).toVar(), iA = float(1).div(c0.w), iB = float(1).div(e.w);
+    const len = length(pB.sub(pA)), n = int(min(ceil(len.div(U.uErrorPx.mul(WAS.built))), WAS.steps)).toVar(), iA = float(1).div(c0.w), iB = float(1).div(e.w);
     // (along the picture the distance's inverse runs straight; the scene's distance from that frame's depth: the projection's
     // own two numbers, the same but for its shift)
     const at = (f) => ({ p: mix(pA, pB, f), d: float(1).div(mix(iA, iB, f)) });
@@ -84,7 +98,7 @@ const worldAlong = (w, R) => {
       If(d.greaterThanEqual(0).and(d.lessThan(thick)), () => {
         // (bisected between the last sample and this one, down to a dial pixel)
         const lo = was.toVar(), hi = f.toVar();
-        Loop({ start: int(0), end: int(ceil(log2(WAS.built))), type: 'int', condition: '<' }, () => {
+        Loop({ start: int(0), end: int(ceil(log2(max(len.div(float(n)).div(U.uErrorPx), 1)))), type: 'int', condition: '<' }, () => {
           const m = lo.add(hi).mul(0.5), M = at(m);
           If(M.d.greaterThanEqual(scene(M.p)), () => { hi.assign(m); }).Else(() => { lo.assign(m); });
         });
