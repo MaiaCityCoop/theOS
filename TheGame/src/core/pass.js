@@ -38,7 +38,8 @@ const PRE = context({ pass: 'pre', invariant: true }), MAIN = context({ pass: 'm
 /** A thing's id's first number, a uint's 32 bits: its place in the low PLACE_BITS, as many as name every thing a store
     could hold within the GPU's budget (budget.js GPU_MB, a thing at least one vec4 row: 27 bits), and its class in the
     rest (CLASS_BITS: 31 classes; the world says 8, one a level of the made things, src/scatter/placed.js). So many
-    classes it can say (1 …; 0, none), and so many places (0 … PLACES - 1). */
+    classes it can say (1 …; 0, none), and so many places (0 … PLACES - 1): a store that outgrew them would be past the
+    whole budget first, which the ledger refuses (src/core/gpu.js). */
 const PLACE_BITS = Math.ceil(Math.log2((GPU_MB * MiB) / bytesOf('vec4'))), CLASS_BITS = 32 - PLACE_BITS, CLASSES = 2 ** CLASS_BITS - 1, PLACES = 2 ** PLACE_BITS;
 /** What a pixel's id may say drew it: its class (1 …), each a family's draw (the made things of a group at a level, …),
     and what each is (ID_CLASSES[class - 1]). */
@@ -46,10 +47,6 @@ const ID_CLASSES = [];
 /** A new class of what draws, `what` its description (a family and what of it): its number. */
 let fullSaid = false;
 export const idClass = (what) => { if (ID_CLASSES.length >= CLASSES) { if (!fullSaid) console.warn(`pass.js: more classes of what draws than ${CLASS_BITS} bits hold: the rest say none (0)`); fullSaid = true; return 0; } ID_CLASSES.push(what); return ID_CLASSES.length; };
-/** Whether a store of n things (a tier's: src/scatter/tier.js) has a place in an id for each, said once where it has
-    not (what: its name): its ids past PLACES would say another thing's. (Within the GPU's budget every store has.) */
-let placesSaid = false;
-export const placesFor = (n, what) => { if (n <= PLACES) return true; if (!placesSaid) console.warn(`pass.js: ${what} holds ${n} things, more than an id's ${PLACE_BITS} bits of place name (${PLACES}): past them their ids say another's`); placesSaid = true; return false; };
 /** A thing's id in the prepass (a material's idNode): its class and its place (its row in its tier's store,
     src/scatter/tier.js placeAt), and the first corner of its triangle as the draw numbers it (flat, its first: the
     triangle itself where a draw's corners are its own, three a triangle; else the vertex it begins with). */
