@@ -25,7 +25,7 @@
 //
 // It fails (exit 1) where a measure got worse by more than its noise: what two runs of the same code differ by, as the
 // gate measured it, the larger where two say. --again: the base's code run again (every measure); and the gate's own:
-// the bench's --twice (tools/gate/ceilings.json: a part's noise; a view's frame, the sum of its parts'), `gate.js noise
+// the bench's --twice (tools/gate/ceilings.json: a class's noise; a view's frame, the sum of its parts'), `gate.js noise
 // <tag>` (<tag>-a-vs-<tag>-b: each view's FLIP floor) and `motion --floor` (motion-<tag>-floor: each path's). A measure
 // with no noise measured is shown, never judged. The 10 % is the skill's own ("Define: the N % gate"): this tool holds no
 // number of its own.
@@ -83,7 +83,7 @@ const KINDS = {   // the skill's measures, each read from a run as [name, unit, 
 const measures = (R) => Object.entries(KINDS).flatMap(([kind, of]) => of(R).filter(([, , v]) => Number.isFinite(v)).map(([name, unit, value]) => ({ kind, name, unit, value })));
 
 // ---- noise, and the comparison ----
-/** A bench as the noise its --twice kept (ceilings.json: each part's ms): a part's its own, a view's frame the sum of its
+/** A bench as the noise its --twice kept (ceilings.json noise.classes: each class's ms): a part's its own, a view's frame the sum of its
     parts' where every one has one. */
 function twice(B, noise) {
   if (!B?.classes || !noise) return null;
@@ -99,7 +99,7 @@ function twice(B, noise) {
 function noiseOf(runs, again) {
   const N = new Map(), put = (list) => { for (const m of list) N.set(m.name, Math.max(N.get(m.name) ?? 0, m.value)); };
   const C = read(join(import.meta.dirname, 'ceilings.json'));
-  for (const R of runs) put(measures({ bench: twice(R.bench, C?.noise), flip: R.floor.flip, motion: R.floor.motion }));
+  for (const R of runs) put(measures({ bench: twice(R.bench, C?.noise?.classes), flip: R.floor.flip, motion: R.floor.motion }));
   const A = new Map(again ? measures(again).map((m) => [m.name, m.value]) : []);
   put(measures(runs[0]).filter((m) => A.has(m.name)).map((m) => ({ ...m, value: Math.abs(m.value - A.get(m.name)) })));
   return N;
