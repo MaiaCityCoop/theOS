@@ -73,7 +73,7 @@ import { lo16, hi16 } from './unpack.js';
 import { farMost, pxKMost, measureVersion, dialPxAt } from '../detail/measure.js';
 import { BAND, FADE } from '../detail/error.js';
 import { source, shown } from '../core/settle.js';
-import { gpuStorage } from '../core/gpu.js';
+import { gpuStorageLater } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
 import { shows } from '../detail/seen.js';
 
@@ -594,9 +594,10 @@ function farOf(renderer, tex, G, D) {
     const H = D().H, kindU = uniform(0, 'uint'), levelU = uniform(0, 'uint'), rowU = uniform(0, 'int'), sphereU = uniform(new THREE.Vector4(0, 0, 0, 1)), nU = uniform(0, 'int');
     const cells = Array.from({ length: A.CLUMPS * 4 }, () => new THREE.Vector4()), cellsU = uniformArray(cells, 'vec4');
     // (the tile level's card corners, a chunk's after another (chunkOrder): a chunk's planes draw their own range of
-    // them, its start and count in its cell's first two rows, never the rest of the level: as many as the level's
-    // largest room a kind has, any level)
-    const cap = Math.max(4, ...H.pools.map((p) => (p.io ? Math.max(...Array.from({ length: p.n }, (_, k) => p.io[k + 1] - p.io[k])) : p.idx))), CL = gpuStorage('uint', cap, `plants, ${G.name}: the clumps' corners`, 'geometry');
+    // them, its start and count in its cell's first two rows, never the rest of the level. As large as what is written
+    // into it, made larger before a list that would not fit (job: corners), never sized from the heap's pools as they
+    // stand when the bake is first made, which may hold nothing yet)
+    const CL = gpuStorageLater('uint', `plants, ${G.name}: the clumps' corners`, 'geometry'); CL.made = CL.make(1) / 4;
     const vUv = varyingProperty('vec2', 'bUv'), vPart = varyingProperty('float', 'bPart'), vTwig = varyingProperty('float', 'bTwig'), vN = varyingProperty('vec3', 'bN'), vZ = varyingProperty('float', 'bZ'), vAo = varyingProperty('float', 'bAo');
     const vertexAt = (id) => { const R = heapRow(H, kindU, levelU), e = R.y.add(id.mul(uint(2))), e0 = H.elems.element(e).toVar(), e1 = H.elems.element(e.add(uint(1))).toVar(); return { ...plantOf(e0, e1), tip: crowdOfElems(e0, e1, null).tip }; }, vertex = () => vertexAt(vertexIndex);
     // (its way as its picture keeps it: facing the picture, in the picture's own frame, F: src/detail/impostor.js facingOf)
@@ -662,6 +663,9 @@ function farOf(renderer, tex, G, D) {
   const keyOf = (k) => `far: ${G.name}: ${k}`;
   // (a promise of { done }: its pictures drawn and read back, the bakers free for the next shape; done, once they are
   // in the atlases and its numbers say so)
+  // (a chunks' corner list into the bake's buffer, made larger first where it would not fit: to the next power of two,
+  // so a stand's lists grow it a few times at the most, not at every bake)
+  const cornersInto = (CL, list) => { if (list.length > CL.made) CL.made = CL.make(2 ** Math.ceil(Math.log2(list.length))) / 4; CL.write(0, list); };
   // (each shape's far data from its outline, where its workers reckoned it: assets/kit/tree.js farOf)
   const outlineFar = G.kinds.flatMap((Kd) => Array.from({ length: Kd.shapes }, (_, v) => Kd.asset.farOf?.(A)?.[v]?.data ?? null));
   const OF = (k) => (outlineFar[k] ? Float32Array.from(outlineFar[k]) : null);
@@ -691,7 +695,7 @@ function farOf(renderer, tex, G, D) {
       const T = tiles;   // (its tile level's corners in its chunks' order: chunkOrder)
       for (let c = 0; c < nc; c++) for (let q = 0; q < 4; q++) B.cells[c * 4 + q].set(far[8 + c * 12 + q * 3], far[8 + c * 12 + q * 3 + 1], far[8 + c * 12 + q * 3 + 2], q === 0 ? T.start[c] : q === 1 ? T.count[c] : 0);
       B.nU.value = nc;
-      B.levelU.value = at.tiles; B.CL.write(0, T.list);
+      B.levelU.value = at.tiles; cornersInto(B.CL, T.list);
       const per = G.tiles, rows = Math.ceil((nc * 3) / per), most = Uint32Array.from({ length: rows }, (_, r) => { let m = 0; for (let t = r * per; t < Math.min((r + 1) * per, nc * 3); t++) m = Math.max(m, T.count[Math.floor(t / 3)]); return m; });
       b = await bakers(renderer).tiles(per).bake(clumpsOf(), G.clumpLayer[k], rows, (r) => { B.rowU.value = r; B.tgeo.instanceCount = per; B.tgeo.setDrawRange(0, most[r]); return B.tile; });
     }
