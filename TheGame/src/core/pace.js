@@ -6,9 +6,10 @@
 //                                one (stampedMs); else heard, a bound: from when it is handed over (submit()), or when
 //                                the GPU has done all handed before it, whichever is later, to when it is done (null
 //                                where there is no queue to ask: the CPU's stand-in, tools/gpu-mock.js)
-//   stampedMs(device, submit)    submit() run with its own GPU time taken by the GPU's own timestamps: a promise of ms;
-//                                null where the device has none ('timestamp-query'), or every pair of its clock's slots
-//                                is in flight (heard then), submit() not run then. The one reader of a submission's GPU
+//   stampedMs(device, submit)    submit() run with its own GPU time taken by the GPU's own timestamps: a promise of ms
+//                                (null where the GPU wrote them not, or alike: no time, heard then); null where the
+//                                device has none ('timestamp-query'), or every pair of its clock's slots is in flight
+//                                (heard then), submit() not run then. The one reader of a submission's GPU
 //                                time: ownGpuMs, and the gate's watch (tools/gate/device.js, globalThis.__stampedMs;
 //                                isMark: the clock's own command buffers)
 //   frameShare(cls)              the ms a frame what is paced in class cls may take now: the whole frame (FRAME_MS)
@@ -90,9 +91,14 @@ function stampedMs(device, submit, raw = (cbs) => device.queue.submit(cbs)) {
   raw([mark(false)]); submit(); raw([mark(true)]);
   return new Promise((done) => { C.due.push({ i, done }); if (!C.reading) read(C); });
 }
+/** A stamp's time, ms, from its two timestamps (ns): none (null) where the first was never written (a query never
+    written resolves to 0) or the second is not after it. A time of nought is no time: the GPU's word that its work cost
+    nothing would let what is paced by it grow without end (src/core/pace.js pace: budget × count / 0). (2026-11-19, the
+    hour on ba6bea3, WebKit at Retina: "19842 of 19842 timed by the GPU's timestamps; the longest 0 ms".) */
+const spanOf = (a, b) => (a > 0n && b > a ? Number(b - a) / 1e6 : null);
 /** The clock's stamps whose marks are handed over, read at once: the set resolved and copied after them on the queue,
-    then mapped; each stamp given its two timestamps' difference (null where the set could not be made or the device is
-    gone), its pair let go, and the next batch asked. */
+    then mapped; each stamp given its time (spanOf; null where the set could not be made or the device is gone), its
+    pair let go, and the next batch asked. */
 function read(C) {
   const batch = C.due; C.due = [];
   C.reading = batch.length > 0;
@@ -102,7 +108,7 @@ function read(C) {
   const cmd = C.device.createCommandEncoder({ label: CLOCK });
   cmd.resolveQuerySet(C.set, 0, QUERIES, C.res, 0); cmd.copyBufferToBuffer(C.res, 0, C.out, 0, QUERIES * 8);
   C.raw([cmd.finish({ label: CLOCK })]);
-  Promise.all([C.made, C.out.mapAsync(GPUMapMode.READ)]).then(([ok]) => { const t = ok && new BigUint64Array(C.out.getMappedRange()), ms = t && batch.map((s) => Math.max(0, Number(t[2 * s.i + 1] - t[2 * s.i]) / 1e6)); C.out.unmap(); return ms; })
+  Promise.all([C.made, C.out.mapAsync(GPUMapMode.READ)]).then(([ok]) => { const t = ok && new BigUint64Array(C.out.getMappedRange()), ms = t && batch.map((s) => spanOf(t[2 * s.i], t[2 * s.i + 1])); C.out.unmap(); return ms; })
     .then((ms) => { C.dead ||= !ms; back(ms); }, () => { C.dead = true; back(null); });
 }
 /** Whether a command buffer is one of the clock's own marks (handed on unwatched: tools/gate/device.js). */
