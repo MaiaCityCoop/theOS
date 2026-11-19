@@ -213,7 +213,11 @@ const argsPass = (argsNode, count, K, caps) => Fn(() => { for (let k = 0; k < K;
     slot a node, the bucket a mesh says), its rows there (S of them). room(k): as many as bucket k may hold. A material is
     handed read(j), readAt(j, slot), and placeAt(slot): the thing's place (what the prepass's id says: src/core/pass.js). */
 function meshesOf(geos, material, args, C, room, data, S, placeOf) {
-  const at = C ? C.entry : (slot) => slot.add(instanceIndex), rowAt = (slot, j) => data.element(placeOf(at, slot).mul(S).add(uint(j)));
+  // (a row read once where a material asks for it, a variable: as an element of the store it was written out again, its
+  // place's reads with it, at every use of it: 157 reads a corner in a stand's vertex where 17 are its own, 118 KB of
+  // the world's WGSL. Apple's compiler merged them (measured, 2026-11-19: no GPU time); what it saves is the WGSL its
+  // compilers read)
+  const at = C ? C.entry : (slot) => slot.add(instanceIndex), rowAt = (slot, j) => data.element(placeOf(at, slot).mul(S).add(uint(j))).toVar();
   return geos.map((g, k) => {
     g.setIndirect(args, k * 20); g.instanceCount = room(k);
     const m = new THREE.Mesh(g, material({ read: (j) => rowAt(uint(k), j), readAt: (j, slot) => rowAt(slot, j), placeAt: (slot) => placeOf(at, slot) }, k));
