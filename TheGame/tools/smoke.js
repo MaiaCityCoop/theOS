@@ -26,8 +26,16 @@ import { sitesIn, gameFiles } from './sites.js';
 const t0 = performance.now(), failed = [], made = [], bakers = [];
 // (every pipeline built, by its WGSL text, not by object: a render one is a vertex and a fragment stage)
 const shaders = { render: new Set(), compute: new Set() }, named = new Map();
-/** A pipeline's WGSL kept (render: its vertex and fragment stage, joined by a NUL), with the first part it was built for. */
-const add = (set, text, label) => { set.add(text); if (!named.has(text)) named.set(text, label); };
+/** A pipeline's WGSL kept (render: its vertex and fragment stage, joined by a NUL), with the first part it was built for;
+    and held to what three's functions need (a node function with a layout, setLayout): three writes a function's code
+    once, in the first shader that calls it, and every later shader takes that text (2026-11-19), so a function that
+    names a uniform, a buffer or a texture names another shader's in every shader after the first. It is handed them
+    instead (src/world/land.nodes.js riverRaw: the sandbox's uniform). */
+const FN = /\nfn (\w+) \([^)]*\)[^{]*\{([\s\S]*?)\n\}/g, BINDS = /\b(?:object|render|frame)\.\w+|\bnodeUniform\d+\b|\bNodeBuffer\w*/, naming = new Set();
+const add = (set, text, label) => {
+  if (!set.has(text)) for (const [, fn, body] of text.matchAll(FN)) if (fn !== 'main' && !naming.has(fn) && BINDS.test(body)) { naming.add(fn); failed.push(`${label}: its function ${fn} names ${body.match(BINDS)[0]}: three writes a function once, in the first shader that calls it, so in every later one that is another shader's (hand it to the function)`); }
+  set.add(text); if (!named.has(text)) named.set(text, label);
+};
 /** Pipelines by their WGSL text: render and compute ones, the distinct shader modules they hold, and those modules'
     bytes. */
 const pipelinesOf = ({ render, compute }) => {
