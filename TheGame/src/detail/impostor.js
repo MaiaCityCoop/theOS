@@ -30,11 +30,13 @@ import { passOf } from '../core/pass.js';
 import { IN, PLANE } from '../../assets/kit/crowd.js';
 import { UV_TILES } from '../../assets/kit/plant.js';
 import { note, PORTABLE } from '../core/gpu.js';
+import { ownGpuMs, pace } from '../core/pace.js';
+import { FRAME_MS_BY_CLASS } from '../core/budget.js';
 import { SHARE_MB } from '../core/classes.js';
 import { FNV, fnv } from '../core/hash.js';
 import { asking } from '../core/workers.js';
 import { pxAt } from './measure.js';
-import { atlasesOf, atlasBytes, levelsUnder, SS, LEAST } from './atlas.js';
+import { atlasesOf, atlasBytes, levelsUnder, SS, LEAST, PICTURES } from './atlas.js';
 import { farLayers } from '../scatter/entries.js';
 
 /** The numbers the plants' far ends' atlases are sized by: { VIEWS, CELL, TILE, TILES, CLUMPS, key } (src/detail/atlas.js
@@ -95,25 +97,29 @@ export const tileClip = (p, lo, hi, a, col, per) => {
 };
 
 // ---- the atlases: a layer a shape, its pictures and their smaller ones ----
-/** Two array textures of `layers` layers, side x side texels each: its colour (albedo as its square root, cover) and its
-    data (which way it faces, in its picture's frame: facingOf; how deep; light and leaf, 0 … 1 each half). cell: a picture's texels a side;
-    views: how many views a side its pictures are (an impostor's; none: a clump's tiles). put(layer, levels): its
-    pictures from the worker, each level's two arrays, into the GPU. */
+/** The texture format a picture of the atlas is made as (src/detail/atlas.js PICTURES): its channels, eight bits each. */
+const formatOf = (P) => (P.channels === 'r' ? THREE.RedFormat : THREE.RGBAFormat);
+/** Three array textures of `layers` layers, side x side texels each: its colour (albedo as its square root, cover), its
+    data (which way it faces, in its picture's frame: facingOf; how deep; the light that reaches into it) and its leaf
+    (how much of it is leaf, 0 … 1), each a number of its own, so each is filtered as it is. cell: a picture's texels a
+    side; views: how many views a side its pictures are (an impostor's; none: a clump's tiles). put(layer, levels): its
+    pictures from the worker, each level's three arrays, into the GPU. */
 export function createAtlas(renderer, { name, side, layers, cell = side, views = 0 }) {
-  const make = () => {
-    const rt = new THREE.RenderTarget(side, side, { depth: Math.max(2, layers), depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace });   // (two layers at least: an array, however few shapes)
+  const make = (P) => {
+    const rt = new THREE.RenderTarget(side, side, { depth: Math.max(2, layers), depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace, format: formatOf(P) });   // (two layers at least: an array, however few shapes)
     renderer.initRenderTarget(rt); return rt;
   };
-  const C = make(), D = make(), mips = Math.floor(Math.log2(side)) + 1;
+  const [C, D, L] = PICTURES.map(make), mips = Math.floor(Math.log2(side)) + 1;
   note(`${name}`, Math.round(atlasBytes(side, Math.max(2, layers))), 0, 'geometry');   // (src/core/classes.js: its share, SHARE_MB)
   return {
-    colour: C.texture, data: D.texture, side, cell, views, targets: [C, D],   // (targets: to read a layer back, renderer.readRenderTargetPixelsAsync)
+    colour: C.texture, data: D.texture, leaf: L.texture, side, cell, views, targets: [C, D, L],   // (targets: to read a layer back, renderer.readRenderTargetPixelsAsync)
     tiles: uniform(side / cell),   // (its pictures a side, as data: an atlas sized to its stand's largest clumps reads with the same code as any)
     put(layer, levels) {
-      const dev = renderer.backend.device, gc = renderer.backend.get(C.texture).texture, gd = renderer.backend.get(D.texture).texture;
-      levels.forEach(({ colour, data, n }, m) => {
+      const dev = renderer.backend.device, G = [C, D, L].map((t) => renderer.backend.get(t.texture).texture);
+      levels.forEach((level, m) => {
         if (m >= mips) return;
-        for (const [g, a] of [[gc, colour], [gd, data]]) dev.queue.writeTexture({ texture: g, mipLevel: m, origin: { x: 0, y: 0, z: layer } }, a, { bytesPerRow: n * 4, rowsPerImage: n }, { width: n, height: n, depthOrArrayLayers: 1 });
+        const n = level.n;
+        PICTURES.forEach((P, i) => dev.queue.writeTexture({ texture: G[i], mipLevel: m, origin: { x: 0, y: 0, z: layer } }, level[P.name], { bytesPerRow: n * P.channels.length, rowsPerImage: n }, { width: n, height: n, depthOrArrayLayers: 1 }));
       });
     },
   };
@@ -123,37 +129,42 @@ export function createAtlas(renderer, { name, side, layers, cell = side, views =
 let WORKERS = null;
 const workers = () => (WORKERS ||= Array.from({ length: Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 2)) }, () => asking(new Worker(new URL('./impostor.worker.js', import.meta.url), { type: 'module' }), "the impostors' worker")));
 /** The pictures' smaller ones, as a worker makes them (impostor.worker.js, the least busy of a few, watched:
-    src/core/workers.js): { levels: [{ colour, data, n }] }. */
-const mipsOf = (colour, data, side, cell, least) => workers().reduce((a, b) => (b.out() < a.out() ? b : a))({ colour, data, side, cell, least }, [colour.buffer, data.buffer]);
+    src/core/workers.js): { levels: [{ colour, data, leaf, n }] }. */
+const mipsOf = (colour, data, leaf, side, cell, least) => workers().reduce((a, b) => (b.out() < a.out() ? b : a))({ colour, data, leaf, side, cell, least }, [colour.buffer, data.buffer, leaf.buffer]);
 
 /** What bakes a family's pictures: rows of `per` pictures `px` texels a side, drawn by draw(row) (a mesh whose
-    instances are the row's pictures, its two materials' outputs: { colour, data }), reduced SS x SS into the atlas'
-    texels, a row a frame (no frame waits on a whole thing's pictures), read back and mipped. One a kind of picture
+    instances are the row's pictures, its two materials' outputs: { colour, data }, a sample's light and leaf in one
+    number, litIn), reduced SS x SS into the atlas' three textures' texels (light and leaf apart, each a mean of its
+    own), a row a frame (no frame waits on a whole thing's pictures), read back and mipped. One a kind of picture
     (views, tiles) per drawer: its targets are reused job after job, one job at a time. */
 const nextFrame = () => new Promise((res) => requestAnimationFrame(() => res()));
+// (the bakes' rows a frame, shared by every baker: one queue of them, src/core/pace.js)
+const ROWS = pace(1);
 export function createBaker(renderer, { per, px }) {
   const W = per * px, opts = { depthBuffer: true, generateMipmaps: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, colorSpace: THREE.NoColorSpace };
-  const ss = [new THREE.RenderTarget(W * SS, px * SS, opts), new THREE.RenderTarget(W * SS, px * SS, opts)], out = [new THREE.RenderTarget(W, W, { ...opts, depthBuffer: false }), new THREE.RenderTarget(W, W, { ...opts, depthBuffer: false })];
+  const ss = [new THREE.RenderTarget(W * SS, px * SS, opts), new THREE.RenderTarget(W * SS, px * SS, opts)], out = PICTURES.map((P) => new THREE.RenderTarget(W, W, { ...opts, depthBuffer: false, format: formatOf(P) }));
   // the reduce: a texel of the atlas from its SS x SS samples (cover: their share covered; the rest: the covered ones'
-  // mean, its way the mean way), into row `row` of the atlas
+  // mean, its way the mean way, its light and how much of it is leaf each a mean of its own: a sample is one or the
+  // other, so its one number, litIn, says both exactly), into row `row` of the atlas: which 0 its colour, 1 its data,
+  // 2 its leaf
   const row = uniform(0, 'int'), tc = texture(ss[0].texture), td = texture(ss[1].texture);
   const reduce = (which) => {
     const m = new THREE.NodeMaterial(); m.depthTest = false; m.depthWrite = false;
     m.vertexNode = vec4(positionGeometry.xy, 0, 1);   // (a triangle over the whole target, its corners straight in clip space)
     m.fragmentNode = Fn(() => {
       const p = ivec2(screenCoordinate.xy), base = ivec2(p.x.mul(SS), p.y.sub(row.mul(px)).mul(SS));
-      const cov = float(0).toVar(), col = vec3(0).toVar(), nrm = vec3(0).toVar(), dep = float(0).toVar(), lit = float(0).toVar();
+      const cov = float(0).toVar(), col = vec3(0).toVar(), nrm = vec3(0).toVar(), dep = float(0).toVar(), lit = float(0).toVar(), lf = float(0).toVar();
       for (let dy = 0; dy < SS; dy++) for (let dx = 0; dx < SS; dx++) {
-        const q = base.add(ivec2(dx, dy)), c = tc.load(q), d = td.load(q), a = c.a;
-        cov.addAssign(a); col.addAssign(c.rgb.mul(a)); nrm.addAssign(facingIn(d.xy).mul(a)); dep.addAssign(d.z.mul(a)); lit.addAssign(d.w.mul(a));   // (its samples' ways in the one picture's frame)
+        const q = base.add(ivec2(dx, dy)), c = tc.load(q), d = td.load(q), a = c.a, L = litOf(d.w);
+        cov.addAssign(a); col.addAssign(c.rgb.mul(a)); nrm.addAssign(facingIn(d.xy).mul(a)); dep.addAssign(d.z.mul(a)); lit.addAssign(L.light.mul(a)); lf.addAssign(L.leaf.mul(a));   // (its samples' ways in the one picture's frame)
       }
       const k = float(1).div(cov.max(1e-6));
-      return which ? vec4(facingEnc(nrm.add(vec3(0, 0, 1e-6))), dep.mul(k), lit.mul(k)) : vec4(col.mul(k), cov.div(SS * SS));
+      return which === 2 ? vec4(lf.mul(k), 0, 0, 1) : which ? vec4(facingEnc(nrm.add(vec3(0, 0, 1e-6))), dep.mul(k), lit.mul(k)) : vec4(col.mul(k), cov.div(SS * SS));
     })();
     return m;
   };
   const tri = new THREE.BufferGeometry(); tri.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3));
-  const tris = [0, 1].map((which) => Object.assign(new THREE.Mesh(tri, reduce(which)), { frustumCulled: false }));
+  const tris = [0, 1, 2].map((which) => { const m = reduce(which); return Object.assign(new THREE.Mesh(tri, m), { frustumCulled: false, userData: { materials: [m] } }); });
   const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   // (a row: its samples drawn, then reduced into the atlas' row; the renderer as it was, after)
   const rowOf = (r, draw) => {
@@ -166,20 +177,29 @@ export function createBaker(renderer, { per, px }) {
       [0, 1].forEach((w) => { mesh.material = mesh.userData.materials[w]; scene.add(mesh); renderer.setRenderTarget(ss[w]); renderer.autoClear = true; renderer.render(scene, cam); scene.remove(mesh); });
       // reduced into the atlas' row
       row.value = r;
-      [0, 1].forEach((w) => { const o = out[w]; o.viewport.set(0, r * px, W, px); o.scissor.set(0, r * px, W, px); o.scissorTest = true; scene.add(tris[w]); renderer.setRenderTarget(o); renderer.autoClear = false; renderer.render(scene, cam); scene.remove(tris[w]); o.viewport.set(0, 0, W, W); o.scissor.set(0, 0, W, W); o.scissorTest = false; });
+      [0, 1, 2].forEach((w) => { const o = out[w]; o.viewport.set(0, r * px, W, px); o.scissor.set(0, r * px, W, px); o.scissorTest = true; scene.add(tris[w]); renderer.setRenderTarget(o); renderer.autoClear = false; renderer.render(scene, cam); scene.remove(tris[w]); o.viewport.set(0, 0, W, W); o.scissor.set(0, 0, W, W); o.scissorTest = false; });
     } finally { renderer.setRenderTarget(prev); renderer.setClearColor(pc, pa); renderer.autoClear = ac; }
   };
   let last = Promise.resolve();
   return {
-    /** Bake `rows` rows of a thing's pictures into the atlas' layer, a row a frame: draw(r) its mesh for row r (its
+    /** Its reduce's three meshes (its colour's, its data's, its leaf's), as the start compiles them (tools/smoke.js) */
+    reduces: tris,
+    /** Bake `rows` rows of a thing's pictures into the atlas' layer, as many a frame as the GPU's pace says (ROWS): draw(r) its mesh for row r (its
         instances the row's pictures, its materials [colour, data]); least: the smallest picture's side mipped to. A
         promise of { done }, once its pictures are read back (the targets free for the next job, which waits for it):
         done, once its layer is in the atlas, with its levels (what the browser keeps of it: src/scatter/trees.js farOf). */
     bake(atlas, layer, count, draw, least = LEAST) {
       const job = last.then(async () => {
-        for (let r = 0; r < count; r++) { if (r) await nextFrame(); rowOf(r, draw); }
-        const [c, d] = await Promise.all(out.map((o) => renderer.readRenderTargetPixelsAsync(o, 0, 0, W, W)));
-        return { done: mipsOf(new Uint8Array(c), new Uint8Array(d), W, px, least).then(({ levels }) => { atlas.put(layer, levels); return levels; }) };
+        // (as many rows a frame as fit the frame's share for geometry, by each row's own time on the GPU: src/core/pace.js,
+        // as the land's pages and the tiers' packing are; at least one, on any GPU)
+        for (let r = 0; r < count; ) {
+          if (r) { await nextFrame(); ROWS.tick(); }
+          do { const at = r++; ownGpuMs(renderer, () => rowOf(at, draw))?.then((ms) => ROWS.measured(1, ms, FRAME_MS_BY_CLASS.geometry)).catch(() => {}); } while (r < count && --ROWS.left > 0);
+        }
+        const [c, d, l] = await Promise.all(out.map((o) => renderer.readRenderTargetPixelsAsync(o, 0, 0, W, W)));
+        // (of its pictures' levels, what the atlas keeps: from its own cell's on, a view's never-read finest not: atlasesOf STORED)
+        const from = Math.round(Math.log2(px / atlas.cell));
+        return { done: mipsOf(new Uint8Array(c), new Uint8Array(d), new Uint8Array(l), W, px, least).then(({ levels }) => { const kept = levels.slice(from); atlas.put(layer, kept); return kept; }) };
       });
       last = job.catch(() => {});
       return job;
@@ -190,23 +210,26 @@ export function createBaker(renderer, { per, px }) {
 // ---- reading them: a picture's texel, clamped inside its cell by half a texel of the coarsest level read ----
 const inCell = (uv, cellPx, lod) => { const h = float(0.5).mul(float(2).pow(ceil(lod))).div(cellPx); return clamp(uv, h, float(1).sub(h)); };
 /** A shape's impostor read where a pixel's ray meets it, the three views nearest that ray's way blended: { colour
-    (albedo, gamma 2), cover, normal (its own frame), depth (along the eye's view, in radii), light (0 … 1), leaf (0 … 1) }.
+    (albedo, gamma 2), cover, normal (its own frame), depth (along the eye's view, in radii), light (0 … 1), leaf (how
+    much of it is leaf, 0 … 1) }.
     A: its atlas (createAtlas: its views a side); p: the pixel's point on the quad, eye: the eye, both in the thing's
     frame from its sphere's middle in its radii; lod: the level read. */
 export function impostorRead(A, layer, p, eye, lod) {
-  const rd = normalize(p.sub(eye)).toVar(), V = impostorViews(rd.negate(), A.views), N = A.views, out = { colour: vec3(0).toVar(), cover: float(0).toVar(), normal: vec3(0).toVar(), depth: float(0).toVar(), lit: float(0).toVar() };
-  const C = texture(A.colour), Dt = texture(A.data);
+  const rd = normalize(p.sub(eye)).toVar(), V = impostorViews(rd.negate(), A.views), N = A.views, out = { colour: vec3(0).toVar(), cover: float(0).toVar(), normal: vec3(0).toVar(), depth: float(0).toVar(), light: float(0).toVar(), leaf: float(0).toVar() };
+  const C = texture(A.colour), Dt = texture(A.data), Lt = texture(A.leaf);
   for (let k = 0; k < 3; k++) {
     const g = V.cells[k], w = [V.w.x, V.w.y, V.w.z][k], D = dirOf(g.x.div(N - 1).mul(2).sub(1), g.y.div(N - 1).mul(2).sub(1)), B = basisOf(D), dd = rd.dot(D).min(-1e-3);
     const uvAt = (h) => { const t = h.sub(p.dot(D)).div(dd), q = p.add(rd.mul(t)); return vec2(q.dot(B.right), q.dot(B.up)).mul(0.5).add(0.5); };
     const st = (uv) => { const c = inCell(uv, float(A.cell), lod); return vec2(g.x.add(c.x), g.y.add(float(1).sub(c.y))).div(N); };
     const h0 = Dt.sample(st(uvAt(float(0)))).depth(layer).level(lod).z.mul(2).sub(1), uv = uvAt(h0), s = st(uv);   // (one step of parallax: where the ray stands as high over the view's plane as what the view saw there)
     const c = C.sample(s).depth(layer).level(lod), d = Dt.sample(s).depth(layer).level(lod);
-    out.colour.addAssign(c.rgb.mul(w)); out.cover.addAssign(c.a.mul(w)); out.normal.addAssign(facingDec(d.xy, { u: B.right, v: B.up, w: D }).mul(w)); out.depth.addAssign(d.z.mul(2).sub(1).mul(w)); out.lit.addAssign(d.w.mul(w));
+    out.colour.addAssign(c.rgb.mul(w)); out.cover.addAssign(c.a.mul(w)); out.normal.addAssign(facingDec(d.xy, { u: B.right, v: B.up, w: D }).mul(w)); out.depth.addAssign(d.z.mul(2).sub(1).mul(w)); out.light.addAssign(d.w.mul(w));
+    out.leaf.addAssign(Lt.sample(s).depth(layer).level(lod).r.mul(w));
   }
-  return { ...out, normal: normalize(out.normal.add(vec3(0, 1e-5, 0))), ...litOf(out.lit) };
+  return { ...out, normal: normalize(out.normal.add(vec3(0, 1e-5, 0))) };
 }
-/** A texel's light and leaf, as the bake keeps them in one number (light / 2, and a half more for a leaf). */
+/** A bake's sample's light and leaf, kept in one number as its picture is drawn (light / 2, and a half more for a
+    leaf): exact for a sample, which is one or the other, and taken apart by the reduce before anything averages them. */
 const litOf = (v) => { const leaf = v.greaterThanEqual(0.5); return { leaf: leaf.select(float(1), float(0)), light: leaf.select(v.mul(2).sub(1), v.mul(2)) }; };
 /** The same as the bake writes it. */
 export const litIn = (light, leaf) => light.clamp(0, 0.999).mul(0.5).add(leaf.mul(0.5));
@@ -222,11 +245,12 @@ const impostorViews = (d, views) => {
 };
 /** A plant's clump read at uv (in tiles of the kit's grid, atlases().TILES a row: crowd.js levelOf), at level lod,
     clamped inside its tile there, the tile where it lies in the atlas' own grid (as many a side as its stand's largest
-    clumps need: src/scatter/trees.js): { colour, cover, normal, lit, leaf } as impostorRead. */
+    clumps need: src/scatter/trees.js): { colour, cover, normal, light } as impostorRead (a chunk's planes are all
+    leaf). */
 export function clumpRead(A, layer, uv, lod) {
   const n = A.tiles, t = floor(uv), k = t.y.mul(atlases().TILES).add(t.x), at = vec2(k.sub(floor(k.div(n)).mul(n)), floor(k.div(n)));
   const s = inCell(uv.sub(t).sub(IN).div(1 - 2 * IN), float(A.cell), lod).add(at).div(n), c = texture(A.colour).sample(s).depth(layer).level(lod), d = texture(A.data).sample(s).depth(layer).level(lod);
-  return { colour: c.rgb, cover: c.a, normal: facingDec(d.xy, planeFrame(k.sub(floor(k.div(3)).mul(3)))), ...litOf(d.w) };   // (chunk c's plane across axis a is tile 3c + a: crowd.js PLANE)
+  return { colour: c.rgb, cover: c.a, normal: facingDec(d.xy, planeFrame(k.sub(floor(k.div(3)).mul(3)))), light: d.w };   // (chunk c's plane across axis a is tile 3c + a: crowd.js PLANE)
 }
 
 // ---- a made thing's impostor (src/world/place.js: the library's stage): the same views of its nearest level ----
@@ -243,7 +267,7 @@ const hashOf = (geo) => { let h = FNV; const a = geo.attributes.position.array, 
 /** A made thing's views (geo: its nearest level, its colours a vertex; c, r: its sphere) baked into an atlas of its own:
     { A, ready (1 once they are in) }. */
 function viewsOf(geo, c, r, name) {
-  const { VIEWS, CELL } = atlases(), A = createAtlas(renderer, { name: `a made thing's impostor ${name}`, side: VIEWS * CELL, layers: 2, cell: CELL, views: VIEWS }), ready = uniform(0), row = uniform(0, 'int'), g = new THREE.InstancedBufferGeometry();
+  const { VIEWS, STORED } = atlases(), A = createAtlas(renderer, { name: `a made thing's impostor ${name}`, side: VIEWS * STORED, layers: 2, cell: STORED, views: VIEWS }), ready = uniform(0), row = uniform(0, 'int'), g = new THREE.InstancedBufferGeometry();
   g.index = geo.index; for (const k of ['position', 'normal', 'color']) if (geo.attributes[k]) g.setAttribute(k, geo.attributes[k]);
   const vC = varyingProperty('vec3', 'mC'), vN = varyingProperty('vec3', 'mN'), vZ = varyingProperty('float', 'mZ');
   const vert = Fn(() => { const P = viewClip(positionGeometry.sub(c).div(r), row, VIEWS); vC.assign(attribute('color', 'vec3')); vN.assign(facingOf(attribute('normal', 'vec3'), P.F)); vZ.assign(P.z); return P.clip; })();

@@ -12,8 +12,9 @@
 // gate's output, as the gate's runs give it (points and pixels a point). The browser: the system's Chrome, or Playwright's own WebKit
 // (the engine Safari runs: the newest kept, as tools/gate/cut.js takes it). The numbers: .gate/start-<browser>.json.
 import { chromium, webkit } from 'playwright-core';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { webkitAt } from './browsers.js';
 import { extname, join, resolve } from 'node:path';
 import { FIRST_FRAME } from '../src/core/marks.js';
 
@@ -127,8 +128,7 @@ function chain(r) {
 function launch(dir, { w, h, dpr }) {
   const headless = !process.argv.includes('--headed'), screen = { viewport: { width: w, height: h }, deviceScaleFactor: dpr };
   if (option('browser', 'chrome') === 'chrome') return chromium.launchPersistentContext(dir, { channel: 'chrome', headless, args: ['--enable-unsafe-webgpu'], ...screen });
-  const cache = `${homedir()}/Library/Caches/ms-playwright`, kept = existsSync(cache) ? readdirSync(cache).filter((d) => d.startsWith('webkit-')).sort().map((d) => `${cache}/${d}/pw_run.sh`).filter(existsSync).pop() : null;
-  return webkit.launchPersistentContext(dir, { headless, ...(kept ? { executablePath: kept } : {}), ...screen });
+  return webkit.launchPersistentContext(dir, { headless, ...webkitAt(), ...screen });
 }
 
 async function main() {

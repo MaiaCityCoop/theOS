@@ -16,7 +16,7 @@ import { cascades } from './shadow.js';
 import { blueAt } from './light/noise.js';
 import { SUN_DIAMETER } from './light/physics.js';
 import { SCREEN } from './light/screen.js';
-import { skyAt } from './light/canopy.js';
+import { canopyAt, groundColour } from './light/canopy.js';
 
 export { snowDepth, snowCover, snowDrift, snowLift, snowLiftAtVertex, SNOW } from './weather/snow.js';
 export { cloudShade, CLOUD_H } from './weather/clouds.js';
@@ -55,9 +55,17 @@ export const airOf = (w, eye = U.uCam) => {
 const airAt = Fn(([c, w, eye]) => { const A = airOf(w, eye); return mix(A.col, c, A.k); });
 /** The end of every material: its colour seen through the air from the eye, to the screen. */
 export const finish = (c, w, eye = U.uCam) => toScreen(airAt(max(c, vec3(0)), w, eye));   // (no light is less than none)
-/** The sky's light on a surface facing n: most from above, less on what faces sideways, and a little bounced up off the
-    sunlit ground onto what faces down. */
-export const skyLight = (n) => U.uAmb.mul(n.y.mul(0.32).add(0.68)).add(U.uSun.mul(U.uSunDir.y.max(0)).mul(vec3(0.09, 0.1, 0.06)).mul(float(0.5).sub(n.y.mul(0.5))));
+/** The sky's light on a surface facing n (at w: past the crowns over it, src/world/light/canopy.js; else all of it): most
+    from above, less on what faces sideways. And what the ground round it sends up (the bounce): the ground's own colour
+    (round the eye, off the land's pages: canopy.js groundColour) in the light on it, the sun's and the sky's, as much of
+    it as the crowns let reach the floor there (canopy.js canopyAt), on as much of what the surface faces as the ground
+    fills (a plane's view factor: none of what faces up, half of what faces sideways, all of what faces down). clouds:
+    the share of the sun the storm and the clouds let through there, where it is worked out already (lightOn). */
+export const skyLight = (n, w = null, clouds = null) => {
+  const C = w ? canopyAt(w) : null, sky = U.uAmb.mul(n.y.mul(0.32).add(0.68)), through = clouds ?? (w ? sunDim().mul(cloudShade(w)) : sunDim());
+  const onGround = U.uSun.mul(U.uSunDir.y.max(0)).mul(through).add(U.uAmb).mul(C ? C.floor : 1);
+  return (C ? sky.mul(C.sky) : sky).add(groundColour().mul(onGround).mul(float(0.5).sub(n.y.mul(0.5))));
+};
 /** The screen's curve: the light's numbers to the picture's (its exposure, a soft shoulder, gamma). */
 export const display = (c) => pow(float(1).sub(exp(c.negate().mul(1.25).mul(U.uExposure))), vec3(1 / 2.2));
 /** What every material returns, its colour for the screen. Drawn for the world's frame (either pass: src/core/pass.js)
@@ -88,17 +96,19 @@ export const ign = (p) => fract(fract(dot(p, vec2(0.06711056, 0.00583715))).mul(
 // A point is read in the first one it lies inside, the hand-over to the next dithered over a cascade's last tenth (the
 // picture built over time averages it), and the last fades out at its own edge.
 //
-// The near one is soft as the sun makes it (PCSS, Fernando 2005): six reads round the point find how far the casters
-// above it stand (the blockers' mean depth), and its penumbra is that distance times the width of the sun's disc
-// (0.53°): a leaf a hand above the path throws a sharp shadow, a crown 15 m up a soft one, so a canopy's light falls as
-// the round flecks a real one does. Then eight taps over that penumbra, each compared and filtered over 2 x 2 texels by
-// the GPU (a comparison sampler), on a disc turned by the blue noise from pixel to pixel and frame to frame (one turn a
-// pixel: its cosine and sine once, not a tap's each), the blockers looked for as far round as the widest penumbra reaches
-// (U.uShadowPen: the sun's disc over the tallest caster's way along the light, src/world/shadow.js). The others take four
-// taps each, about a texel and a half out.
+// Every cascade is soft as the sun makes it (PCSS, Fernando 2005), as far as its texels can show it: six reads round the
+// point find how far the casters above it stand (the blockers' mean depth), and its penumbra is that distance times the
+// width of the sun's disc (0.53°): a leaf a hand above the path throws a sharp shadow, a crown 15 m up a soft one, so a
+// canopy's light falls as the round flecks a real one does, near and far. Then eight taps over that penumbra, each
+// compared and filtered over 2 x 2 texels by the GPU (a comparison sampler), on a disc turned by the blue noise from
+// pixel to pixel and frame to frame (one turn a pixel: its cosine and sine once, not a tap's each), the blockers looked
+// for as far round as the widest penumbra reaches (U.uShadowPen: the sun's disc over the tallest caster's way along the
+// light, src/world/shadow.js). No penumbra is narrower than a texel and a half of its cascade, what its texels can show;
+// where even the widest is narrower than that (a far cascade, whose texels are wider than the sun blurs anything), four
+// taps over that texel and a half, and no blockers looked for.
 // a Vogel disc of n taps (radius 1), its first turned by a0: as numbers, turned for a pixel by its (cos, sin)
 const disc = (n, a0 = 0) => Array.from({ length: n }, (_, i) => { const r = Math.sqrt((i + 0.5) / n), a = a0 + i * 2.399963; return [Math.cos(a) * r, Math.sin(a) * r]; });
-const BLOCKERS = disc(6), TAPS = disc(8, 1.3);
+const BLOCKERS = disc(6), TAPS = disc(8, 1.3), FEW = disc(4, 0.4);
 const turned = ([x, y], cs) => vec2(cs.x.mul(x).sub(cs.y.mul(y)), cs.y.mul(x).add(cs.x.mul(y)));
 /** a point in cascade k (a number, or an index in a shader): { q (u, v, depth), e (how far inside: 0 at its edge, 1 a
     tenth in) } */
@@ -108,18 +118,20 @@ const cascade = (w, k) => {
 };
 const depthAt = (uv, k) => { const S = cascades().S; return float(U.tShadow.load(ivec2(clamp(uv.mul(S), vec2(0), vec2(S - 1)))).depth(int(k))); };
 const compareAt = (uv, k, z) => U.tShadow.sample(uv).depth(int(k)).level(0).compare(z);
-// the near cascade, soft as the sun's disc makes it (the taps over a penumbra `pen` metres wide); the others, four taps
-const taps = (q, z, cs, pen) => { const perM = 1 / (2 * cascades().half[0]), k = float(0).toVar(); for (const d of TAPS) k.addAssign(compareAt(q.xy.add(turned(d, cs).mul(pen.mul(0.5 * perM))), 0, z)); return k.div(TAPS.length); };
-const nearSoft = (q, z, cs) => {
-  const C = cascades(), perM = 1 / (2 * C.half[0]);
-  if (!texelReads) return taps(q, z, cs, float(3 * C.texel[0]));   // (WebGL 2 reads no texel of a texture it compares: no blockers, a penumbra of three texels)
-  const found = float(0).toVar(), sum = float(0).toVar();
-  for (const d of BLOCKERS) { const b = depthAt(q.xy.add(turned(d, cs).mul(U.uShadowPen.mul(0.5 * perM))), 0); If(b.lessThan(z), () => { sum.addAssign(b); found.addAssign(1); }); }
-  const r = float(1).toVar();
-  If(found.greaterThan(0), () => { r.assign(taps(q, z, cs, clamp(z.sub(sum.div(found)).mul(C.range[0]).mul(SUN_DIAMETER), 1.5 * C.texel[0], U.uShadowPen))); });
+// cascade k's taps D (TAPS, or FEW) over a penumbra `pen` metres wide (perM: its texture's units a metre)
+const taps = (q, z, cs, pen, perM, k, D = TAPS) => { const s = float(0).toVar(); for (const d of D) s.addAssign(compareAt(q.xy.add(turned(d, cs).mul(pen.mul(perM).mul(0.5))), k, z)); return s.div(D.length); };
+/** cascade k at q (z: its depth less its bias; cs: the pixel's turn), as soft as the sun's disc makes it, as far as its
+    texels can show it (above) */
+const softIn = (q, z, cs, k) => {
+  const C = cascades(), t = C.texelAt.element(k), perM = float(1).div(t.mul(C.S)), least = t.mul(1.5), r = float(1).toVar();
+  if (!texelReads) { r.assign(taps(q, z, cs, t.mul(3), perM, k)); return r; }   // (WebGL 2 reads no texel of a texture it compares: no blockers, a penumbra of three texels)
+  If(U.uShadowPen.greaterThan(least), () => {
+    const found = float(0).toVar(), sum = float(0).toVar();
+    for (const d of BLOCKERS) { const b = depthAt(q.xy.add(turned(d, cs).mul(U.uShadowPen.mul(perM).mul(0.5))), k); If(b.lessThan(z), () => { sum.addAssign(b); found.addAssign(1); }); }
+    If(found.greaterThan(0), () => { r.assign(taps(q, z, cs, clamp(z.sub(sum.div(found)).mul(C.rangeAt.element(k)).mul(SUN_DIAMETER), least, U.uShadowPen), perM, k)); });
+  }).Else(() => { r.assign(taps(q, z, cs, least, perM, k, FEW)); });
   return r;
 };
-const farSoft = (q, z, k) => { const s = float(0).toVar(); for (const [i, j] of [[-0.62, -0.24], [0.24, -0.62], [0.62, 0.24], [-0.24, 0.62]]) s.addAssign(compareAt(q.xy.add(vec2(i, j).mul(1.7 / cascades().S)), k, z)); return s.div(4); };
 /** The shadow at w, a pixel's (n: its normal, for the offset that keeps a surface from shading itself). how: 'soft',
     'one' (one tap), 'pulled' (what is drawn into the map pulled towards the light allows for its own pull too). */
 const shadowOf = (w, n, how) => {
@@ -140,8 +152,8 @@ const shadowOf = (w, n, how) => {
     If(share.greaterThan(0), () => {
       const A = at(k), z = A.q.z.sub(C.backAt.element(k).mul(pull)), read = float(1).toVar();
       if (how === 'one') read.assign(compareAt(A.q.xy, k, z));
-      else If(k.equal(0), () => { read.assign(nearSoft(A.q, z, cs)); }).Else(() => { read.assign(farSoft(A.q, z, k)); });
-      r.assign(mix(1, read, share));
+      else read.assign(softIn(A.q, z, cs, k));
+      r.assign(mix(1, read, share.mul(C.on.element(k))));   // (as much of it as its cascade casts: a far one fades in as it comes, src/world/shadow.js)
     });
   });
   return r;
@@ -187,7 +199,7 @@ const shadowAtVertex = Fn(([w]) => {
     const left = float(1).toVar(), s = float(0).toVar();
     Loop({ start: int(0), end: int(cascades().n), type: 'int', condition: '<' }, ({ i }) => {
       const A = cascade(w, i);
-      If(A.e.greaterThan(0), () => { s.addAssign(left.mul(A.e).mul(vertexIn(A, i))); left.mulAssign(float(1).sub(A.e)); });
+      If(A.e.greaterThan(0), () => { s.addAssign(left.mul(A.e).mul(mix(1, vertexIn(A, i), cascades().on.element(i)))); left.mulAssign(float(1).sub(A.e)); });   // (as much as its cascade casts: shadowOf)
       If(left.lessThanEqual(0), () => { Break(); });
     });
     r.assign(s.add(left));
@@ -203,12 +215,13 @@ export const sunDim = () => float(1).sub(lane.dim.mul(0.6));
 const SHADOWS = { soft: (w, n) => shadowOf(w, n, 'soft'), one: (w, n) => shadowAtOne(w, n), vertex: (w) => shadowAtVertex(w), pulled: (w) => shadowAtPulled(w) };
 /** The share of the sun's light that reaches w (1: all): past the storm, the clouds and what casts a shadow. how: 'soft'
     (a pixel's: the cascades with their penumbra), 'one' (one tap: what is too thin for a soft edge to show, a blade),
-    'vertex' (a vertex stage's: a tree's corners), 'pulled' (what is drawn into the map pulled towards the light). */
-export const sunAt = (w, how = 'soft', n = null) => sunDim().mul(cloudShade(w)).mul(SHADOWS[how](w, n));
+    'vertex' (a vertex stage's: a tree's corners), 'pulled' (what is drawn into the map pulled towards the light).
+    clouds: the share the storm and the clouds let through, where it is worked out already (lightOn). */
+export const sunAt = (w, how = 'soft', n = null, clouds = null) => (clouds ?? sunDim().mul(cloudShade(w))).mul(SHADOWS[how](w, n));
 // what the screen's light left for this pixel (src/world/light/screen.js): one texel, loaded (no sampler), the share of
 // the sun the contact shadows let through. Read in the colour pass of what takes part in the prepass (its depth is the
 // one the screen's light read), in a fragment; 1 anywhere else.
-const onScreen = (builder) => passOf(builder) === 'main' && builder.shaderStage === 'fragment' && builder.material?.userData?.pre === true;
+const onScreen = (builder) => passOf(builder) === 'main' && builder.shaderStage === 'fragment' && (builder.material?.userData?.pre === true || builder.material?.userData?.lit === true);   // (lit: a deferred family's pass of light, src/core/pass.js LIT)
 /** The share of the sun the contact shadows let reach this pixel (1: all of it): for lightOn, and for a material that lights
     itself per vertex and takes the rest per pixel (a tree's cards). */
 export const contactShade = Fn((builder) => (onScreen(builder) ? mix(float(1), SCREEN.contact.load(ivec2(screenCoordinate.xy)).x, SCREEN.on) : float(1)));
@@ -222,13 +235,18 @@ export const contactShade = Fn((builder) => (onScreen(builder) ? mix(float(1), S
                     as tight as `lobe` (3), coloured by `tint` on the way
       ao            its own occlusion (its mesh's, a crown's depth): the sky's light is lost faster than the sun's
       sky           what else dims the sky's light on it (the ground's own shade)
-      gloss, sharp  its highlight: how bright, how tight */
+      gloss, sharp  its highlight: how bright, how tight (shineOf: from its material's roughness)
+      ns            the way its highlight is reflected from, where that is not n (a leaf: its own card's, where n is its
+                    crown's dome)
+      glint         its highlight's own share, worked out already where its gloss and ns were at hand (glintOf: a
+                    deferred family's prepass, src/core/gbuffer.js); else from gloss, sharp and ns here */
 export const lightOn = (s) => {
-  const n = s.n, L = U.uSunDir, V = s.V ?? (s.w ? normalize((s.eye ?? U.uCam).sub(s.w)) : null), share = (s.sun ?? sunAt(s.w, s.how, s.n)).mul(contactShade());
+  const n = s.n, L = U.uSunDir, V = s.V ?? (s.w ? normalize((s.eye ?? U.uCam).sub(s.w)) : null), clouds = s.w ? sunDim().mul(cloudShade(s.w)) : null;   // (clouds: once, for its sun and for the ground's round it)
+  const share = (s.sun ?? sunAt(s.w, s.how, s.n, clouds)).mul(contactShade());
   const wrap = s.wrap ?? 0, ndl = s.ndl ?? (wrap ? n.dot(L).add(wrap).div(float(wrap).add(1)) : n.dot(L)).max(0);
   const back = V ? max(V.negate().dot(L), 0) : null, light = U.uSun.mul(share);   // (how far the eye looks into the sun; the sun's light here)
-  // the sky's light, less what the crowns above hide of it (the canopy's probes: src/world/light/canopy.js)
-  let sky = s.w ? skyLight(n).mul(skyAt(s.w)) : skyLight(n), sun = ndl;
+  // the sky's light, less what the crowns above hide of it, and the ground's off its lit floor (skyLight)
+  let sky = skyLight(n, s.w ?? null, clouds), sun = ndl;
   // through it, two-sided: the sun behind it seen through it (a lobe round the sun, as tight as `lobe`), and its far
   // side lit (what faces away from the sun, seen from the dark side, glows through)
   if (s.through) { const t = pow(back, s.lobe ?? 3).mul(0.65).add(max(n.dot(L).negate(), 0).mul(0.35)).mul(s.through); sun = sun.add(s.tint ? s.tint.mul(t) : t); }
@@ -236,9 +254,16 @@ export const lightOn = (s) => {
   if (s.sky) sky = sky.mul(s.sky);
   if (s.ao) { const ao = float(s.ao); sky = sky.mul(ao.mul(ao).mul(0.75).add(ao.mul(0.25))); sun = sun.mul(ao.mul(0.6).add(0.4)); }
   // (its highlight)
-  const spec = s.gloss ? light.mul(pow(max(n.dot(normalize(V.add(L))), 0), s.sharp ?? 40)).mul(s.gloss) : vec3(0);
+  const spec = s.glint ? light.mul(s.glint) : s.gloss ? light.mul(glintOf(s.ns ?? n, V, s.gloss, s.sharp)) : vec3(0);
   return { sky, sun, spec, light, V, back, ndl };
 };
+/** A surface's highlight from its material's roughness (rough: 0 … 1, its painting's, src/materials/bake.js tex.r),
+    as its material is shown (src/materials/preview.js) and as it is lit in the world: { gloss, sharp } for lightOn.
+    ndl: how its reflecting side faces the sun (the highlight goes with it). */
+/** A highlight's own share of the sun's light where it is (lightOn's spec less that light): off ns (the way it is
+    reflected from), seen from V, as bright and as tight as gloss and sharp. */
+export const glintOf = (ns, V, gloss, sharp = 40) => pow(max(ns.dot(normalize(V.add(U.uSunDir))), 0), sharp).mul(gloss);
+export const shineOf = (rough, ndl) => ({ gloss: float(1).sub(rough).mul(0.5).mul(ndl), sharp: mix(60, 6, rough) });
 /** A surface lit and seen through the air, for the screen: { colour (its own, linear), extra (light of another kind on
     it: a fire's), glow (its own light), ...lightOn's }. */
 export const lit = (s) => { const L = lightOn(s); let d = L.sky.add(L.sun); if (s.extra) d = d.add(s.extra); let c = s.colour.mul(d).add(L.spec); if (s.glow) c = c.add(s.glow); return finish(c, s.w, s.eye); };

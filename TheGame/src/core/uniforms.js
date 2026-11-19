@@ -24,6 +24,7 @@ export const U = {
   uAirH: uniform(0), uAirScale: uniform(1200),     // the height fog: the camera's height above the ground, the air's thinning
   uLandR0: uniform(48), uReliefReach: uniform(24),   // level 0's reach, lens metres; the relief's first level's reach (src/terrain/terrain.js: from the measure)
   uMeadowEnd: uniform(0),                          // where the meadow's blades end, lens metres (src/scatter/grass.js: where they are gone; 0: no meadow)
+  uMeadowOptics: uniform(new THREE.Vector2(0, 0)),   // the meadow's blades' area a square metre where it all grows: upright (as a ray along the ground meets it) and from above (src/scatter/grass.js opticsOf; 0: no meadow)
   uMeadowTop: uniform(0),                          // the meadow's mean top over the ground where it covers it all, metres (src/scatter/grass.js meanTop; 0: no meadow)
   uLandEnd: uniform(24000),                        // how far the land is drawn, metres from the eye (src/terrain/terrain.js): the air hides it by then
   uExposure: uniform(1),                           // the picture's exposure (the sky sets it by the hour)
@@ -40,14 +41,13 @@ export const U = {
   uShadowPen: uniform(0),                          // the widest penumbra the cascades are searched for (metres): the sun's disc over the tallest caster's way along the light (src/world/shadow.js)
   uShadowPull: uniform(0),                         // how far a caster drawn pulled towards the light is pulled (metres): the near cascade's bias (src/world/shadow.js, characters/kit/human.js)
   uFrame: uniform(0),                              // the world's frames drawn: the blue noise steps on with it (src/world/light/noise.js)
-  uSky: uniform(v3(0.4, 0.55, 0.7)), uHaze: uniform(1 / 6500), uHazeCol: uniform(v3(0.6, 0.7, 0.8)),
+  uHaze: uniform(1 / 6500), uHazeCol: uniform(v3(0.6, 0.7, 0.8)),
 };
 
 /** The set, bound to this camera, its sky at the start the given colour. */
 export function createUniforms(camera, skyHex) {
   const sky = new THREE.Color(skyHex).convertSRGBToLinear();
   U.uCam.value = camera.position;
-  U.uSky.value.set(sky.r, sky.g, sky.b);
   // the sky's colour as a light that comes out of toScreen() as exactly the sky
   U.uHazeCol.value.set(-Math.log(1 - sky.r) / 1.25, -Math.log(1 - sky.g) / 1.25, -Math.log(1 - sky.b) / 1.25);
   return U;

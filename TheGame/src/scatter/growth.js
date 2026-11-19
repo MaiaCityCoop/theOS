@@ -46,15 +46,17 @@ export const growthMap = () => CURRENT;
     kept round the camera. fields: a word's each, in its order ({ band: its texel, metres (the layer's band limit:
     rule.js layersOf), far: metres its farthest reader is drawn to at the most }). */
 export function createGrowth(renderer, fields) {
-  const W = Math.max(1, Math.min(WORDS, fields.length)), words = fields.slice(0, W).map(({ band, far }) => ({ T: band, far, N: 4 * SNAP, base: 0, origin: uniform(new THREE.Vector2(0, 0)), window: null }));
+  // (each word's texel, side and first texel as uniforms besides (uT, uN, uBase): every layer's passes and readers are
+  // code alike, the words differing only in them)
+  const W = Math.max(1, Math.min(WORDS, fields.length)), words = fields.slice(0, W).map(({ band, far }) => ({ T: band, far, N: 4 * SNAP, base: 0, origin: uniform(new THREE.Vector2(0, 0)), window: null, uT: uniform(band), uN: uniform(4 * SNAP, 'int'), uBase: uniform(0, 'uint') }));
   for (const Wd of words) while ((Wd.N / 2 - SNAP) * Wd.T < Wd.far) Wd.N *= 2;   // (the fewest texels that reach its `far` from where its snap leaves it)
-  let B = null, writers = [], places = [], passes = [], fills = [], uRect = uniform(new THREE.Vector4()), uCells = uniform(new THREE.Vector4()), version = 0, key = '';
-  const slot = (ix, iz, w) => { const Wd = words[w], n = Wd.N; return uint(ix.bitAnd(int(n - 1)).add(iz.bitAnd(int(n - 1)).mul(int(n)))).add(uint(Wd.base)); };
-  const inside = (ix, iz, w) => { const o = words[w].origin, n = words[w].N; return ix.greaterThanEqual(int(o.x)).and(ix.lessThan(int(o.x).add(n))).and(iz.greaterThanEqual(int(o.y))).and(iz.lessThan(int(o.y).add(n))); };
+  let B = null, writers = [], passes = [], fills = [], uRect = uniform(new THREE.Vector4()), uCells = uniform(new THREE.Vector4()), version = 0, key = '';
+  const slot = (ix, iz, w) => { const Wd = words[w], n = Wd.uN; return uint(ix.bitAnd(n.sub(1)).add(iz.bitAnd(n.sub(1)).mul(n))).add(Wd.uBase); };
+  const inside = (ix, iz, w) => { const o = words[w].origin, n = words[w].uN; return ix.greaterThanEqual(int(o.x)).and(ix.lessThan(int(o.x).add(n))).and(iz.greaterThanEqual(int(o.y))).and(iz.lessThan(int(o.y).add(n))); };
   /** What the layers' words say at p (metres), w each of the words asked: { shade, litter } read between the four
       texels round it, and the lead and the feet of the one it lies in; nothing where its window does not reach. */
   const read = (p, w) => {
-    const T = words[w].T, u = p.div(T).sub(0.5), i = ivec2(floor(u)).toVar(), f = u.sub(floor(u)).toVar(), near = ivec2(floor(p.div(T))).toVar();
+    const T = words[w].uT, u = p.div(T).sub(0.5), i = ivec2(floor(u)).toVar(), f = u.sub(floor(u)).toVar(), near = ivec2(floor(p.div(T))).toVar();
     const out = { shade: float(0).toVar(), feet: float(0).toVar(), litter: float(0).toVar(), lead: uint(0).toVar() };
     If(inside(i.x, i.y, w).and(inside(i.x.add(1), i.y.add(1), w)), () => {
       for (const [dx, dz, k] of [[0, 0, float(1).sub(f.x).mul(float(1).sub(f.y))], [1, 0, f.x.mul(float(1).sub(f.y))], [0, 1, float(1).sub(f.x).mul(f.y)], [1, 1, f.x.mul(f.y)]]) {
@@ -68,7 +70,8 @@ export function createGrowth(renderer, fields) {
   };
   /** What stands in cell c (ivec2) of the layer whose word is w, as its record (rule.js recordOf): a node, read from
       its window of cells (where c is one the gather of its texels' window reads: whoever asks keeps to that). */
-  const at = (w, c) => { const P = places[w]; return B.element(uint(c.x.bitAnd(int(P.side - 1)).add(c.y.bitAnd(int(P.side - 1)).mul(int(P.side)))).add(uint(P.base))); };
+  const places = [], placeOf = (w) => (places[w] ||= { side: uniform(1, 'int'), base: uniform(0, 'uint') });   // (each layer's cells' window: its side and its first, uniforms set as it is built)
+  const at = (w, c) => { const P = placeOf(w); return B.element(uint(c.x.bitAnd(P.side.sub(1)).add(c.y.bitAnd(P.side.sub(1)).mul(P.side))).add(P.base)); };
   // (while it all holds more than the geometry's room, the largest word halved, and said: its words and the cells its
   // gather reads, 4 bytes each)
   const sides = (list) => {
@@ -86,9 +89,8 @@ export function createGrowth(renderer, fields) {
     writers = list; sides(list);
     // (one buffer for all of it: each word's texels, then each layer's cells; a pass binds few)
     let base = 0;
-    for (const Wd of words) { Wd.base = base; base += Wd.N * Wd.N; }
-    places = [];
-    for (const { w, span } of writers) { const side = 2 ** Math.ceil(Math.log2(span(words[w].N))); places[w] = { side, base }; base += side * side; }
+    for (const Wd of words) { Wd.base = base; base += Wd.N * Wd.N; Wd.uN.value = Wd.N; Wd.uBase.value = Wd.base; }
+    for (const { w, span } of writers) { const side = 2 ** Math.ceil(Math.log2(span(words[w].N))), P = placeOf(w); P.side.value = side; P.base.value = base; base += side * side; }
     const buf = gpuStorage('uint', base, 'the growth map', 'geometry'); B = buf.node;
     fills = writers.map(({ w, record }) => Fn(() => {
       const g = globalId.xy;
@@ -100,7 +102,7 @@ export function createGrowth(renderer, fields) {
     passes = writers.map(({ w, gather }) => Fn(() => {
       const g = globalId.xy;
       If(g.x.lessThan(uint(uRect.z)).and(g.y.lessThan(uint(uRect.w))), () => {
-        const ix = int(g.x).add(int(uRect.x)), iz = int(g.y).add(int(uRect.y)), q = vec2(float(ix), float(iz)).add(0.5).mul(words[w].T);
+        const ix = int(g.x).add(int(uRect.x)), iz = int(g.y).add(int(uRect.y)), q = vec2(float(ix), float(iz)).add(0.5).mul(words[w].uT);
         const L = gather(q);
         B.element(slot(ix, iz, w)).assign(byte(L.shade).bitOr(byte(L.feet).shiftLeft(uint(8))).bitOr(byte(L.litter).shiftLeft(uint(16))).bitOr(uint(L.lead).min(uint(255)).shiftLeft(uint(24))));
       });

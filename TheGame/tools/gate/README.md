@@ -12,9 +12,38 @@
 | `tiles.js` | `stills --tiles`: a view drawn in tiles and laid together (the truth past 800 m) |
 | `real.js`, `real.py` | `real`: renders against photographs; the numbers (CMMD, image statistics) in Python |
 | `sheet.js` | Labelled JPEG sheets (`diff --jpeg`) |
+| `wgsl.js` | `wgsl`: every shader module the smoke builds, compiled on this machine's GPU in Chrome and WebKit |
 
 The gate is two halves (intent 0038, Define): **invisible** (detail never shows: `stills`, `diff` against `?truth`,
 and `motion`) and **real** (the full-detail picture is held against photographs: `real`).
+
+## WGSL: every shader compiles on the device
+
+`bun tools/gate.js wgsl` has the smoke (`tools/smoke.js --wgsl`) keep every shader module it builds: the world's and
+the library's, each with the part it was built for. It then compiles them on this machine's GPU in a blank page of
+Chrome (Tint) and of WebKit (its own compiler), with no game loaded, and makes every pipeline from them. Each
+pipeline's bind groups are laid out as its WGSL declares them, as three lays out the game's. Smoke only builds the
+text; only a device says whether it compiles. It takes about a minute and little memory, so it runs even where the
+machine is too short for a measure. It is the hour's first line after Ready. Before a push it runs where asked:
+`git config gate.wgsl true`, or `git -c gate.wgsl=true push` once. Where another run holds the GPU, the push says
+so and goes on.
+
+It also times what each shader costs, so an owner knows which one to shrink and by how much:
+- **What is timed:** every pipeline's WGSL bytes, its modules' compile, and its own making, one pipeline at a time, in
+  each engine. The board shows the 20 costliest, each named by the step of the start that made it and the game's own
+  files where it is made (`src/terrain/pages.js:226 < src/terrain/terrain.js:61`).
+- **The first view's own:** in the hour, the device run keeps every program the game made before its first frame
+  showed (its own WGSL, each once), and those are compiled cold the same way: what the start waits for, shader by
+  shader. Each takes the smoke's name where its code is the smoke's; the line says how many are. The board's table is
+  the first view's costliest, where it was timed.
+- **Ceilings:** the worst pipeline of all the smoke builds and the first view's total are held to
+  `tools/gate/shaders.json`, set from main's run with `--ratchet` (`gate.js wgsl --ratchet`, `gate.js hourly --ratchet`)
+  and only ever lowered.
+- **Cold, once per shader set:** a Mac keeps compiled shaders from run to run (Metal's cache: a second run took a
+  tenth of the first). So each set of shaders is marked (a private variable its entry point writes, so the driver's
+  source is new) and measured once cold. Its numbers are kept in `.gate/wgsl/` for later runs of the same set.
+- **Not measured:** where the machine was short of memory or swapped (`machine.js`), the run says so, and the set is
+  measured again next time under a new mark.
 
 ## Motion: nothing pops (check 4)
 

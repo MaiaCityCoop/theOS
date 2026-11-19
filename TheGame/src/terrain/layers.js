@@ -12,18 +12,21 @@
 //                           their shares (a byte each), the material's height left out: that is the texel's own
 //   the grass's carpet      how much of the ground it covers: near (the bare patches cut out), between, and far (its tufts
 //                           let go); and the slow variation of every ground's colour (macro)
-//   the stands' cover       the two thickest stands (STANDS below): how thick each grows there and its crowns' pattern
-//   the grass's colour      its tint, and which two stands those are
+//   the stands' cover       the two thickest stands (STANDS below): how much of the ground their crowns cover there (the
+//                           rule's own expectation: src/scatter/rule.js densOf) and their crowns' pattern
+//   the grass's colour      the meadow's as its blades' tips show it (the carpet's), and which two stands those are
 import * as THREE from 'three/webgpu';
 import { If, Loop, float, int, uint, vec2, vec3, abs, max, clamp, smoothstep, log2, sqrt, round, uniformArray, renderGroup } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { byRole } from '../core/registry.js';
 import { riverInfo, biomesAt, grassFrom, groveAt, leadAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, BASE, LAID, PATH_W } from '../world/land.nodes.js';
-import { endOf } from '../scatter/grass.js';
+import { endOf, meadowTip } from '../scatter/grass.js';
 import { byte, un } from '../scatter/growth.js';
 import { BAND } from '../detail/error.js';
-import { standsOf, rowsOf } from '../scatter/rule.js';
+import { standsOf, rowsOf, densOf } from '../scatter/rule.js';
 import { detailOf } from '../detail/index.js';
+import { seenOf, crownOf, seenVersion } from '../detail/seen.js';
+import { CROWN_EXTINCTION } from '../world/light/physics.js';
 import { sizeOf } from '../../assets/kinds.js';
 const noise = byRole('noise');   // the baked cloudy noise: whichever material plays that part (its `role`)
 
@@ -73,8 +76,13 @@ if (LAYERS.length > EMPTY) throw new Error(`the land lays ${LAYERS.length} layer
 // hands over to the land where its plants are no longer drawn, in the same groves the plants stand in
 // (src/world/noise.nodes.js: groveAt): nothing drops out of the picture, whatever is planted.
 //   - far off, where they sink away (where leaving them out is within the one ERROR_PX: assets/kit/plant.js goneOf), the
-//     land takes the stand's colour (its `cover`; the trees' is the biome's `canopy`), as much of the ground as the
-//     stand covers there;
+//     land takes the stand's colour, as much of the ground as the stand's crowns cover there: what the rule that places
+//     them expects of a cell there (src/scatter/rule.js densOf, each of its things' chance to stand in it), each its
+//     crown's round (its reach) of the cell. Its colour is what its plants' impostors show, on the whole (src/detail/
+//     seen.js: their pictures' mean, as baked), each kind by how much of the ground it covers (standColours). Till any of
+//     its kinds shows (a shape's pictures are baked once a plant of it has come near, or read back as the browser kept
+//     them), and for a stand of things that have no far end (herbs, litter: assets/kinds.js `far`), its biome's colour
+//     (its `canopy`, its `understory`); with none, none;
 //   - a stand that casts shadows: its floor lies in their shade. Round the camera they are drawn (the shadow map, and in
 //     it the trees' stand-in: src/world/shadow.js, assets/kit/tree.js); past that the floor is dimmed, unevenly, so a
 //     forest is not a plain in full sun with trees on it.
@@ -89,7 +97,10 @@ const footprintOf = (kinds) => {
   }
   return of > 0 ? sum / of : CROWNS;
 };
-for (const bio of LAID) for (const { key, P, kinds, CV } of standsOf(bio, rowsOf())) {
+for (const bio of LAID) for (const { key, P, kinds, CV, L, entries } of standsOf(bio, rowsOf())) {
+  // its colour: its kinds' far ends' where they have them, as they come (standColours); till then, and else, its biome's
+  const seen = kinds.every((k) => k.asset.far);
+  if (!seen && !CV.colour) throw new Error(`${bio.name}: its ${key}s have no far ends to show their colour, and its stand says none`);
   // its colour comes in as its plants go out (they are drawn while their largest side is more than their last level's
   // pixels, sinking away over the BAND above: src/detail): from where its smallest kind begins to sink to where its
   // largest is gone (`last` = uPxK × its span: the measure's farAt, src/detail/measure.js); without such plants, always
@@ -103,11 +114,11 @@ for (const bio of LAID) for (const { key, P, kinds, CV } of standsOf(bio, rowsOf
   const crown = Math.min(...trees.map((a) => a.growth.base(a.growth.years.at(-1)))), radius = Math.min(...trees.map((a) => a.growth.reach(a.growth.years.at(-1))));
   const top = Math.max(0, ...cast.map((a) => a.measure?.most ?? a.size.height));
   // the pattern its plants make where they are no longer drawn, as large as they are (src/terrain/material.js: CROWNS ×
-  // grain its finest scale): a tree stand's, its crowns, at the biome's grain; any other's, its own plants' footprint, so
-  // the moss and the litter that stand for themselves far off keep their size (a bush's, 0.3 of a tree, made them two to
-  // three times as large there)
-  const grain = key === 'tree' ? (CV.grain ?? 1) : footprintOf(kinds) / CROWNS;
-  STANDS.push({ bio, P, grain, fill: CV.fill ?? 2.4, colour: CV.colour, span, fade: span ? [Math.min(...spans) / (span * BAND), 1] : [0, 0], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1, crown, radius, top });
+  // grain its finest scale): a tree stand's, its crowns, as they are; any other's, its own plants' footprint, so the moss
+  // and the litter that stand for themselves far off keep their size (a bush's, 0.3 of a tree, made them two to three
+  // times as large there)
+  const grain = key === 'tree' ? 1 : footprintOf(kinds) / CROWNS;
+  STANDS.push({ bio, P, grain, L, entries, seen, colour: CV.colour ?? null, span, fade: span ? [Math.min(...spans) / (span * BAND), 1] : [0, 0], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1, crown, radius, top });
 }
 if (STANDS.length >= NO_STAND) throw new Error(`the land has ${STANDS.length} stands that wear a colour: four bits name at most ${NO_STAND - 1}`);
 /** How far round the camera the shadows of the stands that cast them are drawn at the most (-1: none casts): past it, a
@@ -130,14 +141,78 @@ export const CASTERS = Object.freeze({
 
 // the layers' table: a layer's material (its number: src/materials/bake.js), its tile (metres), its pattern's size
 // (metres; 0: none), and whether it goes with the meadow's blades (1)
-let TABLE = null, STAND_T = null;
+let TABLE = null, STAND_T = null, STAND_K = null, crowned = 0;
 /** The layers' and the stands' tables, made once the world's textures are there (before node code reads them). */
 export const layerTables = (tex) => {
   if (TABLE) return;
   TABLE = uniformArray(LAYERS.map((L) => new THREE.Vector4(L.ground ? tex.layer(L.ground.material) : -1, L.ground ? L.ground.tile : 2, L.size ?? 0, L.meadow ? 1 : 0)), 'vec4').setGroup(renderGroup);
-  // the stands': (its crowns' colour, its grain), (its plants' span (0: none), from, to (shares of where they are gone), how far its shadows reach (-1: none))
-  STAND_T = uniformArray(STANDS.flatMap((S) => [new THREE.Vector4(...S.colour, S.grain), new THREE.Vector4(S.span, ...S.fade, S.reach)]).concat([new THREE.Vector4(), new THREE.Vector4()]), 'vec4').setGroup(renderGroup);
+  // the stands': (its crowns' colour (-1: none yet), its grain), (its plants' span (0: none), from, to (shares of where
+  // they are gone), how far its shadows reach (-1: none))
+  STAND_T = uniformArray(STANDS.flatMap((S) => [new THREE.Vector4(...(S.colour ?? [-1, -1, -1]), S.grain), new THREE.Vector4(S.span, ...S.fade, S.reach)]).concat([new THREE.Vector4(), new THREE.Vector4()]), 'vec4').setGroup(renderGroup);
+  // and how much of the light a metre of each stand's crowns takes (per metre): the light's own till its kinds' crowns
+  // are measured (crownK, as standColours finds them)
+  STAND_K = uniformArray(STANDS.map(() => CROWN_EXTINCTION), 'float').setGroup(renderGroup);
 };
+/** How much of the light a metre of a stand's crowns takes (per metre; null while none of its kinds' crowns is
+    measured): each kind's from how much of its round its crown covers seen from above (seen.js crownOf), that much of
+    the light taken through its depth, Beer–Lambert's (-ln(1 - cover) / depth; its depth its crown's at its oldest, at
+    its mean scale), weighted as their colours are (seenColour: its share of the stand times its crown's round). */
+const crownK = (S) => {
+  let sum = 0, of = 0;
+  for (const e of S.entries) {
+    const a = e.asset, w = e.from ? 0 : e.most * e.reach * e.reach, cover = w > 0 ? crownOf(a) : null;
+    if (cover == null) continue;
+    const base = a.growth?.base ? a.growth.base(a.growth.years.at(-1)) : 0, scale = a.placement.scale ? (a.placement.scale[0] + a.placement.scale[1]) / 2 : 1, depth = ((a.measure?.most ?? a.size.height) - base) * scale;
+    if (depth > 0) { sum += (w * -Math.log(1 - cover)) / depth; of += w; }
+  }
+  return of > 0 ? sum / of : null;
+};
+/** How many times what a metre of the stands' crowns takes has changed (the canopy's probes are made again: src/world/
+    light/canopy.js). */
+export const crownsVersion = () => crowned;
+/** How much of the ground a stand's crowns cover at a point (0 … 1): each of its things' chance to stand in a cell there
+    (D: its layer's densOf there) by its crown's round of the cell. Node code. */
+const coverOf = (T, D) => clamp(T.entries.reduce((s, e) => s.add(D[e.i].mul((Math.PI * e.reach * e.reach) / (T.L.cell * T.L.cell))), float(0)), 0, 1);
+/** How much of the light a metre of crown takes at p (per metre): each stand's (STAND_K), by how much of the ground its
+    crowns cover there (coverOf, as the layer map counts it), the light's own (physics.js CROWN_EXTINCTION) for what of
+    the ground none covers. Node code, in a Fn: for the canopy's probes (src/world/light/canopy.js). */
+export function crownsAt(p) {
+  if (!STAND_K) return float(CROWN_EXTINCTION);
+  const I = riverInfo(p).toVar(), ctx = { p, dist: float(0), d: abs(I.x), w: I.y, b: I.z }, dens = new Map(), sum = float(0).toVar(), of = float(0).toVar();
+  for (const T of STANDS) if (!dens.has(T.L)) dens.set(T.L, densOf(T.L, p, ctx));
+  STANDS.forEach((T, id) => { const c = coverOf(T, dens.get(T.L)).toVar(); sum.addAssign(c.mul(STAND_K.element(id))); of.addAssign(c); });
+  return sum.add(max(float(1).sub(of), 0).mul(CROWN_EXTINCTION)).div(max(of, 1));
+}
+/** What a stand whose kinds have far ends shows ([r, g, b], linear albedo; null while none of them does): each kind's
+    that shows (src/detail/seen.js) by how much of the ground it covers where the stand is thick, as its cover counts it
+    (layerWords): its share of the stand (its `most`, the slice of the patches it leads in: rule.js densOf) times its
+    crown's round. */
+const seenColour = (S) => {
+  const sum = [0, 0, 0]; let of = 0;
+  for (const e of S.entries) {
+    const w = e.from ? 0 : e.most * e.reach * e.reach, c = w > 0 && seenOf(e.asset); if (!c) continue;   // (what grows from litter is none far off: densOf)
+    for (let k = 0; k < 3; k++) sum[k] += w * c[k]; of += w;
+  }
+  return of > 0 ? sum.map((v) => v / of) : null;
+};
+let seenAt = -1;
+/** The stands' colours as their kinds' far ends show them, into the table as they come. Each frame: -1, none changed;
+    else the nearest a stand whose colour changed comes in (metres, as standFade's distance: 0, everywhere), so the land
+    laid with the old as far off is laid again (src/terrain/pages.js). */
+export function standColours() {
+  if (!STAND_T || seenVersion() === seenAt) return -1;
+  seenAt = seenVersion();
+  STANDS.forEach((S, i) => { const k = crownK(S); if (k != null && k !== STAND_K.array[i]) { STAND_K.array[i] = k; crowned++; } });   // (and what a metre of its crowns takes, as its kinds' crowns are measured)
+  let near = Infinity;
+  STANDS.forEach((S, i) => {
+    if (!S.seen) return;
+    const c = seenColour(S), v = STAND_T.array[2 * i];
+    if (!c || (c[0] === v.x && c[1] === v.y && c[2] === v.z)) return;
+    v.set(...c, S.grain);
+    near = Math.min(near, S.span > 0 ? (U.uPxK.value * S.span * S.fade[0]) / U.uErrorPx.value : 0);
+  });
+  return Number.isFinite(near) ? near : -1;
+}
 
 /** What the biomes make of the land at p: the layer map's point there, five 32-bit words (as the top of this file packs
     them). texel: metres between the map's points (its noises are read as finely as that calls for). Node code, in a Fn. */
@@ -192,13 +267,16 @@ export function layerWords(tex, p, texel) {
   // the land's colour variation, from the baked cloudy noise
   const pr = vec2(p.x.mul(0.6).sub(p.y.mul(0.8)), p.x.mul(0.8).add(p.y.mul(0.6))), prr = vec2(p.x.mul(0.8).add(p.y.mul(0.6)), p.x.mul(-0.6).add(p.y.mul(0.8)));
   const macro = nz(prr.mul(1 / 97).add(0.37), 97).b.sub(0.5).mul(0.16).add(nz(pr.mul(1 / 700), 700).a.sub(0.5).mul(0.2)).add(nz(p.mul(1 / 4500).add(0.11), 4500).r.sub(0.5).mul(0.18));
-  // ---- the stands: how thick each grows (as much of a cell as one of its plants covers), the pattern of its crowns
-  // (fill: how much of a cell one of its plants covers; grain: its plants' size to a tree's crown, STANDS; at scales
-  // with no whole ratio: no grid of crowns) ----
+  // ---- the stands: how much of the ground their crowns cover (the rule's own: each of its things' chance to stand in a
+  // cell here, densOf, by its crown's round of the cell, its reach: a stand's layer's density worked out once a point),
+  // the pattern of its crowns (grain: its plants' size to a tree's crown, STANDS; at scales with no whole ratio: no grid
+  // of crowns) ----
+  const dens = new Map();
+  for (const T of STANDS) if (!dens.has(T.L)) dens.set(T.L, densOf(T.L, p, ctx));
   const st = [0, 1].map(() => ({ id: int(NO_STAND).toVar(), c: float(0).toVar(), n: float(0).toVar() }));
   STANDS.forEach((T, id) => {
-    const wt = share.get(T.bio), g = T.grain;
-    const c = clamp(wt.mul(groveAt(p, T.P)).mul((T.P.density ?? 1) * T.fill), 0, 1).toVar();
+    const g = T.grain;
+    const c = coverOf(T, dens.get(T.L)).toVar();
     If(c.greaterThan(st[1].c), () => {
       const n = nz(p.div(23 * g).add(0.7), 23 * g).r.mul(0.35).add(nz(prr.div(31.7 * g).add(0.2), 31.7 * g).g.mul(0.35)).add(nz(pr.div(CROWNS * g), CROWNS * g).g.mul(0.3)).toVar();
       If(c.greaterThan(st[0].c), () => { st[1].id.assign(st[0].id); st[1].c.assign(st[0].c); st[1].n.assign(st[0].n); st[0].id.assign(id); st[0].c.assign(c); st[0].n.assign(n); })
@@ -206,8 +284,10 @@ export function layerWords(tex, p, texel) {
     });
   });
   If(st[1].id.lessThan(st[0].id), () => { const i = int(st[0].id).toVar(), c = float(st[0].c).toVar(), n = float(st[0].n).toVar(); st[0].id.assign(st[1].id); st[0].c.assign(st[1].c); st[0].n.assign(st[1].n); st[1].id.assign(i); st[1].c.assign(c); st[1].n.assign(n); });
-  // the grass's colour (its tint: what the carpet and the blades wear), as fine as the map's points call for
-  const tint = grassTint(tex, p, dry, max(log2(texel.mul(1024 / 45)), 0)).rgb;
+  // the grass's colour, as fine as the map's points call for: the meadow's as its blades' tips show it, which the carpet
+  // that stands for them past their end is (src/scatter/grass.js meadowTip: the grass's tint and dryness there, its
+  // tufts' mean shade; the carpet gives them their own, src/terrain/material.js laid)
+  const g = grassTint(tex, p, dry, max(log2(texel.mul(1024 / 45)), 0)), tint = meadowTip(g.rgb, g.a, float(0.5));
   const word = (a, b, c, d) => a.bitOr(b.shiftLeft(uint(8))).bitOr(c.shiftLeft(uint(16))).bitOr(d.shiftLeft(uint(24)));
   return [
     word(...top.map((t) => uint(t.id))),
@@ -275,7 +355,8 @@ export const layerOf = (id) => {
   const row = TABLE.element(id), stage = id.equal(STAGE), g = U.uStageGround, own = g.x.lessThan(0).select(TABLE.element(BARE).x, g.x);
   return { material: int(stage.select(own, row.x)), tile: stage.select(g.y, row.y), fade: (D, s) => row.w.greaterThan(0.5).select(endOf(D), row.z.greaterThan(0).select(smoothstep(s.mul(2 * MAPN), s.mul(2 * MAPN * BAND), row.z), float(1))) };
 };
-/** A stand's numbers ({ colour, grain, span, fade [a, b], reach }: as STANDS has them), for the fragment. */
+/** A stand's numbers ({ colour (its x under 0: none yet), grain, span, fade [a, b], reach }: as STANDS has them), for
+    the fragment. */
 export const standOf = (id) => { const a = STAND_T.element(id.mul(2)), b = STAND_T.element(id.mul(2).add(1)); return { colour: a.xyz, grain: a.w, span: b.x, a: b.y, b: b.z, reach: b.w }; };
 /** How far off (metres, as the 68° lens sees them) a stand's colour comes in: its plants' last level's reach (the
     measure's farAt: src/detail/measure.js, its span reckoned at the dial's rest, so over the dial now); without plants,

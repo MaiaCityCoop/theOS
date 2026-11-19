@@ -22,16 +22,18 @@ import * as THREE from 'three/webgpu';
 import { note, mark } from './gpu.js';
 import { compileFor, compileList, made, ask, labelled } from './compile.js';
 import { twinOf } from './pass.js';
+import { GBUFFER, GBUFFER_BYTES, lightPass } from './gbuffer.js';
 import { U } from './uniforms.js';
 import { ERROR_PX } from '../detail/error.js';
 import { occlusion } from './occlusion.js';
 import { outputRatio } from './output.js';
 
-/** The prepass's target, w × h pixels on `depth`: its motion (rgba16f, `output`), and what drew each pixel (`id`: two
+/** The prepass's target, w × h pixels on `depth`: its motion (rgba16f, `output`), what drew each pixel (`id`: two
     numbers of 32 bits: src/core/pass.js drawnId, written by every material's prepass twin, twinOf). */
 export const prepassTarget = (w, h, depth) => {
-  const t = new THREE.RenderTarget(w, h, { samples: 0, type: THREE.HalfFloatType, generateMipmaps: false, depthTexture: depth, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, count: 2 });
+  const t = new THREE.RenderTarget(w, h, { samples: 0, type: THREE.HalfFloatType, generateMipmaps: false, depthTexture: depth, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, count: 2 + GBUFFER.length });
   t.textures[0].name = 'output'; Object.assign(t.textures[1], { name: 'id', type: THREE.UnsignedIntType, format: THREE.RGIntegerFormat });
+  GBUFFER.forEach((g, i) => Object.assign(t.textures[2 + i], { name: g.name, type: g.type, format: g.format }));   // (and the G-buffer: src/core/gbuffer.js)
   return t;
 };
 
@@ -53,8 +55,8 @@ export function createScreen(renderer, { temporal, lens = null }) {
       if (T) for (const t of T.turns) { t.pre.dispose(); t.main.dispose(); t.depth.dispose(); }
       const w = size.x, h = size.y, made = (o, depth) => new THREE.RenderTarget(w, h, { samples: 0, type: THREE.HalfFloatType, generateMipmaps: false, depthTexture: depth, ...o });
       const turns = [0, 1].map(() => { const depth = new THREE.DepthTexture(w, h); return { depth, pre: prepassTarget(w, h, depth), main: made({ minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter }, depth) }; });
-      T = { w, h, turns };
-      note('the picture inside (its colour, motion, id and depth, two of each)', 2 * w * h * (8 + 8 + 8 + 4), 0, 'geometry');   // (what the prepass and the colour draw into)
+      T = { w, h, turns, drawn: 0 };   // (drawn: frames drawn into them: the first, the other turn's depth holds nothing yet)
+      note('the picture inside (its colour, motion, id, G-buffer and depth, two of each)', 2 * w * h * (8 + 8 + 8 + GBUFFER_BYTES + 4), 0, 'geometry');   // (what the prepass and the colour draw into)
     }
     return T.turns[turn];
   };
@@ -70,15 +72,20 @@ export function createScreen(renderer, { temporal, lens = null }) {
     return makers.get(k);
   };
   // (drawn in either pass once made for both it takes part in: made for the prepass and not for the colour, its depth
-  // with no colour on it would be a hole the sky shows through)
+  // with no colour on it would be a hole the sky shows through. A deferred material's colour is its pass of light's
+  // (src/core/gbuffer.js lightPass): made for that instead)
+  const lit = (L) => !L || made(L.mesh, 'main') || (ask(L.mesh, 'main', makerOf('main', L.camera, L.mesh), labelled(twin.main(L.mesh.material), L.mesh, 'main')), false);
   const both = (object, material, camera, scene) => {
-    const pre = twin.pre(material);
-    if ((!pre || made(object, 'pre')) && made(object, 'main')) return true;   // (a frame's own way: two looks)
+    const pre = twin.pre(material), main = twin.main(material);
+    if ((!pre || made(object, 'pre')) && (main ? made(object, 'main') : lit(lightPass()))) return true;   // (a frame's own way: two looks)
     if (pre) ask(object, 'pre', makerOf('pre', camera, scene), labelled(pre, object, 'pre'));
-    ask(object, 'main', makerOf('main', camera, scene), labelled(twin.main(material), object, 'main'));
+    if (main) ask(object, 'main', makerOf('main', camera, scene), labelled(main, object, 'main'));
     return false;
   };
-  const drawn = (pass) => (object, scene, camera, geometry, material, ...rest) => { const m = twin[pass](material); if (m && both(object, material, camera, scene)) drawObject.call(renderer, object, scene, camera, geometry, m, ...rest); };
+  // (what is drawn on its own after the rest of the colour, apart: left out of the scene's draw of it)
+  const apartFrom = new Map();
+  const apartOf = (o) => { for (let p = o; p; p = p.parent) if (apartFrom.has(p)) return p; return null; };   // (the object drawn apart it lies under, or none)
+  const drawn = (pass) => (object, scene, camera, geometry, material, ...rest) => { if (apartFrom.size) { const a = apartOf(object); if (a && a !== scene) return; } const m = twin[pass](material); if (m && both(object, material, camera, scene)) drawObject.call(renderer, object, scene, camera, geometry, m, ...rest); };
   const pre = drawn('pre'), main = drawn('main');
   const clear = new THREE.Color(), sky = new THREE.Color(), prepassed = [];
   return {
@@ -101,10 +108,18 @@ export function createScreen(renderer, { temporal, lens = null }) {
     ahead(object, camera, scene) { const m = [object.material].flat()[0]; for (const pass of ['pre', 'main']) if (m && twin[pass](m)) ask(object, pass, makerOf(pass, camera, scene), labelled(twin[pass](m), object, pass), false); },
     /** What the last frame was laid on the screen from (temporal.resolve's: a tool's timing of the upscale alone). */
     last: null,
-    /** fn({ depth, motion, camera, w, h }) after every prepass, before the colour: what reads what the prepass drew, with
-        the camera as it drew it (its shift for this frame too). The land's pages ask there for what they show
-        (src/terrain/pages.js). name: whose its passes are, for a tool's timing (src/core/gpu.js mark). */
+    /** fn({ depth, depthWas, motion, camera, w, h }) after every prepass, before the colour: what reads what the prepass
+        drew, with the camera as it drew it (its shift for this frame too); depthWas the frame before's depth (the other
+        turn's, drawn into by nothing this frame; null the first frame after the targets are made again: a new size, or a
+        new ratio inside, where it holds nothing yet). The land's pages ask there for
+        what they show (src/terrain/pages.js); the water takes what it reflects of the world from the frame before
+        (src/terrain/water.js). name: whose its passes are, for a tool's timing (src/core/gpu.js mark). */
     afterPrepass(fn, name = null) { prepassed.push([fn, name]); },
+    /** An object of the scene, and all under it, drawn on its own after the rest of the colour (into its target and
+        depth), so its own time on the GPU can be taken (src/core/pace.js ownGpuMs): draw(render) calls render(), which
+        draws it. Those drawn apart are drawn in the order they were given: the water, whose march is held to its share
+        of the frame by it (src/terrain/water.js), then what lies over it (the city's plan). name: whose its passes are. */
+    apart(object, draw, name = null) { apartFrom.set(object, { draw, name }); },
     /** Draw the world as this camera sees it, onto the canvas. */
     render(scene, camera) {
       const t = targetsNow(), was = T.turns[1 - turn], alpha = renderer.getClearAlpha(), clearDepth = renderer.autoClearDepth;
@@ -117,19 +132,26 @@ export function createScreen(renderer, { temporal, lens = null }) {
       mark('prepass'); renderer.setRenderObjectFunction(pre); renderer.setRenderTarget(t.pre); renderer.render(scene, camera);
       // (and pass two, against this frame's depth: what it finds drawn into the prepass after the rest)
       if (culls) { mark('prepass, late'); occlusion.late(renderer, t.depth, size.x, size.y, (late) => { const ac = renderer.autoClear; renderer.autoClear = false; renderer.render(late, camera); renderer.autoClear = ac; }); }
-      for (const [fn, name] of prepassed) { mark(name); fn({ depth: t.depth, motion: t.pre.texture, camera, w: size.x, h: size.y }); }   // (once all of it is drawn)
+      for (const [fn, name] of prepassed) { mark(name); fn({ depth: t.depth, depthWas: T.drawn ? was.depth : null, motion: t.pre.texture, camera, w: size.x, h: size.y }); }   // (once all of it is drawn)
       // the colour, into the prepass's depth. (Cleared to the renderer's clear colour, which the sky sets to the hour's
       // horizon as the screen shows it: here in the light's own numbers, the screen's curve taken back off it)
       const E = 1.25 * U.uExposure.value, un = (v) => -Math.log(1 - Math.min(0.999, v) ** 2.2) / E;
       sky.setRGB(un(clear.r), un(clear.g), un(clear.b), THREE.LinearSRGBColorSpace); renderer.setClearColor(sky, 1); renderer.autoClearDepth = false;
-      mark('colour'); renderer.setRenderObjectFunction(main); renderer.setRenderTarget(t.main); renderer.render(scene, camera);
+      // (the deferred families first, the one pass of light, src/core/gbuffer.js: their pixels lit where the prepass left
+      // what their light needs, into the colour's target cleared to the sky; then the rest drawn over it, not cleared again)
+      const ac = renderer.autoClear;
+      mark('colour'); renderer.setRenderObjectFunction(main); renderer.setRenderTarget(t.main);
+      const L = lightPass(); if (L) { L.frame({ camera, textures: t.pre.textures, w: size.x, h: size.y }); renderer.render(L.mesh, L.camera); renderer.autoClear = false; }
+      renderer.render(scene, camera); renderer.autoClear = false;
+      for (const [o, A] of apartFrom) if (o.visible && o.parent) { mark(A.name); A.draw(() => renderer.render(o, camera)); }
+      renderer.autoClear = ac;
       renderer.setRenderObjectFunction(null); renderer.autoClearDepth = clearDepth; renderer.setRenderTarget(null); renderer.setClearColor(clear, alpha);
       if (culls) occlusion.rest();   // (every other view draws all that was packed: the shadow map, a still, a bake)
       temporal.end(camera);
       const dof = camera.userData.dof, glass = camera.userData.glass;   // the virtual camera brings a lens with it: its picture is drawn through it; the walker's glass, without the film's depth of field (src/camera/rig.js)
       mark('lens'); const blurred = lens && dof && dof.on ? lens.blur(t.main, camera, dof) : null;
       mark('upscale'); temporal.resolve((this.last = { colour: blurred ? blurred.colour : t.main.texture, depth: t.depth, motion: t.pre.texture, depthWas: was.depth, glass: blurred ? blurred.glass : glass ?? null }));
-      mark(null); turn = 1 - turn;
+      mark(null); turn = 1 - turn; T.drawn++;
     },
   };
 }

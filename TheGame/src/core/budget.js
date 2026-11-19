@@ -43,7 +43,24 @@ export const GPU_MB = 2048;
     a make past it is said and counted (src/core/gpu.js ledger: over), and the hour's gate fails on it. unit: MiB.
     source: Intents/0038, Build (GPU memory by class); the master, 2026-11-19 (the whole at most 2 GB, shared so) */
 export const BUDGET_MB = { geometry: 1024, ground: 512, light: 192, 'upscale/post': 128, other: 192 };
+/** Of geometry's memory (BUDGET_MB), the share its plants' far ends' atlases are sized by, the two of them together
+    (src/core/classes.js SHARE_MB; src/detail/atlas.js atlasesOf: their views and their clumps from it alone, the same
+    on every device). unit: a share of BUDGET_MB.geometry. source: Intents/0038, Build (GPU memory by class: the memory
+    ceiling, #165, held the atlases to a quarter of geometry's; at 9 bytes a texel, #183, 42 views of 20 texels) */
+export const ATLASES_SHARE = 1 / 4;
 /** A look-up of the single things' table (src/world/things.js) for a thing nobody changed, as most are: the places it
     reads on average, at most (a uvec4 each), for every packed thing at every packing while any thing is changed: what
     the table's fill follows from. unit: places. source: Intents/0038, Build (the solids' builder and cut) */
 export const PROBES = 4;
+/** How long the start waits for what may be stopped on its way (a worker's file an ad or content blocker held back, or
+    served something else in its place) before the veil says so, with what may help and a way to reload
+    (src/core/waits.js): a worker starts in a moment, and the stage waits as long for its first subject (src/boot.js).
+    unit: ms. source: the master, 2026-11-19 (Samuel's Safari with an ad blocker, the veil at "Raising the land" for
+    good: "or hasn't answered in a reasonable time puts a line on the veil") */
+export const STUCK_MS = 20000;
+/** How many frames what comes in after the first frame shown fades in over, and the ground's maps hand over in: no frame
+    changes it by more than a 36th, however slow the frames (0.6 s at 60 fps). What the first view does not wait for
+    (src/core/compile.js ask's near: the far cascades' casters, the canopy's probes) fades in as it comes, never on in
+    one frame (src/core/settle.js arriving). unit: frames. source: the ground's maps (src/scatter/ground.js), and the
+    master, 2026-11-19 ("each fades in as it arrives, over the same FADE frames the ground maps use") */
+export const FADE_FRAMES = 36;

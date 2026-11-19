@@ -10,13 +10,17 @@
 //                             exit 1 if anything failed
 //   bun tools/smoke.js --json the same as one line of JSON: what was built, what a start of the world compiles (its
 //                             pipelines, by their WGSL text: tools/health.js holds them to the base), what failed
+//   bun tools/smoke.js --wgsl f  and every shader module built (the world's and the library's), each with the part it was
+//                             built for, kept in f as JSON: what tools/gate/wgsl.js compiles on a device
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { mock } from './gpu-mock.js';
 
 const t0 = performance.now(), failed = [], made = [], bakers = [];
 // (every pipeline built, by its WGSL text, not by object: a render one is a vertex and a fragment stage)
-const shaders = { render: new Set(), compute: new Set() };
+const shaders = { render: new Set(), compute: new Set() }, named = new Map();
+/** A pipeline's WGSL kept (render: its vertex and fragment stage, joined by a NUL), with the first part it was built for. */
+const add = (set, text, label) => { set.add(text); if (!named.has(text)) named.set(text, label); };
 /** Pipelines by their WGSL text: render and compute ones, the distinct shader modules they hold, and those modules'
     bytes. */
 const pipelinesOf = ({ render, compute }) => {
@@ -24,6 +28,12 @@ const pipelinesOf = ({ render, compute }) => {
   return { render: render.size, compute: compute.size, modules: modules.size, bytes: [...modules].reduce((s, m) => s + Buffer.byteLength(m), 0) };
 };
 const M = await mock({ lean: true }), { THREE, renderer } = M;
+// (where each material and compute pass is made: the game's two innermost files on the stack as three's constructor
+// sets its flag; what a shader is called where it is kept, with its step and name below: tools/gate/wgsl.js)
+const SITE = new WeakMap(), ROOT = new URL('..', import.meta.url).pathname;
+const siteOf = () => [...new Map((new Error().stack.match(/\/[^\s():]+\.js:\d+/g) ?? []).filter((f) => f.startsWith(ROOT) && !/^(node_modules|tools)\//.test(f.slice(ROOT.length))).map((f) => [f.replace(/:\d+$/, ''), f.slice(ROOT.length)])).values()].slice(0, 2).join(' < ');
+for (const [C, flag] of [[THREE.Material, 'isMaterial'], [THREE.ComputeNode, 'isComputeNode']]) Object.defineProperty(C.prototype, flag, { configurable: true, set(v) { Object.defineProperty(this, flag, { value: v, writable: true, enumerable: true, configurable: true }); SITE.set(this, siteOf()); } });
+const at = (x) => (SITE.get(x) ? ` at ${SITE.get(x)}` : '');
 // (what three says is wrong as it builds, it says by console.error: a failure here, said with the part it was in)
 let part = 'loading';
 const said = console.error;
@@ -32,7 +42,11 @@ console.error = (...a) => { failed.push(`${part}: ${a.map(String).join(' ').spli
 process.on('uncaughtException', (e) => failed.push(`${part}, later: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`));
 process.on('unhandledRejection', (e) => failed.push(`${part}, later: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`));
 const trace = process.env.TRACE ? (w) => said(`smoke: ${w} (${((performance.now() - t0) / 1000).toFixed(1)} s)`) : () => {};
-const tryTo = async (name, fn) => { part = name; trace(name); try { return await fn(); } catch (e) { failed.push(`${name}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); return null; } };
+const tryTo = async (name, fn) => { part = name; trace(name); try { return await fn(); } catch (e) { failed.push(`${name}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); return null; } finally { madeIn(name); } };
+// (each material and compute pass with the step of the start it was first made in, and a thing with its nearest named
+// self or forebear: what a shader is called where it is kept, tools/gate/wgsl.js)
+const origin = new Map(), madeIn = (step) => { const at = (x) => { if (x && !origin.has(x)) origin.set(x, step); }; scene?.traverse((o) => [o.material].flat().forEach(at)); for (const o of M.drawn) (o.isMaterial ? [o] : [o.material].flat()).forEach(at); M.computed.forEach(at); };
+const nameOf = (o) => { let p = o; while (p && !p.name) p = p.parent; return p?.name || o.type || 'a thing'; };
 
 // ---- the world, as src/boot.js makes it ----
 const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(68, innerWidth / innerHeight, 0.15, 30000); scene.add(camera);
@@ -70,7 +84,7 @@ await tryTo('the city', async () => { (await import('../src/city/index.js')).cre
 await tryTo('a frame', async () => { game?.screen?.render(scene, camera); await Promise.resolve(); await (await import('../src/core/compile.js')).inTurn(() => {}); });   // (and what it asked to be made, made: its passes of their own, src/core/compile.js drawMade)
 
 // ---- every material made, built as each pass draws it ----
-const { twinOf } = await import('../src/core/pass.js'), { prepassTarget } = await import('../src/core/screen.js');
+const { twinOf } = await import('../src/core/pass.js'), { prepassTarget } = await import('../src/core/screen.js'), { lightPass } = await import('../src/core/gbuffer.js'), { CASTS } = await import('../src/world/shadow.js');
 const PRE_TARGET = prepassTarget(4, 4, new THREE.DepthTexture(4, 4));   // (the prepass built as it draws: into its target, writing its id too)
 const built = new Set(), materials = new Map();
 const take = (object, m) => { if (m?.isNodeMaterial && !materials.has(m)) materials.set(m, object); };
@@ -79,26 +93,30 @@ for (const o of M.drawn) { if (o.isMaterial) take({ isMesh: true, geometry: new 
 const buildAll = (where) => {
   for (const [m, object] of materials) {
     if (built.has(m)) continue; built.add(m);
-    part = `${where}: ${object.name || object.type || 'a thing'} (${m.name || m.type})`;
+    part = `${where}${origin.get(m) && origin.get(m) !== where ? `: ${origin.get(m)}` : ''}: ${nameOf(object)} (${m.name || m.type})${at(m)}`;
     const twins = (() => { try { return twinOf(m); } catch { return { pre: null, main: null }; } })();
-    for (const [pass, mat] of [['own', m], ['pre', twins.pre], ['main', twins.main]]) {
+    // (and what a caster draws into the shadow cascades and the canopy map: its shadow twin, src/world/shadow.js)
+    for (const [pass, mat] of [['own', m], ['pre', twins.pre], ['main', twins.main], ['shadow', object.layers?.isEnabled?.(CASTS) ? twins.shadow : null]]) {
       if (!mat) continue;
       if (pass === 'pre') renderer.setRenderTarget(PRE_TARGET);
-      try { const s = M.build(object.isMesh || object.isPoints || object.isLine || object.isSprite ? object : { isMesh: true, geometry: new THREE.BufferGeometry(), material: mat }, mat); shaders.render.add(`${s.vertex}\0${s.fragment}`); made.push(pass); }
+      try { const s = M.build(object.isMesh || object.isPoints || object.isLine || object.isSprite ? object : { isMesh: true, geometry: new THREE.BufferGeometry(), material: mat }, mat); add(shaders.render, `${s.vertex}\0${s.fragment}`, `${part}, ${pass}`); made.push(pass); }
       catch (e) { failed.push(`${part}, ${pass}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); }
       if (pass === 'pre') renderer.setRenderTarget(null);
     }
   }
 };
+{ const L = lightPass(); if (L) take(L.mesh, L.mesh.material); }   // (the one pass of light: drawn by the screen, in no scene)
 buildAll('the world');
 // what bakes the far ends (src/scatter/trees.js farOf): compiled at the start, drawn straight by the bakers, by no pass,
-// so as itself only (no prepass or colour twin)
+// so as itself only (no prepass or colour twin); and the bakers' own reduce (src/detail/impostor.js createBaker: a row's
+// samples into the atlas' three textures), the views' and the clumps' tiles'
+await tryTo("the far ends' reduce", async () => { const { bakers: of } = await import('../src/detail/impostor.js'); bakers.push(...of().views().reduces, ...of().tiles(1).reduces); });
 for (const o of bakers) for (const m of o.userData.materials) {
   if (built.has(m)) continue; built.add(m); part = `the world: a far end's bake (${m.name || m.type})`;
-  try { const s = M.build(o, m); shaders.render.add(`${s.vertex}\0${s.fragment}`); made.push('own'); } catch (e) { failed.push(`${part}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); }
+  try { const s = M.build(o, m); add(shaders.render, `${s.vertex}\0${s.fragment}`, part); made.push('own'); } catch (e) { failed.push(`${part}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); }
 }
 let passes = 0;
-for (const node of M.computed) { part = `a compute pass (${node.name || node.type || 'compute'})`; try { shaders.compute.add(M.compute(node)); passes++; } catch (e) { failed.push(`${part}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); } }
+for (const node of M.computed) { part = `a compute pass of ${origin.get(node) ?? 'the start'} (${node.name || node.type || 'compute'})${at(node)}`; try { add(shaders.compute, M.compute(node), part); passes++; } catch (e) { failed.push(`${part}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); } }
 const world = { materials: built.size, builds: made.length, passes, pipelines: pipelinesOf(shaders) };   // (counted here: the world's start, not the library's)
 
 // ---- the library: every asset's subject, as its page stands it (src/library) ----
@@ -120,6 +138,8 @@ buildAll('the library');
 console.error = said;
 const secs = ((performance.now() - t0) / 1000).toFixed(1), P = world.pipelines, summary = { world, library: built.size - before, secs: +secs, failed: [...new Set(failed)] };
 keep(summary);
+const wgslAt = process.argv.indexOf('--wgsl');
+if (wgslAt > 0) writeFileSync(process.argv[wgslAt + 1], JSON.stringify({ render: [...shaders.render].map((t) => { const [vertex, fragment] = t.split('\0'); return { label: named.get(t), vertex, fragment }; }), compute: [...shaders.compute].map((code) => ({ label: named.get(code), code })) }));
 if (process.argv.includes('--json')) { console.log(JSON.stringify(summary)); process.exit(failed.length ? 1 : 0); }
 console.log(`smoke: the world ${world.materials} materials (${world.builds} builds by pass), ${world.passes} compute passes, ${P.render} render and ${P.compute} compute pipelines, ${P.modules} shader modules, ${(P.bytes / 1024).toFixed(1)} KB of WGSL; the library ${built.size - before} materials more; ${secs} s`);
 if (failed.length) { console.log(`\n${failed.length} failed:\n  ${[...new Set(failed)].join('\n  ')}`); process.exit(1); }

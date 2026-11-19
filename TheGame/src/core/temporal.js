@@ -273,6 +273,10 @@ export function createTemporal(renderer) {
       // frame, the frames together take in (src/terrain/material.js, src/scatter/stress.js)
       U.uFine.value = 1 + (Math.min(1, w / size.x) - 1) * K.fine;
     },
+    /** The screen's picture as the last frame left it (its kept colour, the screen's pixels: the perceptual curve, rgb as
+        its square root: toP, fromP), until this frame's resolve writes the next; null after a cut or a new size, where
+        there is none. What a water reflects of the world (src/terrain/water.js). */
+    history() { return fresh ? null : STORE ? hist[1 - turn] : hist[1 - turn].textures[0]; },
     /** After it: the camera as it was, and nothing read finer by what is drawn otherwise. */
     end(camera) { if (tile) camera.setViewOffset(tile.fullWidth, tile.fullHeight, tile.offsetX, tile.offsetY, tile.width, tile.height); else camera.clearViewOffset(); U.uFine.value = 1; },
     /** The screen's picture from the frame just drawn, laid on the canvas: { colour (the light's numbers; its fourth
