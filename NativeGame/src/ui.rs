@@ -32,6 +32,8 @@ pub enum Act {
     PlayPause,
     NewShots,
     Anchors,
+    /// The Library's asset at this place on the shelf.
+    Pick(usize),
 }
 
 /// When the current view opened, in real seconds since the start.
@@ -54,7 +56,6 @@ struct PlayLabel;
 pub fn plugin(app: &mut App) {
     app.init_resource::<Fonts>()
         .add_systems(OnEnter(View::Home), (home, release))
-        .add_systems(OnEnter(View::Game), game)
         .add_systems(OnEnter(View::Studio), studio)
         .add_systems(OnEnter(View::Meadow), meadow)
         .add_systems(OnEnter(View::Library), library)
@@ -65,7 +66,7 @@ pub fn plugin(app: &mut App) {
         .add_observer(scrub_drag)
         .add_observer(slide_press)
         .add_observer(slide_drag)
-        .add_systems(Update, (hover, escape, (strip_follows, playhead).run_if(in_state(View::Studio)), (frame_time, slide_show).run_if(in_state(View::Meadow))));
+        .add_systems(Update, (hover, escape, (strip_follows, playhead).run_if(in_state(View::Studio)), (frame_time, slide_show).run_if(in_state(View::Meadow)), shelf_marks.run_if(in_state(View::Library))));
 }
 
 impl FromWorld for Fonts {
@@ -157,10 +158,9 @@ fn home(mut commands: Commands, f: Res<Fonts>) {
             (
                 Node { column_gap: Val::Px(20.0), flex_grow: 1.0, ..default() },
                 children![
-                    tile(Act::Open(View::Game), true, "A · GAME", "Game", "Walk the green plain. W A S D, the mouse held to look, Shift to run.", 2.0),
-                    tile(Act::Open(View::Studio), false, "B · STUDIO", "Studio", "Five shots, played live through the world by the virtual camera.", 1.0),
-                    tile(Act::Open(View::Meadow), false, "C · MEADOW", "Meadow", "How real can it look here? Grass in wind, a physical sky, the sun. Measured at 1080p.", 1.0),
-                    tile(Act::Open(View::Library), false, "D · LIBRARY", "Library", "Every plant and rock, each a procedural master. ← → step, Space a new individual.", 1.0),
+                    tile(Act::Open(View::Meadow), true, "A · GAME", "Game", "The meadow: grass in wind, a physical sky, the sun. Click to look, W A S D, scroll to rise.", 2.0),
+                    tile(Act::Open(View::Studio), false, "B · STUDIO", "Studio", "Shots played live through the world by the virtual camera.", 1.0),
+                    tile(Act::Open(View::Library), false, "C · LIBRARY", "Library", "Every plant and rock, each a procedural master, beside its baked far view.", 1.0),
                 ],
             ),
         ],
@@ -176,26 +176,63 @@ fn library(mut commands: Commands, f: Res<Fonts>) {
         children![
             (Hovered::default(), Act::Home, chip_node(), BackgroundColor(CREAM), children![text(&f.sans, CHIP_TEXT, FOREST, "Home")]),
             (chip_node(), BackgroundColor(GLASS), children![(crate::workshop::Caption, text(&f.mono, CHIP_TEXT, FOREST, "…"))]),
-            (chip_node(), BackgroundColor(GLASS), children![text(&f.mono, CHIP_TEXT, FOREST, "← → assets · Space new individual · scroll closer")]),
+            (chip_node(), BackgroundColor(GLASS), children![text(&f.mono, CHIP_TEXT, FOREST, "click an asset · ← → step · Space new individual · scroll closer")]),
         ],
     ));
+    // the shelf: every asset of the library, grouped by kind, on the left; the chosen one dark
+    let library = crate::library::load();
+    commands
+        .spawn((
+            DespawnOnExit(View::Library),
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(52.0),
+                left: Val::Px(12.0),
+                width: Val::Px(180.0),
+                padding: UiRect::all(Val::Px(10.0)),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(4.0),
+                border_radius: BorderRadius::all(Val::Px(16.0)),
+                ..default()
+            },
+            BackgroundColor(GLASS),
+        ))
+        .with_children(|list| {
+            let mut kind = String::new();
+            for (k, a) in library.values().enumerate() {
+                if a.kind != kind {
+                    kind = a.kind.clone();
+                    list.spawn((text(&f.mono, 11.0, CLAY, if kind == "rock" { "ROCKS" } else { "PLANTS" }), Node { margin: UiRect::top(Val::Px(6.0)), ..default() }));
+                }
+                list.spawn((
+                    Hovered::default(),
+                    Act::Pick(k),
+                    ShelfItem(k),
+                    Node { height: Val::Px(26.0), padding: UiRect::horizontal(Val::Px(10.0)), align_items: AlignItems::Center, border_radius: BorderRadius::MAX, ..default() },
+                    BackgroundColor(Color::NONE),
+                    children![(ShelfLabel, text(&f.sans, 13.0, FOREST, &a.name))],
+                ));
+            }
+        });
 }
 
-// ---- the Game: the world, and a line of help ----
+/// An entry of the Library's list, and its words.
+#[derive(Component)]
+struct ShelfItem(usize);
+#[derive(Component)]
+struct ShelfLabel;
 
-fn game(mut commands: Commands, f: Res<Fonts>) {
-    commands.spawn((
-        DespawnOnExit(View::Game),
-        Node { position_type: PositionType::Absolute, top: Val::Px(20.0), left: Val::Px(20.0), right: Val::Px(20.0), column_gap: Val::Px(12.0), align_items: AlignItems::Center, ..default() },
-        children![
-            pill(&f, Act::Home, "Home", false),
-            (
-                Node { height: Val::Px(40.0), padding: UiRect::horizontal(Val::Px(18.0)), align_items: AlignItems::Center, border_radius: BorderRadius::MAX, ..default() },
-                BackgroundColor(GLASS),
-                children![text(&f.mono, 13.0, FOREST, "click to look · W A S D walk · Shift runs · scroll to rise · Esc lets go")],
-            ),
-        ],
-    ));
+fn shelf_marks(shelf: Option<Res<crate::workshop::Shelf>>, mut items: Query<(&ShelfItem, &mut BackgroundColor, &Children)>, mut labels: Query<&mut TextColor, With<ShelfLabel>>) {
+    let Some(s) = shelf else { return };
+    for (item, mut bg, kids) in &mut items {
+        let on = item.0 == s.at;
+        bg.0 = if on { FOREST } else { Color::NONE };
+        for k in kids.iter() {
+            if let Ok(mut c) = labels.get_mut(k) {
+                c.0 = if on { CREAM } else { FOREST };
+            }
+        }
+    }
 }
 
 // ---- the Meadow: the test scene, Home, the frame time and the hour ----
@@ -450,6 +487,7 @@ fn press(
     time: Res<Time<Real>>,
     mut next: ResMut<NextState<View>>,
     mut s: ResMut<Studio>,
+    shelf: Option<ResMut<crate::workshop::Shelf>>,
 ) {
     let Ok(act) = acts.get(click.entity) else { return };
     click.propagate(false);
@@ -463,6 +501,12 @@ fn press(
         Act::Home => next.set(View::Home),
         Act::NewShots => s.new_shots(),
         Act::Anchors => s.open(crate::film::ANCHORS),
+        Act::Pick(k) => {
+            if let Some(mut shelf) = shelf {
+                shelf.at = k;
+                shelf.dirty = true;
+            }
+        }
         Act::PlayPause => {
             if s.time >= s.duration() {
                 s.time = 0.0;
@@ -528,7 +572,7 @@ pub fn navtest(
     use bevy::picking::pointer::{Location, PointerAction, PointerButton, PointerId, PointerInput};
     use bevy::window::WindowRef;
     const STEPS: [(Act, View); 6] = [
-        (Act::Open(View::Game), View::Game),
+        (Act::Open(View::Library), View::Library),
         (Act::Home, View::Home),
         (Act::Open(View::Studio), View::Studio),
         (Act::Home, View::Home),

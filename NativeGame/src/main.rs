@@ -27,7 +27,6 @@ use std::path::PathBuf;
 pub enum View {
     #[default]
     Home,
-    Game,
     Studio,
     Meadow,
     Library,

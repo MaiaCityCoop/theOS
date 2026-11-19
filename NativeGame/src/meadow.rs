@@ -70,10 +70,10 @@ const LEVELS: u32 = 4;
 
 /// Lays each level's tiles around the eye, on whole cells, so every blade stays fixed to the world; hides them all
 /// high above, where the far land alone is drawn.
-fn lay(eye: Query<&GlobalTransform, With<Eye2>>, mut tiles: Query<(&Tile, &mut Transform, &mut Visibility)>) {
+fn lay(state: Res<State<View>>, eye: Query<&GlobalTransform, With<Eye2>>, mut tiles: Query<(&Tile, &mut Transform, &mut Visibility)>) {
     let Ok(eye) = eye.single() else { return };
     let at = eye.translation();
-    let high = at.y - crate::terrain::height(at.x, at.z) > HIGH;
+    let high = at.y - crate::terrain::height(at.x, at.z) > HIGH || *state.get() == View::Library;
     let n = crate::grass::TILE as f32;
     for (tile, mut t, mut v) in &mut tiles {
         let s = FINE * 2f32.powi(tile.level as i32);
@@ -131,6 +131,7 @@ fn class(ring: i32) -> i32 {
 /// Grows and drops chunks around the camera; at most a few new ones a frame, nearest first.
 fn stream(
     mut commands: Commands,
+    state: Res<State<View>>,
     field: Option<ResMut<Field>>,
     eye: Query<&GlobalTransform, With<Eye2>>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -193,9 +194,17 @@ fn stream(
         if !ok_shown && !ok_growing && started < 16 {
             let (x, z) = key;
             let s = share(c);
+            // in the Library only the land: no grass, plants or stones around its turntable
+            let bare = *state.get() == View::Library;
             field.growing.insert(
                 key,
-                (pool.spawn(async move { (chunk(x, z, s), None, crate::terrain::chunk(x, z, CHUNK, s)) }), c),
+                (
+                    pool.spawn(async move {
+                        let land = if bare { crate::terrain::chunk(x, z, CHUNK, 0.2) } else { crate::terrain::chunk(x, z, CHUNK, s) };
+                        (if bare { Mesh::new(bevy::mesh::PrimitiveTopology::TriangleList, bevy::asset::RenderAssetUsages::RENDER_WORLD) } else { chunk(x, z, s) }, None, land)
+                    }),
+                    c,
+                ),
             );
             started += 1;
         }
@@ -219,12 +228,12 @@ fn stream(
         .collect();
     for (k, c, (grass, close, ground)) in ready {
         field.growing.remove(&k);
-        let mut parts = vec![
-            // the blades stay out of the sun's shadow maps: they would draw every blade twice more each frame; the
-            // shade among them comes from their dark roots and the ambient occlusion instead
-            commands.spawn((GrassWorld, MEADOW, Mesh3d(meshes.add(grass)), MeshMaterial3d(field.material.clone()), bevy::light::NotShadowCaster)).id(),
-            commands.spawn((GrassWorld, MEADOW, Mesh3d(meshes.add(ground)), MeshMaterial3d(field.ground.clone()))).id(),
-        ];
+        let mut parts = vec![commands.spawn((GrassWorld, MEADOW, Mesh3d(meshes.add(ground)), MeshMaterial3d(field.ground.clone()))).id()];
+        // the blades stay out of the sun's shadow maps: they would draw every blade twice more each frame; the shade
+        // among them comes from their dark roots and the ambient occlusion instead. (None in the Library.)
+        if grass.count_vertices() > 0 {
+            parts.push(commands.spawn((GrassWorld, MEADOW, Mesh3d(meshes.add(grass)), MeshMaterial3d(field.material.clone()), bevy::light::NotShadowCaster)).id());
+        }
         if let Some(close) = close {
             // fine blades cast no shadow of their own: too small to see in the sun's shadow maps, and it saves them
             parts.push(
@@ -246,7 +255,7 @@ fn stream(
 struct GrassWorld;
 
 /// The Meadow's own render layer: its camera sees only its own sky, sun, grass and ground, never the plain.
-const MEADOW: RenderLayers = RenderLayers::layer(1);
+pub const MEADOW: RenderLayers = RenderLayers::layer(1);
 
 /// Set when the app runs only to measure the Meadow and take one picture: `--meadow <out.png> [hour]`.
 #[derive(Resource, Clone)]
@@ -262,11 +271,14 @@ pub fn plugin(app: &mut App) {
         .add_systems(OnExit(View::Meadow), leave)
         .add_systems(OnEnter(View::Studio), enter)
         .add_systems(OnExit(View::Studio), leave)
+        // the Library shows its assets in this same world: its sky, sun, haze and land, without the grass
+        .add_systems(OnEnter(View::Library), enter)
+        .add_systems(OnExit(View::Library), leave)
         .add_systems(
             Update,
-            (stream, lay, reframe, focus, crate::clouds::drift).run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio)),
+            (stream, lay, reframe, focus, crate::clouds::drift).run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio | View::Library)),
         )
-        .add_systems(Update, (hours, sun).chain().run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio)));
+        .add_systems(Update, (hours, sun).chain().run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio | View::Library)));
 }
 
 /// The camera's frame time, smoothed, in milliseconds.

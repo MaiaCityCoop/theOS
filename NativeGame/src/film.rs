@@ -58,7 +58,7 @@ pub fn plugin(app: &mut App) {
     app.insert_resource(Studio::paused_at(opened.unwrap_or_else(|| camera::five_shots(1)), 0.0))
         .insert_resource(Walker { pos: Vec3::new(0.0, 1.6, 0.0), yaw: 0.0, pitch: -4.0 })
         .add_observer(capture)
-        .add_systems(Update, (walk.run_if(|v: Res<State<View>>| matches!(v.get(), View::Game | View::Meadow)), play.run_if(in_state(View::Studio))));
+        .add_systems(Update, (walk.run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow)), play.run_if(in_state(View::Studio))));
 }
 
 /// The walker's eye height range: a blade's height above the ground up to 12 km, as the legacy game's camera.
@@ -116,7 +116,7 @@ fn walk(
 
 /// A click into the world (not on the interface) captures the mouse for looking; Escape lets it go.
 pub fn capture(press: On<bevy::picking::events::PointerPress>, windows: Query<(), With<Window>>, mut cursor: Query<&mut bevy::window::CursorOptions>, state: Res<State<View>>) {
-    if windows.get(press.entity).is_err() || !matches!(state.get(), View::Game | View::Meadow) {
+    if windows.get(press.entity).is_err() || !matches!(state.get(), View::Meadow) {
         return;
     }
     for mut c in &mut cursor {

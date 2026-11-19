@@ -93,6 +93,14 @@ pub struct Impostor {
 }
 
 impl Material for Impostor {
+    // the depth prepass and the shadows would draw the bare 2 m quad unturned (their own vertex shader): the big
+    // light-blue plane in the Library
+    fn enable_prepass() -> bool {
+        false
+    }
+    fn enable_shadows() -> bool {
+        false
+    }
     fn vertex_shader() -> ShaderRef {
         "shaders/impostor.wesl".into()
     }
