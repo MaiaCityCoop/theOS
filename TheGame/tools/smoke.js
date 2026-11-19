@@ -121,23 +121,28 @@ await tryTo('the city', async () => { (await import('../src/city/index.js')).cre
 await tryTo('a frame', async () => { light?.render(scene, camera, 0); game?.screen?.render(scene, camera); await Promise.resolve(); await (await import('../src/core/compile.js')).inTurn(() => {}); });   // (the light's passes before the picture, as src/boot.js draw; and what it asked to be made, made: its passes of their own, src/core/compile.js drawMade)
 
 // ---- every material made, built as each pass draws it ----
-const { twinOf } = await import('../src/core/pass.js'), { prepassTarget } = await import('../src/core/screen.js'), { lightPass } = await import('../src/core/gbuffer.js'), { CASTS } = await import('../src/world/shadow.js');
+const { twinOf, drawnAs } = await import('../src/core/pass.js'), { prepassTarget } = await import('../src/core/screen.js'), { lightPass } = await import('../src/core/gbuffer.js'), { CASTS } = await import('../src/world/shadow.js');
 const PRE_TARGET = prepassTarget(4, 4, new THREE.DepthTexture(4, 4));   // (the prepass built as it draws: into its target, writing its id too)
 const built = new Set(), materials = new Map();
-const take = (object, m) => { if (m?.isNodeMaterial && !materials.has(m)) materials.set(m, object); };
-scene.traverse((o) => { for (const m of [o.material].flat()) take(o, m); });
+// (each as the game draws it, src/core/pass.js drawnAs: the world scene's meshes and the one pass of light by the
+// passes' routes, their twins; what the game draws itself, straight into a target, as itself: a frame's quads, what was
+// made with no scene, the bakers; the library's subjects both, on its stage and in its pictures)
+const take = (object, m, how = 'own') => { if (m?.isNodeMaterial && !materials.has(m)) materials.set(m, { object, how }); };
+scene.traverse((o) => { for (const m of [o.material].flat()) take(o, m, 'routed'); });
+{ const L = lightPass(); if (L) take(L.mesh, L.mesh.material, 'routed'); }   // (the one pass of light: drawn by the screen, in no scene, through its colour's route)
 for (const o of M.drawn) { if (o.isMaterial) take({ isMesh: true, geometry: new THREE.PlaneGeometry(), material: o }, o); else for (const m of [o.material].flat()) take(o, m); }
-/** Material m of `object` built as each pass draws it (src/core/pass.js: its own, its prepass's and its colour's twins;
-    and what a caster draws into the shadow cascades and the canopy map, its shadow twin: src/world/shadow.js). */
+/** Material m of `object` built as each pass the game draws it in draws it (how: src/core/pass.js drawnAs; its own,
+    its prepass's and its colour's twins, and what a caster draws into the shadow cascades and the canopy map, its shadow
+    twin: src/world/shadow.js). */
 /** The target a pass of `object` is built for (null: none): the prepass's; or, as itself, its own where it is drawn
     straight into one by no pass (userData.target: a baker's samples, src/detail/impostor.js), as what it writes says
     (mrt). */
 const targetOf = (object, pass) => (pass === 'pre' ? PRE_TARGET : pass === 'own' ? (object.userData?.target ?? null) : null);
-const buildPasses = (object, m) => {
-  const twins = object.userData?.target ? { pre: null, main: null } : (() => { try { return twinOf(m); } catch { return { pre: null, main: null }; } })();   // (one drawn into its own target: as itself only)
-  for (const t of Object.values(twins)) if (t?.isMaterial) TWINS.add(t);   // (built as its material's twin, never on its own)
-  for (const [pass, mat] of [['own', m], ['pre', twins.pre], ['main', twins.main], ['shadow', object.layers?.isEnabled?.(CASTS) ? twins.shadow : null]]) {
-    if (!mat) continue;
+const buildPasses = (object, m, how) => {
+  const as = object.userData?.target ? 'own' : how, layers = object.layers;   // (one drawn into its own target: as itself only)
+  const list = (() => { try { return drawnAs(m, as, { eye: layers?.isEnabled?.(0) ?? true, casts: !!layers?.isEnabled?.(CASTS) }); } catch { return [['own', m]]; } })();
+  if (as !== 'own') { try { for (const t of Object.values(twinOf(m))) if (t?.isMaterial) TWINS.add(t); } catch { /* none */ } }   // (built as its material's twin, never on its own)
+  for (const [pass, mat] of list) {
     const to = targetOf(object, pass); if (to) renderer.setRenderTarget(to);
     try { const s = M.build(object.isMesh || object.isPoints || object.isLine || object.isSprite ? object : { isMesh: true, geometry: new THREE.BufferGeometry(), material: mat }, mat); add(shaders.render, `${s.vertex}\0${s.fragment}`, `${part}, ${pass}`); made.push(pass); built_(m); }
     catch (e) { failed.push(`${part}, ${pass}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); }
@@ -145,15 +150,14 @@ const buildPasses = (object, m) => {
   }
 };
 const buildAll = (where) => {
-  for (const [m, object] of materials) {
+  for (const [m, { object, how }] of materials) {
     if (built.has(m)) continue; built.add(m);
     part = `${where}${origin.get(m) && origin.get(m) !== where ? `: ${origin.get(m)}` : ''}: ${nameOf(object)} (${m.name || m.type})${at(m)}`;
-    buildPasses(object, m);
+    buildPasses(object, m, how);
   }
 };
-{ const L = lightPass(); if (L) take(L.mesh, L.mesh.material); }   // (the one pass of light: drawn by the screen, in no scene)
 /** Every material made so far and not yet taken: on the mesh it was given to, else on a quad, as a pass draws it. */
-const TWINS = new WeakSet(), takeMade = () => { for (const o of MADE.isMesh) for (const m of [o.material, ...(o.userData?.materials ?? [])].flat()) take(o, m); for (const m of MADE.isMaterial) if (!TWINS.has(m)) take({ isMesh: true, geometry: new THREE.PlaneGeometry(), material: m }, m); };   // (a mesh's own, and those it draws by turns: a baker's, userData.materials)
+const TWINS = new WeakSet(), takeMade = (meshes = 'own') => { for (const o of MADE.isMesh) for (const m of [o.material, ...(o.userData?.materials ?? [])].flat()) take(o, m, meshes); for (const m of MADE.isMaterial) if (!TWINS.has(m)) take({ isMesh: true, geometry: new THREE.PlaneGeometry(), material: m }, m, 'both'); };   // (meshes: how a mesh made and in no scene yet is drawn, the world's straight by its owner, the library's as its subjects are; a material on no mesh yet, both: one a mesh grows into later (a figure's bones, what grows) is drawn as its scene's, one its owner draws as itself says so, userData.own: the painter's)   // (a mesh's own, and those it draws by turns: a baker's, userData.materials)
 takeMade();
 buildAll('the world');
 // what bakes the far ends (src/scatter/trees.js farOf): compiled at the start, drawn straight by the bakers, by no pass,
@@ -193,15 +197,15 @@ await tryTo('the library', async () => {
   await Promise.all(grown);
 });
 const before = built.size;
-library.traverse((o) => { for (const m of [o.material].flat()) take(o, m); });
-takeMade();
+library.traverse((o) => { for (const m of [o.material].flat()) take(o, m, 'both'); });
+takeMade('both');   // (what its subjects grow after they stand: a figure's bones, on its stage and in its pictures)
 buildAll('the library');
 computeAll();
 const libraryMade = built.size - before;
 // ---- the stress stand (src/scatter/stress.js, the engine's test, ?stress): its zoo, apart from the world's count ----
 const stress = new THREE.Scene();
 await tryTo('the stress stand', async () => { (await import('../src/scatter/stress.js')).createStress(stress, renderer, tex); });
-stress.traverse((o) => { for (const m of [o.material].flat()) take(o, m); });
+stress.traverse((o) => { for (const m of [o.material].flat()) take(o, m, 'routed'); });   // (its page draws it as the world is drawn: by the passes' routes)
 takeMade();
 buildAll('the stress stand');
 computeAll();
