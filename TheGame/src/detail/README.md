@@ -21,8 +21,8 @@ Nothing that builds a rung knows a pixel. One rule decides every switch, at runt
 
     e · pxK() / dist  ≤  ERROR_PX()          on the GPU: e · U.uPxK / dist ≤ U.uErrorPx (measure.js)
 
-`pxK()` is the live pixel, and the only definition of one: pixels drawn (the inside's, at the governor's ratio of the
-screen's) a metre covers one metre from the eye, through the walker's 68° lens. `ERROR_PX()` is the dial: 1 at rest,
+`pxK()` is the live pixel, and the only definition of one: the output's pixels (the canvas's rows, whatever the
+governor draws inside; moved only a BAND at a time) a metre covers one metre from the eye, through the walker's 68° lens. `ERROR_PX()` is the dial: 1 at rest,
 turned by the governor. `switchPx(s)` is the rule as a size on screen, in the dial's pixels, for an error
 that is the share `s` of a thing's size. Each rung comes in over the `BAND` under its switch, never above it: what is
 drawn is never off by more than the dial.

@@ -27,6 +27,7 @@ import { farthest, farthestMost } from './detail/extent.js';
 import { setImpostorRenderer } from './detail/impostor.js';
 import { setPlanes } from './core/frustum.js';
 import { createGovernor } from './core/governor.js';
+import { frameDone } from './core/pace.js';   // (each frame's own time on the GPU, what the governor judges)
 import { createHud } from './core/hud.js';
 import { useGPU, askedLimits, ledger } from './core/gpu.js';
 import { taken, busy, changed } from './core/work.js';
@@ -127,7 +128,7 @@ export async function boot({ profile = 'world' } = {}) {
   const screen = (game.screen = createScreen(renderer, { temporal, lens: createLens(renderer) }));
   const governor = createGovernor(renderer, { apply: (r) => screen.set(r), most: () => screen.out });   // (the drawn ratio within the canvas's)
   game.governor = governor;   // the film holds it still while it plays
-  keepMeasure(() => screen.inside, () => screen.out);   // the one measure of size on screen, for every level of detail (src/detail/measure.js)
+  keepMeasure(() => screen.out);   // the one measure of size on screen, for every level of detail (src/detail/measure.js)
   if (TRUTH) governor.hold(true);   // (?truth: everything at its finest, offline: no dial turned for its slow frames)
   // ?truth (src/detail/measure.js): the game's own start, at the dial's rest (the world built at the game's pace), then,
   // once that first view is complete, the dial turned down to the truth's: what it brings in is waited for by settle()
@@ -224,7 +225,7 @@ export async function boot({ profile = 'world' } = {}) {
     try { step(now); } finally { frameEnds(); }
   }
   function step(now) {
-    const ms = last ? now - last : 16.7; last = now;
+    const ms = last ? now - last : 16.7, j0 = performance.now(); last = now;   // (j0: the frame's start on the page's thread)
     U.uTime.value = (now - t0) / 1000;
     frameIn(PART.materials); tex.flush();   // (materials asked for since the last frame: src/materials/bake.js)
     frameIn(PART.lakes);
@@ -259,7 +260,12 @@ export async function boot({ profile = 'world' } = {}) {
     // the start's frames are long for what it makes, not for its pixels, and the governor's look begins at the first
     // frame shown. A ratio it turned there changed the inside's pixels, which the land's pages take for a new view and
     // ask for again: in WebKit, 943 never laid, and the veil never lifted, 2026-11-18)
-    if (!veiled) governor.end(ms, now, live() && grown.scatter.over, wasBusy);
+    if (!veiled) {
+      // (judged by its own time on the GPU, once it is done, against how long the page's thread took over it: a frame
+      // the thread held moves no dial, src/core/governor.js; where no queue can be asked, by the time between frames)
+      const over = live() && grown.scatter.over, busy = wasBusy, js = performance.now() - j0, gpu = frameDone();
+      if (gpu) gpu.then((g) => { if (g != null) governor.end(g, performance.now(), over, busy, js); }); else governor.end(ms, now, over, busy);
+    }
     wasBusy = busy();
     frameIn(PART.settle);
     if (!game.covered) tick(changed());   // (whether the world is complete: src/core/settle.js)
