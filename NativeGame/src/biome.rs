@@ -140,7 +140,9 @@ impl Biome {
             u.colours[k] = Vec4::new(l.colour[0], l.colour[1], l.colour[2], l.roughness);
             u.rules[k] = Vec4::new(l.cell, l.threshold, l.softness, l.amount);
         }
-        u.micro = Vec4::new(self.relief, self.mottle, 0.0, self.layers.len().min(LAYERS) as f32);
+        // which layer is bare ground (cracks, pebbles, grains show there)
+        let bare = self.layers.iter().position(|l| l.name == "bare").unwrap_or(LAYERS) as f32;
+        u.micro = Vec4::new(self.relief, self.mottle, bare, self.layers.len().min(LAYERS) as f32);
         u
     }
 }

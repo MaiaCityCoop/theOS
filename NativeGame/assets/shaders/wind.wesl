@@ -171,6 +171,13 @@ fn blade(slot: vec3<f32>, side: f32, t: f32, w: Wind, time: f32, before: f32) ->
     if (dot(vec3<f32>(dir.x, 0.0, dir.z), toward) < 0.0) {
         face = normalize(vec3<f32>(-face.x, face.y, -face.z));
     }
+    // and never nearly edge-on to the eye: at a grazing angle even a rough blade mirrors the bright sky, and that
+    // flickered as white stipples along one half of the blades
+    let v = normalize(toward);
+    let facing = dot(face, v);
+    if (facing < 0.4) {
+        face = normalize(face + v * (0.4 - facing) * 1.5);
+    }
     out.normal = normalize(mix(face, vec3<f32>(0.0, 1.0, 0.0), far));
     // each blade its own green, from deep to light yellow-green; a little straw where the field is dry
     let green = mix(w.deep.rgb, w.light.rgb, thash(ci, cj, seed + 9u));

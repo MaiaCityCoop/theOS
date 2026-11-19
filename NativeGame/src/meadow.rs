@@ -392,8 +392,8 @@ fn enter(
         extension: crate::wind::Wind { params: default() },
         base: StandardMaterial {
         base_color: Color::WHITE,
-        perceptual_roughness: 0.75,
-        reflectance: 0.2,
+        perceptual_roughness: 0.8,
+        reflectance: 0.12,
         // light through the blades: against the sun, grass glows
         diffuse_transmission: if off("GLOW") { 0.0 } else { 0.45 },
         thickness: 0.0,
