@@ -91,6 +91,7 @@ const game = await tryTo('the screen', async () => {
   const { createTemporal } = await import('../src/core/temporal.js'), { createScreen } = await import('../src/core/screen.js'), { createLens } = await import('../src/camera/post.js');
   const temporal = createTemporal(renderer), screen = createScreen(renderer, { temporal, lens: createLens(renderer) });
   (await import('../src/detail/measure.js')).keepMeasure(() => screen.out);
+  await M.planned();   // (the start's plan, as src/boot.js solves it: tools/gpu-mock.js planned)
   return { U, temporal, screen };
 });
 const tex = await tryTo('the materials painted', async () => {

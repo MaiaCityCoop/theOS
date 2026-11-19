@@ -483,6 +483,9 @@ export function gatherOf(L, M) {
   };
 }
 
+/** The cells each layer that writes has its gather read, as the growth map is sized by them (growth.js sidesOf): its
+    word w, and span(n), the most cells along a side that n texels of it read (gatherCells). Nothing of the map needed. */
+export const spansOf = (layers) => layers.filter((L) => L.word >= 0).map((L) => ({ w: L.word, span: gatherCells(L).span }));
 /** The growth map's passes: one for every layer that writes, in their order (growth.js build): what stands in each of
     its cells (record, worked out over the cells its gather reads: cells and span, gatherCells), what it leaves at each
     texel (gather), and feet(p): whether the ground at p is covered by its things (null: none of them covers any). */

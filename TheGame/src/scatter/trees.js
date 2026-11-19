@@ -43,8 +43,8 @@ import * as THREE from 'three/webgpu';
 import { Fn, mrt, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, attribute, positionGeometry, vertexIndex, screenCoordinate, If, Discard, abs, max, mix, smoothstep, exp, pow, normalize, length, floor, cos, sin, cross, clamp, log, log2, exp2, step, fract, unpackHalf2x16, hash, sqrt } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, camDist, heightAt } from '../world/land.nodes.js';
-import { layersOf, posIn, placeIn, grownIn, grovesOf, writersOf, hashesOf } from './rule.js';
-import { createGrowth } from './growth.js';
+import { layersOf, posIn, placeIn, grownIn, grovesOf, writersOf, spansOf, hashesOf } from './rule.js';
+import { createGrowth, sidesOf } from './growth.js';
 import { toScreen, airOf, lightOn, shineOf, glintOf, sunAt, contactShade, weatherOn, snowLiftAtVertex, unlit, windAt, windDir, windStrength, ign } from '../world/light.js';
 import { passOf, cut, motion, vWas } from '../core/pass.js';
 import { gWrite, lightFamily, FAMILY } from '../core/gbuffer.js';
@@ -75,7 +75,7 @@ import { lo16, hi16 } from './unpack.js';
 import { farMost, pxKMost, measureVersion, dialPxAt } from '../detail/measure.js';
 import { BAND, FADE } from '../detail/error.js';
 import { source, shown } from '../core/settle.js';
-import { gpuStorageLater } from '../core/gpu.js';
+import { gpuStorageLater, plan, limitOf } from '../core/gpu.js';
 import { made, pending } from '../core/compile.js';
 import { keptGet, keptPut } from '../core/kept.js';
 import { shows } from '../detail/seen.js';
@@ -893,6 +893,22 @@ export function outlinesAhead(world = true) {
   return Promise.all(kinds.map((a) => ask([['outline', a.uid, plain]]).then(([o]) => a.takeOutline(A, o), (e) => console.warn(`plants: the workers could not reckon '${a.name}': reckoned here`, e))));
 }
 
+/** The growth map's fields (growth.js createGrowth) for the rule's layers: each layer that writes, its texel (its band)
+    and how far what reads it is drawn at the dial `dial` (the dial at rest by default), the most pixels the screen can
+    draw: a layer that reads it as far as its largest thing is gone by the one measure (a sapling as large as it grows
+    there: its entry's grownTo), the meadow (which reads every layer's) as far as its blades. */
+const growthFields = (layers, dial) => {
+  const blades = Math.max(0, ...recipes('asset').filter((a) => a.placement?.engine === 'grass').map((a) => ringBands(ringsOf(a), a.height, pxKMost(dial)).end));
+  const readFar = (W) => Math.max(blades, ...layers.filter((L) => L.reads.includes(W)).map((L) => Math.max(...L.entries.map((e) => farMost(goneOf(e.asset), sizeOf(e.asset) * e.grownTo, dial)))));
+  return layers.filter((L) => L.word >= 0).map((L) => ({ band: L.band, far: readFar(L) }));
+};
+// (the start's plan: the growth map, as large as its rule makes it at a dial (growth.js sidesOf) within one binding,
+// said before anything is made: src/core/gpu.js planDial. Its layers are the rule's of every asset this engine places,
+// the rows createStands is handed: src/scatter/index.js)
+let LAYERS = null;
+const plannedLayers = () => (LAYERS ??= layersOf(recipes('asset').filter((a) => a.placement?.at === 'scatter' && a.placement.engine === engine.id).map((a) => engine.row(a))));
+plan('the growth map', 'geometry', (dial) => { const layers = plannedLayers(); return layers.some((L) => L.word >= 0) ? sidesOf(growthFields(layers, dial), spansOf(layers), limitOf('maxStorageBufferBindingSize') || Infinity).bytes : 0; });
+
 /** Everything this engine places: for every stand a drawer of its own kinds (drawer.js: a heap of their shapes at their
     levels) and a tier a level of detail, each where a plant of it is the size on screen its kind asks, a draw a
     shape (its corners the draw's own list); and, for the kinds that cast, a stand-in drawn only into the shadow map (layer 1):
@@ -909,9 +925,7 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
   // grownTo), the meadow (which reads every layer's) as far as its blades. At the most pixels the screen can draw, the
   // dial at rest: the map is a capacity (src/detail/measure.js farMost; the meadow's end its own, grass.js bandsOf)
   const layers = layersOf(rows), words = layers.filter((L) => L.word >= 0).length;
-  const blades = Math.max(0, ...recipes('asset').filter((a) => a.placement?.engine === 'grass').map((a) => ringBands(ringsOf(a), a.height, pxKMost()).end));
-  const readFar = (W) => Math.max(blades, ...layers.filter((L) => L.reads.includes(W)).map((L) => Math.max(...L.entries.map((e) => farMost(goneOf(e.asset), sizeOf(e.asset) * e.grownTo)))));
-  const M = words ? createGrowth(renderer, layers.filter((L) => L.word >= 0).map((L) => ({ band: L.band, far: readFar(L) }))) : null;
+  const M = words ? createGrowth(renderer, growthFields(layers)) : null;
   if (M) M.build(writersOf(layers, M));
   for (const G of groupsOf(rows)) {
     G.M = G.L.reads.length ? M : null;

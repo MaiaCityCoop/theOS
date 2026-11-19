@@ -4,7 +4,7 @@
 import * as THREE from 'three/webgpu';
 import { HMIN, HMAX, heightAt, riverAt, OCT_LAM, OCT_AMP } from '../world/land.js';
 import { boxIn } from '../core/frustum.js';
-import { limitOf, roomOf, more } from '../core/gpu.js';
+import { limitOf, roomOf, more, plan } from '../core/gpu.js';
 import { U } from '../core/uniforms.js';
 import { terrainMaterial, GRID, NODE, PSTEPS } from './material.js';
 import { distanceAt, farMost } from '../detail/measure.js';
@@ -42,6 +42,17 @@ const perLevel = (r0, fine) => Math.ceil(Math.PI * (r0 * fine / S0 + 1.5) ** 2);
     the first whose reach is within the walker's eye's height (world/scale.js): the nearest ground the eye sees, where its
     mesh is finest (src/terrain/relief.js). */
 const reliefLevels = (r0, fine) => Math.ceil(Math.log2((r0 * fine) / WALKER.eye));
+
+/** The dial the land's lists are first sized at, for the dial `dial`: never finer than one dial pixel (what is finer
+    grows into them as its selection needs). */
+const listDial = (dial) => Math.max(dial, 1);
+/** The nodes the land's lists hold to start with at the dial D (listDial's): as many as its levels hold round the camera
+    at the most, the land's to where it ends and the relief's below them; the water's over the levels it is drawn at. */
+const listsAt = (D) => { const R = landR0(true, D), n = perLevel(R, 1 / D); return { land: n * (Math.ceil(Math.log2(farthestMost(D) / R)) + 1 + reliefLevels(R, 1 / D)), water: n * WATER_LEVELS }; };
+// (the start's plan: the land's lists as they are first made at the dial at rest (16 bytes a node), said before anything is
+// made: src/core/gpu.js planDial; what they grow by after is the dial's, held to what geometry has left)
+plan("the land: its nodes", 'geometry', (dial) => 16 * listsAt(listDial(dial)).land);
+plan("the land: its water's nodes", 'geometry', (dial) => 16 * listsAt(listDial(dial)).water);
 
 function gridGeometry() {
   const n = GRID + 1, pos = new Float32Array(n * n * 3), idx = new Uint16Array(GRID * GRID * 6);
@@ -85,7 +96,7 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
   };
   // (to start with, as many as its levels hold round the camera at the most: the land's to where it ends and the relief's
   // below them; the water's over the levels it is drawn at)
-  const D00 = Math.max(ERROR_PX(), 1), R00 = landR0(true, D00), land = make(perLevel(R00, 1 / D00) * (Math.ceil(Math.log2(farthestMost(D00) / R00)) + 1 + reliefLevels(R00, 1 / D00)), 'its nodes'), water = make(perLevel(R00, 1 / D00) * WATER_LEVELS, "its water's nodes");   // (at the dial's rest: the start's; grown as it needs)
+  const D00 = listDial(ERROR_PX()), R00 = landR0(true, D00), first = listsAt(D00), land = make(first.land, 'its nodes'), water = make(first.water, "its water's nodes");   // (at the dial's rest: the start's; grown as it needs)
   const landMat = terrainMaterial(pages), waterMat = waterMaterials(tex);
   // near the eye the quadtree goes on into the relief's finer levels (src/terrain/relief.js), each reaching half as far
   // as the one before: nodes of the land like any other, the land's own vertex stage raising them (material.js)
