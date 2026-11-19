@@ -159,10 +159,25 @@ const look = () => {
   let out = null; try { out = window.__game?.waiting?.() ?? null; } catch (e) { out = { [`waiting() threw: ${e.message}`]: 1 }; }   // (a source that cannot say: said, by name)
   return { ready: window.__game?.loadMs ?? null, shown: performance.getEntriesByName('game:first-frame')[0]?.startTime ?? null, ledger: window.__game?.memory?.() ?? null, out, stage: Object.entries(window.__game?.boot ?? {}).at(-1) ?? null, step: document.body?.dataset.step ?? null, ...window.__device };
 };
-/** What every process of the WebKit Playwright runs holds of the machine (its pages', its GPU's, its own: their physical
-    footprint on a Mac, tools/gate/machine.js heldBy), MB (0 where it cannot be read). */
-async function gpuProcess() {
-  try { const ours = withChildren(await processes(), WEBKIT), H = await heldBy(ours); return [...ours.values()].reduce((s, p) => s + H.of(p), 0) / 1048576; } catch { return 0; }
+/** What the processes of the WebKit Playwright runs hold of the machine now (their physical footprint on a Mac,
+    tools/gate/machine.js heldBy), MB: all of them, and its GPU process's and its pages' each by its pid ([{ pid, mb }]).
+    Nothing where they cannot be read. */
+async function webkitNow() {
+  try {
+    const ours = withChildren(await processes(), WEBKIT), H = await heldBy(ours), mb = (p) => Math.round(H.of(p) / 1048576);
+    const of = (re) => [...ours.values()].filter((p) => re.test(p.cmd)).map((p) => ({ pid: p.pid, mb: mb(p) }));
+    return { mb: [...ours.values()].reduce((s, p) => s + H.of(p), 0) / 1048576, gpu: of(/WebKit\.GPU\b/), page: of(/WebKit\.WebContent\b/) };
+  } catch { return { mb: 0, gpu: [], page: [] }; }
+}
+/** WebKit's GPU and page processes as a look found them (P: webkitNow), kept in out.procs: each by its pid, its most;
+    and the first look that saw the device lost, whether the GPU process the look before it saw was still there (2026-11-19:
+    the Mac mini's devices lost "destroyed" with no message: WebKit's source says so of a device torn down in the GPU
+    process; whether that process itself died with it tells the machine's kill from the device's own end). */
+function watchProcs(out, P, lost) {
+  const W = (out.procs ??= { gpu: {}, page: {}, last: null, atLoss: null });
+  for (const k of ['gpu', 'page']) for (const p of P[k]) W[k][p.pid] = Math.max(W[k][p.pid] ?? 0, p.mb);
+  if (lost && !W.atLoss) { const was = W.last?.gpu ?? [], now = P.gpu.map((p) => p.pid); W.atLoss = { was: was.map((p) => p.pid), held: was.reduce((t, p) => t + p.mb, 0), now, alive: was.length ? was.every((p) => now.includes(p.pid)) : null }; }
+  if (!lost) W.last = { gpu: P.gpu, page: P.page };
 }
 
 /** The device on MACHINE: { ready (s), peak and settled (MB, the ledger's), classes at the peak against BUDGET_MB, the
@@ -227,7 +242,8 @@ function hold(out, s, t) {
     browser's resident memory at its most. */
 async function sample(page, out) {
   const s = await page.evaluate(look), T = s.top;
-  out.samples.push(s.ledger?.gpu ?? 0); out.process = Math.max(out.process, await gpuProcess());
+  const P = await webkitNow();
+  out.samples.push(s.ledger?.gpu ?? 0); out.process = Math.max(out.process, P.mb); watchProcs(out, P, s.lost);
   if (T) Object.assign(out, { peak: T.device, classes: T.classes, rows: T.rows, makers: T.makers, past: T.over, unnoted: T.unnoted, buffers: +(T.buffers / 1048576).toFixed(1) });
   return s;
 }
@@ -252,13 +268,17 @@ export const readyLine = (d) => (d?.ready != null ? `Ready, cold (the first star
 /** What still held the start when the run ended (hold): each source still out, with its count and since when, the
     start's last stage, the veil's words, the submissions drawn meanwhile (frames behind the veil, or none). */
 const stillOut = (H, submits) => (!H ? '' : ` Still out: ${Object.entries(H.sources).filter(([, h]) => h.now).map(([k, h]) => `${k} (${h.now}, since ${h.from} s)`).join(', ') || 'nothing settle.js counts'}; the start's last stage ${H.stage ? `'${H.stage[0]}', ${(H.stage[1] / 1e3).toFixed(1)} s in` : 'none'}${H.step ? `; the veil: "${H.step}"` : ''}; ${submits ?? 0} submissions drawn.`);
+/** What WebKit's GPU process did at the device's loss (watchProcs' atLoss), as the board says it. */
+const atLoss = (A) => (!A ? "WebKit's GPU process not watched" : A.alive == null ? "WebKit's GPU process not seen before the loss" : A.alive ? `WebKit's GPU process (pid ${A.was.join(', ')}, ${A.held} MB) still there: the device ended inside it, not the process with it` : `**WebKit's GPU process (pid ${A.was.join(', ')}, ${A.held} MB) died at the loss**${A.now.length ? ` (another since, pid ${A.now.join(', ')})` : ''}: the process ended, the device with it (killed, or crashed)`);
+/** WebKit's GPU process and its pages at their most (watchProcs), for the device's memory line. */
+const procsMost = (W) => { const most = (o) => Math.max(0, ...Object.values(o ?? {})); return W ? `; its GPU process at most ${most(W.gpu)} MB, its pages at most ${most(W.page)} MB` : ''; };
 /** The device's lines, as the hour's board begins with them (after readyLine). */
 export function lines(d) {
   if (d?.peak == null) return [];
   const mb = (n) => (n == null ? '–' : `${(n / 1024).toFixed(2)} GB`);
   return [
-    d.lost ? `**The device was lost** ${(d.lost.at / 1e3).toFixed(0)} s in (${d.lost.reason}: ${d.lost.message}), on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}×.` : 'The device lived.',   // (whether the game came, and when, is readyLine's to say)
-    `GPU memory (the game's ledger): peak ${mb(d.peak)}, settled ${mb(d.settled)}, against the budget's ${mb(d.budget)}; unnoted by any pool ${mb(d.unnoted)}; WebKit's processes at most ${mb(d.process)} of the machine (their physical footprint)${d.honest ? '' : `; **the ledger is short**: the device made ${mb(d.buffers)} of buffers alone`}.`,
+    d.lost ? `**The device was lost** ${(d.lost.at / 1e3).toFixed(0)} s in (${d.lost.reason}: ${d.lost.message || 'no message'}), on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}×; ${atLoss(d.procs?.atLoss)}.` : 'The device lived.',   // (whether the game came, and when, is readyLine's to say)
+    `GPU memory (the game's ledger): peak ${mb(d.peak)}, settled ${mb(d.settled)}, against the budget's ${mb(d.budget)}; unnoted by any pool ${mb(d.unnoted)}; WebKit's processes at most ${mb(d.process)} of the machine (their physical footprint${procsMost(d.procs)})${d.honest ? '' : `; **the ledger is short**: the device made ${mb(d.buffers)} of buffers alone`}.`,
     `By class at the peak: ${Object.entries(d.classes ?? {}).map(([c, x]) => `${c} ${x.gpu} MB of ${x.budget}${x.gpu > x.budget ? ' (over)' : ''}`).join(', ') || '–'}.`,
     `The largest pools: ${(d.rows ?? []).map(([n, g]) => `${n} ${g} MB`).join('; ') || '–'}.`,
     `The largest makes, by class and what they were (the ledger's makers): ${(d.makers ?? []).map(([c, w, m, n]) => `${c}: ${w} ${m} MB (${n})`).join('; ') || '–'}.`,
