@@ -53,7 +53,7 @@ export const ruleOf = (self, parent, bS, bP) => ({ drawn: self.lessThanEqual(bS)
 /** The most things a cut holds at once: of things `size` metres large at the most, a thing a cell of `cell` metres, as
     many as stand within where that size is px dial pixels large at the most (measure.js pxKMost; px: where level 0
     ends). */
-export const cutThings = (size, cell, px) => Math.ceil(Math.PI * ((size * pxKMost()) / px / cell + 1) ** 2);
+export const cutThings = (size, cell, px, dial) => Math.ceil(Math.PI * ((size * pxKMost(dial)) / px / cell + 1) ** 2);   // (dial: the dial at rest, or another, the start's plan's)
 
 /** Level 0's cut for a tier's bucket of the things drawn there (T: a tier of src/scatter/tier.js; k: the bucket; H: the
     heap; room: the most a kind's level holds, { tris, clusters }: src/scatter/rooms.js; things: the most things that can
