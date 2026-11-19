@@ -71,7 +71,7 @@ import { ringsOf, bandsOf as ringBands } from './grass.js';
 import { lo16, hi16 } from './unpack.js';
 import { farMost, pxKMost, measureVersion, dialPxAt } from '../detail/measure.js';
 import { BAND, FADE } from '../detail/error.js';
-import { source } from '../core/settle.js';
+import { source, shown } from '../core/settle.js';
 import { gpuStorageLater } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
 import { shows } from '../detail/seen.js';
@@ -498,7 +498,7 @@ function impostorMaterial(G, D, Lv, src) {
 // ---- the far ends baked: each shape's impostor and its clumps, each picture from the level of the heap the measure picks
 // at its own size ----
 let BAKING = false;   // (one shape at a time, of every stand: the bakers' targets are one set)
-const BAKED = 4;   // the bake's own version, in what the browser keeps of it (farOf): one more whenever how a far end is baked changes
+const BAKED = 5;   // the bake's own version, in what the browser keeps of it (farOf): one more whenever how a far end is baked changes
 /** A stand's far ends (G: its group; D(): its drawer, once made): its two atlases (the impostors' views, a layer a shape,
     VIEWS x VIEWS views of CELL texels a side; its chunks' planes, a layer a shape that has clumps, G.clumpLayer, G.tiles
     tiles of TILE texels a row: the atlases' numbers, src/detail/impostor.js atlases), and what bakes them. Each shape
@@ -509,7 +509,7 @@ const BAKED = 4;   // the bake's own version, in what the browser keeps of it (f
 function farOf(renderer, tex, G, D) {
   const A = atlases(), n = G.meshes, views = createAtlas(renderer, { name: `plants, ${G.name}: impostors`, side: A.VIEWS * A.CELL, layers: n, cell: A.CELL, views: A.VIEWS });
   let clumps = null; const clumpsOf = () => (clumps ||= createAtlas(renderer, { name: `plants, ${G.name}: clumps`, side: G.tiles * A.TILE, layers: G.clumpy, cell: A.TILE }));   // (a stand none of whose shapes has clumps: one tile, which nothing reads)
-  const queue = [], queued = new Uint8Array(n), waiting = new Map(); let version = 0, any = false, M = null, out = 0;
+  const queue = [], queued = new Uint8Array(n), waiting = new Map(); let version = 0, any = false, M = null, out = 0, swept = false;
   // the levels a shape's pictures are drawn from (far: its far data, assets/kit/crowd.js): the measure's at each
   // picture's own size, the plant's size in it in dial pixels (a view: CELL texels over its sphere; a chunk's plane:
   // TILE texels over its chunk's longest side, the shortest of its chunks), never a level wholly under where its
@@ -633,9 +633,29 @@ function farOf(renderer, tex, G, D) {
   // in the atlases and its numbers say so)
   // (a chunks' corner list into the bake's buffer, made larger first where it would not fit: to the next power of two,
   // so a stand's lists grow it a few times at the most, not at every bake)
-  const corners = (CL, list) => { if (list.length > CL.made) CL.made = CL.make(2 ** Math.ceil(Math.log2(list.length))) / 4; CL.write(0, list); };
-  const job = async ({ k, at, corners: cornersOf, tiles, far }) => {
-    const key = keyOf(k), B = materials(); B.levelU.value = at.views; B.geo.setIndex(new THREE.BufferAttribute(cornersOf.views, 1)); B.kindU.value = k; B.sphereU.value.set(far[1], far[2], far[3], far[4]);
+  const cornersInto = (CL, list) => { if (list.length > CL.made) CL.made = CL.make(2 ** Math.ceil(Math.log2(list.length))) / 4; CL.write(0, list); };
+  // (each shape's far data from its outline, where its workers reckoned it: assets/kit/tree.js farOf)
+  const outlineFar = G.kinds.flatMap((Kd) => Array.from({ length: Kd.shapes }, (_, v) => Kd.asset.farOf?.(A)?.[v]?.data ?? null));
+  const OF = (k) => (outlineFar[k] ? Float32Array.from(outlineFar[k]) : null);
+  // (a shape's job from its outline's far data at whichever of its levels comes first (the workers reckon it:
+  // outlinesAhead), so a shape no plant has come near is baked too; else from its finest level's, as it comes: onBlock)
+  const fromOutline = (k) => { const far = OF(k); if (queued[k] || !far) return; const J = { k, far, c0: null, t0: null, of: null, at: levelsOf(far), corners: { views: null }, tiles: null }; queued[k] = 1; out++; waiting.set(k, J); kept(J); };
+  // (what a block of one of its levels brings a shape's job: the corners its pictures are drawn from, its cards in their
+  // chunks, found from the block itself: a coarser level's cards are a first share of the finest's, the same chunks)
+  const capture = (J, b, j, idx, elems, cornersOf) => {
+    const chunked = () => chunkOrder(b, j, idx, elems, chunksOfCards(b, j, idx, elems, J.far), J.far[0]);
+    if (J.at.views === b.l && !J.corners.views) J.corners.views = cornersOf();
+    if (J.far[0] > 0 && J.at.tiles === b.l && !J.tiles) J.tiles = chunked();
+    if (b.l === 0 && !J.c0) { J.c0 = cornersOf(); if (J.far[0] > 0) J.t0 = chunked(); }
+  };
+  // (what the browser kept of a shape, put in as it is read back: only what it has not kept waits to be baked)
+  const kept = (J) => keptGet(keptAs(), keyOf(J.k)).then((rec) => {
+    if (!rec) return queue.push(J);
+    waiting.delete(J.k); views.put(J.k, rec.views); if (rec.clumps && G.clumpLayer[J.k] >= 0) clumpsOf().put(G.clumpLayer[J.k], rec.clumps);
+    numbers(J.k, J.far); seenIn(J.k, rec.views); out--;
+  }, () => queue.push(J));
+  const job = async ({ k, at, corners, tiles, far }) => {
+    const key = keyOf(k), B = materials(); B.levelU.value = at.views; B.geo.setIndex(new THREE.BufferAttribute(corners.views, 1)); B.kindU.value = k; B.sphereU.value.set(far[1], far[2], far[3], far[4]);
     const a = await bakers(renderer).views().bake(views, k, A.VIEWS, (r) => { B.rowU.value = r; B.geo.instanceCount = A.VIEWS; return B.view; });
     const nc = far[0];
     let b = null;
@@ -643,11 +663,11 @@ function farOf(renderer, tex, G, D) {
       const T = tiles;   // (its tile level's corners in its chunks' order: chunkOrder)
       for (let c = 0; c < nc; c++) for (let q = 0; q < 4; q++) B.cells[c * 4 + q].set(far[8 + c * 12 + q * 3], far[8 + c * 12 + q * 3 + 1], far[8 + c * 12 + q * 3 + 2], q === 0 ? T.start[c] : q === 1 ? T.count[c] : 0);
       B.nU.value = nc;
-      B.levelU.value = at.tiles; corners(B.CL, T.list);
+      B.levelU.value = at.tiles; cornersInto(B.CL, T.list);
       const per = G.tiles, rows = Math.ceil((nc * 3) / per), most = Uint32Array.from({ length: rows }, (_, r) => { let m = 0; for (let t = r * per; t < Math.min((r + 1) * per, nc * 3); t++) m = Math.max(m, T.count[Math.floor(t / 3)]); return m; });
       b = await bakers(renderer).tiles(per).bake(clumpsOf(), G.clumpLayer[k], rows, (r) => { B.rowU.value = r; B.tgeo.instanceCount = per; B.tgeo.setDrawRange(0, most[r]); return B.tile; });
     }
-    return { done: Promise.all([a.done, b?.done]).then(([va, vb]) => { keptPut(keptAs(), key, { views: va, clumps: vb ?? null }); numbers(k, far); seenIn(k, va); }) };
+    return { done: Promise.all([a.done, b?.done]).then(([va, vb]) => { keptPut(keptAs(), key, { views: va, clumps: vb ?? null, far: Array.from(far) }); numbers(k, far); seenIn(k, va); }) };
   };
   return {
     views, clumps: () => clumpsOf(), version: () => version, ready: () => any,
@@ -660,31 +680,37 @@ function farOf(renderer, tex, G, D) {
     onBlock(b, k0, nk, idx, elems) {
       for (let j = 0; j < nk; j++) {
         const k = k0 + j, cornersOf = () => b.corners.slice(j * idx, j * idx + b.draws[j]);
-        if (b.l !== 0) { const J = waiting.get(k); if (J) { if (J.at.views === b.l && !J.corners.views) J.corners.views = cornersOf(); if (J.of && J.at.tiles === b.l && !J.tiles) J.tiles = chunkOrder(b, j, idx, elems, J.of, J.far[0]); } continue; }
-        const o = j * elems * 4, at = unhalf(b.verts[o + 7] & 0xffff) * 1024 + unhalf(b.verts[o + 7] >>> 16); if (queued[k] || !(at > 0)) continue;
+        fromOutline(k);
+        const J = waiting.get(k); if (J) capture(J, b, j, idx, elems, cornersOf);
+        if (b.l !== 0 || queued[k]) continue;
+        const o = j * elems * 4, at = unhalf(b.verts[o + 7] & 0xffff) * 1024 + unhalf(b.verts[o + 7] >>> 16); if (!(at > 0)) continue;
         const head = new Float32Array(b.verts.buffer, b.verts.byteOffset + (o + at * 8) * 4, 8), far = new Float32Array(b.verts.buffer, b.verts.byteOffset + (o + at * 8) * 4, 8 + head[0] * 12).slice();
         const c0 = cornersOf(), L = levelsOf(far), of = far[0] > 0 ? chunksOfCards(b, j, idx, elems, far) : null, t0 = of && chunkOrder(b, j, idx, elems, of, far[0]);
-        const J = { k, far, c0, t0, of, at: L, corners: { views: L.views ? null : c0 }, tiles: of && !L.tiles ? t0 : null }; queued[k] = 1; out++; waiting.set(k, J);
-        // (what the browser kept of it, put in as it is read back, every shape at once: only what it has not kept waits
-        // to be baked)
-        keptGet(keptAs(), keyOf(k)).then((kept) => {
-          if (!kept) return queue.push(J);
-          waiting.delete(k); views.put(k, kept.views); if (kept.clumps && G.clumpLayer[k] >= 0) clumpsOf().put(G.clumpLayer[k], kept.clumps);
-          numbers(k, far); seenIn(k, kept.views); out--;
-        }, () => queue.push(J));
+        const J0 = { k, far, c0, t0, of, at: L, corners: { views: L.views ? null : c0 }, tiles: of && !L.tiles ? t0 : null }; queued[k] = 1; out++; waiting.set(k, J0); kept(J0);
       }
     },
     /** Each frame: the next shape baked, once the levels its pictures are drawn from are in the heap and no other stand's
         is being baked. (A level of it in the heap whose corners came before its finest's, before its pictures' levels
         were known: its pictures drawn from its finest, which is there, never waited for.) */
     pump() {
+      if (!shown()) return;   // (after the first frame, in the background: src/core/settle.js shown)
+      if (!swept) {   // (once: every shape the browser kept, read back, its far data with it: a start that kept them bakes none)
+        swept = true;
+        for (let k = 0; k < n; k++) if (!queued[k]) keptGet(keptAs(), keyOf(k)).then((rec) => {
+          if (!rec?.far || queued[k]) return;
+          queued[k] = 1; views.put(k, rec.views); if (rec.clumps && G.clumpLayer[k] >= 0) clumpsOf().put(G.clumpLayer[k], rec.clumps);
+          numbers(k, Float32Array.from(rec.far)); seenIn(k, rec.views);
+        }, () => {});
+      }
       if (BAKING || !queue.length) return;
-      const J = queue[0], H = D().H;
-      if (!H.has(J.k, 0)) return;
-      if (!J.corners.views && H.has(J.k, J.at.views)) { J.at.views = 0; J.corners.views = J.c0; }
-      if (J.of && !J.tiles && H.has(J.k, J.at.tiles)) { J.at.tiles = 0; J.tiles = J.t0; }
-      if (!J.corners.views || (J.of && !J.tiles)) return;
-      BAKING = true; queue.shift(); waiting.delete(J.k); const fail = (e) => console.warn(`plants: ${G.name}: the far end of shape ${J.k} could not be baked`, e);
+      const H = D().H, ready = (J) => {
+        if (!J.corners.views && J.c0 && H.has(J.k, J.at.views)) { J.at.views = 0; J.corners.views = J.c0; }
+        if (J.far[0] > 0 && !J.tiles && J.t0 && H.has(J.k, J.at.tiles)) { J.at.tiles = 0; J.tiles = J.t0; }
+        return !!J.corners.views && H.has(J.k, J.at.views) && (!(J.far[0] > 0) || (!!J.tiles && H.has(J.k, J.at.tiles)));
+      };
+      const i = queue.findIndex(ready); if (i < 0) return;
+      const J = queue.splice(i, 1)[0];
+      BAKING = true; waiting.delete(J.k); const fail = (e) => console.warn(`plants: ${G.name}: the far end of shape ${J.k} could not be baked`, e);
       job(J).then(({ done }) => { BAKING = false; done.catch(fail).finally(() => out--); }, (e) => { BAKING = false; fail(e); out--; });
     },
   };

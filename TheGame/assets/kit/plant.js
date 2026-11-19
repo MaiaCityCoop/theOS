@@ -131,7 +131,7 @@ const NONE = { position: [], normal: [], uv: [], cn: [], root: [], part: [], ao:
 /** A place along one axis as the GPU reads it back from the heap (the grid a vertex is packed on, above): where a
     chunk's parts are found by their tips (crowd.js clumpsOf), the same on both sides of the GPU. */
 const SX = (2 * GRID.xz) / 65535, SY = (GRID.y1 - GRID.y0) / 65535;
-const onGrid = (v, axis) => (axis === 1 ? gy(v) * SY + GRID.y0 : gx(v) * SX - GRID.xz);
+export const onGrid = (v, axis) => (axis === 1 ? gy(v) * SY + GRID.y0 : gx(v) * SX - GRID.xz);
 /** A plant's shape as the crowd kit builds it from its finest (tree.js finest: its sprigs splayed, where it has a
     splay): its crowd, its clumps and its impostor's frame. A: the numbers its far end's atlases are sized by (the page's:
     src/detail/impostor.js atlases; none for a plant without a far end). */
