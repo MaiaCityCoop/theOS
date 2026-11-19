@@ -23,6 +23,17 @@ const dirOf = (u, v) => { const x = (u + v) / 2, z = (u - v) / 2, y = max(1 - ab
 /** The square's point of a direction (one under the horizon read as on it): impostor.js squareOf's twin. */
 const squareOf = (d) => { const y = max(d[1], 0), s = max(abs(d[0]) + y + abs(d[2]), 1e-6); return [(d[0] + d[2]) / s, (d[0] - d[2]) / s]; };
 
+// ---- a picture's normals (impostor.js facingEnc, facingIn: their twins, for the impostors' worker) ----
+/** A way facing its picture (x, y, z: in the picture's frame, z along its way, z ≥ 0) as its texel keeps it, two numbers
+    0 … 1, into out: Lambert's equal-area map of the half-sphere, the disc (its filtered texels within a few degrees of
+    the mean of their ways where those are near: no fold). */
+export const facingCode = (x, y, z, out) => { const l = Math.hypot(x, y, z) || 1, k = 1 / Math.sqrt(1 + max(z / l, 0)); out[0] = (x / l) * k * 0.5 + 0.5; out[1] = (y / l) * k * 0.5 + 0.5; };
+/** A texel's two numbers back as its way, into out (facingCode's). */
+export const facingWay = (u, v, out) => {
+  const X = (u * 2 - 1) * Math.SQRT2, Y = (v * 2 - 1) * Math.SQRT2, r2 = min(X * X + Y * Y, 2), k = sqrt(1 - r2 / 4), x = X * k, y = Y * k, z = 1 - r2 / 2, l = hypot(x, y, z) || 1;
+  out[0] = x / l; out[1] = y / l; out[2] = z / l;
+};
+
 const SPACING = new Map();
 /** What VIEWS x VIEWS views cost an impostor, at its worst over every way the eye can see the thing from: the blend's sum
     of w tan a over the three views it reads (impostor.js impostorViews: a its angle from the eye's way, w its weight).
