@@ -24,7 +24,7 @@ import { MACHINE, BUDGET_MB, FRAME_MS } from '../../src/core/budget.js';
     binds); each submission's own GPU time (the queue runs in order: from when it was submitted or the one before it was
     done, whichever was later, to its own done), the longest with what it held, and how many took more than a frame; a
     destroyed buffer a submission uses (WebKit says only "Validation failure."); the device's loss and its errors. */
-function watch(frameMs) {
+export function watch(frameMs) {
   const W = (window.__device = { buffers: 0, submits: 0, longest: 0, over: 0, lost: null, errors: [], top: null, long: null, dead: [] });
   // (the ledger's most, read in the page a tenth of a second apart, what it held then with it: it rises by gigabytes
   // the seconds before a device is lost, between two of the gate's looks)
