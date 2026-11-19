@@ -27,8 +27,13 @@ export const source = (name, fn) => { let k = name; for (let i = 2; SOURCES.has(
 export function partOf(name, make) { const was = part; part = name; try { return make(); } finally { part = was; } }
 /** The part `name` not drawn now (left: true), or drawn again (false). */
 export const leave = (name, left = true) => void (left ? LEFT.add(name) : LEFT.delete(name));
-/** What is still out, by source ({}: nothing). */
-export function waiting() { const out = {}; for (const [name, s] of SOURCES) { const n = LEFT.has(s.part) ? 0 : s.fn(false); if (n) out[name] = n; } return out; }
+/** What is still out, by source ({}: nothing). A source that cannot say is named so ('?'), and the rest are said all
+    the same: one broken part hid every other (the gate's board, 2026-11-19), as tick() already counts each on its own. */
+export function waiting() {
+  const out = {};
+  for (const [name, s] of SOURCES) { if (LEFT.has(s.part)) continue; try { const n = s.fn(false); if (n) out[name] = n; } catch { out[name] = '?'; } }
+  return out;
+}
 
 let V = null, clock = NaN, frames = 0, still = 0, need = 32, first = null, whole = null;
 const asks = new Set(), seen = new Float64Array(37), broke = new Set();

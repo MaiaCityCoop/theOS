@@ -162,7 +162,7 @@ async function settled({ wait, at, keep = false }) {
   // (what held it, and till when: every 2 s, what each source still had out, src/core/settle.js waiting(); a source's
   // `until` is the last second it had anything out, its `most` the most it had at once)
   const held = {}, R = performance.getEntriesByType('resource').map((e) => e.name), path = R.filter((n) => n.includes('src/core/settle.js')).at(-1);
-  const look = path ? import(path).then(({ waiting }) => setInterval(() => { const t = Math.round((Date.now() - t0) / 1000); for (const [k, n] of Object.entries(waiting())) { const h = (held[k] ||= { from: t, until: t, most: 0 }); h.until = t; h.most = Math.max(h.most, n); } }, 2000)) : null;
+  const look = path ? import(path).then(({ waiting }) => setInterval(() => { const t = Math.round((Date.now() - t0) / 1000); for (const [k, n] of Object.entries(waiting())) { const h = (held[k] ||= { from: t, until: t, most: 0 }); h.until = t; h.most = Math.max(h.most, Number.isFinite(n) ? n : 0); if (!Number.isFinite(n)) h.broken = true; } }, 2000)) : null;
   let ok = true;
   try { said = await Promise.race([Promise.resolve(s.ready).then(() => s.settle({ timeout: wait })), late]); }
   catch (e) { if (!keep) throw e; ok = false; said = String(e?.message ?? e); }   // (keep: what ran out of its wait is said and measured, not the end)
