@@ -17,8 +17,8 @@
 //            the land's own shade takes over, src/terrain/layers.js); the near one's side fitted so the last ends there
 //   when     the near one every frame (it follows where the eye looks, and what sways and walks in it is seen). A far
 //            one only once what it shows has changed since it was drawn: the light turned by half its texel at the
-//            tallest caster, the eye moved as far as its hand-over is deep (its box follows the eye; until then what
-//            it no longer holds is read in the next one, as at its edge: light.js), what stands changed
+//            tallest caster, the eye moved more than one of its texels (its box follows the eye held to whole texels:
+//            within one it is the same box), what stands changed
 //            (a tier packed again, meshes came: src/core/work.js stood), a caster it left out came (made by need),
 //            something that moves stood in it; then one a frame, in turn. At rest only the near one is drawn. All of
 //            them at once only where there is nothing yet to show: shadows come back on, a caster came before the
@@ -59,9 +59,6 @@ export const castsInto = (c, r) => Fn((builder) => {
 // (a cascade's camera, h metres its half side: how far back along the light it stands from the ground it looks at, and
 // the depth it holds, so that what stands as high as anything does over the ground is in front of it)
 const spanOf = (h) => ({ back: 300 + h * 0.5, near: 1, far: 600 + h });
-/** The share of a cascade's side, from its edge in, over which a point is handed over to the next (light.js: dithered,
-    the next read where this one's share runs out). */
-const HAND = 0.1;
 
 let C = null;
 /** Lay the cascades out (the light's start, src/world/light/start.js startLight: before any material is built, for the
@@ -84,11 +81,10 @@ export function useCascades({ reach, crown, top, radius }) {
   // loop reads them all, src/world/light.js)
   const mats = uniformArray(half.map(() => new THREE.Matrix4()), 'mat4');
   const texelAt = uniformArray(texel, 'float'), backAt = uniformArray(bias.map((b, k) => b / range[k]), 'float');
-  C = { S, n, half, texel, bias, range, top, hand: HAND, casters: { reach, crown, top, radius }, mats, texelAt, backAt };
+  C = { S, n, half, texel, bias, range, top, casters: { reach, crown, top, radius }, mats, texelAt, backAt };
   return C;
 }
-/** The cascades as useCascades laid them out: { S (texels a side), n (how many), half (each one's half side, m), texel (m), hand (the share
-    of its side over which a cascade hands over to the next, from its edge in), bias (m along the
+/** The cascades as useCascades laid them out: { S (texels a side), n (how many), half (each one's half side, m), texel (m), bias (m along the
     light a caster stands back before it shades: two of its texels, the 2 × 2 comparison's reach; what is steep to the
     light is moved off along its normal, light.js), range (the depth it holds, m), top (the tallest caster, m), casters
     (what they were laid out from: reach, crown, top, radius, m), mats (each one's matrix from the world to its u, v and
@@ -188,12 +184,12 @@ export function createShadows(renderer) {
     turns(camera, L) {
       // what changed since a far one was drawn: what stands (a tier packed again, meshes came), what moves (a tier of
       // movers packed), what it left out came, the light turned by half its texel at the tallest caster, the eye moved
-      // as far as its hand-over is deep (2 HAND of its half side)
+      // more than one of its texels (its box held to whole texels: within one, the same box)
       const changed = stood(), moving = moves();
       let came = false;
       for (let k = 1; k < n; k++) {
         const A = at[k], c = arrived(A.missing); came ||= c;
-        if (changed || moving || c || A.lively || A.sun.dot(L) < turnOk[k] || Math.hypot(A.eye.x - camera.position.x, A.eye.z - camera.position.z) > 2 * HAND * half[k]) A.due = true;
+        if (changed || moving || c || A.lively || A.sun.dot(L) < turnOk[k] || Math.hypot(A.eye.x - camera.position.x, A.eye.z - camera.position.z) > C.texel[k]) A.due = true;
       }
       arrived(at[0].missing);   // (the near one is drawn every frame: what it left out comes in its next)
       const gone = Math.hypot(at[n - 1].eye.x - camera.position.x, at[n - 1].eye.z - camera.position.z) > half[n - 1];

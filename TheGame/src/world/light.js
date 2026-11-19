@@ -85,8 +85,7 @@ export const ign = (p) => fract(fract(dot(p, vec2(0.06711056, 0.00583715))).mul(
 // shadows: what the casters hide of the light, from the cascades round the camera (src/world/shadow.js: the layers of
 // one depth array, the near one first, each twice the one before); 1 lit, 0 in shadow. Each cascade's matrix
 // (shadow.js cascades().mats) takes a world point straight to its (u, v, depth), whichever way up the backend keeps it.
-// A point is read in the first one it lies inside, the hand-over to the next dithered over a cascade's last tenth (its
-// hand, src/world/shadow.js: also how far the eye may move before a far one is drawn again) (the
+// A point is read in the first one it lies inside, the hand-over to the next dithered over a cascade's last tenth (the
 // picture built over time averages it), and the last fades out at its own edge.
 //
 // The near one is soft as the sun makes it (PCSS, Fernando 2005): six reads round the point find how far the casters
@@ -105,7 +104,7 @@ const turned = ([x, y], cs) => vec2(cs.x.mul(x).sub(cs.y.mul(y)), cs.y.mul(x).ad
     tenth in) } */
 const cascade = (w, k) => {
   const s = cascades().mats.element(int(k)).mul(vec4(w, 1)), q = s.xyz.div(s.w), m = min(min(q.x, q.y), min(float(1).sub(q.x), float(1).sub(q.y)));
-  return { q, e: smoothstep(0, cascades().hand, m).mul(q.z.lessThan(1).select(float(1), float(0))) };
+  return { q, e: smoothstep(0, 0.1, m).mul(q.z.lessThan(1).select(float(1), float(0))) };
 };
 const depthAt = (uv, k) => { const S = cascades().S; return float(U.tShadow.load(ivec2(clamp(uv.mul(S), vec2(0), vec2(S - 1)))).depth(int(k))); };
 const compareAt = (uv, k, z) => U.tShadow.sample(uv).depth(int(k)).level(0).compare(z);
