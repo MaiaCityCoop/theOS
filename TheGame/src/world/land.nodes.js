@@ -40,7 +40,7 @@ const riverWorld = Fn(([p]) => {
   return vec3(n1.x.sub(0.5).add(n2.x.sub(0.5).mul(0.28)), n1.yz.mul(1 / 1600).add(n2.yz.mul(0.28 / 330)));
 });
 /** the river's raw field: (r, 0 on the stream's line; its gradient) */
-export const riverRaw = Fn(([p]) => {
+const riverRaw = Fn(([p]) => {
   const R = riverWorld(p).toVar(), s = sandW(p);
   If(U.uSand.z.greaterThan(0).and(riverSand()).and(s.greaterThan(0)), () => {
     const d = p.sub(U.uSand.xy), c = Math.cos(MEANDER.turn), sn = Math.sin(MEANDER.turn), k = (2 * Math.PI) / MEANDER.wave;
