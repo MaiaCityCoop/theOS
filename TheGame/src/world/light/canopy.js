@@ -24,7 +24,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, ivec2, uniform, texture, screenCoordinate, clamp, mix, smoothstep, exp, max } from 'three/tsl';
 import { castRoute, CASTS, cascades } from '../shadow.js';
-import { pending } from '../../core/compile.js';
+import { pending, drawMade } from '../../core/compile.js';
 import { note, mark } from '../../core/gpu.js';
 import { CROWN_EXTINCTION } from './physics.js';
 import { HMIN, HMAX } from '../land.js';
@@ -102,6 +102,29 @@ export function createCanopy(renderer, { groundAt }) {
   const quad = new THREE.QuadMesh(probeMat), at = new THREE.Vector4(), was = new THREE.Vector2(Infinity, Infinity);   // (at: where the map being made lies, and its ground's height; was: the probes' grid point it was made round)
   const PIECES = cams.length + 1;   // (the view from above, from below, the probes)
   let piece = PIECES, front = 0;   // (the piece to be made next, PIECES: none; which of each pair the materials read)
+  // the map's views, from above and from below (which: the ones drawn now), into its atlas rt; whole: both are in, what
+  // the probes are made from
+  const drawViews = (scene, rt, which, whole) => {
+    mark('canopy');   // (whose passes these are, for a tool's timing: src/core/gpu.js)
+    renderer.setRenderTarget(rt); renderer.setRenderObjectFunction(route);
+    for (const i of which) {
+      const c = cams[i]; c.position.set(at.x, at.w + (i ? -UP : UP), at.y); c.lookAt(at.x, at.w, at.y); c.updateMatrixWorld();
+      rt.viewport.set(i * S, 0, S, S); rt.scissor.set(i * S, 0, S, S); rt.scissorTest = true;
+      renderer.autoClear = i === 0; renderer.render(scene, c);   // (the whole atlas cleared with the first)
+    }
+    rt.viewport.set(0, 0, 2 * S, S); rt.scissorTest = false;
+    if (whole) { CANOPY.mapAt.value.copy(at); CANOPY.cams.value.set(at.w + UP, at.w - UP, 2 * UP); CANOPY.map.value = rt.depthTexture; }
+  };
+  // the probes, from the map, into the pair's `back`, then read: whether they were drawn (once their pass is made,
+  // src/core/compile.js drawMade)
+  const drawProbes = (back) => {
+    mark('probes'); renderer.setRenderObjectFunction(null); renderer.autoClear = false;   // (every probe written: nothing cleared)
+    const to = probes[back];
+    renderer.setRenderTarget(to);
+    if (!drawMade(renderer, quad, quad.camera, 'the sky probes')) return false;
+    front = back; CANOPY.at.value.copy(CANOPY.mapAt.value); CANOPY.probes.value = to.texture; CANOPY.on.value = 1;
+    return true;
+  };
   return {
     /** Before the frame: once the eye has crossed a probe's spacing since the map was made, the map made again round
         where it stands, a piece a frame (its view from above, from below, then its probes), then both pairs turned.
@@ -113,26 +136,9 @@ export function createCanopy(renderer, { groundAt }) {
       if (piece === PIECES && (gx !== was.x || gz !== was.y)) { piece = 0; at.set(gx, gz, side, groundY); was.set(gx, gz); }
       if (piece === PIECES) return;
       const prev = renderer.getRenderTarget(), ac = renderer.autoClear, route0 = renderer.getRenderObjectFunction(), back = first ? front : 1 - front;
-      if (first || piece < 2) {
-        mark('canopy');   // (whose passes these are, for a tool's timing: src/core/gpu.js)
-        const rt = maps[back];
-        renderer.setRenderTarget(rt); renderer.setRenderObjectFunction(route);
-        for (const i of first ? [0, 1] : [piece]) {
-          const c = cams[i]; c.position.set(at.x, at.w + (i ? -UP : UP), at.y); c.lookAt(at.x, at.w, at.y); c.updateMatrixWorld();
-          rt.viewport.set(i * S, 0, S, S); rt.scissor.set(i * S, 0, S, S); rt.scissorTest = true;
-          renderer.autoClear = i === 0; renderer.render(scene, c);   // (the whole atlas cleared with the first)
-        }
-        rt.viewport.set(0, 0, 2 * S, S); rt.scissorTest = false;
-        // (once both views are in: what the probes are made from)
-        if (first || piece === 1) { CANOPY.mapAt.value.copy(at); CANOPY.cams.value.set(at.w + UP, at.w - UP, 2 * UP); CANOPY.map.value = rt.depthTexture; }
-      }
-      if (first || piece === 2) {
-        mark('probes'); renderer.setRenderObjectFunction(null); renderer.autoClear = false;   // (every probe written: nothing cleared)
-        const to = probes[back];
-        renderer.setRenderTarget(to); quad.render(renderer);
-        front = back; CANOPY.at.value.copy(CANOPY.mapAt.value); CANOPY.probes.value = to.texture; CANOPY.on.value = 1;
-      }
-      piece = first ? PIECES : piece + 1;
+      if (first || piece < 2) drawViews(scene, maps[back], first ? [0, 1] : [piece], first || piece === 1);
+      const probed = first || piece === 2 ? drawProbes(back) : true;   // (not drawn: this piece made again next frame)
+      piece = !probed ? piece : first ? PIECES : piece + 1;
       mark(null); renderer.setRenderObjectFunction(route0); renderer.autoClear = ac; renderer.setRenderTarget(prev);
     },
   };
