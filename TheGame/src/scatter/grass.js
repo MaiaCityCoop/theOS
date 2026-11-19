@@ -8,6 +8,7 @@ import { U } from '../core/uniforms.js';
 import { hashI, camDist, BASE } from '../world/land.nodes.js';
 import { lit, weathered, windAt, windStrength, snowDepth, SNOW } from '../world/light.js';
 import { passOf, motion, vWas } from '../core/pass.js';
+import { gWrite, lightFamily, FAMILY } from '../core/gbuffer.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 import { scatterRow } from '../../assets/index.js';
 import { dialK } from '../detail/measure.js';
@@ -179,6 +180,21 @@ function bladeOf([A, B, C], T) {
   return { alive: inBand.and(C.z.lessThanEqual(endOf(dist))).and(A.w.greaterThan(snowDepth.mul(2.5))), data: [A, B, vec4(unpackRGB(C.x), C.y)] };
 }
 
+/** A blade's parts in the G-buffer (src/core/gbuffer.js): the blade, or a flower's head at its tip. */
+const PART = Object.fromEntries(['blade', 'head'].map((name, at) => [name, at]));
+/** A meadow lit, as a blade takes the light (bladeLight: softly round, the sun through its blades the bright yellow-green
+    of a lit meadow, a sheen along them); one sample of the shadow map: a blade is too thin for a soft edge to show. A
+    flower's head (head: a bool node) takes it plainly. colour, n, w: as lit's; t: how far up its blade (bladeLight). */
+const meadowLit = ({ colour, n, w, t, head }) => {
+  const B = bladeLight(n, t);
+  return lit({ colour, n, w, how: 'one', ndl: head.select(float(0.7), B.ndl), through: head.select(float(0), B.through), lobe: B.lobe, tint: B.tint,
+    sky: head.select(float(1), B.sky), gloss: head.select(float(0), B.gloss), sharp: B.sharp });
+};
+let said = false;
+/** The meadow's light, said once (gbuffer.js lightFamily): its blades lit where the prepass left them, in the one pass
+    of light; t, how far up its blade, is its own first number (gWrite own, below). */
+const sayLight = () => { if (!said) { said = true; lightFamily(FAMILY.grass, (f) => meadowLit({ colour: f.colour, n: f.n, w: f.w, t: f.own[0], head: f.part.equal(uint(PART.head)) })); } };
+
 function bladeMaterial(T) {
   // shape(A, B, C): its vertex from what bladeIn packed, bent by the wind; lit in the fragment
   return () => {
@@ -208,19 +224,18 @@ function bladeMaterial(T) {
       return clipOf(w, at(push(U.uTimeWas)));
     };
     const frag = Fn((builder) => {
-      if (passOf(builder) === 'pre') return motion(vWas, 1);   // (the prepass: where it lay a frame ago; a blade is thin)
       const vT = vTS.x, n0 = normalize(vN.add(vSide.mul(vTS.y).mul(0.6)));   // a blade is a little rounded
       const n = normalize(frontFacing.select(n0, n0.negate()).add(vec3(0, 1.4, 0)));   // and a meadow lights as a soft whole
-      // a meadow takes the light as a blade does (bladeLight: softly round, the sun through its blades the bright
-      // yellow-green of a lit meadow, a sheen along them); one sample of the shadow map: a blade is too thin for a soft
-      // edge to show. A flower's head (pale, at a blade's tip) takes it plainly
-      const B = bladeLight(n, vT), head = vTS.z.greaterThan(0.5).and(vT.greaterThan(0.86));
+      const head = vTS.z.greaterThan(0.5).and(vT.greaterThan(0.86));   // (a flower's head: pale, at a blade's tip)
       const onIt = max(clamp(snowDepth.mul(4), 0, 0.4).mul(float(1).sub(smoothstep(0.05, 0.5, vT))), clamp(snowDepth.mul(2.5), 0, 0.6).mul(smoothstep(0.3, 0.8, n0.y.abs())).mul(smoothstep(0.3, 0.8, vT)));   // snow at the foot, and lying on
-      return lit({ colour: head.select(vec3(0.92, 0.92, 0.86), weathered(mix(vCol, SNOW, onIt), n, 9)), n, w: vWorld, how: 'one',
-        ndl: head.select(float(0.7), B.ndl), through: head.select(float(0), B.through), lobe: B.lobe, tint: B.tint,
-        sky: head.select(float(1), B.sky), gloss: head.select(float(0), B.gloss), sharp: B.sharp });
+      const colour = head.select(vec3(0.92, 0.92, 0.86), weathered(mix(vCol, SNOW, onIt), n, 9));
+      // (the prepass: where it lay a frame ago, and what its light needs, lit where its pixels are in the one pass of
+      // light (src/core/gbuffer.js): the screen draws it once. Drawn anywhere else, lit here)
+      if (passOf(builder) === 'pre') { gWrite({ family: FAMILY.grass, part: head.select(uint(PART.head), uint(PART.blade)), colour, n, w: vWorld, own: [vT] }); return motion(vWas, 1); }
+      return meadowLit({ colour, n, w: vWorld, t: vT, head });
     });
-    const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)
+    const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.userData.pre = true; m.userData.deferred = true;   // (it takes part in the prepass, and is lit in the pass of light: no colour pass of its own, src/core/pass.js)
+    sayLight();
     return { m, shape };
   };
 }
