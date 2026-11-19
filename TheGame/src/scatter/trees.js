@@ -491,7 +491,7 @@ function impostorMaterial(G, D, Lv, src) {
       // one to a pixel drawn: CELL of them over its sphere's width, 2 r4.w of its Ks at scale 1), its turn, its sphere's
       // radius in the world
       vP.assign(unturn(w.sub(c)).div(Rw)); vE.assign(unturn(U.uCam.sub(c)).div(Rw)); vS.assign(share);
-      const CELL = atlases().CELL;
+      const CELL = atlases().STORED;   // (its atlas's texels a view: a texel a drawn pixel)
       vK.assign(vec4(B.y, clamp(log2(r3.y.mul(CELL).div(r4.w.mul(2).mul(own).max(1e-3))), 0, levelsUnder(CELL)), B.x, Rw));
       // what it is lit by, as its mesh is (standLight): the sun as it reaches its middle, once for the plant (a few
       // pixels), and its kind's numbers its mesh's corners carry (its leaves' wrap and how much the sun shines through
@@ -531,7 +531,7 @@ function impostorMaterial(G, D, Lv, src) {
 // ---- the far ends baked: each shape's impostor and its clumps, each picture from the level of the heap the measure picks
 // at its own size ----
 let BAKING = false;   // (one shape at a time, of every stand: the bakers' targets are one set)
-const BAKED = 5;   // the bake's own version, in what the browser keeps of it (farOf): one more whenever how a far end is baked changes
+const BAKED = 6;   // the bake's own version, in what the browser keeps of it (farOf): one more whenever how a far end is baked changes
 /** A stand's far ends (G: its group; D(): its drawer, once made): its two atlases (the impostors' views, a layer a shape,
     VIEWS x VIEWS views of CELL texels a side; its chunks' planes, a layer a shape that has clumps, G.clumpLayer, G.tiles
     tiles of TILE texels a row: the atlases' numbers, src/detail/impostor.js atlases), and what bakes them. Each shape
@@ -540,7 +540,7 @@ const BAKED = 5;   // the bake's own version, in what the browser keeps of it (f
     is drawn from the level the measure picks at its own size (levelAt): a view CELL texels over the plant's sphere, a
     chunk's plane TILE texels over the longest side of its chunk; never from more than a picture so small shows. */
 function farOf(renderer, tex, G, D) {
-  const A = atlases(), n = G.meshes, views = createAtlas(renderer, { name: `plants, ${G.name}: impostors`, side: A.VIEWS * A.CELL, layers: n, cell: A.CELL, views: A.VIEWS });
+  const A = atlases(), n = G.meshes, views = createAtlas(renderer, { name: `plants, ${G.name}: impostors`, side: A.VIEWS * A.STORED, layers: n, cell: A.STORED, views: A.VIEWS });   // (from the level read where an impostor comes in: atlasesOf STORED)
   let clumps = null; const clumpsOf = () => (clumps ||= createAtlas(renderer, { name: `plants, ${G.name}: clumps`, side: G.tiles * A.TILE, layers: G.clumpy, cell: A.TILE }));   // (a stand none of whose shapes has clumps: one tile, which nothing reads)
   const queue = [], queued = new Uint8Array(n), waiting = new Map(); let version = 0, any = false, M = null, out = 0, swept = false;
   // the levels a shape's pictures are drawn from (far: its far data, assets/kit/crowd.js): the measure's at each
