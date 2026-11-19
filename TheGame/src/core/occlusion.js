@@ -375,26 +375,32 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, off
   // into the arena, with how many the draws before it hold; and as many workgroups as work out their boxes. A bucket
   // laid out by its tier's packing (offAt: where its things begin, a node) says its first and its room here too
   const d = new THREE.IndirectStorageBufferAttribute(new Uint32Array([0, 1, 1, 0]), 1), D = storage(d, 'uint', 4);
+  // (its buckets a loop over uK, a uniform, as its boxes' search below: every culled tier whose counts are laid out
+  // alike is one pipeline, however many draws it has; written out a draw at a time, each count was a compile)
+  const uK = uniform(K, 'uint');
   const argsPass = Fn(() => {
     A.build();
     const run = uint(0).toVar();
-    for (let k = 0; k < K; k++) {
+    Loop({ start: uint(0), end: uK, type: 'uint', condition: '<' }, ({ i: k }) => {
       // (no more than its room: a bucket's own (CAP), or a resident tier's buckets together no more than its region (uHalf),
       // whatever its count says: a count read before its packing has run, or past what its store holds, would have the
       // culling dispatch for things that are not there (2026-11-19: a 410 ms pass one at the start, on Samuel's MacBook))
-      const g = uG0.add(uint(k)), n = (offAt ? atomicLoad(count.element(k)).min(uHalf.sub(run)) : atomicLoad(count.element(k)).min(A.at(g, CAP))).toVar();
-      if (offAt) { A.at(g, BASE).assign(uBase.add(offAt(uint(k)).mod(uHalf))); A.at(g, CAP).assign(n); }   // (its place in the arena, folded: regionOf)
-      F.element(k * 5 + 1).assign(n); A.at(g, PACK).assign(n); A.at(g, PRE).assign(run); run.addAssign(n);
-      if (also) also(k);   // (what its tier writes beside, a draw at a time)
-    }
+      const g = uG0.add(k), n = (offAt ? atomicLoad(count.element(k)).min(uHalf.sub(run)) : atomicLoad(count.element(k)).min(A.at(g, CAP))).toVar();
+      if (offAt) { A.at(g, BASE).assign(uBase.add(offAt(k).mod(uHalf))); A.at(g, CAP).assign(n); }   // (its place in the arena, folded: regionOf)
+      F.element(k.mul(uint(5)).add(uint(1))).assign(n); A.at(g, PACK).assign(n); A.at(g, PRE).assign(run); run.addAssign(n);
+      if (also) also(k);   // (what its tier writes beside, a draw at a time: k a node)
+    });
     sizeTo(D, run.add(uint(WG - 1)).div(uint(WG)));
   })().compute(1);
-  // then each thing it packed: its box, into the arena (a workgroup's 64 of them, whatever bucket each is in)
+  // then each thing it packed: its box, into the arena (a workgroup's 64 of them, whatever bucket each is in). Its
+  // buckets and its rows, uniforms: every culled tier whose boxes are reckoned alike is one pipeline, however many
+  // draws it has (2026-11-19: twelve tiers were twelve compiles at the start, four kinds of box)
+  const uSteps = uniform(stepsOf(K), 'uint'), uS = uniform(S, 'uint');
   const boxes = Fn(() => {
     A.build();
-    const t = wgOf().mul(uint(WG)).add(localId.x), g = lastAtMost((q) => A.at(q, PRE), uG0, uint(K), t, stepsOf(K)).toVar(), k = g.sub(uG0), i = t.sub(A.at(g, PRE));
+    const t = wgOf().mul(uint(WG)).add(localId.x), g = lastAtMost((q) => A.at(q, PRE), uG0, uK, t, uSteps).toVar(), k = g.sub(uG0), i = t.sub(A.at(g, PRE));
     If(i.lessThan(A.at(g, PACK)), () => {
-      const s = offAt ? offAt(k).add(i) : A.at(g, BASE).sub(uBase).add(i), e = s.mul(uint(S)), B = box(data.element(e), data.element(e.add(uint(1))), k), o = A.at(g, BASE).add(i);   // (s: where the packing put it; o: its place in the arena)
+      const s = offAt ? offAt(k).add(i) : A.at(g, BASE).sub(uBase).add(i), e = s.mul(uS), B = box(data.element(e), data.element(e.add(uint(1))), k), o = A.at(g, BASE).add(i);   // (s: where the packing put it; o: its place in the arena)
       A.BOX.element(o).assign(boxOf(B));
     });
   })().compute(MANY, [WG]);

@@ -48,6 +48,9 @@ jobs:
       - name: The recipes' registry, made from them (never kept in git)
         working-directory: TheGame
         run: bun tools/registry.js
+      - name: The plants' outlines, measured as the page measures them (never kept in git)
+        working-directory: TheGame
+        run: bun tools/outlines.js
       - name: Every name bound, every import found
         working-directory: TheGame
         run: bun tools/lint.js

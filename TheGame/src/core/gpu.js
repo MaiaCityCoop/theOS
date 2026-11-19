@@ -23,6 +23,7 @@ import { storage } from 'three/tsl';
 import { CLASS_NAMES, classOf } from './classes.js';
 import { BUDGET_MB, GPU_MB } from './budget.js';
 import { MiB } from './physics.js';
+import { passBegins, timesOn } from './pace.js';
 
 const HELD = new Map(), MB = MiB, PEAK = Object.fromEntries(CLASS_NAMES.map((c) => [c, 0])), OVER = new Map(), WHOLE = 'the whole GPU';
 let peakAll = 0;
@@ -55,6 +56,11 @@ function held(cls, by) {
   if (all > peakAll) peakAll = all;
   if (!R && n > BUDGET_MB[cls] * MB) past(cls, by, n, BUDGET_MB[cls], true);
 }
+// How many kinds each drawer draws coarser than a pixel now (src/scatter/drawer.js: a band not come yet, a stand-in, no
+// slot for it), by its name: beside the memory in the one ledger, so the gate's board shows it fall as the bands come
+const SHORT = new Map();
+/** Drawer `name` draws n kinds coarser than a pixel now (the ledger's short). */
+export const short = (name, n) => { SHORT.set(name, n); };
 /** The one ledger (the game's memory(), src/boot.js; the hour's gate reads it), MB:
       gpu, peak, budget   what the game holds on the GPU now and the most it held (all the device made, where it is
                           counted; else what the pools note), and GPU_MB
@@ -65,7 +71,8 @@ function held(cls, by) {
                           kind), the largest first: [[class, what, MB, how many], …], where no pool's note says it
       over                [{ who, by, times, mb, budget }]: each class, or the whole, a make took past its budget, with
                           what, how often, at the most
-      rows                [[name, gpu MB, page MB, class], …], what each pool notes, the largest first */
+      rows                [[name, gpu MB, page MB, class], …], what each pool notes, the largest first
+      short               { drawer: how many kinds it draws coarser than a pixel now } (short, above) */
 export const ledger = () => {
   const mb = (b) => +(b / MB).toFixed(1), rows = [...HELD].map(([n, h]) => [n, h.gpu, h.page, h.cls]).sort((a, b) => b[1] + b[2] - a[1] - a[2]);
   const classes = Object.fromEntries(CLASS_NAMES.map((c) => [c, { gpu: 0, peak: 0, noted: 0, page: 0, budget: BUDGET_MB[c] }]));
@@ -76,7 +83,7 @@ export const ledger = () => {
     gpu: mb(R ? made : noted), peak: mb(R ? peakMade : peakAll), budget: GPU_MB, classes, noted: mb(noted), page: mb(rows.reduce((s, r) => s + r[2], 0)),
     unnoted: R ? mb(Math.max(0, made - noted)) : null,
     makers: [...KINDS.values()].filter((k) => k.bytes > 0).sort((a, b) => b.bytes - a.bytes).slice(0, 24).map((k) => [k.cls, k.kind, mb(k.bytes), k.n]),
-    over: [...OVER.values()].map((o) => ({ ...o })), rows: rows.map(([n, g, p, c]) => [n, mb(g), mb(p), c]),
+    over: [...OVER.values()].map((o) => ({ ...o })), rows: rows.map(([n, g, p, c]) => [n, mb(g), mb(p), c]), short: Object.fromEntries(SHORT),
   };
 };
 
@@ -143,14 +150,14 @@ const countMade = (dev) => {
 let tap = null;
 /** The passes from here on are `name`'s (null: no one's in particular), until the next mark; what the device makes
     meanwhile is the class's they are in. */
-export const mark = (name) => { NOW = name ? classOf(name) : 'other'; if (tap) tap(name); };
+export const mark = (name) => { NOW = name ? classOf(name) : 'other'; passBegins(name); if (tap) tap(name); };   // (and its own time on the GPU taken: src/core/pace.js)
 /** A tool listens to the marks: fn(name), or null to stop. */
 export const listen = (fn) => { tap = fn; };
 
 let R = null;
 /** The renderer whose GPU the lean buffers are made on (src/boot.js, once it has started). Without it (WebGL, a page that
     did not ask): gpuStorage makes an ordinary buffer, kept twice. */
-export const useGPU = (renderer) => { R = renderer?.backend?.device ? renderer : null; if (R) countMade(R.backend.device); };
+export const useGPU = (renderer) => { R = renderer?.backend?.device ? renderer : null; if (R) countMade(R.backend.device); timesOn(R?.backend.device); };
 export const lean = () => !!R;
 /** Whether the renderer's GPU has a WebGPU feature (none without WebGPU). */
 export const hasFeature = (name) => !!R?.backend?.device?.features?.has(name);

@@ -19,6 +19,8 @@ export const LADDER = [
   { n: 1, px: 4, delta: 0 },
   { n: DOTN, px: 1.15, delta: 0 },
 ];
+/** The ladder's level drawn just under a size on screen (px: the top of a band of sizes, its level the one drawn there). */
+export const ladderOf = (px) => LADDER.findIndex((L) => L.px < px);
 /** triangles and vertices of a ball of n squares an edge (under 1: a dot) */
 export const trisOf = (n) => (n > 0 ? 12 * n * n : 1), vertsOf = (n) => (n > 0 ? 6 * n * n + 2 : 3);
 /** The most a level's mesh may be: { tris, verts }. */

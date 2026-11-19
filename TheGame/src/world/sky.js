@@ -6,15 +6,16 @@
 // the clouds: the weather's). The weather panel
 // (src/ui/weather.js) steers it by hand or lets it run.
 import * as THREE from 'three/webgpu';
-import { Fn, varying, positionGeometry, normalize, max, mix, pow, vec4, cameraProjectionMatrix, cameraViewMatrix, modelWorldMatrix } from 'three/tsl';
+import { Fn, varying, positionGeometry, normalize, max, pow, vec4, cameraProjectionMatrix, cameraViewMatrix, modelWorldMatrix } from 'three/tsl';
 import SKY from '../../world/sky.js';
 import CLOCK from '../../world/clock.js';   // the date, the hour the game opens at, how fast a day runs: set there, nowhere else
 import { U } from '../core/uniforms.js';
 import { toScreen } from './light.js';
-import { D } from './sky/dome.js';
+import { D, skyAlong } from './sky/dome.js';
 import { skyHooks } from './weather/index.js';
 import { weatherRow } from '../ui/weather.js';
 import { load, save } from '../core/store.js';
+import { SOLAR_CONSTANT } from './light/physics.js';
 
 const RAD = Math.PI / 180;
 
@@ -34,6 +35,21 @@ export function moonAt(hour, day, lat) {
 }
 
 const lerp3 = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+// a colour's luminance (its light as the eye weighs it). source: ITU 2015, Recommendation ITU-R BT.709-6 (Rec. 709's primaries)
+const LUMA = [0.2126, 0.7152, 0.0722];
+const lum = (c) => c.reduce((s, v, i) => s + v * LUMA[i], 0);
+// a clear sky: the light on open ground, by the sun's height (haurwitz: top W/m² times cos z times exp(-air / cos z), z
+// the sun's angle from overhead), and the share of it that comes from the sky, by its clearness kt, that light over what
+// reaches the top of the air (erbs: 1 - slope kt up to kt `low`; the quartic up to `high`; past it `clear`). source:
+// Haurwitz 1945, "Insolation in relation to cloudiness and cloud density", Journal of Meteorology 2: 154-166; Erbs, Klein
+// & Duffie 1982, "Estimation of the diffuse radiation fraction for hourly, daily and monthly-average global radiation",
+// Solar Energy 28(4): 293-302
+const CLEAR_SKY = { haurwitz: { top: 1098, air: 0.057 }, erbs: { low: 0.22, slope: 0.09, quartic: [0.9511, -0.1604, 4.388, -16.638, 12.336], high: 0.8, clear: 0.165 } };
+/** The share of the light on open ground that comes from the sky under a clear sky, the sun `alt` radians up (> 0). */
+function skyShare(alt) {
+  const { haurwitz: H, erbs: E } = CLEAR_SKY, kt = (H.top / SOLAR_CONSTANT) * Math.exp(-H.air / Math.sin(alt));
+  return kt <= E.low ? 1 - E.slope * kt : kt <= E.high ? E.quartic.reduce((s, c, i) => s + c * kt ** i, 0) : E.clear;
+}
 /** The light by the sun's height (degrees): the file's keys, eased between. */
 export function lightAt(altDeg) {
   const K = SKY.keys; let i = 0;
@@ -60,7 +76,7 @@ function dome(camera) {
   mat.fragmentNode = Fn(() => {
     const v = normalize(vDir), y = v.y;
     // the sky from the horizon up: the hour's own colours
-    const col = mix(D.horizon, D.zenith, pow(max(y, 0), 0.55)).toVar();
+    const col = skyAlong(v).toVar();
     // (below the horizon the horizon's own colour: the far land melts into it (light.js: airOf), so from high up, where
     // the land ends below the horizon, there is no band of another colour between them)
     const s = max(v.dot(D.sunD), 0);
@@ -87,9 +103,11 @@ export function createSky(scene, camera, renderer) {
     const dir = new THREE.Vector3().copy(moon.dir).lerp(sun.dir, ws); if (dir.y < 0.02) dir.y = 0.02; dir.normalize();
     U.uSunDir.value.copy(dir);
     U.uSun.value.set(L.sun[0] * ws + SKY.moon.light[0] * moonUp * (1 - ws), L.sun[1] * ws + SKY.moon.light[1] * moonUp * (1 - ws), L.sun[2] * ws + SKY.moon.light[2] * moonUp * (1 - ws));
-    v3(U.uAmb, L.amb);
-    U.uSky.value.set((L.horizon[0] + L.zenith[0]) / 2, (L.horizon[1] + L.zenith[1]) / 2, (L.horizon[2] + L.zenith[2]) / 2);   // the sky as the water mirrors it
-    v3(U.uHazeCol, L.horizon);   // the far land melts into the sky's horizon of this hour
+    // the sky's light: by day as much as a clear sky gives against the sun (skyShare: its share of what falls on open
+    // ground), the hour's key at the most; low over the horizon, where a clear sky's measures give the sun's light all
+    // but up, and before the sun is up, the key's light stands
+    const share = sun.alt > 0 ? skyShare(sun.alt) : 1, want = share < 1 ? (lum(L.sun) * Math.sin(sun.alt) * share) / (1 - share) : Infinity;
+    v3(U.uAmb, L.amb.map((a) => a * Math.min(1, want / lum(L.amb))));
     U.uExposure.value = L.exposure;
     v3(D.zenith, L.zenith); v3(D.horizon, L.horizon); v3(D.glow, L.glow); v3(D.sunL, L.sun); D.sunD.value.copy(sun.dir); D.moonD.value.copy(moon.dir);
     D.dark.value = 1 - Math.min(1, Math.max(0, (sun.alt / RAD + 14) / 12)); D.phase.value = moon.phase;

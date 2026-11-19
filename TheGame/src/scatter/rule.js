@@ -27,7 +27,7 @@
 // and young (its placement's `young`: how much of the ground its saplings cover), in the class of its saplings. Each
 // layer whose cells are as large as the growth map's texels writes what it leaves there for the layers after it.
 import * as THREE from 'three/webgpu';
-import { Fn, If, Loop, float, int, uint, vec2, vec4, ivec2, uniformArray, smoothstep, clamp, mix, max, min, abs, floor, length, dot, pow, log, exp, sqrt, cos, sin, packHalf2x16, unpackHalf2x16 } from 'three/tsl';
+import { Fn, If, Loop, float, int, uint, vec2, vec4, ivec2, uniform, uniformArray, smoothstep, clamp, mix, max, min, abs, floor, length, dot, pow, log, exp, sqrt, cos, sin, packHalf2x16, unpackHalf2x16 } from 'three/tsl';
 import { rnd, vnoise, groveAt, leadAt, riverInfo, shareOf, nearLake } from '../world/land.nodes.js';
 import { U } from '../core/uniforms.js';
 import { scatterRow } from '../../assets/index.js';
@@ -93,10 +93,11 @@ export function layersOf(rows) {
   // what each layer reads: the words of every layer before it that writes; and whose litter it reads, as their numbers;
   // a layer that writes, what its things leave (their reach, their crowns' spread: none for what lies on the floor,
   // their litter) and the ground they cover (feetOf)
+  const longest = Math.max(0, ...LAYERS.filter((L) => L.word >= 0).map((L) => L.entries.length));   // (each writer's table as long as the longest's, the rest nought: every layer's gather declares it alike)
   for (const L of LAYERS) {
     L.reads = LAYERS.filter((W) => W.index < L.index && W.word >= 0);
     for (const e of L.entries) e.from = e.under.length ? LAYERS.flatMap((W) => (W.index < L.index ? W.entries.filter((x) => e.under.includes(x.asset.uid) && !x.young).map((x) => x.id) : [])) : null;
-    L.table = L.word >= 0 ? uniformArray(L.entries.map((e) => new THREE.Vector4(e.reach, crowned(e) ? spreadOf(e.asset) : 0, e.litter ? e.id : 0, e.litter)), 'vec4') : null;
+    L.table = L.word >= 0 ? uniformArray([...L.entries.map((e) => new THREE.Vector4(e.reach, crowned(e) ? spreadOf(e.asset) : 0, e.litter ? e.id : 0, e.litter)), ...Array.from({ length: longest - L.entries.length }, () => new THREE.Vector4())], 'vec4') : null;
   }
   feetOf(LAYERS.filter((L) => L.word >= 0));
   KEY = key;
@@ -109,7 +110,11 @@ export const rowsOf = () => placed().map(scatterRow);
 export const grovesOf = (bio, L) => ({ clumps: (bio.groves?.clumps ?? CLUMPS) * L.scale, patches: (bio.groves?.patches ?? PATCHES) * L.scale, seed: L.seed });
 /** Where the thing of cell c of layer L stands (metres): somewhere in its cell, L.inset of it in from its edge at the
     least (feetOf). */
-export const posIn = (c, L) => { const h0 = (k) => uint(k + L.seed - 300); return vec2(c).add(L.inset).add(vec2(rnd(c.x, c.y, h0(302)), rnd(c.x, c.y, h0(303))).mul(1 - 2 * L.inset)).mul(L.cell); };
+export const posIn = (c, L) => { const s = ofLayer(L, 'seed', 'uint'), inset = ofLayer(L, 'inset'); return vec2(c).add(inset).add(vec2(rnd(c.x, c.y, s.add(uint(2))), rnd(c.x, c.y, s.add(uint(3)))).mul(float(1).sub(inset.mul(2)))).mul(ofLayer(L, 'cell')); };   // (its hashes 302 and 303: the layer's seed moves every hash, h0)
+/** Number `name` of layer L (its cell, inset, seed, band; or of its record: its fields) as a uniform kept with it, made
+    where code first reads it (the layer is laid out by then): the layers that differ only in these work by one pipeline
+    (they were literals: each layer's gather was a compile of its own). */
+function ofLayer(L, name, type = 'float') { const u = (L.uniforms ||= {}); return (u[name] ||= uniform(L[name], type)); }
 
 /** How tall the thing of entry e stands in cell c of layer L (metres), and which of its kind's shapes it is (0 … its
     count), as the trees' engine draws it (src/scatter/trees.js) and the growth map reckons its crown (gatherOf): its own
@@ -119,8 +124,8 @@ export const posIn = (c, L) => { const h0 = (k) => uint(k + L.seed - 300); retur
     does not grow, its asset's height and a shape at random. pos: where it stands (posIn). Nodes, worked out where the
     thing is known to be e's. */
 export function grownIn(c, L, e, pos) {
-  const a = e.asset, P = a.placement, GR = a.growth, AG = e.ages, n = e.shapes[1], h0 = (k) => uint(k + L.seed - 300), r = rnd(c.x, c.y, h0(312));
-  const own = mix(P.scale[0], P.scale[1], GR && AG ? rnd(c.x, c.y, h0(304)) : pow(rnd(c.x, c.y, h0(304)), 1.3)), h = float(1).toVar(), shape = float(0).toVar();
+  const a = e.asset, GR = a.growth, AG = e.ages, n = e.shapes[1], N = numbersOf(e), h0 = (k) => uint(k + L.seed - 300), r = rnd(c.x, c.y, h0(312));
+  const own = mix(N.lo, N.hi, GR && AG ? rnd(c.x, c.y, h0(304)) : pow(rnd(c.x, c.y, h0(304)), 1.3)), h = float(1).toVar(), shape = float(0).toVar();
   if (GR && AG) {
     const age = (e.young ? mix(AG[0], AG[1], r.mul(r)) : mix(AG[0], AG[1], vnoise(pos.div(grovesOf(e.biome, L).clumps * 2.5), h0(311))).mul(mix(AGED[0], AGED[1], r))).toVar();
     GR.stages.forEach((S, j) => {
@@ -133,9 +138,13 @@ export function grownIn(c, L, e, pos) {
         shape.assign(floor(rnd(c.x, c.y, h0(309)).mul(S.variants)).add(S.offset));
       });
     });
-  } else { h.assign(own.mul(a.size.height)); shape.assign(floor(rnd(c.x, c.y, h0(309)).mul(n)).min(n - 1)); }
+  } else { h.assign(own.mul(N.height)); shape.assign(floor(rnd(c.x, c.y, h0(309)).mul(N.n)).min(N.n.sub(1))); }
   return { h, shape };
 }
+/** Entry e's own numbers as grownIn reads them (its scale's two ends, its asset's height, its shapes), uniforms kept with
+    it: what sizes a thing of it is then code alike for every entry of its sort, and the stands whose kinds differ only in
+    them pack by one pipeline (they were literals: each stand's pass a compile of its own). */
+const numbersOf = (e) => (e.numbers ||= { lo: uniform(e.asset.placement.scale[0]), hi: uniform(e.asset.placement.scale[1]), height: uniform(e.asset.size.height), n: uniform(e.shapes[1]) });
 
 // ---- the light under the crowns: what the growth map's shade is ----
 // The light that comes down to the ground through what stands over it: each crown as large as it is drawn (grownIn,
@@ -213,9 +222,9 @@ const grows = (e, S) => {
 
 /** A record of what stands in a cell of layer L (recordOf) read back: which of its things (k, -1 none), the row of its
     shape (its layer's feet table), how tall it stands. */
-const bodyOf = (rec, L) => { const v = uint(rec).toVar(), R = L.record; return { k: int(v.shiftRight(uint(16)).bitAnd(uint(R.kMask))).sub(1), row: int(v.shiftRight(uint(R.row))), h: unpackHalf2x16(v.bitAnd(uint(0xFFFF))).x }; };
+const bodyOf = (rec, L) => { const v = uint(rec).toVar(), R = L.record; return { k: int(v.shiftRight(uint(16)).bitAnd(ofLayer(R, 'kMask', 'uint'))).sub(1), row: int(v.shiftRight(ofLayer(R, 'row', 'uint'))), h: unpackHalf2x16(v.bitAnd(uint(0xFFFF))).x }; };
 /** The turn the trees' engine gives the thing of cell c of layer W (trees.js plantIn: rnd 305), radians. */
-const turnIn = (c, W) => rnd(c.x, c.y, uint(305 + W.seed - 300)).mul(6.2831853);
+const turnIn = (c, W) => rnd(c.x, c.y, ofLayer(W, 'seed', 'uint').add(uint(5))).mul(6.2831853);   // (its hash 305, by the layer's seed)
 /** Each piece of the shape in row S of the feet table T: fn(A, E), A its ends ([ax, az, bx, bz]), E its widths and kind. */
 const piecesOf = (T, S, fn) => Loop({ start: int(S.z), end: int(S.z).add(int(S.w).mul(2)), type: 'int', condition: '<', update: 2, name: 'n' }, ({ n }) => fn(T.element(n), T.element(n.add(1))));   // (its own name: it runs inside the cells' i and j)
 
@@ -253,7 +262,7 @@ export function footAt(p, W, M) {
     an outline, where its thing's whole reach does. What the map's word keeps as its feet (gatherOf). */
 const feetIn = (c, L, B, pos, q) => {
   const T = L.feet.table, S = T.element(B.row).toVar(), s = B.h.div(S.x).toVar(), on = float(0).toVar();
-  const meets = (m, r) => { const o = max(abs(m.sub(q)).sub(L.band / 2), 0); return dot(o, o).lessThanEqual(r.mul(r)); };
+  const meets = (m, r) => { const o = max(abs(m.sub(q)).sub(ofLayer(L, 'band').mul(0.5)), 0); return dot(o, o).lessThanEqual(r.mul(r)); };
   If(S.w.greaterThan(0).and(meets(pos, S.y.mul(s))), () => {
     const t = turnIn(c, L), cs = cos(t), sn = sin(t);
     piecesOf(T, S, (A, E) => {
@@ -357,10 +366,10 @@ function gatherCells(L) {
     texel takes its share of the texel's light), its litter dropped out to beyond its crown (the litter's lead: the thing
     that drops most there), and whether its feet may reach into the texel (feetIn). M: the growth map. */
 export function gatherOf(L, M) {
-  const { crowns, SUB, edge } = lightOf(L), { R: reach, m } = gatherCells(L);
-  const points = Array.from({ length: SUB * SUB }, (_, s) => vec2(((s % SUB) + 0.5) / SUB - 0.5, (Math.floor(s / SUB) + 0.5) / SUB - 0.5).mul(L.band));
+  const { crowns, SUB } = lightOf(L), { R, m } = gatherCells(L), band = ofLayer(L, 'band'), reach = uniform(R), edge = band.mul((0.5 - 0.5 / SUB) * Math.SQRT2);   // (lightOf's edge, of the layer's band: a uniform, as reach)
+  const points = Array.from({ length: SUB * SUB }, (_, s) => vec2(((s % SUB) + 0.5) / SUB - 0.5, (Math.floor(s / SUB) + 0.5) / SUB - 0.5).mul(band));
   return (q) => {
-    const lo = ivec2(floor(q.sub(reach).div(L.cell))).toVar(), light = points.map(() => float(1).toVar()), feet = float(0).toVar(), litter = float(0).toVar(), lead = uint(0).toVar(), best = float(0).toVar();
+    const lo = ivec2(floor(q.sub(reach).div(ofLayer(L, 'cell')))).toVar(), light = points.map(() => float(1).toVar()), feet = float(0).toVar(), litter = float(0).toVar(), lead = uint(0).toVar(), best = float(0).toVar();
     Loop(m, m, ({ i, j }) => {
         const c = lo.add(ivec2(i, j)).toVar(), B = bodyOf(M.at(L.word, c), L);
         If(B.k.greaterThanEqual(0), () => {

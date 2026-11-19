@@ -13,7 +13,7 @@ import { BUDGET_MB, ATLASES_SHARE } from './budget.js';
 
 export const CLASSES = {
   geometry: ['packing', 'occlusion', 'prepass', 'prepass, late', 'colour'],   // what is drawn: the tiers' packing and the surfaces' cut (src/scatter), the culling's pass one, the prepass, then the depth pyramid, pass two and what it finds (src/core/occlusion.js), the colour
-  light: ['clouds', 'near', 'far', 'canopy', 'probes', 'contact'],   // the clouds' shadow map (src/world/weather/clouds.js); the light's passes before the frame: the cascades, near and far (src/world/shadow.js), the canopy map and its probes (src/world/light/canopy.js); the contact shadows on the screen (src/world/light/screen.js)
+  light: ['clouds', 'near', 'far', 'canopy', 'probes', 'contact', 'water'],   // the clouds' shadow map (src/world/weather/clouds.js); the light's passes before the frame: the cascades, near and far (src/world/shadow.js), the canopy map and its probes (src/world/light/canopy.js); the contact shadows on the screen (src/world/light/screen.js); the water, drawn on its own after the colour, what it reflects of the world marched within the light's share (src/terrain/water.js)
   ground: ['ground map', 'pages, laid', 'pages'],   // the ground under the camera (src/scatter/ground.js); the land's pages laid and the pages asked for after the prepass (src/terrain/pages.js)
   'upscale/post': ['lens', 'upscale'],   // the virtual camera's lens (src/camera/post.js), the upscale to the screen (src/core/temporal.js)
 };

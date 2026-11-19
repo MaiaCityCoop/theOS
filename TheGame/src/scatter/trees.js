@@ -148,20 +148,27 @@ export { FOOT };   // how deep a plant's foot is set into the ground (assets/kit
 //   G: the group (groupsOf): its layer (the cells, rule.js), the growth map it reads (G.M) and its kinds, each one of
 //      the layer's things (Kd.e: its entry); how tall it stands and which of its shapes, the rule's (rule.js grownIn: a
 //      kind's stages by age, the age its stand's or a sapling's, the plant its stage scaled to its own height)
+// (a kind's numbers in a stand's packing: its entry in its layer, its first shape among the group's, its size on screen
+// to its height; uniforms, as grownIn's (rule.js numbersOf): the stands whose kinds differ only in them pack by one
+// pipeline, each a compile of its own while they were literals)
+const kindNumbers = (Kd) => (Kd.numbers ||= { e: uniform(Kd.e.i, 'int'), offset: uniform(Kd.offset), wide: uniform(Kd.wide) });
+/** Each of a group's shapes' base, a share of its height, in the group's order of shapes (offsets); as long as the
+    largest group's (groupsOf: most), the rest nought, so every group's packing declares it alike. */
+const basesOf = (G) => uniformArray([...G.kinds.flatMap((Kd) => Kd.bases), ...Array(Math.max(0, (G.most ?? 0) - G.kinds.reduce((n, Kd) => n + Kd.bases.length, 0))).fill(0)], 'float');
 function plantIn(c, G, band, all, seen, found) {
   const { L, kinds } = G, cx = c.x, cy = c.y, h0 = (k) => uint(k + L.seed - 300);   // (the layer's seed moves every hash: each layer its own cells)
   const pos = posIn(c, L).toVar(), dist = camDist(pos);
   const range = all ? length(pos.sub(band.at ?? U.uCam.xz)) : dist;   // the shadow's stand-in: metres round the camera, whatever the lens (what is solid: round where it is asked for, band.at)
   const there = range.lessThan(band.far).and(range.greaterThanEqual(band.near));
   If(seen ? there.and(inView(pos, seen.r, seen.high)) : there, () => {   // (seen.r: a uniform, its level's)   // (and in the eye's view: not the shadow's stand-in, whose shade may fall into it)
-    const R = placeIn(c, L, G.M, pos), I = R.I, d = abs(I.x), w = I.y, BASES = (G.bases ||= uniformArray(G.kinds.flatMap((Kd) => Kd.bases), 'float'));   // (each shape's base, a share of its height, in the group's order of shapes: offsets)
+    const R = placeIn(c, L, G.M, pos), I = R.I, d = abs(I.x), w = I.y, BASES = (G.bases ||= basesOf(G));
     const which = float(0).toVar(), h = float(1).toVar(), across = float(1).toVar(), base = float(0).toVar(), hit = float(0).toVar();
     // the kind's own: how large this one is, and which of its shapes (the rule's: rule.js grownIn, as the growth map
     // reckons its crown)
-    kinds.forEach((Kd) => { If(R.k.equal(Kd.e.i), () => {
+    kinds.forEach((Kd) => { const K = kindNumbers(Kd); If(R.k.equal(K.e), () => {
       const T = grownIn(c, L, Kd.e, pos);
-      h.assign(T.h); which.assign(T.shape.add(Kd.offset));
-      across.assign(h.mul(Kd.wide));   // (its size on screen by what its kind measures it by, src/detail sizeOf: a bush is low and wide, its largest side counts. `wide`: that to its height)
+      h.assign(T.h); which.assign(T.shape.add(K.offset));
+      across.assign(h.mul(K.wide));   // (its size on screen by what its kind measures it by, src/detail sizeOf: a bush is low and wide, its largest side counts. `wide`: that to its height)
       base.assign(h.mul(BASES.element(int(which))));   // (how far round its middle what of it covers the ground reaches, its own shape's: assets/kinds.js baseOf)
       hit.assign(1);
     }); });
@@ -204,9 +211,37 @@ const wear = (mesh, tex, row, shape = 0) => {
 // each plant its own green (its leaves'): lighter or darker by its seed, warmer (yellower) or cooler (bluer) by its turn,
 // each even over its plants; and their mean, what a stand of them shows on the whole (farOf: src/detail/seen.js)
 const WARM = [1.07, 1.0, 0.78], COOL = [0.86, 0.98, 1.1], LIGHTER = [0.84, 0.3];
-const ownGreen = (turn, seed) => mix(vec3(...WARM), vec3(...COOL), turn.mul(1.1631).fract()).mul(seed.mul(LIGHTER[1]).add(LIGHTER[0]));
+// how a leaf's colour varies among the leaves of one plant and among the plants of one kind, each a share of all its
+// variation (Hunter L, a and b alike, over nine kinds of tree and shrub). source: Kwolek 1982, "Variations in leaf
+// coloration using a reflectance colorimeter", Journal of Arboriculture 8(6): 157-159 (leaves 35%, trees 45%)
+const LEAF_VARIES = { leaves: 0.35, plants: 0.45 };
+// ... so each card (a branch's end, as each of Kwolek's leaves was one) strays from its plant's warmth by its own dice as a
+// leaf strays from its plant's colour: its variance that share of the plants' (both even, so the spreads go as the square
+// root). Round its plant's own and not cut at the plants' ends: a plant's cards on the whole are its own green, as its far
+// end is (src/detail/impostor.js) and as the stand's mean is (GREEN)
+const CARD_STRAYS = Math.sqrt(LEAF_VARIES.leaves / LEAF_VARIES.plants);
+const ownGreen = (turn, seed, dice = null) => {
+  const h = turn.mul(1.1631).fract(), hue = dice ? h.add(dice.sub(0.5).mul(CARD_STRAYS)) : h;
+  return mix(vec3(...WARM), vec3(...COOL), hue).mul(seed.mul(LIGHTER[1]).add(LIGHTER[0]));
+};
 const GREEN = WARM.map((w, c) => ((w + COOL[c]) / 2) * (LIGHTER[0] + LIGHTER[1] / 2));
 const CH = Object.fromEntries(PICTURES.map((P) => [P.name, P.channels.length]));   // (a far end's pictures' numbers a texel, by name)
+/** How much of its own round a crown's leaves and wood cover seen from straight above (0 … 1; null: none seen), from its
+    far end's finest kept pictures (L: a level, { colour, n }; views a side): the views round the middle of the square
+    (src/detail/impostor.js squareOf: straight down), each the texels of its picture over the cut (as many as the
+    picture covers: Castaño's, src/detail/impostor.worker.js), its round a disc's from where they lie (π r², r² twice
+    their mean square distance from their middle), at most all but half a texel of it; their mean. */
+const crownCover = (L, views) => {
+  const n = L.n, cell = n / views, mid = Math.floor(views / 2), at = views % 2 ? [mid] : [mid - 1, mid];
+  let sum = 0, of = 0;
+  for (const py of at) for (const px of at) {
+    let N = 0, sx = 0, sy = 0, sq = 0;
+    for (let y = 0; y < cell; y++) for (let x = 0; x < cell; x++) { if (L.colour[((py * cell + y) * n + px * cell + x) * CH.colour + 3] < 128) continue; N++; sx += x; sy += y; sq += x * x + y * y; }
+    const area = 2 * Math.PI * (sq / Math.max(N, 1) - ((sx / Math.max(N, 1)) ** 2 + (sy / Math.max(N, 1)) ** 2));
+    if (area > 1) { sum += Math.min(N / area, 1 - 0.5 / area); of++; }
+  }
+  return of ? sum / of : null;
+};
 const ofMesh = (key, start, type) => uniform(start, type).onObjectUpdate(({ object }) => object?.userData?.[key]);
 
 /** A stand's light at w, the one light's (src/world/light.js lightOn): the sky's and the sun's on the dome its crown makes
@@ -354,10 +389,10 @@ function plantMaterial(tex, D) {
       // plane, cn: one phase a card; uv.y: 0 at its foot), quicker and wider the harder it blows. In a calm all of it is
       // still: a sway of millimetres is no motion to the eye, only leaves' edges creeping by parts of a pixel (a shimmer).
       // Where it is at a time: the clock's, and for the prepass the clock's a frame ago (where it was: its motion)
-      const ws = windStrength, cardN = V.cn;
+      const ws = windStrength, cardN = V.cn, phase = cardN.dot(vec3(12.9, 78.2, 37.7)).add(B.z);   // (a card's own phase: its card's way, and its plant's)
       const at = (time) => {
         const kk = swayOf(A, B, up, sway, s, time);
-        const flutter = sin(time.mul(ws.mul(5).add(1.6)).add(cardN.dot(vec3(12.9, 78.2, 37.7))).add(B.z)).mul(ws.mul(0.14)).mul(card).mul(V.uv.y.min(1)).mul(flutters).mul(swing);
+        const flutter = sin(time.mul(ws.mul(5).add(1.6)).add(phase)).mul(ws.mul(0.14)).mul(card).mul(V.uv.y.min(1)).mul(flutters).mul(swing);
         return vec3(A.x, A.z, A.y).add(turn(lp.mul(s))).add(vec3(kk.x.add(windDir.x.mul(flutter)), flutter.mul(0.4), kk.y.add(windDir.y.mul(flutter))));
       };
       const w = at(U.uTime).toVar();
@@ -368,9 +403,11 @@ function plantMaterial(tex, D) {
       // a card seen edge-on is a flat sliver, not a brush: it fades as it turns away
       // … and foliage right at the eye is let go (walking through a low crown, no card fills the picture)
       vCut.assign(vec2(mix(0.45, 0.16, smoothstep(15, 220, far)), max(smoothstep(0.06, 0.42, abs(normalize(turn(cardN)).dot(Ve))), body).mul(smoothstep(0.35, 1.3, far))));
-      // each plant its own green: lighter or darker, and warmer (yellower) or cooler (bluer)
+      // each plant its own green: lighter or darker, and warmer (yellower) or cooler (bluer); each card its own warmth round
+      // its plant's (CARD_STRAYS), by its own dice
       const leaf = part.greaterThan(0.5), n0 = normalize(turn(V.normal));
-      const tint = leaf.select(ownGreen(B.z, V.shade).mul(Tn), vec3(1));
+      const dice = fract(sin(phase).mul(43758.5453));   // (a card's own dice, from its phase)
+      const tint = leaf.select(ownGreen(B.z, V.shade, dice).mul(Tn), vec3(1));
       if (pass === 'pre' && DEFER) {   // (deferred: what its pixels' light needs, written in its prepass; a chunk's plane's wrap and turn)
         vW.assign(w); vN.assign(n0); vTint.assign(tint); vK.assign(vec4(ao, wrap, shines, clumps)); vCn.assign(normalize(turn(cardN).add(vec3(0, 1e-6, 0))));
         if (vLit) vLit.assign(vec4(0, 0, wrap, B.x));
@@ -592,7 +629,7 @@ function farOf(renderer, tex, G, D) {
   // near (a leaf's cut-out read at its finest: SS x SS samples a texel say how much of it is covered)
   const materials = () => {
     if (M) return M;
-    const H = D().H, kindU = uniform(0, 'uint'), levelU = uniform(0, 'uint'), rowU = uniform(0, 'int'), sphereU = uniform(new THREE.Vector4(0, 0, 0, 1)), nU = uniform(0, 'int');
+    const H = D().H, kindU = uniform(0, 'uint'), levelU = uniform(0, 'uint'), rowU = uniform(0, 'int'), sphereU = uniform(new THREE.Vector4(0, 0, 0, 1)), nU = uniform(0, 'int'), tilesU = uniform(G.tiles, 'int');   // (tilesU: its tiles a row, a uniform: every stand's bakers one pipeline)
     const cells = Array.from({ length: A.CLUMPS * 4 }, () => new THREE.Vector4()), cellsU = uniformArray(cells, 'vec4');
     // (the tile level's card corners, a chunk's after another (chunkOrder): a chunk's planes draw their own range of
     // them, its start and count in its cell's first two rows, never the rest of the level. As large as what is written
@@ -607,9 +644,9 @@ function farOf(renderer, tex, G, D) {
     const tileV = Fn(() => {
       // (a chunk's plane over its own corners only: its range of the chunks' list, CL, as many corners drawn as its row's
       // largest chunk has, those past its own behind the far plane, not drawn)
-      const tile = rowU.mul(G.tiles).add(int(instanceIndex)), c = tile.div(3), a = tile.sub(c.mul(3)), clip = vec4(0, 0, 2, 1).toVar();
+      const tile = rowU.mul(tilesU).add(int(instanceIndex)), c = tile.div(3), a = tile.sub(c.mul(3)), clip = vec4(0, 0, 2, 1).toVar();
       const from = cellsU.element(c.mul(4)).w, many = cellsU.element(c.mul(4).add(1)).w, blo = cellsU.element(c.mul(4).add(2)).xyz, bhi = cellsU.element(c.mul(4).add(3)).xyz;
-      If(c.lessThan(nU).and(vertexIndex.lessThan(uint(many))), () => { const V = vertexAt(CL.node.element(uint(from).add(vertexIndex))), P = tileClip(V.position, blo, bhi, a, float(instanceIndex), G.tiles); pass(V, P.z.mul(2).sub(1), planeFrame(a)); clip.assign(P.clip); });
+      If(c.lessThan(nU).and(vertexIndex.lessThan(uint(many))), () => { const V = vertexAt(CL.node.element(uint(from).add(vertexIndex))), P = tileClip(V.position, blo, bhi, a, float(instanceIndex), float(tilesU)); pass(V, P.z.mul(2).sub(1), planeFrame(a)); clip.assign(P.clip); });
       return clip;
     })();
     const N = (j) => D().numOf(kindU, j), leafA = () => tex.a(floor(vTwig.greaterThan(0.5).select(N(3).x, N(2).z).add(0.5)), vUv).bias(-2);
@@ -644,7 +681,7 @@ function farOf(renderer, tex, G, D) {
       }
       if (w > 0) { for (let c = 0; c < 3; c++) sum[c] += P[c] / w; pics++; }
     }
-    if (pics) shows(Kd.asset, k - Kd.offset, Kd.shapes, sum.map((v) => v / pics));
+    if (pics) shows(Kd.asset, k - Kd.offset, Kd.shapes, sum.map((v) => v / pics), crownCover(levels[0], A.VIEWS));   // (and how much of its round its crown covers: crownCover)
   };
   // its numbers, once its pictures are in: its sphere; T, its impostor's error (metres, at scale 1: its views' texel and
   // what their spacing and its parallax misplace, as the crowd kit measured it for these atlases: its far data's sixth
@@ -765,7 +802,8 @@ export function groupsOf(rows) {
     const lo = (GR ? GR.stages[0].hFrom * P.scale[0] : H * P.scale[0]) * wide, hi = (GR ? Math.max(...a.heights.slice(0, n)) * (last.hTo / last.h) * P.scale[1] : H * P.scale[1]) * wide;
     by.get(key).kinds.push({ row, asset: a, e, shapes: n, wide, bases: Array.from({ length: n }, (_, i) => baseShare(a, i)), age: e.ages, ageScale: grovesOf(e.biome, L).clumps * 2.5, lo, hi, round: (a.size.length / 2) * P.scale[1] * (hi / (H * P.scale[1] * wide)) });
   }
-  return [...by.values()].map((G) => offsets(cutOf({ ...G, kinds: G.kinds.sort((x, y) => x.e.i - y.e.i) })));
+  const groups = [...by.values()].map((G) => offsets(cutOf({ ...G, kinds: G.kinds.sort((x, y) => x.e.i - y.e.i) }))), most = Math.max(0, ...groups.map((G) => G.meshes));
+  return groups.map((G) => ({ ...G, most }));   // (most: the shapes the largest group has: basesOf)
 }
 const offsets = (G) => { let at = 0; return { ...G, kinds: G.kinds.map((Kd) => { const k = { ...Kd, offset: at }; at += Kd.shapes; return k; }), meshes: at }; };
 /** A group's levels cut as one: its kinds' own (everything's levels, src/detail/error.js rungPx), each run of them in
@@ -896,7 +934,7 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     // compiled once (the drawer's kind of tier: one place for them all, the shadow's stand-in another), each telling
     // its own numbers before it packs (table)
     // (seen.r: a crown's reach, and how far the camera may move before the packing is made again: a level's)
-    const seen = { r: uniform(0), high: sHi }, places = new Map();
+    const seen = { r: uniform(0), high: uniform(sHi) }, places = new Map();   // (high: a uniform, so the stands differing only in it pack by one pipeline)
     const placeOf = (g, shadow) => { if (!places.has(g)) places.set(g, (c, { band }, found) => plantIn(c, g, band, shadow, shadow ? null : seen, found)); return places.get(g); };
     const tier = (i, g, shadow = false) => {
       // (P: its level's patch, which says how far the camera may move before it packs again: a sixteenth of it. What it

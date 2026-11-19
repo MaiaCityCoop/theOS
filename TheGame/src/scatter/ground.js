@@ -21,6 +21,7 @@ import { camDist, riverInfo, heightAt, pathN, pathMask, bareMask, outcropMask, p
 import { CLEARINGS } from '../../world/places.js';
 import { offWays, waysVersion } from '../world/ways.js';
 import { source } from '../core/settle.js';
+import { FADE_FRAMES } from '../core/budget.js';
 import { recipes } from '../core/registry.js';
 import { pxKMost, farMost } from '../detail/measure.js';
 import { GONE } from '../detail/error.js';
@@ -38,7 +39,7 @@ export const REACH = (N * 0.5) / 2 - 32 * 0.5;
     by them is gone (src/scatter/rocks.js: every rock to where it is, by the one rule); never less than level 0's. */
 const reachOf = () => Math.max(REACH, ...recipes('asset').filter((a) => a.placement?.engine === 'grass').map((a) => bandsOf(ringsOf(a), a.height, pxKMost()).end),
   ...recipes('asset').filter((a) => a.placement?.engine === 'rocks' && !a.placement.outcrops).map((a) => farMost(GONE, most(a.size.length))));
-const FADE = 36;   // frames (0.6 s at 60 fps; counted in frames, so no frame changes more than a 36th, however slow): from the map before to the new one, where its texel steps
+const FADE = FADE_FRAMES;   // (from the map before to the new one, where its texel steps: src/core/budget.js)
 // (G: the map being drawn; R[set][level]: what each map of the two sets was drawn with, for reading it; W: how much of
 // the second set is read)
 const G = { o: uniform(new THREE.Vector2(1e9, 1e9)), base: uniform(0), texel: uniform(0.5) }, W = uniform(0);
