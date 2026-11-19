@@ -30,7 +30,7 @@ import { lit, weathered, snowLift, unlit } from '../world/light.js';
 import { passOf } from '../core/pass.js';
 import { IN, PLANE } from '../../assets/kit/crowd.js';
 import { UV_TILES } from '../../assets/kit/plant.js';
-import { note, PORTABLE } from '../core/gpu.js';
+import { makeOwned, PORTABLE } from '../core/gpu.js';
 import { ownGpuMs, pace } from '../core/pace.js';
 import { shown } from '../core/settle.js';
 import { compileFor } from '../core/compile.js';
@@ -115,10 +115,10 @@ const formatOf = (P) => (P.channels === 'r' ? THREE.RedFormat : THREE.RGBAFormat
 export function createAtlas(renderer, { name, side, layers, cell = side, views = 0 }) {
   const make = (P) => {
     const rt = new THREE.RenderTarget(side, side, { depth: Math.max(2, layers), depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace, format: formatOf(P) });   // (two layers at least: an array, however few shapes)
-    renderer.initRenderTarget(rt); return rt;
+    return rt;
   };
   const [C, D, L] = PICTURES.map(make), mips = Math.floor(Math.log2(side)) + 1;
-  note(`${name}`, Math.round(atlasBytes(side, Math.max(2, layers))), 0, 'geometry', C, D, L);   // (src/core/classes.js: its share, SHARE_MB)
+  makeOwned(renderer, `${name}`, Math.round(atlasBytes(side, Math.max(2, layers))), 0, 'geometry', C, D, L);   // (src/core/classes.js: its share, SHARE_MB; named its owner's, then made: src/core/gpu.js makeOwned)
   return {
     colour: C.texture, data: D.texture, leaf: L.texture, side, cell, views, targets: [C, D, L],   // (targets: to read a layer back, renderer.readRenderTargetPixelsAsync)
     tiles: uniform(side / cell),   // (its pictures a side, as data: an atlas sized to its stand's largest clumps reads with the same code as any)
