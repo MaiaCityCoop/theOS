@@ -63,6 +63,8 @@ export default {
       rockroseLeafIn(col, alpha, c, { u, w, leaf }, len, wide, smoothstep(0.45, 0.8, length(out)).mul(hash(c, 8)));
       rockroseFlowerIn(col, alpha, c, uv, mid, N, inFan(mid).mul(smoothstep(0.3, 0.5, length(out))));   // (towards the fan's edge)
     }
-    return { h: clamp(max(alpha, twig), 0, 1), col: col.mul(pn(uv.mul(46), 46, 30).mul(0.2).add(0.9)), rough: float(0.55) };
+    // (rough as its leaves are: wrinkled, and felted on both sides with star-shaped hairs, a sage-leaved cistus's (Flora
+    // iberica, Cistus salviifolius): no highlight to speak of, where a holm oak's and a mastic's waxy leaves have one)
+    return { h: clamp(max(alpha, twig), 0, 1), col: col.mul(pn(uv.mul(46), 46, 30).mul(0.2).add(0.9)), rough: float(0.85) };
   },
 };
