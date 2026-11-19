@@ -57,7 +57,7 @@ export function createScreen(renderer, { temporal, lens = null }) {
       const w = size.x, h = size.y, made = (o, depth) => new THREE.RenderTarget(w, h, { samples: 0, type: THREE.HalfFloatType, generateMipmaps: false, depthTexture: depth, ...o });
       const turns = [0, 1].map(() => { const depth = new THREE.DepthTexture(w, h); return { depth, pre: prepassTarget(w, h, depth), main: made({ minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter }, depth) }; });
       T = { w, h, turns, drawn: 0 };   // (drawn: frames drawn into them: the first, the other turn's depth holds nothing yet)
-      note('the picture inside (its colour, motion, id, G-buffer and depth, two of each)', 2 * w * h * (8 + 8 + 8 + GBUFFER_BYTES + 4), 0, 'geometry');   // (what the prepass and the colour draw into)
+      note('the picture inside (its colour, motion, id, G-buffer and depth, two of each)', 2 * w * h * (8 + 8 + 8 + GBUFFER_BYTES + 4), 0, 'geometry', turns.flatMap((t) => [t.pre, t.main, t.depth]));   // (what the prepass and the colour draw into)
     }
     return T.turns[turn];
   };

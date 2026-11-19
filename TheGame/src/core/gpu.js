@@ -29,10 +29,11 @@ const HELD = new Map(), MB = MiB, PEAK = Object.fromEntries(CLASS_NAMES.map((c) 
 let peakAll = 0;
 if (Object.values(BUDGET_MB).reduce((s, b) => s + b, 0) !== GPU_MB) throw new Error(`src/core/budget.js: the classes' budgets (BUDGET_MB) share out the GPU's whole (GPU_MB, ${GPU_MB} MB), so they add up to it`);
 /** A pool's memory, bytes: on the GPU, and beside it on the page; its class (src/core/classes.js). Said again under the
-    same name: replaced (nought: let go). */
-export const note = (name, gpu = 0, page = 0, cls = 'other') => { HELD.set(name, { gpu, page, cls }); held(cls, name); };
+    same name: replaced (nought: let go). owns: what it is (three's textures and targets): each named by it, its class
+    and its name, as the device's own record and the ledger then call what is made of it (own). */
+export const note = (name, gpu = 0, page = 0, cls = 'other', ...owns) => { HELD.set(name, { gpu, page, cls }); held(cls, name); own(cls, name, owns); };
 /** The same, added to what the name holds already (many small buffers under one name). */
-export const more = (name, gpu = 0, page = 0, cls = 'other') => { const h = HELD.get(name) ?? { gpu: 0, page: 0, cls }; h.gpu += gpu; h.page += page; HELD.set(name, h); held(h.cls, name); };
+export const more = (name, gpu = 0, page = 0, cls = 'other', ...owns) => { const h = HELD.get(name) ?? { gpu: 0, page: 0, cls }; h.gpu += gpu; h.page += page; HELD.set(name, h); held(h.cls, name); own(h.cls, name, owns); };
 /** What a class's pools hold on the GPU now, bytes. */
 const heldBy = (cls) => { let n = 0; for (const h of HELD.values()) if (h.cls === cls) n += h.gpu; return n; };
 /** The room a class has left on the GPU, bytes: its budget less what it holds, as its pools say it or as the device made
@@ -136,12 +137,41 @@ const textureKind = (d) => {
   const s = Array.isArray(d.size) ? d.size : [d.size.width, d.size.height ?? 1, d.size.depthOrArrayLayers ?? 1];
   return `${d.format} ${s[0]} × ${s[1] ?? 1}${(s[2] ?? 1) > 1 ? ` × ${s[2]}` : ''}${d.usage & TU.RENDER_ATTACHMENT ? ', drawn into' : ''}`;
 };
+// (and what the device makes is called so in its own record (what a GPU's memory tools show): its class and its owner,
+// the pool or the three object its code named (note, own), else the part of the frame it was made in (mark), else what
+// it is; never a name typed where it is made)
+const CLASSED = new RegExp(`^(${CLASS_NAMES.map((c) => c.replace(/[/\\^$.*+?()[\]{}|]/g, '\\$&')).join('|')}): `);
+let OWNER = null;   // (the part of the frame running: mark's name)
+const labelOf = (d, kind) => (d.label && CLASSED.test(d.label) ? d.label : `${NOW}: ${d.label || (OWNER ? `${OWNER}, ${kind}` : kind)}`);
 const countMade = (dev) => {
   if (dev.__counted) return; dev.__counted = true;
   const B = dev.createBuffer, T = dev.createTexture;
-  dev.createBuffer = function (d) { return counted(B.call(this, d), d.size ?? 0, bufferKind(d)); };
-  dev.createTexture = function (d) { return counted(T.call(this, d), texBytes(d), textureKind(d)); };
+  dev.createBuffer = function (d) { const kind = bufferKind(d); return counted(B.call(this, { ...d, label: labelOf(d, kind) }), d.size ?? 0, kind); };
+  dev.createTexture = function (d) { const kind = textureKind(d); return counted(T.call(this, { ...d, label: labelOf(d, kind) }), texBytes(d), kind); };
 };
+/** What a pool is (note, more: owns), named by it: three's textures, a target's (each of its pictures by its own name,
+    and its depth) as `class: name`; what of them the device has made called so, and counted under that class and name
+    (its code's own, whatever part of the frame it was made in), and what it makes of them later (useGPU: three's own
+    make). Their names are not touched: three reads a target's pictures by them (mrt). */
+const OWNS = new WeakMap();   // (a three texture: what owns it, { label, cls })
+function own(cls, name, owns) {
+  const to = cls in MADE ? cls : 'other', label = `${to}: ${name}`;
+  for (const o of owns.flat()) {
+    if (!o) continue;
+    const ts = o.isRenderTarget ? [...o.textures.map((t, k) => [t, o.textures.length > 1 ? `${label} (${t.name || k})` : label]), ...(o.depthTexture ? [[o.depthTexture, `${label} (depth)`]] : [])] : o.isTexture ? [[o, label]] : [];
+    for (const [t, l] of ts) { OWNS.set(t, { label: l, cls: to }); const g = R?.backend.has(t) ? R.backend.get(t).texture : null; if (g) relabel(g, l, to); }   // (has: three's data is never made before three makes it)
+  }
+}
+/** A made texture called `label` and counted under class cls (own): its bytes moved there in the tally. */
+function relabel(g, label, cls) {
+  g.label = label;
+  const s = SIZE.get(g), to = cls in MADE ? cls : 'other'; if (!s) return;
+  const from = KINDS.get(s.key), key = `${to}: ${label}`, K = KINDS.get(key) ?? { cls: to, kind: label, bytes: 0, n: 0 };
+  if (from) { from.bytes -= s.bytes; from.n--; }
+  K.bytes += s.bytes; K.n++; KINDS.set(key, K);
+  MADE[s.cls] -= s.bytes; MADE[to] += s.bytes; if (MADE[to] > MADE_PEAK[to]) MADE_PEAK[to] = MADE[to];
+  SIZE.set(g, { ...s, cls: to, key });
+}
 
 // Whose the GPU's passes are, for a tool that times each part of a frame (tools/bench.js): the code that draws a part
 // marks where its passes begin (the screen's: the culling, the prepass, the colour, the lens, the upscale; the light's:
@@ -150,14 +180,21 @@ const countMade = (dev) => {
 let tap = null;
 /** The passes from here on are `name`'s (null: no one's in particular), until the next mark; what the device makes
     meanwhile is the class's they are in. */
-export const mark = (name) => { NOW = name ? classOf(name) : 'other'; passBegins(name); if (tap) tap(name); };   // (and its own time on the GPU taken: src/core/pace.js)
+export const mark = (name) => { NOW = name ? classOf(name) : 'other'; OWNER = name || null; passBegins(name); if (tap) tap(name); };   // (and its own time on the GPU taken: src/core/pace.js)
 /** A tool listens to the marks: fn(name), or null to stop. */
 export const listen = (fn) => { tap = fn; };
 
 let R = null;
 /** The renderer whose GPU the lean buffers are made on (src/boot.js, once it has started). Without it (WebGL, a page that
     did not ask): gpuStorage makes an ordinary buffer, kept twice. */
-export const useGPU = (renderer) => { R = renderer?.backend?.device ? renderer : null; if (R) countMade(R.backend.device); timesOn(R?.backend.device); };
+export const useGPU = (renderer) => { R = renderer?.backend?.device ? renderer : null; if (R) { countMade(R.backend.device); ownedMade(R.backend); } timesOn(R?.backend.device); };
+/** What three makes of a texture a pool owns (own), called and counted as its owner's, when it makes it (again: a target
+    made larger). */
+const ownedMade = (backend) => {
+  const U2 = backend.textureUtils; if (!U2 || U2.__owned) return; U2.__owned = true;
+  const make = U2.createTexture;
+  U2.createTexture = function (texture, options) { const r = make.call(this, texture, options), o = OWNS.get(texture), g = o && backend.get(texture)?.texture; if (g) relabel(g, o.label, o.cls); return r; };
+};
 export const lean = () => !!R;
 /** Whether the renderer's GPU has a WebGPU feature (none without WebGPU). */
 export const hasFeature = (name) => !!R?.backend?.device?.features?.has(name);

@@ -46,7 +46,7 @@ export async function mock({ webgl = false, dpr = 1, record = false, lean = fals
   const device = { features, limits: { maxStorageBufferBindingSize: 2 ** 30, maxBufferSize: 2 ** 30, maxComputeWorkgroupsPerDimension: 65535, maxTextureArrayLayers: 2048, maxUniformBufferBindingSize: 65536, maxTextureDimension2D: 8192, maxSampledTexturesPerShaderStage: 16 },   // (16: WebGPU's default, what WebKit and Chrome give a page that asks no more)
     createBuffer: done, createTexture: done, queue: { writeBuffer() {}, writeTexture() {}, submit() {} },
     createCommandEncoder: () => ({ copyBufferToTexture() {}, copyBufferToBuffer() {}, copyTextureToTexture() {}, finish: () => ({}) }) };   // (an encoder of copies: what the game copies on the GPU itself, src/materials/bake.js's packed blocks into their layers)
-  const backend = { isWebGPUBackend: !webgl, isWebGLBackend: webgl, compatibilityMode: false, parameters: {}, get: () => ({}), device: webgl ? null : device,
+  const backend = { isWebGPUBackend: !webgl, isWebGLBackend: webgl, compatibilityMode: false, parameters: {}, get: () => ({}), has: () => false, device: webgl ? null : device,   // (get, has: what it keeps of an object, as three's backends ask it; it keeps nothing)
     coordinateSystem: webgl ? THREE.WebGLCoordinateSystem : THREE.WebGPUCoordinateSystem,   // (as each of three's backends says it: the node code built for it, MathNode's atan2, the shadows' and the screen's depth, as the game's)
     capabilities: { getUniformBufferLimit: () => 65536 }, utils: { getTextureSampleData: () => ({ primarySamples: 1, samples: 1, isMSAA: false }) },
     extensions: { has: () => true, get: () => ({}) }, createNodeBuilder: (o, r) => new Builder(o, r) };

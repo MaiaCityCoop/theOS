@@ -61,7 +61,7 @@ export function createGround(renderer, tex) {
   const rts = [0, 1].map(() => new THREE.RenderTarget(N * LV, N, { ...opts, type: THREE.HalfFloatType, count: 2 }));
   // (and a staging window: a level drawn in it a piece at a time, then copied into its place whole)
   const stage = new THREE.RenderTarget(N, N, { ...opts, type: THREE.HalfFloatType, count: 2 });
-  note(`the ground round the camera (${LV} levels of two maps, twice, and a staging window)`, (2 * LV + 1) * 2 * N * N * 8, 0, 'ground');
+  note(`the ground round the camera (${LV} levels of two maps, twice, and a staging window)`, (2 * LV + 1) * 2 * N * N * 8, 0, 'ground', rts, stage);
   for (const rt of [...rts, stage]) { rt.textures[0].name = 'ground'; rt.textures[1].name = 'tint'; rt.scissorTest = true; }
   const R = [0, 1].map(() => Array.from({ length: LV }, drawnWith));
   let cur = 0, fadeAt = -1;   // (fadeAt: frames into the fade; -1: none)
