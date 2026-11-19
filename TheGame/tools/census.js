@@ -12,10 +12,6 @@
 import { mock } from './gpu-mock.js';
 
 const M = await mock({ lean: true }), { THREE, renderer } = M;
-// (three builds what compileComputeAsync is handed as it is handed it: the stand-in only keeps it. Built here so, a
-// shader's functions are first written where the game first writes them (the growth map's passes, at boot): three writes
-// a function's code once, and the shader that first calls it lays its functions out in another order than every later)
-{ const keep = renderer.compileComputeAsync; renderer.compileComputeAsync = (passes) => { for (const n of [passes].flat()) { try { M.compute(n); } catch { /* counted where it is asked */ } } return keep(passes); }; }
 
 // ---- the stand-in walks a scene, a thing at a time, to the route a pass draws with ----
 let route = null;
