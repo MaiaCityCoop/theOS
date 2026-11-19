@@ -119,7 +119,7 @@ let POOL = null;
 /** The recipes' workers (see above): ask(jobs) -> what they made; shared by every drawer, and by the start's outlines
     (src/scatter/trees.js outlinesAhead). */
 export const pool = () => (POOL ||= (() => {
-  const P = workerPool("the recipes' worker", () => new Worker(new URL('./recipes.worker.js', import.meta.url), { type: 'module' }));
+  const P = workerPool("the recipes' worker", () => new Worker(new URL('./recipes.worker.js', import.meta.url), { type: 'module' }), undefined, ({ jobs }) => `${jobs.length > 1 ? `${jobs.length} jobs, ` : ''}${jobs[0]?.[0]} ${Array.isArray(jobs[0]?.[1]) ? `${jobs[0][1].length} kinds` : jobs[0][1] ?? ''}`.trim());
   const ask = (jobs) => P.ask({ jobs }).then(({ out }) => out);
   ask.to = (key, jobs) => P.to(key, { jobs }).then(({ out }) => out);   // (one worker for what is asked of a key: a kind's bands where its hierarchy is kept)
   ask.all = (jobs) => P.all({ id: -1, jobs });

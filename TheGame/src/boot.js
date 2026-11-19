@@ -20,7 +20,8 @@ import '../cine/cine.js';   // the virtual camera, before anything asks for a fr
 import '../cine/menu.js';   // the game's pill
 import * as THREE from 'three/webgpu';
 import { loadingStep, loadingSay, loadingDone, loadingLast } from './ui/loading.js';   // the veil is told what is being made
-import { lastRunLine, keepRun } from './core/lastrun.js';   // what the last start reached, where it was killed (an iPhone's: no log a Mac reads)
+import { lastRunLine, keepRun } from './core/lastrun.js';
+import { aboutTo } from './core/journal.js';   // what the last start reached, where it was killed (an iPhone's: no log a Mac reads)
 import { HMIN, heightAt } from './world/land.js';
 import { createUniforms } from './core/uniforms.js';
 import { keepMeasure, measureNow, dialAfter, DIAL_ASKED } from './detail/measure.js';
@@ -369,11 +370,12 @@ export async function boot({ profile = 'world' } = {}) {
     stampDone(renderer, FIRST_FRAME);   // (the first frame the world shows: what every measure of a start reads)
     game.loadMs = performance.now() - t0; mark('first');
     { const f0 = framesAll; keepRun(performance.now(), () => framesAll - f0); }   // (where the start stands, kept from now on: src/core/lastrun.js)
+    aboutTo('the world shown: what grows after it'); firstView.then(() => aboutTo('the world settled'));   // (its phases, in the journal: src/core/journal.js)
     setTimeout(() => (game.outlines.made = keepOutlines()), 2500);   // what was measured anew this time, kept for the next start
     console.log(`[the game] ready in ${game.loadMs.toFixed(0)} ms`, marks);
     const C = compiles(); console.log(`[the game] the first view: ${C.firstView.asks} asks, ${C.firstView.pipes} pipelines asked of the GPU in ${C.firstView.turns} turns, ${C.firstView.ms} ms; the GPU's own ${C.firstView.gpu} ms; ${C.parallel.overtook} of ${C.parallel.of} pipelines ready before one asked earlier (none: one at a time) (__game.compiles())`);
     loadingDone();
-    if (world) makeAhead();
+    if (world) { aboutTo('what is made ahead of need'); makeAhead(); }
     if (world && flag('flyby')) import('../tools/flyby.js').then((m) => m.run());   // ?flyby: the camera flown by itself, to watch the plants' levels change (tools/flyby.js)
     if (world && flag('bench')) import('../tools/bench.js').then((m) => m.overlay());   // ?bench: the frame timed at the bench's six views once the world is loaded, the numbers on the screen (tools/bench.js)
   })();

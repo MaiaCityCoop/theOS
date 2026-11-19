@@ -9,7 +9,7 @@ import { workerPool } from '../core/workers.js';
 
 const AGAIN = 2000;
 export function createLakes() {
-  const { ask } = workerPool("the lakes' worker", () => new Worker(new URL('./lakes.worker.js', import.meta.url), { type: 'module' }), () => 1);   // (one, let go once the world has settled: made again when the camera has gone far enough)
+  const { ask } = workerPool("the lakes' worker", () => new Worker(new URL('./lakes.worker.js', import.meta.url), { type: 'module' }), () => 1, () => 'the lakes looked for');   // (one, let go once the world has settled: made again when the camera has gone far enough)
   let at = null, busy = null, version = 0;
   source('lakes', () => (busy ? 1 : 0));   // (being looked for: the ground is drawn again when they come, src/core/settle.js)
   const take = (x, z, lakes) => { LAKES.length = 0; LAKES.push(...lakes); setLakes(LAKES); version++; at = { x, z }; return LAKES; };
