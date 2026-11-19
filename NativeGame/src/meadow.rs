@@ -12,18 +12,100 @@ use bevy::light::atmosphere::ScatteringMedium;
 use bevy::light::{Atmosphere, AtmosphereEnvironmentMapLight, CascadeShadowConfigBuilder, SunDisk, light_consts::lux};
 use bevy::pbr::{AtmosphereSettings, ScreenSpaceAmbientOcclusion};
 use bevy::post_process::bloom::Bloom;
+use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
+use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use bevy::camera::visibility::RenderLayers;
 use bevy::window::{PresentMode, PrimaryWindow};
 use std::path::PathBuf;
 
-/// The hour of the day in the Meadow, 5 to 21; the sun follows it. `[` and `]` move it.
+/// The hour of the day in the Meadow, 0 to 24; the sun follows it. The slider and `[` `]` move it.
 #[derive(Resource)]
 pub struct Hour(pub f32);
 
 #[derive(Component)]
 struct Sun;
+
+/// The grass world's camera.
+#[derive(Component)]
+pub struct Eye2;
+
+/// The grass around the camera: the chunks shown, each with the ring class it was grown for, and the ones growing in
+/// the background. A chunk is fixed to the world; as the camera moves, near chunks are regrown at full detail and far
+/// ones thinned, so the field looks the same density wherever you walk.
+#[derive(Resource)]
+struct Field {
+    material: Handle<crate::wind::Grass>,
+    shown: HashMap<(i32, i32), (Entity, i32)>,
+    growing: HashMap<(i32, i32), (Task<Mesh>, i32)>,
+}
+
+/// The ring class of a chunk `ring` chunks from the camera's: rings 0 and 1 are one class (full detail).
+fn class(ring: i32) -> i32 {
+    ring.clamp(1, 5)
+}
+
+/// Grows and drops chunks around the camera; at most a few new ones a frame, nearest first.
+fn stream(
+    mut commands: Commands,
+    field: Option<ResMut<Field>>,
+    eye: Query<&GlobalTransform, With<Eye2>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
+    use crate::grass::{CHUNK, RINGS, chunk, share};
+    let (Some(mut field), Ok(eye)) = (field, eye.single()) else { return };
+    if std::env::var_os("MEADOW_NO_GRASS").is_some() {
+        return;
+    }
+    let at = eye.translation();
+    let (cx, cz) = ((at.x / CHUNK).floor() as i32, (at.z / CHUNK).floor() as i32);
+    // what is wanted, nearest ring first
+    let mut wanted: Vec<((i32, i32), i32)> = vec![];
+    for ring in 0..=RINGS {
+        for dx in -ring..=ring {
+            for dz in -ring..=ring {
+                if dx.abs().max(dz.abs()) == ring {
+                    wanted.push(((cx + dx, cz + dz), class(ring)));
+                }
+            }
+        }
+    }
+    let pool = AsyncComputeTaskPool::get();
+    let mut started = 0;
+    for &(key, c) in &wanted {
+        let ok_shown = field.shown.get(&key).is_some_and(|s| s.1 == c);
+        let ok_growing = field.growing.get(&key).is_some_and(|g| g.1 == c);
+        if !ok_shown && !ok_growing && started < 6 {
+            let (x, z) = key;
+            let s = share(c);
+            field.growing.insert(key, (pool.spawn(async move { chunk(x, z, s) }), c));
+            started += 1;
+        }
+    }
+    // drop what is out of reach
+    let keep: HashMap<(i32, i32), i32> = wanted.into_iter().collect();
+    let gone: Vec<_> = field.shown.keys().filter(|k| !keep.contains_key(*k)).copied().collect();
+    for k in gone {
+        if let Some((e, _)) = field.shown.remove(&k) {
+            commands.entity(e).despawn();
+        }
+    }
+    field.growing.retain(|k, _| keep.contains_key(k));
+    // show what has grown, replacing what was there only once the new chunk is ready (no holes)
+    let ready: Vec<_> = field
+        .growing
+        .iter_mut()
+        .filter_map(|(k, (task, c))| check_ready(task).map(|mesh| (*k, *c, mesh)))
+        .collect();
+    for (k, c, mesh) in ready {
+        field.growing.remove(&k);
+        let e = commands.spawn((GrassWorld, MEADOW, Mesh3d(meshes.add(mesh)), MeshMaterial3d(field.material.clone()))).id();
+        if let Some((old, _)) = field.shown.insert(k, (e, c)) {
+            commands.entity(old).despawn();
+        }
+    }
+}
 
 /// Everything of the grass world, removed when its view closes.
 #[derive(Component)]
@@ -46,6 +128,7 @@ pub fn plugin(app: &mut App) {
         .add_systems(OnExit(View::Meadow), leave)
         .add_systems(OnEnter(View::Studio), enter)
         .add_systems(OnExit(View::Studio), leave)
+        .add_systems(Update, stream.run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio)))
         .add_systems(Update, (hours, sun).chain().run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio)));
 }
 
@@ -99,6 +182,7 @@ fn enter(
     let mut cam = commands.spawn((
         GrassWorld,
         MEADOW,
+        Eye2,
         Camera3d::default(),
         Camera { order: 1, ..default() },
         IsDefaultUiCamera,
@@ -136,9 +220,8 @@ fn enter(
         ..default()
         },
     });
-    for (x, z) in crate::grass::chunks().filter(|_| std::env::var_os("MEADOW_NO_GRASS").is_none()) {
-        commands.spawn((GrassWorld, MEADOW, Mesh3d(meshes.add(crate::grass::chunk(x, z))), MeshMaterial3d(blades.clone())));
-    }
+    // the grass itself is grown around the camera as it moves (`stream`)
+    commands.insert_resource(Field { material: blades, shown: default(), growing: default() });
     // the ground
     commands.spawn((
         GrassWorld,
@@ -171,16 +254,17 @@ fn leave(
     for e in &world {
         commands.entity(e).despawn();
     }
+    commands.remove_resource::<Field>();
     commands.insert_resource(GlobalAmbientLight::default());
 }
 
 fn hours(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut hour: ResMut<Hour>) {
     let step = time.delta_secs() * 2.0;
     if keys.pressed(KeyCode::BracketRight) {
-        hour.0 = (hour.0 + step).min(21.0);
+        hour.0 = (hour.0 + step).min(24.0);
     }
     if keys.pressed(KeyCode::BracketLeft) {
-        hour.0 = (hour.0 - step).max(5.0);
+        hour.0 = (hour.0 - step).max(0.0);
     }
 }
 

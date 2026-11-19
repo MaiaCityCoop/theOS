@@ -7,11 +7,11 @@ use bevy::asset::RenderAssetUsages;
 use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::prelude::*;
 
-/// The patch: chunks of `CHUNK` metres, `RINGS` chunks from the centre to each side.
+/// The grass around the camera: chunks of `CHUNK` metres, fixed to the world, `RINGS` chunks out to each side.
 pub const CHUNK: f32 = 8.0;
 pub const RINGS: i32 = 6;
-/// Blades per square metre at the very centre of the patch.
-const DENSITY: f32 = 300.0;
+/// Blades per square metre at full detail.
+const DENSITY: f32 = 230.0;
 /// Segments up a blade.
 const SEGS: usize = 4;
 
@@ -38,25 +38,162 @@ fn field(x: f32, z: f32, scale: f32, seed: u32) -> f32 {
     a + (b - a) * sz
 }
 
-/// Blades per square metre at a distance `r` metres from the centre of the patch: very dense and fine where the eye
-/// is, thinning toward the edge, where the ground's own colour takes over.
-fn density(r: f32) -> f32 {
-    DENSITY * (-r / 9.0).exp() + 40.0 * (1.0 - r / (CHUNK * RINGS as f32)).max(0.0)
+/// How much of a chunk's blades are drawn at a ring around the camera's chunk (0: the camera's own): all near the eye,
+/// fewer further out. A coarser ring draws the first blades of the same list, wider, so a switch changes little.
+pub fn share(ring: i32) -> f32 {
+    match ring {
+        0 | 1 => 1.0,
+        2 => 0.35,
+        3 => 0.18,
+        4 => 0.09,
+        _ => 0.05,
+    }
 }
 
-/// One chunk's blades as one mesh. Each vertex carries in its UV how far up its blade it is (v, 0 at the root,
-/// 1 at the tip) and the blade's own stiffness (u), for the wind.
-pub fn chunk(cx: i32, cz: i32) -> Mesh {
-    let centre = Vec2::new(cx as f32 + 0.5, cz as f32 + 0.5) * CHUNK;
-    let d = density(centre.length());
-    let widen = (DENSITY / d).sqrt().min(3.0); // fewer blades are wider, to keep the cover
-    let count = (d * CHUNK * CHUNK) as u32;
-    let segs = if centre.length() < 20.0 { SEGS } else { SEGS - 1 }; // far blades need fewer bends
+/// The kinds of seed head: a dense cylinder (as timothy), a loose branching panicle (as meadow grass), a nodding
+/// feathery plume.
+#[derive(Clone, Copy)]
+enum Head {
+    Spike,
+    Panicle,
+    Plume,
+}
 
-    let (mut pos, mut nrm, mut uv, mut col, mut idx) = (vec![], vec![], vec![], vec![], vec![]);
+/// Geometry being built: positions, normals, UVs, colours, indices.
+#[derive(Default)]
+struct Geo {
+    pos: Vec<[f32; 3]>,
+    nrm: Vec<[f32; 3]>,
+    uv: Vec<[f32; 2]>,
+    col: Vec<[f32; 4]>,
+    idx: Vec<u32>,
+}
+
+impl Geo {
+    fn vert(&mut self, p: Vec3, n: Vec3, t: f32, c: Vec3) -> u32 {
+        self.pos.push(p.to_array());
+        self.nrm.push(n.to_array());
+        self.uv.push([1.0, t]);
+        self.col.push([c.x, c.y, c.z, 1.0]);
+        self.pos.len() as u32 - 1
+    }
+
+    /// A spikelet: a small double-pointed grain from `a` along `dir`, `len` long and `w` wide, as two crossed
+    /// shapes so it has body from every side and never reads as a flat scrap.
+    fn spikelet(&mut self, a: Vec3, dir: Vec3, len: f32, w: f32, c: Vec3) {
+        let s1 = dir.cross(Vec3::Y).try_normalize().unwrap_or(Vec3::X);
+        let s2 = dir.cross(s1).normalize();
+        for side in [s1 * w, s2 * w] {
+            let n = (dir.cross(side).normalize_or_zero() + Vec3::Y).normalize();
+            let mid = a + dir * len * 0.45;
+            let i0 = self.vert(a, n, 0.9, c * 0.7);
+            let i1 = self.vert(mid + side, n, 0.95, c);
+            let i2 = self.vert(a + dir * len, n, 1.0, c * 1.1);
+            let i3 = self.vert(mid - side, n, 0.95, c);
+            self.idx.extend_from_slice(&[i0, i1, i2, i0, i2, i3]);
+        }
+    }
+
+    /// A thin straight strip from `a` to `b`, `w` wide: a stem or a branch of a panicle.
+    fn strip(&mut self, a: Vec3, b: Vec3, w: f32, ca: Vec3, cb: Vec3, ta: f32, tb: f32) {
+        let dir = (b - a).normalize_or_zero();
+        let side = dir.cross(Vec3::Y).try_normalize().unwrap_or(Vec3::X) * w;
+        let n = (side.normalize() + Vec3::Y * 1.5).normalize();
+        let i0 = self.vert(a - side, n, ta, ca);
+        let i1 = self.vert(a + side, n, ta, ca);
+        let i2 = self.vert(b - side * 0.6, n, tb, cb);
+        let i3 = self.vert(b + side * 0.6, n, tb, cb);
+        self.idx.extend_from_slice(&[i0, i1, i2, i1, i3, i2]);
+    }
+
+    fn mesh(self) -> Mesh {
+        Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, self.pos)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, self.nrm)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, self.uv)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, self.col)
+            .with_inserted_indices(Indices::U32(self.idx))
+    }
+}
+
+/// A flowering stem: a fine straw stem, gently curved, and a seed head of many spikelets at its top.
+fn flowering_stem(g: &mut Geo, root: Vec3, height: f32, yaw: f32, kind: Head, rnd: &dyn Fn(u32) -> f32) {
+    let lean_dir = Vec3::new(yaw.cos(), 0.0, yaw.sin());
+    let lean = 0.06 + 0.1 * rnd(20);
+    let at = |t: f32| root + lean_dir * (lean * height * t * t) + Vec3::Y * (height * t);
+    let straw = Vec3::new(0.30, 0.25, 0.11);
+    let stem_green = Vec3::new(0.10, 0.16, 0.04);
+    // the stem, in three pieces, green below, straw above
+    for k in 0..3 {
+        let (t0, t1) = (k as f32 / 3.0, (k + 1) as f32 / 3.0);
+        g.strip(at(t0), at(t1), 0.0016, stem_green.lerp(straw, t0), stem_green.lerp(straw, t1), t0, t1);
+    }
+    let top = at(1.0);
+    let up = (at(1.0) - at(0.92)).normalize();
+    // spikelets: pale green to straw, some with a purple tinge, as many grasses have
+    let tint = rnd(21);
+    let head_col = Vec3::new(0.11, 0.12, 0.05).lerp(straw * 0.8, rnd(22)).lerp(Vec3::new(0.20, 0.12, 0.14), (tint - 0.7).max(0.0) * 2.0);
+    match kind {
+        Head::Spike => {
+            // a dense cylinder: spikelets in a spiral around the top 6 to 11 cm, pointing up and out
+            let len = 0.06 + 0.05 * rnd(23);
+            let n = 26;
+            for i in 0..n {
+                let t = i as f32 / n as f32;
+                let a = i as f32 * 2.4;
+                let out = Vec3::new(a.cos(), 0.0, a.sin()) * 0.004;
+                let base = top - up * len * (1.0 - t) + out;
+                g.spikelet(base, (up * 1.6 + out.normalize_or_zero()).normalize(), 0.005, 0.0011, head_col);
+            }
+        }
+        Head::Panicle => {
+            // a loose panicle: whorls of thin branches, each with a few spikelets toward its end
+            let whorls = 4;
+            for w in 0..whorls {
+                let t = w as f32 / whorls as f32;
+                let node = top - up * (0.12 * (1.0 - t));
+                let branches = 3;
+                for b in 0..branches {
+                    let a = (w * branches + b) as f32 * 2.1 + rnd(24 + w as u32) * 0.5;
+                    let out = Vec3::new(a.cos(), 0.0, a.sin());
+                    let reach = 0.03 + 0.05 * (1.0 - t);
+                    let end = node + (out * 0.8 + up * 0.6).normalize() * reach;
+                    g.strip(node, end, 0.0005, straw, straw * 1.1, 0.9, 0.95);
+                    for s in 0..3 {
+                        let p = node.lerp(end, 0.5 + 0.25 * s as f32);
+                        g.spikelet(p, (out + up).normalize(), 0.0035, 0.0008, head_col);
+                    }
+                }
+            }
+        }
+        Head::Plume => {
+            // a nodding plume: the head curves over and down, soft spikelets all along it
+            let n = 20;
+            for i in 0..n {
+                let t = i as f32 / n as f32;
+                let p = top + lean_dir * (0.07 * t) - Vec3::Y * (0.05 * t * t);
+                let dir = (lean_dir * (0.4 + t) - Vec3::Y * t * 0.6 + Vec3::Y * 0.3).normalize();
+                let a = i as f32 * 2.4;
+                let out = Vec3::new(a.cos(), 0.0, a.sin()) * 0.003;
+                g.spikelet(p + out, (dir + out * 60.0).normalize(), 0.007, 0.0008, head_col);
+            }
+        }
+    }
+}
+
+/// One chunk of grass as one mesh, drawing a `share` of its blades (see [`share`]). Each vertex carries in its UV how
+/// far up its blade it is (v, 0 at the root, 1 at the tip).
+pub fn chunk(cx: i32, cz: i32, share: f32) -> Mesh {
+    let widen = (1.0 / share).sqrt().min(3.5); // fewer blades are wider, to keep the cover
+    let full = (DENSITY * CHUNK * CHUNK) as u32;
+    let count = (full as f32 * share) as u32;
+    let segs = if share >= 1.0 { SEGS } else { SEGS - 1 };
+    let detail = share >= 0.35; // seed heads only where they can be seen
+
+    let mut g = Geo::default();
     let (sx, sz) = (cx as u32, cz as u32);
     for i in 0..count {
-        let r = |k: u32| h(sx, sz, i * 11 + k);
+        let r = |k: u32| h(sx, sz, i * 31 + k);
         let x = (cx as f32 + r(0)) * CHUNK;
         let z = (cz as f32 + r(1)) * CHUNK;
         let lush = field(x, z, 7.0, 1);
@@ -64,27 +201,35 @@ pub fn chunk(cx: i32, cz: i32) -> Mesh {
         if r(2) > 0.55 + 0.45 * lush {
             continue; // a little thinner between the clumps
         }
-        // a few stems go to seed: taller, straight, straw-coloured, with a head
-        let seed = r(8) < 0.025;
-        let height = if seed { 0.6 + 0.35 * r(3) } else { 0.22 + 0.45 * lush * lush + 0.15 * r(3) };
-        let width = if seed { 0.0025 } else { (0.006 + 0.006 * r(4)) * widen };
         let yaw = r(5) * std::f32::consts::TAU;
-        let lean = if seed { 0.08 } else { 0.12 + 0.55 * r(6) * r(6) };
+        // about one in forty goes to seed: a flowering stem with a head, in drier spots more often
+        if r(8) < 0.018 + 0.03 * dry {
+            if detail {
+                let kind = match (r(12) * 3.0) as u32 {
+                    0 => Head::Spike,
+                    1 => Head::Panicle,
+                    _ => Head::Plume,
+                };
+                flowering_stem(&mut g, Vec3::new(x, 0.0, z), 0.55 + 0.4 * r(3), yaw, kind, &r);
+            }
+            continue;
+        }
+        let height = 0.22 + 0.45 * lush * lush + 0.15 * r(3);
+        let width = (0.006 + 0.006 * r(4)) * widen;
+        let lean = 0.12 + 0.55 * r(6) * r(6);
         let (dir, side) = (Vec3::new(yaw.cos(), 0.0, yaw.sin()), Vec3::new(-yaw.sin(), 0.0, yaw.cos()));
-        let stiff = if seed { 1.0 } else { 0.4 + 0.6 * r(3) };
-        // colour: each blade its own green, from deep to light yellow-green; drier where the field is dry
-        let t1 = r(7);
-        // linear reflectance of real grass: about 5 to 20 % in green, little red and blue
-        let green = Vec3::new(0.030, 0.085, 0.012).lerp(Vec3::new(0.085, 0.200, 0.030), t1);
+        // colour: each blade its own green, from deep to light yellow-green; drier where the field is dry.
+        // Linear reflectance of real grass: about 5 to 20 % in green, little red and blue.
+        let green = Vec3::new(0.030, 0.085, 0.012).lerp(Vec3::new(0.085, 0.200, 0.030), r(7));
         let straw = Vec3::new(0.30, 0.24, 0.10);
-        let tip = if seed { straw } else { green.lerp(straw, (dry * dry * 0.9 * r(9)).min(0.5)) * (0.9 + 0.3 * r(10)) };
+        let tip = green.lerp(straw, (dry * dry * 0.9 * r(9)).min(0.5)) * (0.9 + 0.3 * r(10));
         let tip_light = tip * Vec3::new(1.15, 1.12, 0.95); // tips catch more light and yellow a little
         let root = tip * 0.28; // the root sits in the shade of its neighbours
-        let start = pos.len() as u32;
+        let start = g.pos.len() as u32;
         for s in 0..=segs {
             let t = s as f32 / segs as f32;
             let p = Vec3::new(x, 0.0, z) + dir * (lean * height * t * t) + Vec3::Y * (height * (t - 0.35 * lean * t * t));
-            let w = if seed && s == segs - 1 { width * 1.6 } else { width * (1.0 - t).powf(0.7) };
+            let w = width * (1.0 - t).powf(0.7);
             let n = (side + Vec3::Y * 1.5).normalize(); // bent toward the sky, so a field is lit evenly
             let c = if t < 0.5 { root.lerp(tip, (t / 0.5).powf(0.8)) } else { tip.lerp(tip_light, (t - 0.5) / 0.5) };
             for k in [-1.0, 1.0] {
@@ -92,32 +237,19 @@ pub fn chunk(cx: i32, cz: i32) -> Mesh {
                     break; // one vertex at the tip
                 }
                 let p = if s == segs { p } else { p + side * w * k };
-                pos.push(p.to_array());
-                nrm.push(n.to_array());
-                uv.push([stiff, t]);
-                col.push([c.x, c.y, c.z, 1.0]);
+                g.vert(p, n, t, c);
             }
         }
         for s in 0..segs as u32 {
             let a = start + s * 2;
             if s + 1 == segs as u32 {
-                idx.extend_from_slice(&[a, a + 1, a + 2]);
+                g.idx.extend_from_slice(&[a, a + 1, a + 2]);
             } else {
-                idx.extend_from_slice(&[a, a + 1, a + 2, a + 1, a + 3, a + 2]);
+                g.idx.extend_from_slice(&[a, a + 1, a + 2, a + 1, a + 3, a + 2]);
             }
         }
     }
-    Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
-        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, pos)
-        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, nrm)
-        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uv)
-        .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, col)
-        .with_inserted_indices(Indices::U32(idx))
-}
-
-/// Every chunk of the patch, as (x, z) chunk coordinates.
-pub fn chunks() -> impl Iterator<Item = (i32, i32)> {
-    (-RINGS..RINGS).flat_map(|x| (-RINGS..RINGS).map(move |z| (x, z)))
+    g.mesh()
 }
 
 /// The grass carpet: what a field of grass looks like from further than its blades are drawn. A tile of fine streaks

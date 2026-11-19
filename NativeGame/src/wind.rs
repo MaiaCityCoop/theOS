@@ -25,17 +25,19 @@ impl MaterialExtension for Wind {
     }
 }
 
-/// How hard the wind blows; `-` and `=` change it.
+/// How hard the wind blows, 0 calm to `MAX` a storm; the Meadow's slider and `-` `=` change it.
 #[derive(Resource)]
 pub struct Strength(pub f32);
 
+pub const MAX: f32 = 2.5;
+
 pub fn plugin(app: &mut App) {
-    app.add_plugins(MaterialPlugin::<Grass>::default()).insert_resource(Strength(0.8)).add_systems(Update, blow);
+    app.add_plugins(MaterialPlugin::<Grass>::default()).insert_resource(Strength(1.4)).add_systems(Update, blow);
 }
 
 fn blow(time: Res<Time>, keys: Res<ButtonInput<KeyCode>>, mut strength: ResMut<Strength>, mut grass: ResMut<Assets<Grass>>) {
     if keys.pressed(KeyCode::Equal) {
-        strength.0 = (strength.0 + time.delta_secs()).min(1.6);
+        strength.0 = (strength.0 + time.delta_secs()).min(MAX);
     }
     if keys.pressed(KeyCode::Minus) {
         strength.0 = (strength.0 - time.delta_secs()).max(0.0);

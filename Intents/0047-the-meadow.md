@@ -49,6 +49,15 @@ pictures looked at by Samuel; the navigation self-test, `cargo run -- --navtest`
   prepass (Bevy 0.20's shaders are WESL), so blades, shadows and motion vectors move together. A blade bends by the
   square of its height; long gusts roll across the field with ripples on them and a flutter per blade. `-` and `=`
   change the strength. The first strength laid the field flat; it was cut to about a third.
+- **The same density wherever you walk:** the grass is a grid of 8 m chunks fixed to the world; rings of chunks
+  follow the camera, full detail in the nearest two, then 35, 18, 9 and 5 % of the blades, wider. A coarser ring draws
+  the first blades of the same list. Chunks grow in the background, at most six new a frame, nearest first, and a
+  chunk is replaced only once its new version is ready.
+- **Seed heads:** about one stem in forty flowers (more where it is dry): a fine straw stem and a head of many
+  spikelets, each two crossed grain shapes: dense cylinders (as timothy), loose panicles (as meadow grass), nodding
+  plumes. Only in the near rings. The first version was pale and flat and read as paper scraps; now smaller, crossed
+  and darker.
+- **Sliders, top right:** the wind (0 to 2.5, default 1.4, stronger at Samuel's word) and the sun over 24 hours.
 - **Measuring paused at Samuel's word:** realism first. Each part (sky, shadows, grass, AO, TAA, bloom, glow) can be
   switched off for a later measurement with `MEADOW_NO_<PART>=1`.
 - **Too slow so far:** 82 to 94 ms (11 to 12 fps) at 1080p with grass, measured while Samuel's own instance ran too.

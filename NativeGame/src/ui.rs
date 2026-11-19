@@ -61,7 +61,9 @@ pub fn plugin(app: &mut App) {
         .add_observer(press)
         .add_observer(scrub_press)
         .add_observer(scrub_drag)
-        .add_systems(Update, (hover, escape, (strip_follows, playhead).run_if(in_state(View::Studio)), frame_time.run_if(in_state(View::Meadow))));
+        .add_observer(slide_press)
+        .add_observer(slide_drag)
+        .add_systems(Update, (hover, escape, (strip_follows, playhead).run_if(in_state(View::Studio)), (frame_time, slide_show).run_if(in_state(View::Meadow))));
 }
 
 impl FromWorld for Fonts {
@@ -200,8 +202,93 @@ fn meadow(mut commands: Commands, f: Res<Fonts>) {
                 BackgroundColor(GLASS),
                 children![text(&f.mono, 15.0, FOREST, "W A S D walk · hold the mouse to look · [ ] the hour · Esc home")],
             ),
+            // the wind and the hour, top right: drag or click a bar
+            (
+                Node { margin: UiRect::left(Val::Auto), flex_direction: FlexDirection::Column, row_gap: Val::Px(8.0), ..default() },
+                children![slider(&f, Slide::Wind, "Wind"), slider(&f, Slide::Hour, "Sun")],
+            ),
         ],
     ));
+}
+
+/// A slider of the Meadow: what it sets.
+#[derive(Component, Clone, Copy, PartialEq)]
+enum Slide {
+    Wind,
+    Hour,
+}
+#[derive(Component)]
+struct Fill(Slide);
+#[derive(Component)]
+struct Readout(Slide);
+
+fn slider(f: &Fonts, what: Slide, label: &'static str) -> impl Bundle {
+    (
+        Node {
+            height: Val::Px(40.0),
+            padding: UiRect::horizontal(Val::Px(18.0)),
+            column_gap: Val::Px(12.0),
+            align_items: AlignItems::Center,
+            border_radius: BorderRadius::MAX,
+            ..default()
+        },
+        BackgroundColor(GLASS),
+        children![
+            (text(&f.mono, 15.0, FOREST, label), Node { width: Val::Px(40.0), ..default() }),
+            (
+                what,
+                Node { width: Val::Px(200.0), height: Val::Px(10.0), border_radius: BorderRadius::MAX, overflow: Overflow::clip(), ..default() },
+                BackgroundColor(SAND),
+                children![(Fill(what), Pickable::IGNORE, Node { width: Val::Percent(50.0), height: Val::Percent(100.0), border_radius: BorderRadius::MAX, ..default() }, BackgroundColor(CLAY))],
+            ),
+            (Readout(what), text(&f.mono, 15.0, FOREST, ""), Node { width: Val::Px(52.0), ..default() }),
+        ],
+    )
+}
+
+fn slide_press(ev: On<PointerPress>, bars: Query<(&Slide, &ComputedNode, &UiGlobalTransform)>, wind: ResMut<crate::wind::Strength>, hour: ResMut<crate::meadow::Hour>) {
+    slide_to(ev.entity, ev.pointer.position.x, &bars, wind, hour);
+}
+fn slide_drag(ev: On<PointerDrag>, bars: Query<(&Slide, &ComputedNode, &UiGlobalTransform)>, wind: ResMut<crate::wind::Strength>, hour: ResMut<crate::meadow::Hour>) {
+    slide_to(ev.entity, ev.pointer.position.x, &bars, wind, hour);
+}
+fn slide_to(
+    e: Entity,
+    x: f32,
+    bars: &Query<(&Slide, &ComputedNode, &UiGlobalTransform)>,
+    mut wind: ResMut<crate::wind::Strength>,
+    mut hour: ResMut<crate::meadow::Hour>,
+) {
+    let Ok((what, node, at)) = bars.get(e) else { return };
+    let (centre, width) = (at.translation.x * node.inverse_scale_factor, node.size.x * node.inverse_scale_factor);
+    let q = ((x - (centre - width / 2.0)) / width.max(1.0)).clamp(0.0, 1.0);
+    match what {
+        Slide::Wind => wind.0 = q * crate::wind::MAX,
+        Slide::Hour => hour.0 = q * 24.0,
+    }
+}
+fn slide_show(
+    wind: Res<crate::wind::Strength>,
+    hour: Res<crate::meadow::Hour>,
+    mut fills: Query<(&Fill, &mut Node)>,
+    mut readouts: Query<(&Readout, &mut Text)>,
+) {
+    let q = |w: Slide| match w {
+        Slide::Wind => wind.0 / crate::wind::MAX,
+        Slide::Hour => hour.0 / 24.0,
+    };
+    for (f, mut n) in &mut fills {
+        n.width = Val::Percent(q(f.0) * 100.0);
+    }
+    for (r, mut t) in &mut readouts {
+        let words = match r.0 {
+            Slide::Wind => format!("{:.0} %", wind.0 / crate::wind::MAX * 100.0),
+            Slide::Hour => format!("{:02}:{:02}", hour.0 as u32 % 24, (hour.0.fract() * 60.0) as u32),
+        };
+        if t.0 != words {
+            t.0 = words;
+        }
+    }
 }
 
 fn frame_time(d: Res<bevy::diagnostic::DiagnosticsStore>, hour: Res<crate::meadow::Hour>, mut t: Query<&mut Text, With<FrameTime>>) {
