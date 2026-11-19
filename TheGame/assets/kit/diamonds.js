@@ -243,8 +243,8 @@ function groupsAt(G, L, levels, P, raw) {
   for (const [g, vs] of own) for (const v of vs) g.r = Math.max(g.r, Math.hypot(P[v * 3] - g.c[0], P[v * 3 + 1] - g.c[1], P[v * 3 + 2] - g.c[2]));
   return groups.map(({ err, c, r }) => ({ err, c, r }));
 }
-/** The sphere of vertices vs of places P: { c, r }. */
-function sphereOf(P, vs) {
+/** The sphere of vertices vs of places P (3 a vertex): { c, r }. */
+export function sphereOf(P, vs) {
   const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
   for (const v of vs) for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], P[v * 3 + a]); hi[a] = Math.max(hi[a], P[v * 3 + a]); }
   const c = [0, 1, 2].map((a) => (lo[a] + hi[a]) / 2);
