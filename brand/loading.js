@@ -1,9 +1,11 @@
 // The world, loading: which still of it the veil is laid over (brand.css, html.os-loading). Read before the first paint
-// (a plain script in the page's head), so the still is there from the start: one of the tent's, chosen at random.
+// (a plain script in the page's head), so the still is there from the start: one of the tent's, chosen at random. The
+// stills lie beside this script (brand/loading/), named from where it was served, as brand.css names its pictures: a
+// page under a base (the game's dev server at /game) finds them there too.
 (() => {
   const STILLS = ['tent-morning', 'tent-midday', 'tent-evening', 'tent-snow', 'tent-pines'];
-  const pick = STILLS[Math.floor(Math.random() * STILLS.length)];
-  document.documentElement.style.setProperty('--os-load-still', `url('/brand/loading/${pick}.jpg')`);
+  const pick = STILLS[Math.floor(Math.random() * STILLS.length)], still = new URL(`loading/${pick}.jpg`, document.currentScript.src);
+  document.documentElement.style.setProperty('--os-load-still', `url('${still.href}')`);
 })();
 
 // A page that cannot go on, or a start held up (intent 0038): said on the veil, on a line under the step, with what may

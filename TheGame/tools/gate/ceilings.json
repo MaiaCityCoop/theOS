@@ -1,54 +1,9 @@
 {
- "measured": "main 3d0c3b5, the Mac mini, 2026-11-18 (shots/budgets/main-3d0c3b5-bench.json)",
+ "about": "The bench's ceilings (tools/gate/ceilings.js): per view, each pass's and each class's GPU ms a frame, lowered to main's measure by --ratchet (the hour's on main), never raised; a class's never below its share (src/core/budget.js FRAME_MS_BY_CLASS). Empty till the first measured ratchet at the 1920 x 1080 output: the 4K ceilings of 3d0c3b5 measured another output.",
+ "measured": null,
  "noise": {
-  "geometry": 0.51,
-  "light": 0.02,
-  "ground": 0.37,
-  "upscale/post": 0.33,
-  "other": 0
+  "passes": {},
+  "classes": {}
  },
- "views": {
-  "tent, eye level": {
-   "geometry": 13.68,
-   "light": 3,
-   "ground": 1.5,
-   "upscale/post": 5.68,
-   "other": 0.5
-  },
-  "river bend, 26 m": {
-   "geometry": 8.09,
-   "light": 3,
-   "ground": 1.5,
-   "upscale/post": 6.57,
-   "other": 0.5
-  },
-  "town, 40 m": {
-   "geometry": 7.69,
-   "light": 3,
-   "ground": 2.18,
-   "upscale/post": 5.76,
-   "other": 0.5
-  },
-  "skyline, 2.5 km": {
-   "geometry": 5,
-   "light": 3,
-   "ground": 3.6,
-   "upscale/post": 6.05,
-   "other": 0.5
-  },
-  "pine forest, eye level": {
-   "geometry": 23.86,
-   "light": 3,
-   "ground": 1.5,
-   "upscale/post": 6.29,
-   "other": 0.5
-  },
-  "pine forest, 90 m": {
-   "geometry": 7.21,
-   "light": 3,
-   "ground": 3.32,
-   "upscale/post": 6.09,
-   "other": 0.5
-  }
- }
+ "views": {}
 }

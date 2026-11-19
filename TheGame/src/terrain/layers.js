@@ -69,6 +69,9 @@ const OVER = LAID.filter((b) => !b.grass).map((b) => { if (slopes < 0 && BASE.sl
 if (slopes < 0 && BASE.slopes) slopes = lay({ ground: BASE.slopes });
 /** The base's rock on what is too steep (-1: none): not in the map, laid by the texel from its own slope. */
 export const SLOPES = slopes;
+/** Where the base's rock comes in on the land (SLOPES): from where the ground's normal's y falls under the first to
+    the second (37° to 47°), its share as the page keeps it (tools/slopecheck.js) */
+export const STEEP = [0.8, 0.68];
 /** The library's stage: its ground is the uniform's (uStageGround: a material's number and its tile; -1 the base's patches). */
 export const STAGE = lay({ ground: null });
 if (LAYERS.length > EMPTY) throw new Error(`the land lays ${LAYERS.length} layers: a byte names at most ${EMPTY}`);
@@ -130,6 +133,7 @@ for (const bio of LAID) for (const { key, P, kinds, CV, L, entries } of standsOf
   const grain = key === 'tree' ? 1 : footprintOf(kinds) / CROWNS;
   STANDS.push({ bio, P, grain, L, entries, seen, reliefTop, colour: CV.colour ?? null, small, large, reach: SH ? SH.far * (SH.wide ?? 2.4) : -1, crown, radius, top });
 }
+{ let at = 0; for (const S of STANDS) { S.at = at; at += S.entries.length; } }   // (where each stand's kinds begin in STAND_C)
 if (STANDS.length >= NO_STAND) throw new Error(`the land has ${STANDS.length} stands that wear a colour: four bits name at most ${NO_STAND - 1}`);
 /** How far round the camera the shadows of the stands that cast them are drawn at the most (-1: none casts): past it, a
     stand's floor lies in its crowns' shade, the pixel's own (src/terrain/material.js). */
@@ -151,7 +155,7 @@ export const CASTERS = Object.freeze({
 
 // the layers' table: a layer's material (its number: src/materials/bake.js), its tile (metres), its pattern's size
 // (metres; 0: none), and whether it goes with the meadow's blades (1)
-let TABLE = null, STAND_T = null, STAND_K = null, crowned = 0;
+let TABLE = null, STAND_T = null, STAND_K = null, STAND_C = null, crowned = 0;
 /** The layers' and the stands' tables, made once the world's textures are there (before node code reads them). */
 export const layerTables = (tex) => {
   if (TABLE) return;
@@ -162,7 +166,13 @@ export const layerTables = (tex) => {
   // and how much of the light a metre of each stand's crowns takes (per metre): the light's own till its kinds' crowns
   // are measured (crownK, as standColours finds them)
   STAND_K = uniformArray(STANDS.map(() => CROWN_EXTINCTION), 'float').setGroup(renderGroup);
+  // and how much of its own round each of a stand's kinds' crowns covers from above: all of it till its crowns are
+  // measured (shareOf, as standColours finds them), as many as the stands have kinds
+  STAND_C = uniformArray(STANDS.flatMap((S) => S.entries.map(shareOf)).concat([1]), 'float').setGroup(renderGroup);
 };
+/** How much of its own round a kind's crown covers seen from straight above (src/detail/seen.js crownOf: its far end's
+    pictures, as they are baked), all of it while it is not measured (a kind without a far end, or not baked yet). */
+const shareOf = (e) => crownOf(e.asset) ?? 1;
 /** How much of the light a metre of a stand's crowns takes (per metre; null while none of its kinds' crowns is
     measured): each kind's from how much of its round its crown covers seen from above (seen.js crownOf), that much of
     the light taken through its depth, Beer–Lambert's (-ln(1 - cover) / depth; its depth its crown's at its oldest, at
@@ -180,27 +190,32 @@ const crownK = (S) => {
 /** How many times what a metre of the stands' crowns takes has changed (the canopy's probes are made again: src/world/
     light/canopy.js). */
 export const crownsVersion = () => crowned;
-/** How much of the ground a stand's crowns cover at a point (0 … 1): each of its things' chance to stand in a cell there
-    (D: its layer's densOf there) by its crown's round of the cell. Node code. */
-const coverOf = (T, D) => clamp(T.entries.reduce((s, e) => s.add(D[e.i].mul((Math.PI * e.reach * e.reach) / (T.L.cell * T.L.cell))), float(0)), 0, 1);
+/** How much of the ground a stand's crowns' rounds take at a point (0 … 1): each of its things' chance to stand in a
+    cell there (D: its layer's densOf there) by its crown's round of the cell. Node code. */
+const roundsOf = (T, D) => clamp(T.entries.reduce((s, e) => s.add(D[e.i].mul((Math.PI * e.reach * e.reach) / (T.L.cell * T.L.cell))), float(0)), 0, 1);
+/** How much of the ground a stand's crowns cover at a point, seen from above (0 … 1): its rounds (roundsOf), each by
+    how much of it its kind's crown covers (STAND_C: shareOf), what its plants cover where they are drawn. What the land
+    wears of the stand where they are no longer drawn: as much as they covered (src/terrain/material.js;
+    tools/covercheck.js). Node code. */
+const coverOf = (T, D) => clamp(T.entries.reduce((s, e, j) => s.add(D[e.i].mul((Math.PI * e.reach * e.reach) / (T.L.cell * T.L.cell)).mul(STAND_C ? STAND_C.element(T.at + j) : 1)), float(0)), 0, 1);
 /** How much of the light a metre of crown takes at p (per metre): each stand's (STAND_K), by how much of the ground its
-    crowns cover there (coverOf, as the layer map counts it), the light's own (physics.js CROWN_EXTINCTION) for what of
+    crowns' rounds take there (roundsOf: what a metre of crown takes is the light through its round, crownK), the light's own (physics.js CROWN_EXTINCTION) for what of
     the ground none covers. Node code, in a Fn: for the canopy's probes (src/world/light/canopy.js). */
 export function crownsAt(p) {
   if (!STAND_K) return float(CROWN_EXTINCTION);
   const I = riverInfo(p).toVar(), ctx = { p, dist: float(0), d: abs(I.x), w: I.y, b: I.z }, dens = new Map(), sum = float(0).toVar(), of = float(0).toVar();
   for (const T of STANDS) if (!dens.has(T.L)) dens.set(T.L, densOf(T.L, p, ctx));
-  STANDS.forEach((T, id) => { const c = coverOf(T, dens.get(T.L)).toVar(); sum.addAssign(c.mul(STAND_K.element(id))); of.addAssign(c); });
+  STANDS.forEach((T, id) => { const c = roundsOf(T, dens.get(T.L)).toVar(); sum.addAssign(c.mul(STAND_K.element(id))); of.addAssign(c); });
   return sum.add(max(float(1).sub(of), 0).mul(CROWN_EXTINCTION)).div(max(of, 1));
 }
 /** What a stand whose kinds have far ends shows ([r, g, b], linear albedo; null while none of them does): each kind's
     that shows (src/detail/seen.js) by how much of the ground it covers where the stand is thick, as its cover counts it
-    (layerWords): its share of the stand (its `most`, the slice of the patches it leads in: rule.js densOf) times its
-    crown's round. */
+    (coverOf): its share of the stand (its `most`, the slice of the patches it leads in: rule.js densOf) times its
+    crown's round, times how much of that its crown covers. */
 const seenColour = (S) => {
   const sum = [0, 0, 0]; let of = 0;
   for (const e of S.entries) {
-    const w = e.from ? 0 : e.most * e.reach * e.reach, c = w > 0 && seenOf(e.asset); if (!c) continue;   // (what grows from litter is none far off: densOf)
+    const w = e.from ? 0 : e.most * e.reach * e.reach * shareOf(e), c = w > 0 && seenOf(e.asset); if (!c) continue;   // (what grows from litter is none far off: densOf)
     for (let k = 0; k < 3; k++) sum[k] += w * c[k]; of += w;
   }
   return of > 0 ? sum.map((v) => v / of) : null;
@@ -215,11 +230,12 @@ export function standColours() {
   STANDS.forEach((S, i) => { const k = crownK(S); if (k != null && k !== STAND_K.array[i]) { STAND_K.array[i] = k; crowned++; } });   // (and what a metre of its crowns takes, as its kinds' crowns are measured)
   let near = Infinity;
   STANDS.forEach((S, i) => {
-    if (!S.seen) return;
-    const c = seenColour(S), v = STAND_T.array[3 * i];
-    if (!c || (c[0] === v.x && c[1] === v.y && c[2] === v.z)) return;
-    v.set(...c, S.grain);
-    near = Math.min(near, S.large[0] > 0 ? (U.uPxK.value * nearest(S.small)) / U.uErrorPx.value : 0);
+    // (how much of its round each of its kinds' crowns covers, as they are measured: what it is laid as covering)
+    let changed = false;
+    S.entries.forEach((e, j) => { const k = shareOf(e); if (k !== STAND_C.array[S.at + j]) { STAND_C.array[S.at + j] = k; changed = true; } });
+    const c = S.seen ? seenColour(S) : null, v = STAND_T.array[3 * i];
+    if (c && (c[0] !== v.x || c[1] !== v.y || c[2] !== v.z)) { v.set(...c, S.grain); changed = true; }
+    if (changed) near = Math.min(near, S.large[0] > 0 ? (U.uPxK.value * nearest(S.small)) / U.uErrorPx.value : 0);
   });
   return Number.isFinite(near) ? near : -1;
 }
@@ -356,7 +372,7 @@ export function layersFrom(load, f, ny) {
     });
   });
   // the base's rock where the land is too steep: the point's own slope
-  const slope = { id: int(SLOPES >= 0 ? SLOPES : 999).toVar(), w: float(SLOPES >= 0 ? smoothstep(0.8, 0.68, ny) : 0).toVar() };
+  const slope = { id: int(SLOPES >= 0 ? SLOPES : 999).toVar(), w: float(SLOPES >= 0 ? smoothstep(STEEP[0], STEEP[1], ny) : 0).toVar() };
   const slots = [...ids.map((id, m) => ({ id, w: ws[m] })), slope];
   for (const s of slots.slice(0, 4)) If(s.id.lessThan(0), () => { s.id.assign(999); });   // (an empty slot: after every layer)
   for (const [a, b] of [[0, 1], [3, 4], [2, 4], [2, 3], [1, 4], [0, 3], [0, 2], [1, 3], [1, 2]]) {   // (sorted by id: a network of nine)

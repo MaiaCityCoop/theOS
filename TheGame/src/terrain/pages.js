@@ -133,7 +133,7 @@ function pagesNeeded() {
 /** The bytes a slot's relief takes (with its second mip): half a byte a texel in blocks (BC4), four elsewhere. */
 const reliefBytes = (packed) => (RELIEF_MOST > 0 ? SLOT * SLOT * 1.25 * (packed ? 0.5 : 4) : 0);
 /** No stand has a relief: nothing laid, nothing read. */
-const noRelief = () => ({ textures: null, staging: 0, lay() {}, pack() {}, copy() {} });
+const noRelief = () => ({ textures: null, made: null, staging: 0, lay() {}, pack() {}, copy() {} });
 /** The relief's channel: its atlas (as the pages', in arrays of PER layers: BC4 where the GPU has blocks, else laid
     straight into it), the layer a batch is laid into, how a texel of it is laid (the stands' relief as a share of the
     highest), and a batch's blocks packed (each mip's rows as long as the first's: a row of either is the 256 bytes a
@@ -152,7 +152,7 @@ function reliefChannel(renderer, { PACKED, SLOTS, PER, laidInto, arrays }) {
     });
   })().computeKernel([64, 1, 1]) : null;
   return {
-    textures: RR.map((t) => texture(t)), staging: PACKED ? BATCH * SLOT * SLOT * 1.25 * 4 : 0,
+    textures: RR.map((t) => texture(t)), made: PACKED ? [...RR, SR] : RR, staging: PACKED ? BATCH * SLOT * SLOT * 1.25 * 4 : 0,   // (made: its atlas and where a batch is laid before it is packed, what the ledger names)
     lay(store, mip, at, layer, r) { store(SR, mip, at, layer, vec4(clamp(r.div(RELIEF_MOST), 0, 1), 0, 0, 1)); },
     pack(n) { if (kernel) { uB.value = n; renderer.compute(kernel, [Math.ceil((n * BLOCKS) / 64), 1, 1]); } },
     copy(list, e, gpu) {
@@ -193,7 +193,7 @@ export function createPages(renderer, tex) {
   const A = PACKED ? arrays(THREE.RGBA_S3TC_DXT5_Format) : [laidInto(SLOTS)], N = PACKED ? arrays(THREE.RED_GREEN_RGTC2_Format) : [laidInto(SLOTS)], X = PACKED ? arrays(THREE.RED_GREEN_RGTC2_Format) : null;
   const SA = PACKED ? laidInto(BATCH) : A[0], SN = PACKED ? laidInto(BATCH) : N[0];   // (where a batch is laid: its own layers, or the atlas's)
   const RC = (RELIEF_MOST > 0 ? reliefChannel : noRelief)(renderer, { PACKED, SLOTS, PER, laidInto, arrays });   // (the stands' relief: its own channel)
-  note("the land's pages", SLOTS * SLOT_BYTES + (PACKED ? BATCH * SLOT * SLOT * 1.25 * 8 : 0) + RC.staging, 0, 'ground');
+  note("the land's pages", SLOTS * SLOT_BYTES + (PACKED ? BATCH * SLOT * SLOT * 1.25 * 8 : 0) + RC.staging, 0, 'ground', A, N, X, SA, SN, RC.made);
   const tA = A.map((t) => texture(t)), tN = N.map((t) => texture(t)), tX = X ? X.map((t) => texture(t)) : null, tR = RC.textures;
   // ---- the page table: for each level, its window's pages ----
   const T = gpuStorage('uint', LEVELS * K * K, "the land's page table", 'ground'), table = new Uint32Array(LEVELS * K * K), TN = T.node.toReadOnly();
