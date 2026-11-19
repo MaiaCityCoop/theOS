@@ -29,7 +29,7 @@ import { Fn, If, Loop, Break, float, int, uint, vec2, vec4, ivec2, uvec2, uvec4,
 import { U } from '../core/uniforms.js';
 import { boxIn } from '../core/frustum.js';
 import { HMIN, HMAX } from '../world/land.js';
-import { makeOwned, gpuStorage, byDial, budgetOf, bytesOf } from '../core/gpu.js';
+import { makeOwned, gpuStorage, byDial, budgetOf, bytesOf, limitOf } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { source } from '../core/settle.js';
 import { OUTPUT } from '../core/budget.js';
@@ -131,9 +131,14 @@ function pagesNeeded() {
   return NEED;
 }
 
-// ---- the stands' relief: a channel of its own (src/terrain/layers.js RELIEF_MOST; none where no stand has one) ----
+// ---- the stands' relief: a channel of its own (src/terrain/layers.js RELIEF_MOST; none where no stand has one, nor
+// where the device's passes may not write as many storage textures as laying a page then does: each a binding a mip,
+// its colour's, its relief's and the stands' relief's, both mips, 6, over WebGPU's 4 unasked: src/core/gpu.js SIZED) ----
+/** Whether the stands' relief is laid: a stand has one, and the pages' laying may write a store more (none known: no
+    WebGPU, nothing laid). */
+const reliefLaid = () => RELIEF_MOST > 0 && (limitOf('maxStorageTexturesPerShaderStage') || Infinity) >= 2 * 3;
 /** The bytes a slot's relief takes (with its second mip): half a byte a texel in blocks (BC4), four elsewhere. */
-const reliefBytes = (packed) => (RELIEF_MOST > 0 ? SLOT * SLOT * 1.25 * (packed ? 0.5 : 4) : 0);
+const reliefBytes = (on, packed) => (on ? SLOT * SLOT * 1.25 * (packed ? 0.5 : 4) : 0);
 /** No stand has a relief: nothing laid, nothing read. */
 const noRelief = () => ({ textures: null, made: null, staging: 0, lay() {}, pack() {}, copy() {} });
 /** The relief's channel: its atlas (as the pages', in arrays of PER layers: BC4 where the GPU has blocks, else laid
@@ -182,7 +187,7 @@ export function createPages(renderer, tex) {
   // pixel asks a little coarser (the bias). And where any stand has a relief (src/terrain/layers.js RELIEF_MOST), a page
   // holds it too: R (BC4, half a byte a texel; elsewhere four), the stands' relief there as a share of the highest ----
   const dev = renderer.backend.device, PACKED = !!dev?.features?.has('texture-compression-bc'), LAYERS_MOST = dev?.limits?.maxTextureArrayLayers ?? 256;
-  const SLOT_BYTES = SLOT * SLOT * 1.25 * (PACKED ? 3 : 8) + reliefBytes(PACKED);   // (a page's texels, with its second mip, in its formats: what the note below counts a slot)
+  const RELIEF = reliefLaid(), SLOT_BYTES = SLOT * SLOT * 1.25 * (PACKED ? 3 : 8) + reliefBytes(RELIEF, PACKED);   // (a page's texels, with its second mip, in its formats: what the note below counts a slot)
   // (what the pages hold besides their slots, made after them: the batch laid at once (packed: its texels, then its
   // blocks), its layer map and its numbers, the page table, what the pixels ask for; the slots beside them. What the
   // land's reach asks follows the dial (src/core/gpu.js byDial: made once, at the dial at rest), so where the ground's
@@ -199,7 +204,7 @@ export function createPages(renderer, tex) {
   const arrays = (format, bytes) => Array.from({ length: Math.ceil(SLOTS / PER) }, (_, k) => blocks(format, Math.min(PER, SLOTS - k * PER), bytes));
   const A = PACKED ? arrays(THREE.RGBA_S3TC_DXT5_Format) : [laidInto(SLOTS)], N = PACKED ? arrays(THREE.RED_GREEN_RGTC2_Format) : [laidInto(SLOTS)], X = PACKED ? arrays(THREE.RED_GREEN_RGTC2_Format) : null;
   const SA = PACKED ? laidInto(BATCH) : A[0], SN = PACKED ? laidInto(BATCH) : N[0];   // (where a batch is laid: its own layers, or the atlas's)
-  const RC = (RELIEF_MOST > 0 ? reliefChannel : noRelief)(renderer, { PACKED, SLOTS, PER, laidInto, arrays });   // (the stands' relief: its own channel)
+  const RC = (RELIEF ? reliefChannel : noRelief)(renderer, { PACKED, SLOTS, PER, laidInto, arrays });   // (the stands' relief: its own channel)
   makeOwned(renderer, "the land's pages", SLOTS * SLOT_BYTES + (PACKED ? BATCH * SLOT * SLOT * 1.25 * 8 : 0) + RC.staging, 0, 'ground', A, N, X, SA, SN, RC.made);   // (named its owner's, then made: src/core/gpu.js makeOwned; the relief's too)
   const tA = A.map((t) => texture(t)), tN = N.map((t) => texture(t)), tX = X ? X.map((t) => texture(t)) : null, tR = RC.textures;
   // ---- the page table: for each level, its window's pages ----
