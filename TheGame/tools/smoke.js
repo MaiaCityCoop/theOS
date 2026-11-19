@@ -81,7 +81,8 @@ const buildAll = (where) => {
     if (built.has(m)) continue; built.add(m);
     part = `${where}: ${object.name || object.type || 'a thing'} (${m.name || m.type})`;
     const twins = (() => { try { return twinOf(m); } catch { return { pre: null, main: null }; } })();
-    for (const [pass, mat] of [['own', m], ['pre', twins.pre], ['main', twins.main]]) {
+    // (and what a caster draws into the shadow cascades and the canopy map: its shadow twin, src/world/shadow.js)
+    for (const [pass, mat] of [['own', m], ['pre', twins.pre], ['main', twins.main], ['shadow', object.layers?.isEnabled?.(1) ? twins.shadow : null]]) {
       if (!mat) continue;
       if (pass === 'pre') renderer.setRenderTarget(PRE_TARGET);
       try { const s = M.build(object.isMesh || object.isPoints || object.isLine || object.isSprite ? object : { isMesh: true, geometry: new THREE.BufferGeometry(), material: mat }, mat); shaders.render.add(`${s.vertex}\0${s.fragment}`); made.push(pass); }
@@ -92,7 +93,9 @@ const buildAll = (where) => {
 };
 buildAll('the world');
 // what bakes the far ends (src/scatter/trees.js farOf): compiled at the start, drawn straight by the bakers, by no pass,
-// so as itself only (no prepass or colour twin)
+// so as itself only (no prepass or colour twin); and the bakers' own reduce (src/detail/impostor.js createBaker: a row's
+// samples into the atlas' three textures), the views' and the clumps' tiles'
+await tryTo("the far ends' reduce", async () => { const { bakers: of } = await import('../src/detail/impostor.js'); bakers.push(...of().views().reduces, ...of().tiles(1).reduces); });
 for (const o of bakers) for (const m of o.userData.materials) {
   if (built.has(m)) continue; built.add(m); part = `the world: a far end's bake (${m.name || m.type})`;
   try { const s = M.build(o, m); shaders.render.add(`${s.vertex}\0${s.fragment}`); made.push('own'); } catch (e) { failed.push(`${part}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); }

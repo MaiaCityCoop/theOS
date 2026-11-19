@@ -15,8 +15,18 @@
 //   the rest each twice the one before (a split by the logarithm: each texel a dial pixel at its edge and two where it
 //            takes over), as many as reach the farthest caster (SHADE_REACH: where the trees' shade stand-ins end and
 //            the land's own shade takes over, src/terrain/layers.js); the near one's side fitted so the last ends there
-//   when     the near one every frame, of the others one a frame in turn (all of them whenever the light has turned or
-//            the eye has jumped): every frame the near pass and one more, however many there are
+//   when     the near one every frame (it follows where the eye looks, and what sways and walks in it is seen). A far
+//            one only once what it shows has changed since it was drawn: the light turned by half its texel at the
+//            tallest caster, the eye moved more than one of its texels (its box follows the eye held to whole texels:
+//            within one it is the same box), what stands changed
+//            (a tier packed again, meshes came: src/core/work.js stood), a caster it left out came (made by need),
+//            something that moves stood in it; then one a frame, in turn. At rest only the near one is drawn. All of
+//            them at once only where there is nothing yet to show: shadows come back on, a caster came before the
+//            first frame, the eye gone out of the farthest one's box
+//
+// What each cascade draws of a caster is only what can cast into it: a thing wholly outside its box, along the light,
+// is let go in its vertex stage before any of its work (castsInto, which every caster's vertex stage asks in the
+// shadow pass), so the near cascade's few metres do not pay for the casters of the farthest one's.
 //
 // Each cascade is a layer of its own, drawn in a pass of its own that clears it: a tile GPU loads and stores the whole of
 // what a pass draws into, whatever its scissor, so one atlas of them all made every frame's near pass load and store the
@@ -25,16 +35,27 @@
 // The casters are drawn by their shadow twins (src/core/pass.js): their depth and their cut-out only (a leaf's outline,
 // so a crown casts dappled light), none of their light. So no caster binds the cascades it is drawn into.
 import * as THREE from 'three/webgpu';
-import { uniformArray } from 'three/tsl';
+import { Fn, bool, uniformArray, vec4, abs, max, cameraProjectionMatrix, cameraViewMatrix } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { compileFor, compileList, made, ask, pending, labelled } from '../core/compile.js';
-import { twinOf } from '../core/pass.js';
+import { complete } from '../core/settle.js';
+import { twinOf, passOf } from '../core/pass.js';
 import { note, mark } from '../core/gpu.js';
+import { stood, moves } from '../core/work.js';
 import { pxKAt } from '../detail/measure.js';
 import { OUTPUT } from '../core/budget.js';
 import { SUN_DIAMETER } from './light/physics.js';
 
 export const CASTS = 1;   // the layer of what casts a shadow
+/** Whether a thing can cast into the map being drawn (a node: true or false): in the shadow pass (src/core/pass.js),
+    its sphere (c its middle in the world, r its radius, metres) in that map's box along the light, the camera of a
+    cascade or the canopy map, each orthographic (its scale on its projection's diagonal); in any other pass, true. For
+    a caster's vertex stage: what is wholly outside is let go before any of its work, whatever packed it. */
+export const castsInto = (c, r) => Fn((builder) => {
+  if (passOf(builder) !== 'shadow') return bool(true);
+  const p = cameraProjectionMatrix.mul(cameraViewMatrix.mul(vec4(c, 1)));
+  return max(abs(p.x).sub(r.mul(cameraProjectionMatrix[0].x)), abs(p.y).sub(r.mul(cameraProjectionMatrix[1].y))).lessThanEqual(1);
+})();
 // (a cascade's camera, h metres its half side: how far back along the light it stands from the ground it looks at, and
 // the depth it holds, so that what stands as high as anything does over the ground is in front of it)
 const spanOf = (h) => ({ back: 300 + h * 0.5, near: 1, far: 600 + h });
@@ -92,6 +113,15 @@ export const castRoute = (renderer, target, camera, missed = null) => {
   return Object.assign(route, { twin, ahead });
 };
 
+// (whether what a map left out has come since: none of it still being made, and some of it made (what was let go, its
+// compile failed or not reached, comes no more: it never makes the map again). Before the first frame it is drawn again
+// at once (the first frame shows it whole); after it, by the map's own turns: a cascade a frame
+let shown = false; complete.then(() => (shown = true));
+/** missing: the casters a map left out (it is emptied once they are settled). Whether any of them came. */
+export const arrived = (missing) => {
+  if (!missing.size || [...missing].some((o) => pending(o, 'cast'))) return false;
+  const any = [...missing].some((o) => made(o, 'cast')); missing.clear(); return any;
+};
 export function createShadows(renderer) {
   const { S, n, half, top, mats } = cascades();
   // (depth32float, as the canopy map's is, src/world/light/canopy.js: a caster's twin is then one pipeline for both)
@@ -101,15 +131,31 @@ export function createShadows(renderer) {
   note('shadow cascades', n * S * S * 4, 0, 'light');
   U.uShadowPull.value = C.bias[0];   // (what casts pulled towards the light, by the near cascade's bias: light.js casterPull)
   const cams = half.map(() => { const c = new THREE.OrthographicCamera(); c.layers.set(CASTS); c.userData.shadow = true; return c; });
+  // each cascade as it was last drawn: the light and the eye it was drawn for, whether something that moves stood in
+  // it, the casters it left out, and whether it is due to be drawn again
+  const at = half.map(() => ({ sun: new THREE.Vector3(), eye: new THREE.Vector3(), drawn: false, due: true, lively: false, missing: new Set() }));
+  // (the light turned by half a texel at the tallest caster: what casts from the top has moved that far on its map)
+  const turnOk = half.map((h) => Math.cos(((2 * h) / S) / (2 * top)));
+  let drawing = 0, next = 1;
   // what a cascade draws of a caster: once it is made for them; until then it is made aside (the farthest cascade's
-  // camera sees all that any does), left out, and every cascade drawn again once it has come (src/core/compile.js)
-  const missing = new Set(), route = castRoute(renderer, rt, () => cams[n - 1], (o) => missing.add(o));
+  // camera sees all that any does), left out, and the cascade that left it out drawn again once it has come
+  // (src/core/compile.js)
+  const route = castRoute(renderer, rt, () => cams[n - 1], (o) => at[drawing].missing.add(o));
+  // (and what moves by itself, a person, standing in the cascade being drawn: that cascade is drawn again in turn)
+  const pos = new THREE.Vector3();
+  const draw = (object, ...rest) => {
+    if (object.isSkinnedMesh && !at[drawing].lively) {
+      const g = object.geometry, r = (g.boundingSphere ?? (g.computeBoundingSphere(), g.boundingSphere)).radius * object.matrixWorld.getMaxScaleOnAxis(), h = half[drawing];
+      pos.setFromMatrixPosition(object.matrixWorld).applyMatrix4(cams[drawing].matrixWorldInverse);
+      if (Math.abs(pos.x) <= h + r && Math.abs(pos.y) <= h + r) at[drawing].lively = true;
+    }
+    return route(object, ...rest);
+  };
   // from the light's clip space to a cascade's (u, v, depth): v turned (three reads a target's rows the other way up),
   // depth as the backend keeps it (WebGPU 0..1; WebGL -1..1)
   const webgpu = renderer.coordinateSystem === THREE.WebGPUCoordinateSystem;
   const toMap = new THREE.Matrix4().set(0.5, 0, 0, 0.5, 0, -0.5, 0, 0.5, 0, 0, webgpu ? 1 : 0.5, webgpu ? 0 : 0.5, 0, 0, 0, 1);
   const up = new THREE.Vector3(), target = new THREE.Vector3(), snap = new THREE.Vector3(), off = new THREE.Vector3(), ahead = new THREE.Vector3();
-  const lastSun = new THREE.Vector3(), lastEye = new THREE.Vector3(); let turn = 0;
   // a cascade's camera: its box round the eye (the near one a third of its side ahead, where the eye looks), held to
   // whole texels in the light's view so its edges do not crawl
   const aim = (k, camera, groundY) => {
@@ -133,24 +179,38 @@ export function createShadows(renderer) {
     compile(object, camera, groundY, scene = null) { return compileFor(renderer, rt, object, aim(n - 1, camera, groundY), scene, route.twin, 'cast'); },
     /** What making `object` ahead of need asks, where it casts (src/core/compile.js ahead). */
     ahead: route.ahead,
-    /** Draw the casters from the light, round where the camera looks: the near cascade every frame, the others in turn. */
+    /** Which cascades this frame draws, the farthest first (the layout's `when`): the near one, and of the far ones the
+        next that is due, in turn; all of them where there is nothing yet to show. */
+    turns(camera, L) {
+      // what changed since a far one was drawn: what stands (a tier packed again, meshes came), what moves (a tier of
+      // movers packed), what it left out came, the light turned by half its texel at the tallest caster, the eye moved
+      // more than one of its texels (its box held to whole texels: within one, the same box)
+      const changed = stood(), moving = moves();
+      let came = false;
+      for (let k = 1; k < n; k++) {
+        const A = at[k], c = arrived(A.missing); came ||= c;
+        if (changed || moving || c || A.lively || A.sun.dot(L) < turnOk[k] || Math.hypot(A.eye.x - camera.position.x, A.eye.z - camera.position.z) > C.texel[k]) A.due = true;
+      }
+      arrived(at[0].missing);   // (the near one is drawn every frame: what it left out comes in its next)
+      const gone = Math.hypot(at[n - 1].eye.x - camera.position.x, at[n - 1].eye.z - camera.position.z) > half[n - 1];
+      if (!U.uShadowOn.value || (came && !shown) || gone || at.some((A) => !A.drawn)) return half.map((_, k) => n - 1 - k);
+      for (let i = 0; i < n - 1; i++, next = next % (n - 1) + 1) if (at[next].due) { const k = next; next = next % (n - 1) + 1; return [k, 0]; }
+      return [0];
+    },
+    /** Draw the casters from the light, round where the camera looks: the near cascade every frame, a far one only once
+        what it shows has changed, one a frame in turn (the layout's `when`). */
     render(scene, camera, groundY) {
       const L = U.uSunDir.value, sun = U.uSun.value;
       if (L.y < 0.03 || sun.x + sun.y + sun.z < 0.02) { U.uShadowOn.value = 0; return; }   // no light to cast by
-      // the others: one a frame in turn, or all at once when the light has turned or the eye has jumped since, or when
-      // what they left out has been made since (made by need: no caster comes into the cascades one by one)
-      const came = missing.size > 0 && ![...missing].some((o) => pending(o, 'cast'));
-      if (came) missing.clear();
-      const jump = came || lastSun.dot(L) < 0.99998 || lastEye.distanceToSquared(camera.position) > 25 || !U.uShadowOn.value;
-      const which = jump ? half.map((_, k) => n - 1 - k) : [1 + (turn++ % (n - 1)), 0];
+      const which = this.turns(camera, L);
       const prev = renderer.getRenderTarget(), ac = renderer.autoClear, acd = renderer.autoClearDepth;
       U.uShadowOn.value = 0; U.uShadowPass.value = 1;   // (a caster drawn pulled towards the light by the near cascade's bias: characters/kit/human.js casterPull)
-      renderer.setRenderObjectFunction(route); renderer.autoClear = true; renderer.autoClearDepth = true;   // (each cascade's layer cleared by its own pass: nothing loaded)
+      renderer.setRenderObjectFunction(draw); renderer.autoClear = true; renderer.autoClearDepth = true;   // (each cascade's layer cleared by its own pass: nothing loaded)
       for (const k of which) {
         mark(k ? 'far' : 'near');   // (whose passes these are, for a tool's timing: src/core/gpu.js)
+        drawing = k; Object.assign(at[k], { due: false, lively: false, drawn: true }); at[k].sun.copy(L); at[k].eye.copy(camera.position);
         renderer.setRenderTarget(rt, k); renderer.render(scene, aim(k, camera, groundY)); matOf(k);
       }
-      if (jump) { lastSun.copy(L); lastEye.copy(camera.position); }
       mark(null); renderer.setRenderObjectFunction(null); renderer.autoClear = ac; renderer.autoClearDepth = acd; renderer.setRenderTarget(prev);
       U.uShadowPass.value = 0;
       U.tShadow.value = rt.depthTexture; U.uShadowOn.value = 1;

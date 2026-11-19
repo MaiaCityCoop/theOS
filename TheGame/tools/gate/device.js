@@ -16,6 +16,7 @@
 // A lost device fails; the rest is shown.
 import { webkit } from 'playwright-core';
 import { execFileSync } from 'node:child_process';
+import { machine, unfit, machineLine } from './machine.js';
 import { MACHINE, BUDGET_MB, FRAME_MS } from '../../src/core/budget.js';
 
 /** In the page, before anything of it runs: the device as the gate sees it. The buffers it makes (net of destroy); what
@@ -71,7 +72,7 @@ export function watch(frameMs) {
   };
 }
 /** In the page: the ledger now (src/core/gpu.js), with the gate's own count and the device's state. */
-const look = () => ({ ready: window.__game?.loadMs ?? null, ledger: window.__game?.memory?.() ?? null, ...window.__device });
+const look = () => ({ ready: window.__game?.loadMs ?? null, shown: performance.getEntriesByName('game:first-frame')[0]?.startTime ?? null, ledger: window.__game?.memory?.() ?? null, ...window.__device });
 /** The resident memory of every process of the WebKit Playwright runs (its pages', its GPU's, its own), MB (0 where it
     cannot be read). */
 function gpuProcess() {
@@ -82,6 +83,8 @@ function gpuProcess() {
     largest pools, unnoted, buffers (the gate's own count, at the peak), process (MB, its most), longest submission (ms),
     over (how many took more than FRAME_MS), lost, errors, pass }. url: the game's. */
 export async function device(url, { secs = 60 } = {}) {
+  const before = machine(), short = unfit(before);   // (a machine short of memory measures its disk: not measured)
+  if (short) { const out = { machine: MACHINE, host: { before }, notMeasured: short, pass: true }; say(out); return out; }
   const browser = await webkit.launch({ headless: true });
   try {
     const page = await (await browser.newContext({ viewport: { width: MACHINE.width, height: MACHINE.height }, deviceScaleFactor: MACHINE.dpr })).newPage();
@@ -90,9 +93,10 @@ export async function device(url, { secs = 60 } = {}) {
     await page.goto(url, { waitUntil: 'load' });
     out.ready = await arrived(page, out, t0, secs);
     const s = out.ready == null ? await page.evaluate(look) : await stay(page, out, secs);
-    Object.assign(out, { settled: out.samples.at(-1) ?? null, longest: Math.round(s.longest ?? 0), over: s.over ?? 0, submits: s.submits ?? 0, lost: s.lost ?? null, errors: s.errors ?? [], long: s.long ?? null, dead: s.dead ?? [], process: Math.round(out.process) });
+    Object.assign(out, { shown: s.shown == null ? null : +(s.shown / 1e3).toFixed(1), settled: out.samples.at(-1) ?? null, longest: Math.round(s.longest ?? 0), over: s.over ?? 0, submits: s.submits ?? 0, lost: s.lost ?? null, errors: s.errors ?? [], long: s.long ?? null, dead: s.dead ?? [], process: Math.round(out.process) });
     out.honest = out.buffers == null || out.peak >= out.buffers;   // (the ledger holds at least the buffers the device made)
     out.pass = !out.lost && out.ready != null;
+    out.host = { before, after: machine() }; out.notMeasured = unfit(before, out.host.after);   // (swap that grew while it ran: not measured either)
     say(out);
     return out;
   } finally { await browser.close(); }
@@ -126,11 +130,17 @@ async function stay(page, out, secs) {
   return s;
 }
 
-/** The device's lines, as the hour's board begins with them. */
+/** Whether the game came: ready (window.__game.loadMs set: the start's world made and drawn) and in how long, the first
+    frame shown (the game's mark, src/core/marks.js) beside it; the hour's board's first line. */
+export const readyLine = (d) => (d?.notMeasured ? `**Not measured**: ${d.notMeasured}.` : d?.ready != null ? `Ready: yes, ${d.ready} s in${d.shown != null ? ` (the first frame shown ${d.shown} s in)` : ''}, on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}× in WebKit.` : `**Ready: no**${d ? `, on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}× in WebKit${d.lost ? ' (the device lost first)' : ''}` : ''}: the game never came.`);
+/** The device's lines, as the hour's board begins with them (after readyLine). */
 export function lines(d) {
   if (!d) return [];
+  const host = d.host ? [machineLine(d.host.before, d.host.after)] : [];
+  if (d.peak == null) return host;
   const mb = (n) => (n == null ? '–' : `${(n / 1024).toFixed(2)} GB`);
   return [
+    ...host,
     d.lost ? `**The device was lost** ${(d.lost.at / 1e3).toFixed(0)} s in (${d.lost.reason}: ${d.lost.message}), on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}×.` : d.ready == null ? `**The game never came** on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}×.` : `The device lived, ready ${d.ready} s in, on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}×.`,
     `GPU memory (the game's ledger): peak ${mb(d.peak)}, settled ${mb(d.settled)}, against the budget's ${mb(d.budget)}; unnoted by any pool ${mb(d.unnoted)}; WebKit's processes at most ${mb(d.process)} resident${d.honest ? '' : `; **the ledger is short**: the device made ${mb(d.buffers)} of buffers alone`}.`,
     `By class at the peak: ${Object.entries(d.classes ?? {}).map(([c, x]) => `${c} ${x.gpu} MB of ${x.budget}${x.gpu > x.budget ? ' (over)' : ''}`).join(', ') || '–'}.`,
@@ -142,4 +152,4 @@ export function lines(d) {
     ...(d.errors.length ? [`The device said: ${d.errors[0]}`] : []),
   ];
 }
-const say = (d) => console.log(`device:\n  ${lines(d).join('\n  ').replace(/\*\*/g, '')}`);
+const say = (d) => console.log(`device:\n  ${[readyLine(d), ...lines(d)].join('\n  ').replace(/\*\*/g, '')}`);

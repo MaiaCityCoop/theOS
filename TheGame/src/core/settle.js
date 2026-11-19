@@ -35,8 +35,11 @@ const asks = new Set(), seen = new Float64Array(37), broke = new Set();
     the gate waits for). */
 export const ready = new Promise((res) => (first = res));
 /** A promise: the first frame drawn complete: nothing out while it was drawn (nothing it would draw left out unmade,
-    src/core/compile.js; nothing streaming or building) and nothing put in during it. The first frame the world shows
-    (src/boot.js): the picture built over time comes to rest on it in the frames after, as on any cut. */
+    src/core/compile.js; nothing streaming or building). The first frame the world shows (src/boot.js): the picture built
+    over time comes to rest on it in the frames after, as on any cut. What a frame puts in it draws, so a frame that put
+    something in may be it: a part that keeps putting in never holds the start (2026-11-19: stores held to their class's
+    room made again every 100 ms, and the veil stayed up for good, the master's check of main with A). Nor does a part
+    that cannot say what it has out: it is said in the console (a still waits for it all the same: settle). */
 export const complete = new Promise((res) => (whole = res));
 
 /** What a frame's view is compared by: the camera, the renderer (its canvas's pixels), the screen (the inside's pixels:
@@ -60,11 +63,11 @@ export function tick(did) {
   if (!V) return;
   frames++;
   const held = V.U.uTime.value === clock; clock = V.U.uTime.value;
-  let out = 0;
-  for (const [name, s] of SOURCES) { if (LEFT.has(s.part)) continue; try { out += s.fn(held) || 0; } catch (e) { out++; if (!broke.has(name)) { broke.add(name); console.warn(`settle: '${name}' could not say what is still out`, e); } } }   // (a part that cannot say holds the world incomplete, and never stops the frame)
+  let out = 0, lost = 0;   // (lost: the parts that could not say what they have out: the start waits for them no more, a still does)
+  for (const [name, s] of SOURCES) { if (LEFT.has(s.part)) continue; try { out += s.fn(held) || 0; } catch (e) { lost++; if (!broke.has(name)) { broke.add(name); console.warn(`settle: '${name}' could not say what is still out: the start waits for it no more, a still does`, e); } } }   // (a part that cannot say holds the world incomplete, and never stops the frame)
   const moved = viewChanged(), T = V.temporal;
-  if (whole && !out && !did) { whole({ frames }); whole = null; }
-  still = moved || did || out > 0 || T.age === 0 ? 0 : still + 1;
+  if (whole && !out) { whole({ frames }); whole = null; }
+  still = moved || did || out + lost > 0 || T.age === 0 ? 0 : still + 1;
   need = T.settles;
   if (still < need || T.age < need) return;
   if (first) { first({ frames }); first = null; }
