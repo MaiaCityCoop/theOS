@@ -680,8 +680,9 @@ function relayout(s) {
   // where the class cannot hold every store that follows the dial at it, the dial rises for all and every tier asks
   // again at it, reband (src/core/gpu.js byDial); held only to what one binding holds)
   const was = s.rest ?? restDial();
-  sayKind(s);
   for (const me of s.tiers) { [me.N, me.P] = atRest(me.want ?? [me.N, me.P], me.want ? me.wantAt : was); me.want = null; }   // (each at what it asks for, or holds, found at a dial at rest that may have risen since)
+  const now = restDial(); sayKind(s);
+  for (const me of s.tiers) [me.N, me.P] = atRest([me.N, me.P], now);   // (and at the dial its need raised, if it did)
   s.rest = restDial(); TURNS.get(s.cls)?.waiting.delete(s);
   const things = s.tiers.reduce((n, me) => n + Math.max(2 * me.N, P(me)), 0), fit = most / things;
   if (fit < 1) {
