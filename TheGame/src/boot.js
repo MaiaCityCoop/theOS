@@ -65,7 +65,7 @@ import { createLakes } from './world/lakes.js';   // the city's plots over the l
 import { sharePipelines, watchCompiles, compiles, countCompiles, making, pipelines, ahead, firstReach } from './core/compile.js';
 import { waitsOn, gpuLost } from './core/waits.js';   // what the start waits for, watched: the veil says what holds it up, or what stopped the page
 import { flag } from './core/flags.js';
-import { FIRST_FRAME, stampDone } from './core/marks.js';   // (the first frame that draws the world, on the page's own timeline)
+import { FIRST_FRAME, READY, stampDone } from './core/marks.js';   // (the first frame that draws the world, on the page's own timeline)
 
 const SKY = 0x9fc2e6, REACH = 6000;   // REACH: how far the stage's land is drawn (m): it ends in the air beyond what its camera looks at
 
@@ -137,7 +137,7 @@ export async function boot({ profile = 'world' } = {}) {
   // by settle()), the game's its rest
   dialAfter(game.ready);
   watch({ camera, renderer, screen, temporal, U });   // what the world complete is measured against (src/core/settle.js)
-  const marks = (game.boot = {}), mark = (k) => (marks[k] = Math.round(performance.now() - t0));   // where the start's time goes
+  const marks = (game.boot = { begun: Math.round(t0) }), mark = (k) => (marks[k] = Math.round(performance.now() - t0));   // (begun: where the boot began, ms from the navigation: its modules loaded; each stage then ms from there)   // where the start's time goes
   mark('renderer');
   loadingLast(lastRunLine());   // (the last start's note, where it ended other than as a page ends: once)
   await loadingStep('Painting the ground', 0.12);
@@ -368,7 +368,7 @@ export async function boot({ profile = 'world' } = {}) {
     await (world ? drawn : Promise.race([first.then(() => drawn), new Promise((res) => setTimeout(res, 20000))]));
     veiled = false;
     stampDone(renderer, FIRST_FRAME);   // (the first frame the world shows: what every measure of a start reads)
-    game.loadMs = performance.now() - t0; mark('first');
+    game.loadMs = performance.now() - t0; mark('first'); performance.mark(READY);   // (the world ready, on the page's own timeline: src/core/marks.js)
     { const f0 = framesAll; keepRun(performance.now(), () => framesAll - f0); }   // (where the start stands, kept from now on: src/core/lastrun.js)
     aboutTo('the world shown: what grows after it'); firstView.then(() => aboutTo('the world settled'));   // (its phases, in the journal: src/core/journal.js)
     setTimeout(() => (game.outlines.made = keepOutlines()), 2500);   // what was measured anew this time, kept for the next start

@@ -163,7 +163,7 @@ const firstMade = () => {
 /** In the page: the ledger now (src/core/gpu.js), with the gate's own count and the device's state. */
 const look = () => {
   let out = null; try { out = window.__game?.waiting?.() ?? null; } catch (e) { out = { [`waiting() threw: ${e.message}`]: 1 }; }   // (a source that cannot say: said, by name)
-  return { ready: window.__game?.loadMs ?? null, shown: performance.getEntriesByName('game:first-frame')[0]?.startTime ?? null, ledger: window.__game?.memory?.() ?? null, out, stage: Object.entries(window.__game?.boot ?? {}).at(-1) ?? null, step: document.body?.dataset.step ?? null, ...window.__device };
+  return { ready: window.__game?.loadMs ?? null, readyAt: performance.getEntriesByName('game:ready')[0]?.startTime ?? null, shown: performance.getEntriesByName('game:first-frame')[0]?.startTime ?? null, ledger: window.__game?.memory?.() ?? null, out, stage: Object.entries(window.__game?.boot ?? {}).at(-1) ?? null, step: document.body?.dataset.step ?? null, ...window.__device };
 };
 /** What the processes of the WebKit Playwright runs hold of the machine now (their physical footprint on a Mac,
     tools/gate/machine.js heldBy), MB: all of them, and its GPU process's and its pages' each by its pid ([{ pid, mb }]).
@@ -201,23 +201,28 @@ async function opened(url, dir, salt) {
   const context = await webkit.launchPersistentContext(dir, { headless: true, ...webkitAt(), viewport: { width: MACHINE.width, height: MACHINE.height }, deviceScaleFactor: MACHINE.dpr });
   const page = context.pages()[0] ?? (await context.newPage());
   await page.addInitScript(`window.__gateMark = ${mark}`); await page.addInitScript(watching(salt));
-  return { context, page, t0: Date.now(), go: () => page.goto(url, { waitUntil: 'load' }) };
+  const lines = [];   // (what the start says of itself: its ready and its first view, src/boot.js)
+  page.on('console', (m) => { const t = m.text(); if (/^\[the game\] (ready in|the first view)/.test(t)) lines.push(t.slice(0, 800)); });
+  return { context, page, lines, t0: Date.now(), go: () => page.goto(url, { waitUntil: 'load' }) };
 }
 /** A repeat start (a player's next): the same profile and the same mark as the cold one before it, so what the browser
     and the driver kept from it is kept, in a browser of its own; till ready. { ready, shown (s), lost }. */
 async function warmStart(url, { secs, dir, salt }) {
-  const { context, page, t0, go } = await opened(url, dir, salt);
-  try { await go(); const ready = await arrived(page, { samples: [], process: 0 }, t0, secs), s = await page.evaluate(look); return { ready, shown: s.shown == null ? null : +(s.shown / 1e3).toFixed(1), lost: s.lost ?? null }; }
+  const { context, page, lines, t0, go } = await opened(url, dir, salt);
+  try { await go(); const o = { samples: [], process: 0 }, ready = await arrived(page, o, t0, secs), s = await page.evaluate(look); return { ready, seen: o.seen, shown: s.shown == null ? null : +(s.shown / 1e3).toFixed(1), lost: s.lost ?? null, boot: await page.evaluate(() => window.__game?.boot ?? null), lines }; }
   finally { await context.close(); }
 }
 /** The first start after the shaders changed (what a player sees after an update): a fresh profile, every shader
     marked anew (salt), so neither the browser nor the driver has kept any of it; the device measured through it. */
 async function coldStart(url, { secs, programs, dir, salt }) {
-  const { context, page, t0, go } = await opened(url, dir, salt);
+  const { context, page, lines, t0, go } = await opened(url, dir, salt);
   try {
     const out = { machine: MACHINE, budget: Object.values(BUDGET_MB).reduce((a, b) => a + b, 0), peak: 0, process: 0, samples: [] };
     await go();
     out.ready = await arrived(page, out, t0, secs);
+    // (where its time went, kept with the run: the boot's stages, ms (begun: from the navigation; each then from there),
+    // and what it said of its ready and its first view: asks, pipelines, turns, ms; beside out.held, what held it)
+    out.boot = await page.evaluate(() => window.__game?.boot ?? null); out.lines = lines;
     if (out.ready != null) await page.evaluate(() => window.__game?.frames?.());   // (the frames from ready on: the start's are the veil's, src/boot.js)
     const s = out.ready == null ? await page.evaluate(look) : await stay(page, out, secs);
     out.frames = await page.evaluate(() => window.__game?.frames?.() ?? null);
@@ -229,12 +234,16 @@ async function coldStart(url, { secs, programs, dir, salt }) {
     return out;
   } finally { await context.close(); }
 }
-/** The game's start, as long as four stays, sampled (sample): seconds from t0 to ready, or null where it never came
-    (or the device was lost before). */
+/** The game's start, as long as four stays, sampled (sample): seconds from the navigation to ready as the page stamped
+    it (src/core/marks.js READY: its own clock, like the first frame's), or null where it never came (or the device was
+    lost before). out.seen: when the gate's look first had it, seconds from t0: a second's sampling and a busy page's
+    thread later (2026-11-19, the hour on ba6bea3: ready seen at 10.1 s, the first frame shown at 6.9 s). */
 async function arrived(page, out, t0, secs) {
   let s = await sample(page, out);
   while (s.ready == null && !s.lost && Date.now() - t0 < secs * 4e3) { hold(out, s, Math.round((Date.now() - t0) / 1e3)); await page.waitForTimeout(1e3); s = await sample(page, out); }
-  return s.ready == null || s.lost ? null : +((Date.now() - t0) / 1e3).toFixed(1);
+  if (s.ready == null || s.lost) return null;
+  out.seen = +((Date.now() - t0) / 1e3).toFixed(1);
+  return s.readyAt != null ? +(s.readyAt / 1e3).toFixed(1) : out.seen;   // (a build that stamps no READY: when it was seen, as before)
 }
 /** What held the start at a look s, t seconds in, kept in out.held: each source still out (settle.js waiting()), from
     and till when, its most at once and its count now; the start's last stage and the veil's words. */
@@ -269,7 +278,7 @@ async function stay(page, out, secs) {
 
 /** Whether the game came: ready (window.__game.loadMs set: the start's world made and drawn) and in how long, the first
     frame shown (the game's mark, src/core/marks.js) beside it; the hour's board's first line. */
-const came = (r) => (r?.ready != null ? `yes, ${r.ready} s in${r.shown != null ? ` (the first frame shown ${r.shown} s in)` : ''}` : r ? `**no**${r.lost ? ' (the device lost)' : ''}` : 'not tried');
+const came = (r) => (r?.ready != null ? `yes, ${r.ready} s in${r.shown != null ? ` (the first frame shown ${r.shown} s in${r.seen != null ? `; the gate's look had it ${r.seen} s in` : ''})` : ''}` : r ? `**no**${r.lost ? ' (the device lost)' : ''}` : 'not tried');
 export const readyLine = (d) => (d?.ready != null ? `Ready, cold (the first start after the shaders changed: a fresh profile, every shader compiled anew): ${came(d)}; warm (a repeat start, what the browser and the driver kept, kept): ${came(d.warm)}; on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}× in WebKit.` : `**Ready: no**${d ? `, on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}× in WebKit${d.lost ? ' (the device lost first)' : ''}` : ''}: the game never came.${stillOut(d?.held, d?.submits)}`);
 /** What still held the start when the run ended (hold): each source still out, with its count and since when, the
     start's last stage, the veil's words, the submissions drawn meanwhile (frames behind the veil, or none). */
