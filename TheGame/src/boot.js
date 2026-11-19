@@ -56,7 +56,7 @@ import { useGround } from './world/rocksolid.js';
 import { showBodies } from './world/bodies.js';
 import { createCity } from './city/index.js';
 import { createLakes } from './world/lakes.js';   // the city's plots over the land, seen from above (world/city.js)
-import { shareComputeCompiles, countCompiles, making, ahead } from './core/compile.js';
+import { shareComputeCompiles, watchCompiles, compiles, countCompiles, making, ahead } from './core/compile.js';
 import { waitsOn, gpuLost } from './core/waits.js';   // what the start waits for, watched: the veil says what holds it up, or what stopped the page
 import { flag } from './core/flags.js';
 import { FIRST_FRAME, stampDone } from './core/marks.js';   // (the first frame that draws the world, on the page's own timeline)
@@ -82,6 +82,7 @@ export async function boot({ profile = 'world' } = {}) {
   await waitsOn('the GPU', renderer.init(), null);
   useGPU(renderer);   // what only the GPU reads is kept on the GPU only (src/core/gpu.js)
   shareComputeCompiles(renderer);   // a compute shader compiled once, however many passes run it (src/core/compile.js)
+  watchCompiles(renderer);   // and every pipeline the GPU is asked for kept with how long it took: __game.compiles() (src/core/compile.js)
   countCompiles();   // and what the world waits for to be compiled counted: it is not complete before (src/core/settle.js)
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;   // the screen's curve is put on once, by the upscale (src/core/temporal.js), or by a material drawn elsewhere (src/world/light.js toScreen)
   renderer.setSize(innerWidth, innerHeight, false);
@@ -104,7 +105,7 @@ export async function boot({ profile = 'world' } = {}) {
   // the picture built over time come to rest on it; ready: the same for the page's first view; waiting(): what is still
   // out. What the gate waits on, never a timer: src/core/settle.js)
   let shown = null; const first = new Promise((res) => (shown = res));   // (the stage's first subject in: its first view is complete once it has settled)
-  const game = (window.__game = { profile, renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 }, settle, ready: world ? firstView : first.then(() => settle()), waiting, memory: ledger });   // memory(): the GPU's memory, the one ledger (src/core/gpu.js)
+  const game = (window.__game = { profile, renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 }, settle, ready: world ? firstView : first.then(() => settle()), waiting, compiles, memory: ledger });   // memory(): the GPU's memory, the one ledger (src/core/gpu.js)
   const bounds = world && flag('bounds') ? showBodies(scene) : null;   // ?bounds: what is solid round the walker drawn as lines, in every world (src/world/bodies.js)
   const U = createUniforms(camera, SKY);
   setImpostorRenderer(renderer);
@@ -316,6 +317,7 @@ export async function boot({ profile = 'world' } = {}) {
     game.loadMs = performance.now() - t0; mark('first');
     setTimeout(() => (game.outlines.made = keepOutlines()), 2500);   // what was measured anew this time, kept for the next start
     console.log(`[the game] ready in ${game.loadMs.toFixed(0)} ms`, marks);
+    const C = compiles(); console.log(`[the game] the first view: ${C.firstView.asks} asks, ${C.firstView.pipes} pipelines asked of the GPU in ${C.firstView.turns} turns, ${C.firstView.ms} ms; the GPU's own ${C.firstView.gpu} ms; ${C.parallel.overtook} of ${C.parallel.of} pipelines ready before one asked earlier (none: one at a time) (__game.compiles())`);
     loadingDone();
     if (world) makeAhead();
     if (world && flag('flyby')) import('../tools/flyby.js').then((m) => m.run());   // ?flyby: the camera flown by itself, to watch the plants' levels change (tools/flyby.js)

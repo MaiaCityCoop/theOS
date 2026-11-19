@@ -67,7 +67,7 @@ export function createScatter(scene, tex, ground, renderer, camera = null) {
       for (const t of tiers) t.run(renderer, world, cx, h0 + dy, cz, view, kept);
       for (const f of solid) f(renderer);
     },
-    get over() { for (let i = 0; i < tiers.length; i++) if (tiers[i].over) return true; return false; },
+    get over() { for (let i = 0; i < tiers.length; i++) if (tiers[i].over || tiers[i].short) return true; return false; },   // (short: its own patches found more than their rooms hold: tier.js)
     get instances() { let n = 0; for (const t of tiers) n += t.geometry.instanceCount; return n; },
     warm() { for (const t of tiers) t.warm(); },
     /** What making every tier's packing ahead of need asks (src/core/compile.js ahead). */
