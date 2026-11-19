@@ -95,6 +95,15 @@ const measured = (SOLID, MAKE) => SOLID || !!MAKE.boxOf;
 /** How much a kind's box is grown, of its size, for what may move a thing past it (createDrawer GROWN): a solid's little,
     a box said or measured of a make's kinds more, one taken from a kind's height most. */
 const grownOf = (SOLID, MAKE) => (SOLID ? 0.02 : MAKE?.box || MAKE?.boxOf ? 0.05 : 0.3);
+/** The messages a drawer's coarse levels come in, [first kind, how many] each (src/scatter/drawer.js fill): a hundred
+    kinds a message; of fewer kinds, a third of them a message, one to each worker (a kind whose levels are reduced
+    from its full mesh takes a second or two, intent 0033); a make of a few small kinds that makes them itself
+    (make.here), one message of them all. Each is kept in the browser as it came, and read back so. */
+const keptChunksOf = (all, make) => {
+  if (make?.here) return [[0, all]];
+  const step = Math.max(1, Math.min(100, Math.ceil(all / 3)));
+  return Array.from({ length: Math.ceil(all / step) }, (_, c) => [c * step, Math.min(step, all - c * step)]);
+};
 const classOf = (n) => { const t = Math.ceil(n / 3); return t <= 1 ? 0 : 32 - Math.clz32(t - 1); }, classN = (n) => uint(32).sub(countLeadingZeros(n.add(uint(2)).div(uint(3)).sub(uint(1))));
 const CLASSIX = []; const classIndex = (c) => (CLASSIX[c] ||= new THREE.BufferAttribute(Uint32Array.from({ length: 3 * 2 ** c }, (_, j) => j), 1));
 // the recipes' workers (recipes.worker.js, watched: src/core/workers.js): one set for every drawer, made when the first
@@ -438,10 +447,8 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   if (MOVING) ask([['bones', first + STAND, MOVING]]).then(([rows]) => { boneRows.array.set(rows); boneRows.needsUpdate = true; bonesOut = 0; });
   const FP = fingerprint(), KEPT = name === 'stand' ? 'own' : `own: ${name}`; let coarse = -1, keptOwn = null, loadedAt = 0;
   // (kept a message at a time, as the workers send them: a record each, under its first kind (keptKey), read back so,
-  // never put together on the page into one copy of every kind's levels (one was 245 MB of the start's: intent 0038).
-  // A make of a few small kinds that makes its coarse levels here is one message of them all)
-  const keptStep = Math.max(1, Math.min(100, Math.ceil(ALL / 3)));
-  const keptChunks = MAKE?.here ? [[0, ALL]] : Array.from({ length: Math.ceil(ALL / keptStep) }, (_, c) => [c * keptStep, Math.min(keptStep, ALL - c * keptStep)]);
+  // never put together on the page into one copy of every kind's levels (one was 245 MB of the start's: intent 0038))
+  const keptChunks = keptChunksOf(ALL, MAKE);
   const keptKey = (k) => `${KEPT}: ${k}`;
   const keptChunk = (rec, n) => (Array.isArray(rec) && rec.length === OWN.length && rec.every((b, j) => b.l === OWN[j][0] && b.counts?.length === n && b.draws?.length === n && b.corners?.length === n * OWN[j][1] && (!MEASURED || b.boxes?.length === n * 6)) ? rec : false);   // (every drawer's coarse levels read back or built as soon as the browser has answered: what the first view draws of them is there in its first frame, src/boot.js)
   Promise.all(keptChunks.map(([k, n]) => keptGet(FP, keptKey(k)).then((rec) => keptChunk(rec, n)))).then((recs) => { keptOwn = recs; start(); });
@@ -466,11 +473,10 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       for (const T of made) if (T.level === b.l) { T.geometries[k0 + j].setIndex(gpuIndex(list, T.geometries[k0 + j].index)); T.setLength(k0 + j, list.length); }   // (made on the GPU, src/core/gpu.js)
     }
   };
-  // the coarse levels, a message at a time (keptChunks: a hundred kinds a message, sent to the GPU as one piece a level;
-  // of fewer kinds, a third of them a message, one to each worker: a kind whose levels are reduced from its full mesh
-  // takes a second or two, intent 0033): what the browser kept of a message read back (recs: a chunk's blocks, or
-  // false), else made (by the workers; or here, a make of a few small kinds (MAKE.here(OWN): the blocks), there for
-  // the first picture, not behind the workers' queue of everything else the start asks) and kept as it came
+  // the coarse levels, a message at a time (keptChunksOf), each sent to the GPU as one piece a level: what the browser
+  // kept of a message read back (recs: a chunk's blocks, or false), else made (by the workers; or here, a make of a few
+  // small kinds (MAKE.here(OWN): the blocks), there for the first picture, not behind the workers' queue of everything
+  // else the start asks) and kept as it came
   const fill = (recs = null) => {
     coarse = 0; let kept = 0;
     const came = (blocks, k, n, read) => {
