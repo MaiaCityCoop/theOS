@@ -3,22 +3,26 @@
 //!     cargo run                                   the app: the dashboard, Game and Studio
 //!     cargo run -- --still <shots.json> <s> <out.png>   an agent's still: the camera of a shot list at a time
 //!     cargo run -- --shots <seed> <out.json>      five new shots from a seed, kept as a shot list
+//!     cargo run -- --meadow <out.png> [hour]      measure the Meadow at 1080p for ten seconds, one picture, quit
 
 mod camera;
 mod film;
+mod grass;
+mod meadow;
 mod ui;
 mod world;
 
 use bevy::prelude::*;
 use std::path::PathBuf;
 
-/// The three views of the app.
+/// The views of the app.
 #[derive(States, Default, Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum View {
     #[default]
     Home,
     Game,
     Studio,
+    Meadow,
 }
 
 /// Set when the app runs only to take one still for an agent: no interface, one picture, then it quits.
@@ -43,6 +47,11 @@ fn main() {
         (timeline, Still { time: args.get(3).and_then(|s| s.parse().ok()).expect(usage), out: args.get(4).expect(usage).into() })
     });
 
+    let measure = (args.get(1).map(String::as_str) == Some("--meadow")).then(|| {
+        let hour = args.get(3).and_then(|h| h.parse().ok()).unwrap_or(18.5);
+        (meadow::Measure { out: args.get(2).expect("--meadow <out.png> [hour]").into() }, meadow::Hour(hour))
+    });
+
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window {
@@ -54,7 +63,12 @@ fn main() {
         ..default()
     }))
     .init_state::<View>()
-    .add_plugins((world::plugin, film::plugin));
+    .add_plugins((world::plugin, film::plugin, meadow::plugin));
+    if let Some((m, hour)) = measure {
+        app.insert_resource(m).insert_resource(hour).insert_state(View::Meadow).add_systems(Update, meadow::measure);
+        app.run();
+        return;
+    }
     match still {
         Some((timeline, still)) => {
             app.insert_resource(film::Studio::paused_at(timeline, still.time))
@@ -64,6 +78,9 @@ fn main() {
         }
         None => {
             app.add_plugins(ui::plugin);
+            if args.get(1).map(String::as_str) == Some("--navtest") {
+                app.add_systems(Update, ui::navtest);
+            }
         }
     }
     app.run();

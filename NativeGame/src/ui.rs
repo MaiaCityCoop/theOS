@@ -3,7 +3,6 @@
 
 use crate::View;
 use crate::film::Studio;
-use crate::world::Eye;
 use bevy::prelude::*;
 use bevy::picking::events::{PointerClick, PointerDrag, PointerPress};
 use bevy::picking::hover::Hovered;
@@ -26,12 +25,20 @@ struct Fonts {
     mono: Handle<Font>,
 }
 
-#[derive(Component, Clone, Copy)]
-enum Act {
+#[derive(Component, Clone, Copy, PartialEq, Debug)]
+pub enum Act {
     Open(View),
     Home,
     PlayPause,
     NewShots,
+}
+
+/// When the current view opened, in real seconds since the start.
+#[derive(Resource, Default)]
+struct Opened(f32);
+
+fn opened(time: Res<Time<Real>>, mut o: ResMut<Opened>) {
+    o.0 = time.elapsed_secs();
 }
 
 #[derive(Component)]
@@ -48,10 +55,13 @@ pub fn plugin(app: &mut App) {
         .add_systems(OnEnter(View::Home), home)
         .add_systems(OnEnter(View::Game), game)
         .add_systems(OnEnter(View::Studio), studio)
+        .add_systems(OnEnter(View::Meadow), meadow)
+        .init_resource::<Opened>()
+        .add_systems(Update, opened.run_if(state_changed::<View>))
         .add_observer(press)
         .add_observer(scrub_press)
         .add_observer(scrub_drag)
-        .add_systems(Update, (hover, escape, (strip_follows, playhead).run_if(in_state(View::Studio))));
+        .add_systems(Update, (hover, escape, (strip_follows, playhead).run_if(in_state(View::Studio)), frame_time.run_if(in_state(View::Meadow))));
 }
 
 impl FromWorld for Fonts {
@@ -87,16 +97,10 @@ fn pill(f: &Fonts, act: Act, words: &'static str, dark: bool) -> impl Bundle {
     )
 }
 
-fn eye_on(cams: &mut Query<&mut Camera, With<Eye>>, on: bool) {
-    for mut c in cams.iter_mut() {
-        c.is_active = on;
-    }
-}
 
 // ---- the dashboard: a welcome line and two tiles ----
 
-fn home(mut commands: Commands, f: Res<Fonts>, mut cams: Query<&mut Camera, With<Eye>>) {
-    eye_on(&mut cams, false);
+fn home(mut commands: Commands, f: Res<Fonts>) {
     let tile = |act: Act, dark: bool, label: &'static str, title: &'static str, words: &'static str, grow: f32| {
         let (bg, fg) = if dark { (FOREST, CREAM) } else { (CREAM, FOREST) };
         (
@@ -151,6 +155,7 @@ fn home(mut commands: Commands, f: Res<Fonts>, mut cams: Query<&mut Camera, With
                 children![
                     tile(Act::Open(View::Game), true, "A · GAME", "Game", "Walk the green plain. W A S D, the mouse held to look, Shift to run.", 2.0),
                     tile(Act::Open(View::Studio), false, "B · STUDIO", "Studio", "Five shots, played live through the world by the virtual camera.", 1.0),
+                    tile(Act::Open(View::Meadow), false, "C · MEADOW", "Meadow", "How real can it look here? Grass in wind, a physical sky, the sun. Measured at 1080p.", 1.0),
                 ],
             ),
         ],
@@ -159,8 +164,7 @@ fn home(mut commands: Commands, f: Res<Fonts>, mut cams: Query<&mut Camera, With
 
 // ---- the Game: the world, and a line of help ----
 
-fn game(mut commands: Commands, f: Res<Fonts>, mut cams: Query<&mut Camera, With<Eye>>) {
-    eye_on(&mut cams, true);
+fn game(mut commands: Commands, f: Res<Fonts>) {
     commands.spawn((
         DespawnOnExit(View::Game),
         Node { position_type: PositionType::Absolute, top: Val::Px(20.0), left: Val::Px(20.0), right: Val::Px(20.0), column_gap: Val::Px(12.0), align_items: AlignItems::Center, ..default() },
@@ -175,10 +179,40 @@ fn game(mut commands: Commands, f: Res<Fonts>, mut cams: Query<&mut Camera, With
     ));
 }
 
+// ---- the Meadow: the test scene, Home, the frame time and the hour ----
+
+#[derive(Component)]
+struct FrameTime;
+
+fn meadow(mut commands: Commands, f: Res<Fonts>) {
+    commands.spawn((
+        DespawnOnExit(View::Meadow),
+        Node { position_type: PositionType::Absolute, top: Val::Px(24.0), left: Val::Px(24.0), right: Val::Px(24.0), column_gap: Val::Px(14.0), align_items: AlignItems::Center, ..default() },
+        children![
+            pill(&f, Act::Home, "Home", false),
+            (
+                Node { height: Val::Px(40.0), padding: UiRect::horizontal(Val::Px(18.0)), align_items: AlignItems::Center, border_radius: BorderRadius::MAX, ..default() },
+                BackgroundColor(GLASS),
+                children![(FrameTime, text(&f.mono, 15.0, FOREST, "…"))],
+            ),
+            (
+                Node { height: Val::Px(40.0), padding: UiRect::horizontal(Val::Px(18.0)), align_items: AlignItems::Center, border_radius: BorderRadius::MAX, ..default() },
+                BackgroundColor(GLASS),
+                children![text(&f.mono, 15.0, FOREST, "W A S D walk · hold the mouse to look · [ ] the hour · Esc home")],
+            ),
+        ],
+    ));
+}
+
+fn frame_time(d: Res<bevy::diagnostic::DiagnosticsStore>, hour: Res<crate::meadow::Hour>, mut t: Query<&mut Text, With<FrameTime>>) {
+    if let (Some(ms), Ok(mut t)) = (crate::meadow::frame_ms(&d), t.single_mut()) {
+        t.0 = format!("{ms:.1} ms · {:.0} fps · {:02}:{:02}", 1000.0 / ms, hour.0 as u32, ((hour.0.fract()) * 60.0) as u32);
+    }
+}
+
 // ---- the Studio: the world through the virtual camera, the shots as a strip under it ----
 
-fn studio(mut commands: Commands, f: Res<Fonts>, s: Res<Studio>, mut cams: Query<&mut Camera, With<Eye>>) {
-    eye_on(&mut cams, true);
+fn studio(mut commands: Commands, f: Res<Fonts>, s: Res<Studio>) {
     commands
         .spawn((
             DespawnOnExit(View::Studio),
@@ -297,9 +331,21 @@ fn seek(e: Entity, x: f32, strip: &Query<(&ComputedNode, &UiGlobalTransform), Wi
     s.time = ((x - (centre - width / 2.0)) / width.max(1.0)).clamp(0.0, 1.0) * s.duration();
 }
 
-fn press(mut click: On<PointerClick>, acts: Query<&Act>, mut next: ResMut<NextState<View>>, mut s: ResMut<Studio>) {
+fn press(
+    mut click: On<PointerClick>,
+    acts: Query<&Act>,
+    opened: Res<Opened>,
+    time: Res<Time<Real>>,
+    mut next: ResMut<NextState<View>>,
+    mut s: ResMut<Studio>,
+) {
     let Ok(act) = acts.get(click.entity) else { return };
     click.propagate(false);
+    // a view that has just opened ignores clicks for a moment: the click that opened it must not land on what is now
+    // under the mouse (Home, then the Game tile under the pointer)
+    if time.elapsed_secs() - opened.0 < 0.35 {
+        return;
+    }
     match *act {
         Act::Open(v) => next.set(v),
         Act::Home => next.set(View::Home),
@@ -327,3 +373,74 @@ fn escape(keys: Res<ButtonInput<KeyCode>>, state: Res<State<View>>, mut next: Re
         next.set(View::Home);
     }
 }
+
+// ---- the navigation's self-test: clicks the real buttons through the pointer input, as a mouse would ----
+
+/// `--navtest`: from the dashboard into each view and back with Home, by clicking; prints each step, then quits.
+pub fn navtest(
+    mut commands: Commands,
+    mut n: Local<u32>,
+    mut step: Local<usize>,
+    mut failed: Local<bool>,
+    buttons: Query<(&Act, &ComputedNode, &UiGlobalTransform)>,
+    ui_cameras: Query<&Camera, With<IsDefaultUiCamera>>,
+    state: Res<State<View>>,
+    window: Query<Entity, With<bevy::window::PrimaryWindow>>,
+    mut input: MessageWriter<bevy::picking::pointer::PointerInput>,
+    mut exit: MessageWriter<AppExit>,
+) {
+    use bevy::camera::RenderTarget;
+    use bevy::picking::pointer::{Location, PointerAction, PointerButton, PointerId, PointerInput};
+    use bevy::window::WindowRef;
+    const STEPS: [(Act, View); 6] = [
+        (Act::Open(View::Game), View::Game),
+        (Act::Home, View::Home),
+        (Act::Open(View::Studio), View::Studio),
+        (Act::Home, View::Home),
+        (Act::Open(View::Meadow), View::Meadow),
+        (Act::Home, View::Home),
+    ];
+    // a pointer of its own, so the real mouse over the window cannot move it
+    const TEST: PointerId = PointerId::Custom(bevy::asset::uuid::Uuid::from_u128(0x0046_0047));
+    *n += 1;
+    if *n == 1 {
+        commands.spawn(TEST);
+    }
+    let Some(&(act, want)) = STEPS.get(*step) else {
+        println!("navtest: {}", if *failed { "FAILED" } else { "all passed" });
+        exit.write(if *failed { AppExit::error() } else { AppExit::Success });
+        return;
+    };
+    let phase = *n % 120;
+    if phase == 119 {
+        let drawn = ui_cameras.iter().filter(|c| c.is_active).count() == 1;
+        let ok = *state.get() == want && drawn;
+        println!(
+            "navtest: step {} click {act:?}: now {:?}, {} {}",
+            *step,
+            state.get(),
+            if drawn { "drawn" } else { "NOT DRAWN (no one active interface camera)" },
+            if ok { "ok" } else { "FAILED" }
+        );
+        *failed |= !ok;
+        *step += 1;
+        return;
+    }
+    let Some((_, node, at)) = buttons.iter().find(|(a, ..)| **a == act) else { return };
+    let target = RenderTarget::Window(WindowRef::Primary).normalize(window.single().ok()).unwrap();
+    let pos = at.translation * node.inverse_scale_factor;
+    let location = Location { target, position: pos };
+    match phase {
+        60 => {
+            input.write(PointerInput::new(TEST, location, PointerAction::Move { delta: Vec2::ZERO }));
+        }
+        62 => {
+            input.write(PointerInput::new(TEST, location, PointerAction::Press(PointerButton::Primary)));
+        }
+        64 => {
+            input.write(PointerInput::new(TEST, location, PointerAction::Release(PointerButton::Primary)));
+        }
+        _ => {}
+    }
+}
+

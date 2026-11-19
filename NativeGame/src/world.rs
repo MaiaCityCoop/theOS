@@ -7,6 +7,10 @@ pub const SKY: Color = Color::srgb(0.53, 0.70, 0.90);
 pub const HAZE: Color = Color::srgb(0.80, 0.86, 0.92);
 pub const GRASS: Color = Color::srgb(0.30, 0.55, 0.20);
 
+/// What belongs to the plain, hidden while another scene is shown.
+#[derive(Component)]
+pub struct Plain;
+
 /// The one camera of the app: the walker's eye in the Game, the virtual camera in the Studio.
 #[derive(Component)]
 pub struct Eye;
@@ -26,6 +30,7 @@ fn spawn(
     mut images: ResMut<Assets<Image>>,
 ) {
     commands.spawn((
+        Plain,
         Mesh3d(meshes.add(Plane3d::default().mesh().size(PLANE_M, PLANE_M))),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: GRASS,
@@ -36,11 +41,13 @@ fn spawn(
         })),
     ));
     commands.spawn((
+        Plain,
         DirectionalLight { illuminance: 9_000.0, ..default() },
         Transform::from_xyz(0.3, 1.0, 0.4).looking_at(Vec3::ZERO, Vec3::Y),
     ));
     commands.spawn((
         Eye,
+        IsDefaultUiCamera,
         Camera3d::default(),
         Projection::Perspective(PerspectiveProjection { near: 0.05, far: 30_000.0, ..default() }),
         Transform::from_xyz(0.0, 1.6, 0.0),
@@ -55,7 +62,7 @@ fn spawn(
 /// A soft mottle of lighter and darker green that tiles seamlessly, so the eye sees the ground move under it. Its
 /// smaller copies (mip levels) are made here too, so it fades to an even green toward the horizon instead of
 /// shimmering.
-fn mottle() -> Image {
+pub fn mottle() -> Image {
     use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
     use bevy::render::render_resource::{Extent3d, TextureFormat};
     const N: usize = 256;

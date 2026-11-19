@@ -2,7 +2,6 @@
 //! ahead.
 
 use crate::camera::{self, Timeline, vfov};
-use crate::world::Eye;
 use crate::{Still, View};
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
@@ -48,7 +47,7 @@ pub fn plugin(app: &mut App) {
     let opened = std::fs::read_to_string(Path::new(FIRST_SHOTS)).ok().and_then(|t| Timeline::from_json(&t).ok());
     app.insert_resource(Studio::paused_at(opened.unwrap_or_else(|| camera::five_shots(1)), 0.0))
         .insert_resource(Walker { pos: Vec3::new(0.0, 1.6, 0.0), yaw: 0.0, pitch: -4.0 })
-        .add_systems(Update, (walk.run_if(in_state(View::Game)), play.run_if(in_state(View::Studio))));
+        .add_systems(Update, (walk.run_if(|v: Res<State<View>>| matches!(v.get(), View::Game | View::Meadow)), play.run_if(in_state(View::Studio))));
 }
 
 fn walk(
@@ -57,7 +56,7 @@ fn walk(
     buttons: Res<ButtonInput<MouseButton>>,
     motion: Res<AccumulatedMouseMotion>,
     mut walker: ResMut<Walker>,
-    mut eye: Query<(&mut Transform, &mut Projection), With<Eye>>,
+    mut eye: Query<(&Camera, &mut Transform, &mut Projection), With<Camera3d>>,
 ) {
     if buttons.pressed(MouseButton::Left) {
         walker.yaw += motion.delta.x * 0.15;
@@ -74,12 +73,14 @@ fn walk(
     walker.pos.y = walker.pos.y.max(0.3);
     let (sp, cp) = walker.pitch.to_radians().sin_cos();
     let cam = camera::Camera { pos: walker.pos, look: walker.pos + Vec3::new(sy * cp, sp, -cy * cp), mm: 35.0, roll: 0.0 };
-    if let Ok((mut t, mut p)) = eye.single_mut() {
-        aim(&cam, &mut t, &mut p);
+    for (c, mut t, mut p) in &mut eye {
+        if c.is_active {
+            aim(&cam, &mut t, &mut p);
+        }
     }
 }
 
-fn play(time: Res<Time>, keys: Res<ButtonInput<KeyCode>>, mut studio: ResMut<Studio>, mut eye: Query<(&mut Transform, &mut Projection), With<Eye>>) {
+fn play(time: Res<Time>, keys: Res<ButtonInput<KeyCode>>, mut studio: ResMut<Studio>, mut eye: Query<(&Camera, &mut Transform, &mut Projection), With<Camera3d>>) {
     if keys.just_pressed(KeyCode::Space) {
         if studio.time >= studio.duration() {
             studio.time = 0.0;
@@ -93,8 +94,11 @@ fn play(time: Res<Time>, keys: Res<ButtonInput<KeyCode>>, mut studio: ResMut<Stu
             studio.playing = false;
         }
     }
-    if let (Some(cam), Ok((mut t, mut p))) = (studio.timeline.at(studio.time), eye.single_mut()) {
-        aim(&cam, &mut t, &mut p);
+    let Some(cam) = studio.timeline.at(studio.time) else { return };
+    for (c, mut t, mut p) in &mut eye {
+        if c.is_active {
+            aim(&cam, &mut t, &mut p);
+        }
     }
 }
 
