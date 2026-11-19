@@ -17,6 +17,32 @@ import { growthMap } from './growth.js';   // (a blade's turn in the one spread 
 
 const u8 = (h, sh) => float(h.shiftRight(uint(sh)).bitAnd(uint(0xFF))).mul(1 / 256);   // one byte of a hash, 0..1
 
+// ---- how a blade looks, and so the meadow its blades make ----
+// One place for it: the blade wears it (bladeMaterial), and the carpet that stands for the blades past their end is what
+// they average to as the eye sees them there (meadowTip: src/terrain/layers.js lays it in the land's layer map, the
+// carpet's colour, src/terrain/material.js laid), so where the blades hand over to it nothing changes.
+/** The straw a blade's tip dries to. */
+const straw = () => vec3(0.42, 0.34, 0.15);
+/** A blade's value up it (t: 0 at its foot, 1 at its tip): dark in the thick of it, light at its tip. */
+export const valueUp = (t) => mix(0.14, 1.45, t.mul(t.mul(0.4).add(0.6)));
+/** The tuft a blade at p stands in (blades stand in tufts 0.6 m across: a height, a lean and a shade in common): its hash. */
+const tuftHash = (p) => hashI(int(floor(p.x.div(0.6))), int(floor(p.y.div(0.6))), uint(102));
+/** The shade of the tuft at p, 0 … 1 (its hash's third byte, c3: bladeIn). */
+export const tuftShade = (p) => u8(tuftHash(p), 16);
+/** How much a blade's tip has dried where the grass's dryness is a, over its own hash (bladeIn: clamp(1.2 a + 0.35 r2 -
+    0.25, 0, 1), r2 even over 0 … 1): its expectation, the clamp's integral over r2. */
+const driedOf = (a) => { const lo = a.mul(1.2).sub(0.25), F = (u) => { const c = clamp(u, 0, 1); return c.mul(c).mul(0.5).add(max(u.sub(1), 0)); }; return F(lo.add(0.35)).sub(F(lo)).div(0.35); };
+/** The meadow as the eye sees it along the ground, where its blades are too many to tell apart: their tips (the eye's ray
+    meets a field of them within a hair of its top, at any distance past a few metres), over their own hashes: the
+    grass's tint there (rgb) and its dryness (a), the tuft's shade (c3; 0.5, the mean, where many tufts are averaged). As
+    a blade's tip is drawn (bladeMaterial): its shade (0.7 + 0.35 r3 + 0.35 c3, r3's mean 0.5), dried to straw as much as
+    it is, at its tip's value. */
+export const meadowTip = (tint, a, c3) => mix(tint.mul(float(0.875).add(c3.mul(0.35))), straw(), driedOf(a)).mul(valueUp(float(1)));
+/** How much darker the floor under standing blades is than their tips, as seen from above between them: a blade's value
+    over its lower half (what shows of it down there) to its tip's (node). Its mean over the lower half by two points
+    (Gauss-Legendre's, exact for the value's quadratic). */
+export const underShade = () => valueUp(float(0.25 - 0.25 / Math.sqrt(3))).add(valueUp(float(0.25 + 0.25 / Math.sqrt(3)))).mul(0.5).div(valueUp(float(1)));
+
 function blade(segs) {
   const pos = [], idx = [];
   for (let i = 0; i < segs; i++) { const t = i / segs; pos.push(-1, t, 0, 1, t, 0); }
@@ -111,7 +137,7 @@ function bladeIn(c, asset, T, ground, pad) {
   const inBand = dist.lessThanEqual(hf.mul(T.farFade.negate()).add(T.far).add(pad)).and(dist.greaterThanEqual(hf.mul(T.nearFade.negate()).add(T.near).sub(pad)));
   const r1 = u8(h2, 0), r2 = u8(h2, 8), r3 = u8(h2, 16);
   // blades stand in tufts: the tuft they are in gives them a height, a lean and a shade in common
-  const hc = hashI(int(floor(pos.x.div(0.6))), int(floor(pos.y.div(0.6))), uint(102)), c1 = u8(hc, 0), c2 = u8(hc, 8), c3 = u8(hc, 16);
+  const hc = tuftHash(pos), c1 = u8(hc, 0), c2 = u8(hc, 8), c3 = u8(hc, 16);
   const tint = ground.tint(pos);
   const flower = step(0.985, r2).mul(float(1).sub(clamp(tint.a.sub(0.28).mul(1.6), 0, 1))).mul(BASE.grass.flowers ? 1 : 0);   // now and then a stalk with a small white head, not where it is dry
   const hgt = float(asset.height).mul(float(0.5).add(r1.mul(r1).mul(0.55)).add(c1.mul(c1).mul(0.8)).add(flower.mul(0.35))).mul(G.z).mul(dens.mul(0.4).add(0.6));
@@ -155,7 +181,7 @@ function bladeMaterial(T) {
       const tg = normalize(vec3(dir.x.mul(2).mul(bend).mul(t).add(k.x.mul(2.2).mul(t)), float(1).sub(bend.mul(0.6).mul(t)).sub(kk.mul(0.8).mul(t)), dir.y.mul(2).mul(bend).mul(t).add(k.y.mul(2.2).mul(t))));
       const sd = vec3(side.x, 0, side.y);
       vWorld.assign(w); vSide.assign(sd); vN.assign(cross(sd, tg)); vTS.assign(vec3(t, s, flower));
-      vCol.assign(mix(C.rgb, vec3(0.42, 0.34, 0.15), smoothstep(0.5, 1, t).mul(max(C.w, clamp(snowDepth.mul(2.5), 0, 0.65)))).mul(mix(0.14, 1.45, t.mul(t.mul(0.4).add(0.6)))));   // dark in the thick of it, light at the tips; in snow, pale and straw-coloured
+      vCol.assign(mix(C.rgb, straw(), smoothstep(0.5, 1, t).mul(max(C.w, clamp(snowDepth.mul(2.5), 0, 0.65)))).mul(valueUp(t)));   // dark in the thick of it, light at the tips; in snow, pale and straw-coloured
       return clipOf(w, at(push(U.uTimeWas)));
     };
     const frag = Fn((builder) => {
