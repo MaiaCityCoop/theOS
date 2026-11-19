@@ -20,6 +20,11 @@ export const rockroseLeafIn = (col, alpha, c, L, len, wide, young) => {
   const under = mix(vec3(0.12, 0.15, 0.105), vec3(0.17, 0.2, 0.15), rib.mul(0.6)).mul(tone);
   col.assign(mix(col, mix(top, under, smoothstep(0.9, 0.92, hash(c, 9))).mul(L.u.mul(0.25).add(0.85)), L.leaf)); alpha.assign(max(alpha, L.leaf));
 };
+/** A rockrose card's picture once its leaves, twigs and flowers are laid (alpha: what they cover; twig: its twigs;
+    col: their colour) at uv: { h, col, rough }, rough as its leaves are: wrinkled, and felted on both sides with
+    star-shaped hairs, a sage-leaved cistus's (Flora iberica, Cistus salviifolius): no highlight to speak of, where a holm
+    oak's and a mastic's waxy leaves have one. The sprig's and one twig's alike. */
+export const rockroseCard = (alpha, twig, col, uv) => ({ h: clamp(max(alpha, twig), 0, 1), col: col.mul(pn(uv.mul(46), 46, 30).mul(0.2).add(0.9)), rough: float(0.85) });
 /** A rockrose flower of cell c at uv, in one cell in twenty-five (mid: the cell's middle; N: cells across the card; where:
     how much it may be there), into col and alpha: five petals, crinkled, white, round a yellow middle. */
 export const rockroseFlowerIn = (col, alpha, c, uv, mid, N, where) => {
@@ -63,8 +68,6 @@ export default {
       rockroseLeafIn(col, alpha, c, { u, w, leaf }, len, wide, smoothstep(0.45, 0.8, length(out)).mul(hash(c, 8)));
       rockroseFlowerIn(col, alpha, c, uv, mid, N, inFan(mid).mul(smoothstep(0.3, 0.5, length(out))));   // (towards the fan's edge)
     }
-    // (rough as its leaves are: wrinkled, and felted on both sides with star-shaped hairs, a sage-leaved cistus's (Flora
-    // iberica, Cistus salviifolius): no highlight to speak of, where a holm oak's and a mastic's waxy leaves have one)
-    return { h: clamp(max(alpha, twig), 0, 1), col: col.mul(pn(uv.mul(46), 46, 30).mul(0.2).add(0.9)), rough: float(0.85) };
+    return rockroseCard(alpha, twig, col, uv);
   },
 };

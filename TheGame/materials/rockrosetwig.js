@@ -5,10 +5,10 @@
 // this is one alone, nothing beside it, so a card of it can stand anywhere without cutting through another's leaves: what
 // a rockrose's finest level is made of (assets/kit/tree.js: splayOf). Not a tiling texture: its height the cut-out. The
 // leaves as the sprig's are: a grid of cells, a leaf to a cell, nine looked at.
-import { float, vec2, vec3, mix, smoothstep, max, sin, cos, clamp, floor, fract, dot, atan } from 'three/tsl';
-import { pn, ovalLeaf } from '../src/materials/paint.js';
+import { float, vec2, vec3, mix, smoothstep, sin, cos, floor, fract, dot, atan } from 'three/tsl';
+import { ovalLeaf } from '../src/materials/paint.js';
 import { oneTwig } from './holmoaktwig.js';
-import { rockroseLeafIn, rockroseFlowerIn } from './rockroseleaf.js';
+import { rockroseLeafIn, rockroseFlowerIn, rockroseCard } from './rockroseleaf.js';
 import FAN from './holmoakleaf.twigs.js';
 
 const TWIG = FAN.twig;   // (the twig's foot, its length, how far either side its leaves reach: its fan's numbers)
@@ -37,7 +37,6 @@ export default {
       rockroseLeafIn(col, alpha, c, ovalLeaf(uv, mid, ax, len, wide, onTwig(mid).mul(smoothstep(0.12, 0.16, hash(c, 6)))), len, wide, smoothstep(0.6, 0.95, up).mul(hash(c, 8)));
       rockroseFlowerIn(col, alpha, c, uv, mid, N, onTwig(mid).mul(smoothstep(0.5, 0.7, up)));   // (towards its tip)
     }
-    // (rough as its leaves are: wrinkled, and felted on both sides with star-shaped hairs, a sage-leaved cistus's)
-    return { h: clamp(max(alpha, twig), 0, 1), col: col.mul(pn(uv.mul(46), 46, 30).mul(0.2).add(0.9)), rough: float(0.85) };
+    return rockroseCard(alpha, twig, col, uv);
   },
 };
