@@ -271,7 +271,7 @@ function packedOf(T, geos, material, { live, cap = 0, slots = 0, spans = null, b
   T.offAt = (k) => OFr.element(k);   // (where bucket k's things begin: a node, for what reads a bucket of it itself)
   const C = (T.culler = culled ? cullOf(T, { K, caps, offs, total, S: slots, data, args, count, box: bounds }) : null);
   // (laid out again at N, a room a bucket: its draws as many, its culling's ranges too; packed again)
-  T.ownRow = ownOf(T, caps, (N) => { N.forEach((n, k) => { caps[k] = n; geos[k].instanceCount = n; }); const all = lay(); if (C) C.resize(all); T.repack(); });
+  T.ownRow = ownOf(T, caps, (N) => { N.forEach((n, k) => { caps[k] = n; geos[k].instanceCount = n; }); const all = lay(); if (C) C.resize(all); T.ownRow.relaid(); T.repack(); });
   const uK = uniform(K, 'uint'), zero = Fn(() => { eachDraw(uK, (k) => { atomicStore(count.element(k), uint(0)); }); })().compute(1);
   T.passes = [zero, patchPass({ K, S, data, count, rooms, entryOf: entryOf(EN, nE, STEPS) }, live, RN), ...(C ? [C.args, C.boxes] : [argsPass(argsNode, count, uK, rooms)])];
   return meshesOf(geos, material, args, C, (k) => caps[k], data, S, (at, slot) => at(OFr.element(slot)));
@@ -295,7 +295,7 @@ function familyOf(key, slots) {
     const table = new Uint32Array(Math.max(1, F.rows)); let base = 0;
     for (const t of F.tiers) { t.lay(base, table); base += t.total; }
     F.packed.make(base * slots); F.offs.make(table.length); F.offs.write(0, table); F.total = base;
-    for (const t of F.tiers) t.C?.resize(t.total, false);
+    for (const t of F.tiers) { t.C?.resize(t.total, false); t.T.ownRow?.relaid(); }   // (each one's store made again: what it held is gone)
     for (const A of new Set(F.tiers.map((t) => t.C?.arena).filter(Boolean))) A.relayout();
   };
   FAMILIES.set(key, F);
@@ -338,33 +338,63 @@ function holdOwn(T, row, caps, N, others = 0) {
   N.forEach((n, k) => { N[k] = Math.max(WG, Math.floor((n * fit) / WG) * WG); });
   row.cap = [...N];
 }
-/** Its own patches' rooms (caps: each bucket's now; lay(N): laid out again at N), as a resident tier's store is sized
-    (residentOf ask): after a packing, its count read back (what each bucket found, past its room too); every bucket laid
-    out again a MARGIN larger than it found where one found more than it holds, or where all of them hold BAND times
-    more than that. The world is not complete till what a packing found is read back and fits (src/core/settle.js); a
-    tier whose things move, packed every frame, once its rooms are read back as large as what they find. */
-function ownOf(T, caps, lay, others = () => 0) {
-  const row = { cap: null };
-  let asking = false, wrong = 0, all = 0, seen = 0, packs = 0, laid = 0, fits = -1;   // (all: its packings; seen: of them, read; packs: those that changed what stands; laid: its layouts; fits: the last one read back as large as it needs)
-  source(`tiers: a store made again (${T.asset ?? 'a tier'})`, () => wrong);
-  const check = (z, asked, at) => {
-    const found = caps.map((_, k) => z[k] ?? 0), N = found.map((f, k) => Math.min(roomFor(f), row.cap?.[k] ?? Infinity));
+/** What settle waits on of a store sized by what its packings find (an own-patch tier's rooms, ownOf; a resident
+    tier's store, residentOf): whether what it holds is known to fit what it found. Not from when it is laid out (made
+    again, it holds nothing) till a read of a packing at that layout says it fits; a packing into rooms read back as
+    large as what they found changes nothing of it, however often it packs. (2026-11-19: it was wrong at every packing,
+    and right again only on a read with no packing since: a tier packed every frame, its reads two or three frames
+    behind, was never right, and the world never complete.) pending: a layout asked for and not yet made (a resident
+    kind's, laid out once every tier of it asking then has answered). */
+export function storeOf(pending = () => false) {
+  let laid = 0, fits = -1;
+  return {
+    /** Its layout now: what a packing is at, and a read is of. */
+    at: () => laid,
+    /** Laid out again. */
+    made() { laid++; },
+    /** A read of a packing at layout `at` says what it found fits what it holds. */
+    fit(at) { if (at === laid) fits = at; },
+    /** Whether what it holds is not known to fit what it found. */
+    wrong: () => pending() || fits !== laid,
+  };
+}
+/** A store's rooms for what a read of it found (each a MARGIN more than it found: roomFor), or null where those it holds
+    (rooms) do: laid out again where any room found more than it holds, or where all of them hold BAND times more than
+    they need and the read was whole (of all it is to hold: a store still filling, or one made again since, counts
+    less than it will hold, and is never made smaller for it; nor is a room that found no more than it holds, made
+    again for another's). */
+export const roomsFor = (found, rooms, whole) => {
+  const N = found.map((f, k) => (whole ? roomFor(f) : Math.max(roomFor(f), rooms[k])));
+  return found.some((f, k) => f > rooms[k]) || (whole && sum(N) * BAND < sum(rooms)) ? N : null;
+};
+/** Its own patches' rooms (caps: each bucket's now; lay(N): laid out again at N, telling it so: relaid), as a resident
+    tier's store is sized (residentOf ask): after a packing, its count read back (what each bucket found, past its room
+    too); every bucket laid out again a MARGIN larger than it found where one found more than it holds, or where all of
+    them hold BAND times more than that (roomsFor: a packing of its own patches looks at all of them, every read whole).
+    The world is not complete till a packing at its rooms now is read back and fits (storeOf, src/core/settle.js). */
+export function ownOf(T, caps, lay, others = () => 0) {
+  const row = { cap: null }, S = storeOf();
+  let asking = false, all = 0, seen = 0, at = -1;   // (all: its packings; seen: of them, read; at: the layout its last packing was at)
+  source(`tiers: a store made again (${T.asset ?? 'a tier'})`, () => (S.wrong() ? 1 : 0));
+  const check = (z, read) => {
+    const found = caps.map((_, k) => z[k] ?? 0), N = roomsFor(found, caps, true)?.map((n, k) => Math.min(n, row.cap?.[k] ?? Infinity));
     T.short = found.some((f, k) => f > caps[k]);   // (more found than it holds: said to the governor, as a resident tier's over)
-    if (N.some((n, k) => n > caps[k]) || sum(N) * BAND < sum(caps)) { holdOwn(T, row, caps, N, others()); if (N.some((n, k) => n !== caps[k])) { lay(N); laid++; wrong = 1; return; } }
-    if (at === laid) fits = laid;
-    if (asked === packs) wrong = 0;   // (no change of what stands since: what it holds is what was read)
+    if (N?.some((n, k) => n !== caps[k])) { holdOwn(T, row, caps, N, others()); if (N.some((n, k) => n !== caps[k])) { lay(N); return; } }
+    S.fit(read);
   };
   return Object.assign(row, {
-    /** A packing handed to the GPU: a change of what stands, but where its things only moved on rooms read back right. */
-    packed() { all++; if (!T.movers || fits !== laid) { wrong = 1; packs++; } },
+    /** A packing handed to the GPU, at its rooms now. */
+    packed() { all++; at = S.at(); },
     /** Nothing chosen and nothing packed: it needs no room. */
-    idle() { wrong = 0; },
+    idle() { S.fit(S.at()); },
+    /** Its rooms laid out again (its own, or its family's: what it held is gone). */
+    relaid() { S.made(); },
     /** What its last packing found, read back (one read at a time, after a packing; one packed while it was read, read
         once it is: what it found is known whether the tier runs again or not). */
     ask(renderer) {
       if (asking || seen === all) return;
-      asking = true; seen = all; const asked = packs, at = laid;
-      renderer.getArrayBufferAsync(T.count.value).then((b) => check(new Uint32Array(b), asked, at)).catch(() => { seen = -1; }).finally(() => { asking = false; if (seen >= 0) row.ask(renderer); });
+      asking = true; seen = all; const read = at;
+      renderer.getArrayBufferAsync(T.count.value).then((b) => check(new Uint32Array(b), read)).catch(() => { seen = -1; }).finally(() => { asking = false; if (seen >= 0) row.ask(renderer); });
     },
   });
 }
@@ -635,7 +665,8 @@ const overlaps = (A, B) => A.bi * BLOCK < B.bi * BLOCK + B.w && B.bi * BLOCK < A
 function residentOf(T, me, s, ends) {
   const G = GR, regions = new Resident({ cell: T.cell, fixed: T.metres, room: LEAVES - 16 }), alive = new Uint32Array(LEAVES + 1);
   const ids = [], freed = [];   // (numbers free; and those let go this packing, free from the next: the store still holds their things till it is copied forward)
-  let at = 0, key = null, gkey = null, asking = false, wrong = 0, packs = 0, epoch = -1, fresh = 1, gathers = 0, gathered = 0;   // (gathered: a gather since its counts were read)   // (wrong: a packing changed its store, and whether it fits what it found is not yet read back: the world is not complete till it is)
+  let at = 0, key = null, gkey = null, asking = false, packs = 0, asked = 0, epoch = -1, fresh = 1, gathers = 0, gathered = 0;   // (gathered: a gather since its counts were read; asked: its packings when it was last read)
+  const S = storeOf(() => s.dirty), last = { at: -1, whole: false };   // (whether its store fits what it found, storeOf; last: its last packing's layout, and whether it held all it was to then)
   const drop = (id) => { alive[id] = 0; freed.push(id); };
   const letGo = (L) => { if (L.id != null) { drop(L.id); L.id = null; } };
   // (what it has still to visit, by region: { L, side (its pieces' side, cells: as large as its share lets when it is
@@ -648,7 +679,7 @@ function residentOf(T, me, s, ends) {
   // (the store emptied: nothing copied forward, every number free at once)
   const empty = () => { for (const L of regions.reset()) L.id = null; waits.clear(); kept.clear(); alive.fill(0); ids.length = freed.length = 0; for (let i = LEAVES - 1; i >= 0; i--) ids.push(i); key = null; fresh = 1; };
   empty();
-  source(`tiers: a store made again (${T.asset ?? 'a tier'})`, () => wrong + waits.size);   // (the world complete waits for a store made as large as it needs, and all of it visited: src/core/settle.js)
+  source(`tiers: a store made again (${T.asset ?? 'a tier'})`, () => (S.wrong() ? 1 : 0) + waits.size);   // (the world complete waits for a store made as large as it needs, and all of it visited: src/core/settle.js)
   // (a region new or run out, to wait its turn: what it held before kept till it is all visited; run out again before
   // that, begun again, its pieces visited so far kept the same way)
   const wait = (L) => {
@@ -672,18 +703,23 @@ function residentOf(T, me, s, ends) {
     u.from.value = me.base + o * me.N; u.to.value = me.base + to * me.N; u.g.value = me.base + g * me.N;
     T.table?.();   // (its kind's own numbers: its engine's)
   };
-  // (its own counts, read back after a packing or a gather: what it found, made again where that is more than its store
-  // holds, or BAND times less than it would be made at (roomFor); what it packed for its draws, the same against their
-  // room; its kind laid out again once every tier of it asking then has answered)
+  // (its own counts, read back after a packing or a gather: what it found and what it packed for its draws, each against
+  // its room (roomsFor: made again where it found more than it holds, or BAND times less where what it read was all it
+  // holds whole, at its layout now). Less only from what it holds whole: a store filling in a piece a frame (the frame's
+  // cells, below) holds part of what it will, and made again smaller at that, everything of its kind is let go, filled
+  // in again from nothing, found to be more, made again larger, let go again: at a still camera, without end
+  // (2026-11-19, the meadow, the trees and shrubs by the tent coming and going); its kind laid out again once every tier
+  // of it asking then has answered)
   const ask = (renderer) => {
     if (asking) return;
-    asking = true; s.asking.add(me); const asked = packs, seen = gathers;
+    asking = true; s.asking.add(me); asked = packs; const read = { ...last }, seen = gathers;
     renderer.getArrayBufferAsync(G.Zs.attr).then((b) => {
       // (held to its class's room: no more than it was held to: a decision, not a wait)
-      const z = new Uint32Array(b), f = z[me.zi + ZAT.found], p = z[me.zi + ZAT.packed], N = Math.min(roomFor(f), me.cap?.N ?? Infinity), P = Math.min(roomFor(p), me.cap?.P ?? Infinity);
+      const z = new Uint32Array(b), f = z[me.zi + ZAT.found], p = z[me.zi + ZAT.packed], room = roomsFor([f, p], [me.N, me.P], read.whole && read.at === S.at());
       T.over = f > me.N || p > me.P;
-      if (N > me.N || N * BAND < me.N || P > me.P || P * BAND < me.P) { me.N = N; me.P = P; if (!s.dirty) s.wait = new Set(s.asking); s.dirty = G.stale = true; wrong = 1; return; }
-      if (asked === packs) wrong = 0;   // (no packing since: what it holds is what was read)
+      const N = room && Math.min(room[0], me.cap?.N ?? Infinity), P = room && Math.min(room[1], me.cap?.P ?? Infinity);
+      if (room && (N !== me.N || P !== me.P)) { me.N = N; me.P = P; if (!s.dirty) s.wait = new Set(s.asking); s.dirty = G.stale = true; return; }
+      S.fit(read.at);
       if (seen === gathers) gathered = 0;
     }).catch(() => {}).finally(() => { asking = false; s.asking.delete(me); s.wait?.delete(me); });
   };
@@ -723,7 +759,8 @@ function residentOf(T, me, s, ends) {
     const adds = !freed.length;   // (nothing let go: only adding, into the store it holds)
     if (adds) table(at, at, at, n, 1); else table(at, 1 - at, 1 - at, n);
     s.visit.dispatchSize = Math.max(WG, cells);
-    timed(renderer, cells, s.before, [s.visit], [...s.after, ...ends]); if (!adds) at = 1 - at; gkey = g; packs++; wrong = 1; fresh = 0;
+    timed(renderer, cells, s.before, [s.visit], [...s.after, ...ends]); if (!adds) at = 1 - at; gkey = g; packs++; fresh = 0;
+    last.at = S.at(); last.whole = !waits.size;   // (what a read of it is of: its layout, and whether nothing waited to be visited)
     did('packs'); did('kcells', Math.round(cells / 1000));
   };
   return {
@@ -733,7 +770,7 @@ function residentOf(T, me, s, ends) {
       ready();
       const c = T.cam; if (!c) return;
       if (!made(T.passes, 'run')) { T.make(renderer); return; }   // (its passes made first: src/core/compile.js)
-      if (epoch !== s.epoch) { epoch = s.epoch; empty(); }   // (its kind laid out again: what it held is gone)
+      if (epoch !== s.epoch) { epoch = s.epoch; empty(); S.made(); }   // (its kind laid out again: what it held is gone)
       const sc = T.fixed ? Math.min(T.fixed, T.far + Math.abs(c.dy) * 1.2) / T.far : c.s, near = T.near * sc, far = T.far * sc, q = T.step || Math.max(0.25, T.S / 16);
       // (what it holds again from nothing where what its cells read has changed: the lens, the stage, the ways, things'
       // own state, what grows over it. Its band moving with the measure only uses its regions' pads up: regions.js)
@@ -742,7 +779,8 @@ function residentOf(T, me, s, ends) {
       update(c, near, far, k);
       const { n, cells } = visits(sc);
       T.n = regions.leaves.size; for (const m of T.meshes) m.visible = T.n > 0;
-      if (wrong || gathered) ask(renderer);
+      if (!T.n && !waits.size && !freed.length) S.fit(S.at());   // (nothing in its band, nothing to let go: it needs no room)
+      if (S.wrong() || gathered || packs !== asked) ask(renderer);
       const g = `${world}|${near}|${far}|${Math.round(cx / q)},${Math.round(cy / q)},${Math.round(cz / q)}`;
       if (n || freed.length) pack(renderer, n, cells, g);
       else if (g !== gkey) { gkey = g; table(at, at, at, 0); renderer.compute([...s.only, ...ends]); gathers++; gathered = 1; did('gathers'); }
