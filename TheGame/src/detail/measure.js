@@ -21,8 +21,11 @@
 //   farFor(px, size)     how far off a thing covers px dial pixels, as far as a level drawn down to px reaches (how far
 //                        anything is drawn: farFor(GONE, the largest thing's size), error.js GONE)
 //   distanceAt(px, size, h)   the same through the lens alone on a picture h pixels tall (a library's picture)
-//   pxKMost(), farMost(px, size)   the live pixel at the most pixels the screen can draw (its own ratio, the dial at rest,
-//                        1: the governor only raises it): what a capacity is sized for, so no turn of a dial overfills it
+//   pxKMost(), farMost(px, size)   the live pixel at the most pixels the screen can draw (its own ratio) and the dial at
+//                        rest (restDial): what a capacity is sized for, so no turn of a dial overfills it
+//   restDial(), raiseRest(d)   the dial at rest on this page: the address's (?truth: under 1), else 1, raised where the
+//                        device's memory cannot hold what follows the dial at it (src/core/gpu.js byDial): the one knob
+//                        of memory, the same for every store, so none is short for having come late
 //   pxThrough(camera, h) pixels a metre covers one metre off through a camera's own lens (what moves on the screen:
 //                        src/core/temporal.js; the scale bar: src/camera/rig.js); lensOf(camera): how many times larger
 //                        than the 68° lens a camera shows a thing
@@ -30,8 +33,8 @@
 //                        pxAt(size, dist), spanAt(size, dist) and dialPxAt(px), the twins of the above
 //   onMeasure(f), measureVersion()   what reckons a band of distances once (a tier's, the meadow's rings) reckons it again
 //                        when either number changes: the window, the governor's ratio, the dial
-//   TRUTH, DIAL_LEAST, truthAfter   ?truth: the same measure, the dial turned down to TRUTH_DIAL once the game's start
-//                        has settled (src/boot.js); every capacity sized for the least dial (pxKMost)
+//   DIAL_ASKED, dialAfter   ?truth: the same measure, the dial turned down to what the address asks once the game's
+//                        start has settled (src/boot.js); every capacity sized for the dial at rest (pxKMost)
 import { float, max } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { flagText } from '../core/flags.js';
@@ -59,9 +62,10 @@ const listeners = new Set(); let version = 0;
 const outputHeight = () => (globalThis.innerHeight || 1080) * output();
 /** Both numbers to error.js, the uniforms and whoever listens, where either changed: the live pixel only once it lies a
     BAND off the one kept (a window drawn a little larger or smaller moves no switch, and none goes back and forth: every
-    hand-over spans a BAND, src/detail/error.js), the dial at once. */
-function keep(dial = ERROR_PX()) {
-  const now = pxKAt(outputHeight()), was = pxK(), k = was > 0 && now < was * BAND && now > was / BAND ? was : now;
+    hand-over spans a BAND, src/detail/error.js), the dial at once; fresh: the live pixel as it is now, outright (the
+    canvas's first: what was kept before it stood in for it, and is no measure a BAND should hold). */
+function keep(dial = ERROR_PX(), fresh = false) {
+  const now = pxKAt(outputHeight()), was = pxK(), k = !fresh && was > 0 && now < was * BAND && now > was / BAND ? was : now;
   if (k === was && dial === ERROR_PX()) return false;
   keepNumbers({ k, dial }); U.uPxK.value = k; U.uErrorPx.value = dial; version++;
   for (const f of listeners) f();
@@ -69,25 +73,27 @@ function keep(dial = ERROR_PX()) {
 }
 keep();   // (from the start, before the screen says its ratio: the window's own pixels)
 /** Keep the measure current: out, the canvas's ratio (src/core/output.js: read as it is now, a resize changes it); the
-    window's size is followed, and each frame asks again (measureNow). */
+    window's size is followed, and each frame asks again (measureNow). The canvas's rows are taken outright the first
+    time: held to the window's own points by the BAND, as they were till 2026-11-19, a start's detail hung on its order
+    (WebKit at 1512 × 945 at 2 kept 945 rows of a canvas of 1138; a window opened at another size kept that one's). */
 export function keepMeasure(out = () => 1) {
   output = out;
   most = () => Math.max(1, out());
-  keep(); addEventListener('resize', () => keep());
+  keep(ERROR_PX(), true); addEventListener('resize', () => keep());
 }
 /** The live pixel in the dial's pixels: dial pixels a metre covers one metre from the eye (error.js). */
 export const dialK = () => pxK() / ERROR_PX();
-/** The live pixel at the most pixels the screen can draw (its own ratio) and the least the dial will be on this page
-    (DIAL_LEAST: 1, the governor only raises it; or the truth's), in the dial's pixels so: what a capacity is sized for. */
-export const pxKMost = () => pxKAt((globalThis.innerHeight || 1080) * most()) / DIAL_LEAST;
+/** The live pixel at the most pixels the screen can draw (its own ratio) and the dial at rest on this page (restDial),
+    in the dial's pixels so: what a capacity is sized for. */
+export const pxKMost = () => pxKAt((globalThis.innerHeight || 1080) * most()) / REST;
 /** How far off a thing `size` metres large is still px dial pixels large, at the most (pxKMost). */
 export const farMost = (px, size) => (size * pxKMost()) / px;
 /** Each frame, before anything chooses (src/boot.js choose, tools/bench.js): the governor may have changed the inside's
     ratio. True where the measure changed. */
 export const measureNow = () => keep();
-/** The dial turned to the page's least (DIAL_LEAST) once its start (`ready`, src/boot.js) has settled: the game's is its
-    rest, so nothing turns; the truth's a fraction of a pixel. */
-export const dialAfter = (ready) => ready.then(() => keep(DIAL_LEAST));
+/** The dial turned to its rest (restDial) once the page's start (`ready`, src/boot.js) has settled: the game's is 1, or
+    what this device's memory raised it to, so nothing turns but where it rose; the truth's a fraction of a pixel. */
+export const dialAfter = (ready) => ready.then(() => keep(REST));
 /** f() whenever the live pixel or the dial changes (a tier's band, the meadow's rings); returns what stops it. */
 export const onMeasure = (f) => { listeners.add(f); return () => listeners.delete(f); };
 /** A number that changes whenever the measure does: what packs by it packs again. */
@@ -101,9 +107,25 @@ export const measureVersion = () => version;
 // at the game's pace, the far ends baked a frame at a time at the game's frame rate), and turns the dial down once that
 // start has settled (src/boot.js: dialAfter); then it is drawn as a still (src/core/screen.js, src/core/temporal.js).
 // `?truth=d` draws at dial d. Nothing else of it is a mode: what differs is what the dial at its least implies.
-/** The least the dial will be on this page: what the address asks for it (dialAsked), or its rest, 1 (the governor only
-    raises it). What every capacity is sized for (pxKMost), so a turn of the dial down to it finds room. */
-export const DIAL_LEAST = dialAsked(flagText('truth'));
+/** The dial the address asks for (dialAsked: the truth's, under 1), or 1: where the dial rests unless this device's
+    memory raises it (restDial). */
+export const DIAL_ASKED = dialAsked(flagText('truth'));
+// ---- the dial at rest: memory's one knob ----
+// Every store that follows the dial (what lies within reach at it: things, cells, rings) is sized at the dial at rest,
+// and takes its need there, never what its class has left. Where a device's memory cannot hold all of them at it
+// (src/core/gpu.js byDial), it rises, the same for every store: all are a little coarser, none is left out for coming
+// late. It is never lowered: no store sized at it finds less room than it took.
+let REST = DIAL_ASKED;
+/** The dial at rest on this page: the least it is, what every capacity is sized for (pxKMost). */
+export const restDial = () => REST;
+/** The dial at rest raised to d (src/core/gpu.js byDial): the dial with it where it was finer, and every capacity sized
+    at it again (onMeasure). True where it rose. */
+export function raiseRest(d) {
+  if (!(d > REST)) return false;
+  REST = d;
+  if (!keep(Math.max(ERROR_PX(), d))) { version++; for (const f of listeners) f(); }
+  return true;
+}
 /** The dial an address's `truth` asks for (its text; none: it asks for none, the dial's rest). The truth is drawn at a
     quarter of a pixel drawn by default: at every pixel of the canvas (a third again finer than the game's inside each
     way) over 32 places of a pixel, so a quarter of an inside pixel is below what its picture can show; `?truth=d` at d,

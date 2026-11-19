@@ -26,6 +26,7 @@ import { MiB } from './physics.js';
 import { passBegins, timesOn } from './pace.js';
 import { pass as framePass } from './frames.js';
 import { aboutToTake } from './journal.js';
+import { restDial, raiseRest } from '../detail/measure.js';
 
 // ---- a compute pass called by its maker ----
 // three calls a compute pipeline by its node's name (computePipeline_compute_<name>); one made without a name is just
@@ -90,6 +91,29 @@ const heldBy = (cls) => { let n = 0; for (const h of HELD.values()) if (h.cls ==
 /** The room a class has left on the GPU, bytes: its budget less what it holds, as its pools say it or as the device made
     it for its code (the more of the two: what three makes for it too). */
 export const roomOf = (cls) => budgetOf(cls) * MB - Math.max(heldBy(cls), MADE[cls] ?? 0);
+// ---- what follows the dial: memory's one knob (src/detail/measure.js restDial) ----
+// A store sized by what lies within reach at the dial at rest (its things, cells, rings) takes its need there, never
+// what its class has left, so none is short for having come late. Where its class's stores sized anew as the dial moves
+// (V, their needs) and the rest of what the class holds (F, with what is about to be made once) would pass its budget
+// (B), the dial at rest rises to D √(V / (B − F)): what lies within a reach goes as the reach's square, and a dial D
+// times as coarse reaches 1/D as far. Each of them is sized again at it (onMeasure), all a little coarser; it is
+// checked again as they say what they need there, till they fit.
+const BY_DIAL = new Map();   // (a store sized anew as the dial moves, by its pool's name: its class, its need, bytes)
+/** A store that follows the dial (name: its pool's, as it notes itself; cls its class) needs `bytes` at the dial at rest
+    now: again, it is sized anew whenever the dial moves (a tier, through onMeasure); else it is about to be made once at
+    this dial, at its need, and holds it. Raises the dial at rest where its class cannot hold it all; returns the dial at
+    rest, which a store made once is made at. */
+export function byDial(name, cls, bytes, again = true) {
+  if (again) BY_DIAL.set(name, { cls, bytes });
+  let V = 0, own = 0;
+  for (const [n, s] of BY_DIAL) if (s.cls === cls) { V += s.bytes; own += HELD.get(n)?.gpu ?? 0; }
+  const B = budgetOf(cls) * MB, F = Math.max(heldBy(cls), MADE[cls] ?? 0) - own + (again ? 0 : Math.max(0, bytes - (HELD.get(name)?.gpu ?? 0)));
+  if (V + F <= B) return restDial();
+  if (!(B - F > 0)) { past(cls, `what does not follow the dial (${name} last)`, F, budgetOf(cls), true); return restDial(); }   // (no dial fits it: said, counted)
+  const was = restDial();
+  if (V > 0 && raiseRest(was * Math.sqrt(V / (B - F)))) { const k = (was / restDial()) ** 2; for (const t of BY_DIAL.values()) t.bytes *= k; }   // (each store's need at the new dial, by the same rule, till it says its own there: none counted at the old one)
+  return restDial();
+}
 /** A make that took `who` (a class, or the whole GPU) past its budget (MB), `by` (the pool, or what the device was asked
     to make) holding `bytes` there then: said once a class and maker (once: once a class, whatever made it first; the
     one tally's check, held and counted below, says it so), loudly, and counted; what was made is kept, so nothing
@@ -116,6 +140,7 @@ export const short = (name, n) => { SHORT.set(name, n); };
 /** The one ledger (the game's memory(), src/boot.js; the hour's gate reads it), MB:
       gpu, peak, budget   what the game holds on the GPU now and the most it held (all the device made, where it is
                           counted; else what the pools note), and GPU_MB
+      rest                the dial at rest (src/detail/measure.js restDial): 1, or what this device's memory raised it to
       classes             { class: { gpu, peak (the same, the class's: what the device made for its code, else what its
                           pools note), noted (what its pools say they hold), page (what they keep on the page), budget } }
       noted, page         what all the pools note, on the GPU and on the page; unnoted: what the device made beyond it
@@ -132,7 +157,7 @@ export const ledger = () => {
   for (const c of CLASS_NAMES) Object.assign(classes[c], { gpu: mb(R ? MADE[c] : classes[c].noted), peak: mb(R ? MADE_PEAK[c] : PEAK[c]), noted: mb(classes[c].noted), page: mb(classes[c].page) });
   const noted = rows.reduce((s, r) => s + r[1], 0);
   return {
-    gpu: mb(R ? made : noted), peak: mb(R ? peakMade : peakAll), budget: Math.round(wholeBudget()), share: +SHARE.toFixed(3), classes, noted: mb(noted), page: mb(rows.reduce((s, r) => s + r[2], 0)),
+    gpu: mb(R ? made : noted), peak: mb(R ? peakMade : peakAll), budget: Math.round(wholeBudget()), share: +SHARE.toFixed(3), rest: +restDial().toFixed(3), classes, noted: mb(noted), page: mb(rows.reduce((s, r) => s + r[2], 0)),
     unnoted: R ? mb(Math.max(0, made - noted)) : null,
     makers: [...KINDS.values()].filter((k) => k.bytes > 0).sort((a, b) => b.bytes - a.bytes).slice(0, 24).map((k) => [k.cls, k.kind, mb(k.bytes), k.n]),
     over: [...OVER.values()].map((o) => ({ ...o })), rows: rows.map(([n, g, p, c]) => [n, mb(g), mb(p), c]), short: Object.fromEntries(SHORT),
