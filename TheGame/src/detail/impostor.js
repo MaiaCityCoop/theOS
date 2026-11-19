@@ -110,7 +110,7 @@ export function createAtlas(renderer, { name, side, layers, cell = side, views =
     renderer.initRenderTarget(rt); return rt;
   };
   const [C, D, L] = PICTURES.map(make), mips = Math.floor(Math.log2(side)) + 1;
-  note(`${name}`, Math.round(atlasBytes(side, Math.max(2, layers))), 0, 'geometry');   // (src/core/classes.js: its share, SHARE_MB)
+  note(`${name}`, Math.round(atlasBytes(side, Math.max(2, layers))), 0, 'geometry', C, D, L);   // (src/core/classes.js: its share, SHARE_MB)
   return {
     colour: C.texture, data: D.texture, leaf: L.texture, side, cell, views, targets: [C, D, L],   // (targets: to read a layer back, renderer.readRenderTargetPixelsAsync)
     tiles: uniform(side / cell),   // (its pictures a side, as data: an atlas sized to its stand's largest clumps reads with the same code as any)

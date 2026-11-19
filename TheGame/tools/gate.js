@@ -16,10 +16,11 @@
 //   bun tools/gate.js noise <tag> [--truth] [--views a,b]        the same views shot twice: the floor any diff stands on
 //   bun tools/gate.js bench [--ratio r] [--frames n]             tools/bench.js at its six views with ?gputime: GPU ms
 //                                                                against its BUDGET, and the resolution drawn
-//                        [--twice] [--ratchet]                   and each part of each view against its ceiling
-//                                                                (tools/gate/ceilings.js): shown, never blocking; --twice: the
-//                                                                noise measured from two runs; --ratchet: main's nightly,
-//                                                                each ceiling lowered to what is measured, never raised; where
+//                        [--twice] [--ratchet]                   and each class and pass of each view against its
+//                                                                ceiling, a class's against its share too
+//                                                                (tools/gate/ceilings.js); --twice: the noise measured
+//                                                                from two runs; --ratchet: main's hour, each ceiling
+//                                                                lowered to what is measured, never raised; where
 //                                                                it went, pass by pass and by part (geometry, light,
 //                                                                ground, upscale and post: bench.js CLASSES), and what
 //                                                                each adds to the span (the light's each on its own)
@@ -68,15 +69,17 @@
 //   bun tools/gate.js device [--secs s]                          the device on the machine the 8 GB gate is for
 //                                                                (budget.js MACHINE, in WebKit): GPU memory by the
 //                                                                game's ledger, its peak and where it settles, the
-//                                                                longest submission, whether the device survives (a
-//                                                                lost one fails): tools/gate/device.js
+//                                                                longest submission and every one over budget.js
+//                                                                SUBMIT_MS with what it held, whether the device
+//                                                                survives (a lost one fails): tools/gate/device.js
 //   bun tools/gate.js smoke [--views a,b]                        the GPU smoke: at HOURLY's views, the world settled
 //                                                                posed, turned about and walked on, and every WebGPU
 //                                                                error meanwhile
 //   bun tools/gate.js hourly [--views a,b] [--paths a,b]         the hour's measure of main, under the GPU lock once
-//                        [--ratchet]                             (--ratchet: the shader ceilings lowered to it):
-//                                                                the smoke, the stills, ?truth and FLIP at HOURLY's views, the
-//                                                                bench (the ceilings shown), the compile, the paths
+//                        [--ratchet]                             (--ratchet: the shader and the bench's ceilings
+//                                                                lowered to it): the smoke, the stills, ?truth and FLIP
+//                                                                at HOURLY's views, the bench twice (the frame's rule:
+//                                                                fails a class or pass past its ceiling), the compile, the paths
 //                                                                walk and zoom; .gate/hourly/<commit>/summary.json and
 //                                                                board.md, against the hour before (tools/gate/ten.js)
 //
@@ -107,7 +110,8 @@ import { VIEWS, PATHS, HOURLY } from './gate/views.js';
 import RIG from '../camera/rig.js';
 import { FIRST_FRAME } from '../src/core/marks.js';
 import { CLASSES, classOf, CLASS_NAMES, memoryNow } from './bench.js';
-import { FRAME_MS as BUDGET, MEMORY, GPU_MB, BUDGET_MB, FRAME_MS_BY_CLASS, OUTPUT, FPS, DRAWN_ROWS } from '../src/core/budget.js';
+import { FRAME_MS as BUDGET, MEMORY, GPU_MB, BUDGET_MB, FRAME_MS_BY_CLASS, OUTPUT, FPS } from '../src/core/budget.js';
+import { outputRatio } from '../src/core/output.js';
 import { flip, tiles, heat, readPNG, writePNG, PPD } from './gate/flip.js';
 import { stepper } from './gate/clock.js';
 import { locked, unlock } from './gpu/lock.js';
@@ -120,7 +124,7 @@ const URL_AT = process.argv.indexOf('--url'), BASE = (URL_AT > 0 && process.argv
 const Q_AT = process.argv.indexOf('--query'), EXTRA = Q_AT > 0 ? process.argv[Q_AT + 1] : '';   // (more of the address for every page the gate opens: --query stress, the stress world)
 const OUT = new URL('../.gate/', import.meta.url).pathname;   // TheGame/.gate/: made again by every run, not kept in git
 // (the output the gate draws: OUTPUT (src/core/budget.js), at one pixel a point: the canvas is the output's own pixels)
-const SCREEN = { ...OUTPUT, dpr: 1 }, INSIDE = DRAWN_ROWS / OUTPUT.height, TIME = 100;   // (INSIDE: the world drawn at the rows the budget holds at, a share of the output's: 4/3 of 1080)   // (TIME: the seconds the world's clock stands at for stills)
+const SCREEN = { ...OUTPUT, dpr: 1 }, INSIDE = outputRatio(SCREEN.width, SCREEN.height), TIME = 100;   // (INSIDE: the most the game draws on the gate's screen, by its own rule, src/core/output.js: no more pixels than the output has, 1 here; src/core/screen.js holds the inside to it)   // (TIME: the seconds the world's clock stands at for stills)
 const FRAME = 1000 / FPS, JITTER = 1;   // the hard gates in motion: no frame longer than 1/FPS s (the frame clock's own jitter allowed), the GPU within BUDGET ms in every frame, the whole browser within 8 GB
 const WAIT = 300e3;   // ms the world may take to come, or to settle, before the gate calls it broken (an error; never a wait for readiness)
 const ARGS = ['--enable-unsafe-webgpu', '--enable-webgpu-developer-features'];   // (the second: the GPU's timestamps to the nanosecond, not rounded to a tenth of a millisecond: the bench times passes of a few hundredths)
@@ -657,31 +661,33 @@ async function moves(page, v) {
 }
 /** The hour's walk: twenty seconds of the walk path (PATHS walk) as a player walks it, at the output, in the world and in
     the stress world (?stress): each frame's time and the GPU's (p50, p99), the frames that hitched (longer than two
-    frames at 60 fps), and the longest submission's own GPU time (tools/gate/device.js watch). */
+    frames at 60 fps), and the submissions' own GPU time from the page's start through the walk: the longest and every one
+    over SUBMIT_MS, with what each held (tools/gate/device.js watch). */
 async function walks(chrome) {
-  const { watch } = await import('./gate/device.js'), p = PATHS.find((x) => x.name === 'walk'), out = {};
+  const D = await import('./gate/device.js'), p = PATHS.find((x) => x.name === 'walk'), out = {};
   for (const world of ['world', 'stress']) {
-    const P = await open(chrome, { query: world === 'stress' ? 'gputime&stress' : 'gputime', init: `(${watch})(${BUDGET})` });
+    const P = await open(chrome, { query: world === 'stress' ? 'gputime&stress' : 'gputime', init: D.watching() });
     try {
       await P.page.evaluate(() => { window.__cine.dof = false; }); await P.page.evaluate(course, p);
       const g = await P.page.evaluate(settled, { wait: WAIT, at: `the walk's start, ${world}`, keep: KEEP.on });
       if (g.settled === false) { out[world] = { notSettled: g.said }; continue; }
       const r = told(await P.page.evaluate(ride, { fly: false, limit: 20e3 })), d = await P.page.evaluate(() => window.__device);
-      out[world] = { ...r, longest: Math.round(d?.longest ?? 0), long: d?.long ?? null };
+      out[world] = { ...r, longest: Math.round(d?.longest ?? 0), long: d?.long ?? null, slow: d?.slow ?? [], slowN: d?.slowN ?? 0, sure: d?.sure ?? 0 };
     } finally { said(P.errors); await P.close(); }
   }
-  console.log(`  ${walkLines(out).join('\n  ')}`);
+  console.log(`  ${walkLines(out, D.submissions).join('\n  ').replace(/\*\*/g, '')}`);
   return out;
 }
-/** The walk's lines on the board: each world's frames and GPU against 60 fps and BUDGET, its hitches, its longest
-    submission. */
-const walkLines = (W) => Object.entries(W ?? {}).map(([w, r]) => (r.notSettled ? `The walk, ${w}: not settled (${String(r.notSettled).slice(0, 160)}).`
-  : `The walk, ${w}: frames p50 ${f(r.frame?.median, 1).trim()} ms, p99 ${f(r.frame?.p99, 1).trim()} ms (60 fps: ${FRAME.toFixed(1)}); GPU p50 ${f(r.gpu?.median, 2).trim()} ms, p99 ${f(r.gpu?.p99, 2).trim()} ms (budget ${BUDGET}); ${r.frame?.hitches ?? 0} hitches over ${(2 * FRAME).toFixed(0)} ms; the longest submission ${r.longest} ms.`));
+/** The walk's lines on the board: each world's frames and GPU against 60 fps and BUDGET, its hitches, its submissions
+    (said: tools/gate/device.js submissions). */
+const walkLines = (W, said) => Object.entries(W ?? {}).map(([w, r]) => (r.notSettled ? `The walk, ${w}: not settled (${String(r.notSettled).slice(0, 160)}).`
+  : `The walk, ${w}: frames p50 ${f(r.frame?.median, 1).trim()} ms, p99 ${f(r.frame?.p99, 1).trim()} ms (60 fps: ${FRAME.toFixed(1)}); GPU p50 ${f(r.gpu?.median, 2).trim()} ms, p99 ${f(r.gpu?.p99, 2).trim()} ms (budget ${BUDGET}); ${r.frame?.hitches ?? 0} hitches over ${(2 * FRAME).toFixed(0)} ms; submissions from the page's start, ${said(r)}.`));
 /** The hour's measure of main (ship-first: a PR merges when its CI is green, main is measured once an hour, and what
     got worse goes back as work): one run under the GPU lock taken once (tools/gpu/lock.js), at the output (OUTPUT): the
-    GPU smoke (smoke), the stills and ?truth at HOURLY's views and FLIP between them, the bench by class (each part against its ceiling: a row
-    shown, never blocking), the WGSL compiled, and the paths walk and zoom (each frame's time, the GPU's, the memory, the
-    first frame). Kept as .gate/hourly/<commit>/summary.json (the run as tools/gate/ten.js reads it), and its scoreboard,
+    GPU smoke (smoke), the stills and ?truth at HOURLY's views and FLIP between them, the bench twice by class and pass
+    (the frame's rule, tools/gate/ceilings.js: the hour fails where a class or a pass rose past its ceiling; its ceilings
+    lowered to it with --ratchet), the WGSL compiled, and the paths walk and zoom (each frame's time, the GPU's, the
+    memory, the first frame). Kept as .gate/hourly/<commit>/summary.json (the run as tools/gate/ten.js reads it), and its scoreboard,
     board.md: every measure against the hour before. */
 async function hourly(opt) {
   const tag = commit(), views = opt.views ?? HOURLY.join(','), at = `${OUT}hourly/`;
@@ -695,17 +701,18 @@ async function hourly(opt) {
     try {
       const set = (o) => stills(chrome, o).catch((e) => { console.log(`  stills ${o.tag}: ${e.message.slice(0, 300)}`); return o.tag; });   // (a view the GPU refused is marked in its gate.json; the hour goes on)
       s = await smoke(chrome, { views }); a = await set({ tag, views }); t = await set({ tag: `${tag}-truth`, truth: true, views });
-      b = await (await import('./gate/ceilings.js')).rule(() => bench(chrome, opt), {}, tag); c = await compile(chrome, opt); w = await walks(chrome);
+      b = await (await import('./gate/ceilings.js')).rule(() => bench(chrome, opt), { twice: true, ratchet: opt.ratchet }, tag);   // (twice: the hour's own noise) c = await compile(chrome, opt); w = await walks(chrome);
     } finally { await closeHard(chrome, chrome.gateDir); }
     const unsettled = (set) => Object.entries(JSON.parse(readFileSync(`${OUT}${set}/gate.json`, 'utf8')).views ?? {}).filter(([, r]) => r.notSettled).map(([k]) => k);
     return { tag, when: new Date().toISOString(), out: OUTPUT, device: dev, firstView: first, walks: w, start: s.start, smoke: s, stills: { lod: unsettled(a), truth: unsettled(t) }, flip: await diff(a, t, { ...opt, views }).catch((e) => ({ none: e.message })), bench: b, compile: c, paths: await paths({ ...opt, paths: opt.paths ?? 'walk,zoom' }) };
   }, (o) => ({ tag, when: new Date().toISOString(), ...o }))) }; });
   mkdirSync(`${at}${tag}/`, { recursive: true }); save(`${at}${tag}/summary.json`, run);   // (its own folder, whatever else made one: a hour not measured made none, and left no board, 2026-11-19)
-  if (run.device?.pass === false || run.wgsl?.pass === false) process.exitCode = 1;   // (a lost device fails the hour, and a module the device will not compile)
+  if (run.device?.pass === false || run.wgsl?.pass === false || run.bench?.ceilings?.pass === false) process.exitCode = 1;   // (a lost device fails the hour, a module the device will not compile, and a class or pass of a bench view past its ceiling)
   return board(tag, at);
 }
 /** The scoreboard of the hour `tag` (in `at`): every measure against the last hour kept before it (tools/gate/ten.js),
-    and each part of each bench view against its ceiling; board.md beside its summary. */
+    and the frame by class and pass against its shares and ceilings (tools/gate/ceilings.js board); board.md beside its
+    summary. */
 async function board(tag, at) {
   const { runOf, held } = await import('./gate/ten.js'), here = runOf(`${at}${tag}/summary.json`);
   const before = readdirSync(at).filter((d) => d !== tag && existsSync(`${at}${d}/summary.json`)).sort((x, y) => statSync(`${at}${y}/summary.json`).mtimeMs - statSync(`${at}${x}/summary.json`).mtimeMs)[0];
@@ -714,23 +721,22 @@ async function board(tag, at) {
   const md = [`# The hour on main, ${tag} (${OUTPUT.width} × ${OUTPUT.height}), ${new Date().toISOString().slice(0, 16)}`, '',
     ...head(R, (await import('./gate/device.js')).readyLine).flatMap((l, i) => (i ? [l] : [l, ...wgslLines(R.wgsl, R.firstView)])),   // (first: was it measured, did the game come at all; the WGSL on the device and what it costs; the machine)
     ...costBlock(R.wgsl, R.firstView),
-    ...(R.notMeasured && !R.device ? ['', 'The game was not run this hour (the machine, above): nothing of it is measured, nor held against the hour before.'] : await measuresOf(R, H, here, mem))].join('\n');   // (a hour not measured: its board all the same, what ran without the game on it)
+    ...(R.notMeasured && !R.device ? ['', 'The game was not run this hour (the machine, above): nothing of it is measured, nor held against the hour before.'] : await measuresOf(R, H, mem))].join('\n');   // (a hour not measured: its board all the same, what ran without the game on it)
   writeFileSync(`${at}${tag}/board.md`, md + '\n');
   console.log(`\n${md}\n\n→ .gate/hourly/${tag}/summary.json and board.md`);
   return { tag, before: before ?? null, worse: H?.worse ?? [], fails: mem.fails };
 }
 /** The board's lines of what the game was measured doing (R, the hour's run): the GPU's memory, the device, the start,
-    what did not settle, the walk, every measure against the hour before (H), and each bench part against its ceiling. */
-async function measuresOf(R, H, here, mem) {
-  const S = R.start, rows = here.bench?.ceilings?.rows ?? [];
+    what did not settle, the walk, every measure against the hour before (H), and the frame's rule (ceilings.js board). */
+async function measuresOf(R, H, mem) {
+  const S = R.start;
   const out = [...(R.stills?.lod ?? []).map((v) => `${v} (stills)`), ...(R.stills?.truth ?? []).map((v) => `${v} (?truth)`), ...Object.keys(R.bench?.unsettled ?? {}).map((v) => `${v} (bench)`), ...['cold', 'warm'].flatMap((c) => Object.entries(R.paths?.[c]?.paths ?? {}).filter(([, r]) => r.notSettled).map(([k]) => `${k} (paths, ${c})`))];
   return [mem.line,
     ...(await import('./gate/device.js')).lines(R.device), '',
     S?.settled === false ? `**The start did not settle** in ${(S.ms / 1000).toFixed(0)} s: ${String(S.said).slice(0, 300)}` : `The start settled in ${((S?.ms ?? 0) / 1000).toFixed(1)} s.`,
     out.length ? `Not settled, so not measured: ${out.join(', ')}.` : 'Every view and path settled.', '',
-    ...walkLines(R.walks), '', H ? H.text : `The first hour kept: nothing before it to hold it against.`, '',
-    `Each part of each bench view against its ceiling (tools/gate/ceilings.json), shown, never blocking:`, '', '| View | Part | ms | Ceiling | Over |', '| --- | --- | --- | --- | --- |',
-    ...rows.map((r) => `| ${r.view} | ${r.part} | ${r.ms.toFixed(2)} | ${r.ceiling.toFixed(2)} | ${r.over ? 'over' : ''} |`)];
+    ...walkLines(R.walks, (await import('./gate/device.js')).submissions), '', H ? H.text : `The first hour kept: nothing before it to hold it against.`, '',
+    ...(await import('./gate/ceilings.js')).board(R.bench?.ceilings)];
 }
 async function all(opt) {
   const tag = opt.tag || commit(), chrome = await launch(opt);

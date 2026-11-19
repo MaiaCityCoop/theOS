@@ -11,7 +11,8 @@ import SKY from '../../world/sky.js';
 import CLOCK from '../../world/clock.js';   // the date, the hour the game opens at, how fast a day runs: set there, nowhere else
 import { U } from '../core/uniforms.js';
 import { toScreen } from './light.js';
-import { D, SKY_TEX, SKY_W, skyAlong } from './sky/dome.js';
+import { D, skyAlong } from './sky/dome.js';
+import { TABLES, TABLE_W, SKY_W, SKY_Y } from './light/tables.js';
 import { through, skyOf, ROWS, rowEl, GROUND_EXTINCTION } from './sky/air.js';
 import { STAR_MOST } from './sky/stars.js';
 import { skyHooks } from './weather/index.js';
@@ -104,13 +105,14 @@ export function createSky(scene, camera, renderer) {
     const stays = (L) => L && near(L.sunAlt, sun.alt) && near(L.sunAz, sAz) && L.withMoon === withMoon && (!withMoon || (near(L.moonAlt, moon.alt) && near(L.moonAz, mAz))) && Math.abs(Math.log(L.k / exposure)) < Math.LN2;   // (and laid again once the exposure has moved by a stop: what it holds stays in the half floats' range)
     if (stays(laid)) return laid;
     const k = exposure;   // (held times the exposure it is laid at: half floats then hold it, from noon's light to the night's; D.skyK takes it back)
-    const S = skies.S, M = skies.M, data = SKY_TEX.image.data;
+    const S = skies.S, M = skies.M, data = TABLES.image.data, at = (y, x) => ((SKY_Y + y) * TABLE_W + x) * 4;
     for (let y = 0; y < ROWS; y++) for (let x = 0; x < SKY_W; x++) {
-      const a = ((x + 0.5) / SKY_W) * 2 * Math.PI - Math.PI, l = S.at(rowEl(y), turnOf(a - sAz)), m = M ? M.at(rowEl(y), turnOf(a - mAz)) : null, o = (y * SKY_W + x) * 4;
+      const a = ((x + 0.5) / SKY_W) * 2 * Math.PI - Math.PI, l = S.at(rowEl(y), turnOf(a - sAz)), m = M ? M.at(rowEl(y), turnOf(a - mAz)) : null, o = at(y, x);
       for (let c = 0; c < 3; c++) data[o + c] = THREE.DataUtils.toHalfFloat((l[c] + (m ? iMoon * m[c] : 0)) * k);
       data[o + 3] = THREE.DataUtils.toHalfFloat(1);
     }
-    SKY_TEX.needsUpdate = true; D.skyK.value = 1 / k;
+    for (let y = 0; y < ROWS; y++) for (let c = 0; c < 4; c++) data[at(y, SKY_W) + c] = data[at(y, 0) + c];   // (the first column again after the last: the round closes)
+    TABLES.needsUpdate = true; D.skyK.value = 1 / k;
     return (laid = { sunAlt: sun.alt, sunAz: sAz, moonAlt: moon.alt, moonAz: mAz, withMoon, S, M, k });
   };
 

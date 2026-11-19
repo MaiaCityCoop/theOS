@@ -120,7 +120,7 @@ export class Tier {
   }
   /** Its packing passes asked to be made, aside, in turn (src/core/compile.js ask). counted: whether the world waits for
       them (made ahead of need, src/boot.js: not). */
-  make(renderer, counted = true) { if (this.passes) ask(this.passes, 'run', computeMaker(renderer), `${this.name}: packing`, counted, nearFrom(this.near)); }   // (made when what it packs is: past the first view's reach, after it)
+  make(renderer, counted = true) { if (this.passes) ask(this.passes, 'run', computeMaker(renderer), `${this.name}: packing`, counted, nearFrom(this.begins ?? this.near)); }   // (made when what it packs is: as near as its band begins (begins: a level that stands in for finer ones is drawn from the camera on, src/scatter/drawer.js), past the first view's reach after it)
   /** Its patches read into two numbers, not written out one by one (a string of hundreds of them a tier a frame was a
       megabyte of litter every few frames for the browser to sweep up); a list's runs too (the same patch may hold other
       places now). */

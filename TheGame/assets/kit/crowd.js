@@ -13,15 +13,14 @@
 // on screen of its own:
 //   - one spread order of the sprigs. Every sprig has its turn, and any first share of the turns is a fair picture of
 //     the whole crown: the sprigs go by size into classes (each half the area of the one before, the largest first), and
-//     within a class each next is the one farthest from all taken before (a blue-noise order). Drawing the first t
-//     turns, the crowd's error is what leaving out the rest truly misplaces: the farthest a sprig left out lies from one
-//     drawn (its share error, turnsOf), and at least the reach of the largest left out, whose leaves are gone with it.
-//     A thing never changes its size with distance: every sprig drawn is drawn at its true size. So a crown stays whole
-//     until its sprigs are under the dial, and thins only over the band before its end (the grass's rule:
-//     src/scatter/grass.js); what it no longer covers there is what shows behind it: its stand's colour, and past its
-//     end its next rung's bake, made of it at its true size (the clumps, the impostor). Each sprig goes (its go) where
-//     the crowd without it and every turn after it is within the dial, shrinking to its root over the FADE below. A
-//     crown whose error is nowhere within its clumps' does not thin before they come;
+//     within a class each next is the one farthest from all taken before (a blue-noise order). What is left out is stood
+//     for by what stays (Cook, Halstead, Planck and Ryu 2007, "Stochastic Simplification of Aggregate Detail"): the kept
+//     grow about their roots so the crown covers as much of its round as it did, sqrt(A / A_t) of their size. Drawing
+//     the first t turns, the crowd's error is what that truly misplaces: the farthest a sprig left out lies from one drawn
+//     (its share error, turnsOf), and how far the growth moves the kept leaves (headOf). Each sprig goes (its go) where
+//     the crowd without it and every turn after it is within the dial, shrinking to its root over the FADE below, as the
+//     kept grow (growthOf: smooth in the error, so in the pixels too). Past its end its next rung's bake, made of it whole
+//     at its true size (the clumps, the impostor: each rung is measured against the plant at full detail);
 //   - a solid piece is gone where leaving it out (its width) is within the dial, and shrinks to its foot. The solids'
 //     corners are sorted thick first: a first share of the list is the thick wood;
 //   - the clumps (NVIDIA HPG 2026, Simplygon's billboard clouds): the sprigs split into chunks by their boxes, the
@@ -156,15 +155,20 @@ function headOf(m, K) {
   const { lo, hi, mean, frame, sphere } = boundsOf(P, n), size = K.size ?? max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]);
   const { sprigs, solids } = partsOf(m), N = sprigs.length, { mid, sd, order } = orderOf(sprigs, P, K);
   // ---- the crowd's own error, turn by turn (metres): drawing its first t turns, what leaving out the rest truly
-  // misplaces: the farthest one left out lies from one drawn (its share error, turnsOf), and at least the reach of the
-  // largest left out (from its tip to its farthest corner): its leaves are gone with it, nothing drawn stands for them.
-  // Never more as more are drawn; a crowd too few to thin (LEAST) keeps them all (Infinity: never by itself) ----
+  // misplaces. What is left out is stood for by what stays: the kept grow about their roots, each sqrt(A / A_t) of its
+  // size (A: every sprig's leaves, A_t: the first t turns'), so the crown covers as much of its round as it did (Cook,
+  // Halstead, Planck and Ryu 2007, "Stochastic Simplification of Aggregate Detail", SIGGRAPH: what is pruned stood for by
+  // the rest, scaled up by its area). So leaving out turns t … N-1 misplaces what goes by its share error (the farthest
+  // one left out lies from one drawn: turnsOf) and what stays by its growth, (sqrt(A / A_t) - 1) times the farthest a
+  // kept sprig's leaf lies from its root (it was the reach of the largest left out, its leaves gone with it, nothing
+  // drawn standing for them: every sprig of a crown is about one size, so all went at once). And the kept never grow
+  // faster than the error allowed grows (over a BAND of pixels, at most a BAND of growth: a turn goes no sooner than
+  // the growth it brings over the last one's, times the error that went at). Never more as more are drawn; a crowd too
+  // few to thin (LEAST) keeps them all (Infinity: never by itself) ----
   const thins = N > K.LEAST, withFar = K.far !== false;
   if (withFar && !K.CELL) throw new Error('crowd: a far end is sized by its atlases (VIEWS, CELL, TILE, CLUMPS: src/detail/impostor.js atlases), and none were given');
-  const reachOf = (q) => { let r = 0; for (const v of q.verts) r = max(r, hypot(P[v * 3] - q.tip[0], P[v * 3 + 1] - q.tip[1], P[v * 3 + 2] - q.tip[2])); return r; };
-  const own = new Float64Array(N).fill(Infinity);
-  if (thins) for (let t = N - 1, most = 0; t >= 0; t--) { most = max(most, reachOf(sprigs[order[t]])); own[t] = max(order.err[t], most); }
-  const endAt = (e) => { let t = 0; while (t < N && own[t] > e) t++; return t; };   // (the sprigs still there where an error of e is allowed: the first so many)
+  const R = m.root, rootReach = (q) => { let r = 0; for (const v of q.verts) r = max(r, hypot(P[v * 3] - R[v * 3], P[v * 3 + 1] - R[v * 3 + 1], P[v * 3 + 2] - R[v * 3 + 2])); return r; };
+  const area = Float64Array.from(order, (p) => sprigs[p].area), reach = thins ? Float64Array.from(order, (p) => rootReach(sprigs[p])) : null;
   // ---- the impostor's error (metres): its bake's texel, CELL of them over its sphere's width, and what its views'
   // spacing and its one step of parallax misplace, the plant's depth times their angle (src/detail/atlas.js) ----
   const views = withFar ? spacingOf(K.VIEWS) * depthOf(P, n) : 0, eImp = withFar ? (2 * sphere[3]) / K.CELL + views : Infinity;
@@ -172,21 +176,63 @@ function headOf(m, K) {
   // clumps: as many chunks as cost no more than the sprigs still there where the crowd ends (first all of them, then
   // those its clumps leave); a shape whose impostor is as fine as its clumps hands its crowd over to it, and has no
   // clumps; a plant without a far end has neither, and its crowd goes by its own error to where it is gone (M 0) ----
-  const endOf = (M0) => {
-    let cornersM = 0; for (let t = 0; t < M0; t++) cornersM += sprigs[order[t]].cards * 4;
-    const chunks = withFar && thins ? chunksOf(sprigs, max(1, min(K.CLUMPS, floor(cornersM / 12))), K.grid) : null;
-    const eC = chunks ? clumpsErrorOf(chunks, sprigs, P, K.TILE) : Infinity, clumpy = eC < eImp, end = clumpy ? eC : eImp;
-    return { chunks: clumpy ? chunks : null, eC, end, M: withFar ? endAt(end) : 0 };
+  const endsOf = (own) => {
+    const endAt = (e) => { let t = 0; while (t < N && own[t] > e) t++; return t; };   // (the sprigs still there where an error of e is allowed: the first so many)
+    const endOf = (M0) => {
+      let cornersM = 0; for (let t = 0; t < M0; t++) cornersM += sprigs[order[t]].cards * 4;
+      const chunks = withFar && thins ? chunksOf(sprigs, max(1, min(K.CLUMPS, floor(cornersM / 12))), K.grid) : null;
+      const eC = chunks ? clumpsErrorOf(chunks, sprigs, P, K.TILE) : Infinity, clumpy = eC < eImp, end = clumpy ? eC : eImp;
+      return { chunks: clumpy ? chunks : null, eC, end, M: withFar ? endAt(end) : 0 };
+    };
+    let E0 = endOf(N); if (E0.M < N) E0 = endOf(E0.M);
+    const { chunks, eC, end } = E0, M = withFar ? endAt(end) : 0;
+    // every sprig's go (metres; 0: never by itself): the last M (still there where the crowd ends) one by one over the
+    // FADE below the clumps' switch, the outline's last, or, with no clumps, staying till the impostor takes them; the
+    // rest at their own error
+    const go = Float32Array.from({ length: N }, (_, t) => (t < M ? (chunks ? eC * exp(FADE * (1 - (t + 0.5) / M)) : 0) : Number.isFinite(own[t]) ? own[t] : 0));
+    const win = { hi: Number.isFinite(end) ? end : 0, lo: Number.isFinite(end) ? end * exp(FADE) : 0 };   // (metres: where the crowd ends, and where its window's last part goes)
+    return { own, chunks, eC, M, go, win, grow: growthOf(go, area, M, win) };
   };
-  let E0 = endOf(N); if (E0.M < N) E0 = endOf(E0.M);
-  const { chunks, eC, end } = E0, M = withFar ? endAt(end) : 0;
-  // every sprig's go (metres; 0: never by itself): the last M (still there where the crowd ends) one by one over the FADE
-  // below the clumps' switch, the outline's last, or, with no clumps, staying till the impostor takes them; the rest at
-  // their own error
-  const go = Float32Array.from({ length: N }, (_, t) => (t < M ? (chunks ? eC * exp(FADE * (1 - (t + 0.5) / M)) : 0) : Number.isFinite(own[t]) ? own[t] : 0));
-  const win = { hi: Number.isFinite(end) ? end : 0, lo: Number.isFinite(end) ? end * exp(FADE) : 0 };   // (metres: where the crowd ends, and where its window's last part goes)
-  return { lo, hi, mean, size, frame, sprigs, solids, N, M, mid, sd, order, sphere, views, errors: { clumps: chunks ? eC : null, impostor: withFar ? eImp : null, crowd: own }, chunks, win, go, far: withFar,
+  // (the vertex stage reads the growth between its knots, at most a knot's step of it over what it is: each turn's go
+  // reckoned with that much more, so what is drawn is within the dial too; that step known once the growth is, again)
+  let E = endsOf(ownOf(N, thins, order.err, area, reach, 1));
+  for (let k = 0, infl = 1; k < 3; k++) { const want = exp(E.grow.most / (RULE.AT - RULE.GROW)); if (!(want > infl)) break; infl = want; E = endsOf(ownOf(N, thins, order.err, area, reach, infl)); }
+  const { own, chunks, eC, M, go, win } = E;
+  return { lo, hi, mean, size, frame, sprigs, solids, N, M, mid, sd, order, sphere, views, errors: { clumps: chunks ? eC : null, impostor: withFar ? eImp : null, crowd: own }, chunks, win, go, grow: E.grow, far: withFar,
     atlas: withFar ? { VIEWS: K.VIEWS, CELL: K.CELL, TILE: K.TILE, TILES: K.TILES, CLUMPS: K.CLUMPS } : null };
+}
+/** Each turn's own error (headOf, above): the crowd without it and every turn after it, each kept sprig grown
+    sqrt(A / A_t) about its root, its growth reckoned `infl` times over (the vertex stage's knots: growthOf), never less
+    than the turn after it, nor growing faster than the error that went at (a BAND of pixels, at most a BAND of growth).
+    err: each turn's share error; area, reach: its leaves', and the farthest one lies from its root (turn order). */
+function ownOf(N, thins, err, area, reach, infl) {
+  const own = new Float64Array(N).fill(Infinity);
+  if (!thins) return own;
+  const A = area.reduce((s, a) => s + a, 0), kept = new Float64Array(N + 1), most = new Float64Array(N + 1);   // (the first t turns' leaves; the farthest a leaf of them lies from its root)
+  for (let t = 0; t < N; t++) { kept[t + 1] = kept[t] + area[t]; most[t + 1] = max(most[t], reach[t]); }
+  for (let t = N - 1, after = 0, was = 1; t >= 0; t--) { const s = kept[t] > 0 ? sqrt(A / kept[t]) : Infinity; after = max(after, err[t], (s * infl - 1) * most[t], (after * s) / was); own[t] = after; was = s; }
+  return own;
+}
+/** The kept's growth (Cook et al. 2007: headOf) for the vertex stage (src/scatter/trees.js grownBy): how many times its
+    size a kept sprig is drawn where an error of e (metres) is allowed, sqrt(A / A_e), A_e the leaves still there: each
+    sprig shrinking with its leaves over the FADE under its go (grownAt), the last M as if kept (the clumps or the
+    impostor stand for those, not the crowd). Kept as where (the log of e) it reaches each of KNOTS + 1 growths evenly in
+    its log, from none (where the first goes) to its most (where the crowd ends: its window, else its last go): so the
+    knots lie where it grows, and are read back between the two it lies between. go, area: each turn's, in turn order.
+    -> { most: the log of its most growth (0: none grow), at: the knots (KNOTS + 1 logs of e) } */
+function growthOf(go, area, M, win) {
+  const N = go.length, KN = RULE.AT - RULE.GROW, at = new Float32Array(KN + 1);
+  let e0 = Infinity, last = 0; for (let t = M; t < N; t++) if (go[t] > 0) { e0 = min(e0, go[t]); last = max(last, go[t]); }
+  const e1 = win.hi > 0 ? win.hi : last;
+  if (!(e0 < e1)) return { most: 0, at };
+  const A = area.reduce((n, a) => n + a, 0), sAt = (e) => { let Ae = 0; for (let t = 0; t < N; t++) { const g = t < M ? 1 : grownAt(go[t] / e, go[t]); Ae += area[t] * g * g; } return sqrt(A / max(Ae, 1e-12)); };
+  // (its log of growth over the log of e, finely: never less as more goes)
+  const STEPS = KN * 64, L = Float64Array.from({ length: STEPS + 1 }, (_, k) => log(sAt(e0 * (e1 / e0) ** (k / STEPS))));
+  for (let k = 1; k <= STEPS; k++) L[k] = max(L[k], L[k - 1]);
+  const most = L[STEPS], x = (k) => log(e0) + (k / STEPS) * log(e1 / e0);
+  if (!(most > 0)) return { most: 0, at };
+  for (let j = 0, k = 0; j <= KN; j++) { const want = (j / KN) * most; while (k < STEPS && L[k + 1] < want) k++; const f = L[k + 1] > L[k] ? (want - L[k]) / (L[k + 1] - L[k]) : 0; at[j] = x(k) + min(1, max(0, f)) * (x(k + 1) - x(k)); }
+  return { most, at };
 }
 /** A shape's box and middle (lo, hi, mean: of its vertices), the frame its cover is reckoned in (all of it, and a little
     round it), and the impostor's frame: the sphere round all of it, from its box's middle. */
@@ -391,7 +437,7 @@ export function crowd(m, opts = {}) {
     });
     return { n: Mc, cells, boxes, go: cgo, ao, err: max(...all.map((C) => C.err)) };
   }
-  return { count, cards, parts: N, solids: listed.length, ...out, ...S, index, steps, turns, size, mid, spread, win, cover, sphere, clumps,
+  return { count, cards, parts: N, solids: listed.length, ...out, ...S, index, steps, turns, size, mid, spread, win, grow: H.grow, cover, sphere, clumps,
     atlas: H.atlas, errors: H.errors, far: { lo: farLoOf(H), data: farDataOf(H, clumps) } };
 }
 /** Each solid piece's width and its go (metres). How long: between its two corners farthest apart (the farthest from
@@ -419,10 +465,12 @@ function farDataOf(H, clumps) {
 }
 
 // ---- a shape as the engine draws it between two sizes on screen ----
-/** Where each of a level's sixteen numbers lies (levelOf: `rule`): what the one rule reads of its shape. HI, LO: the
-    errors (metres) at which its crowd ends and its window's last part goes; AT: where its far data begins (its finest
-    level's: assets/kit/plant.js; a vertex's number, x 1024 and the rest, two slots). The others are free. */
-export const RULE = { HI: 2, LO: 3, AT: 14 };
+/** Where each of a level's sixteen numbers lies (levelOf: `rule`): what the one rule reads of its shape. E: its kept's
+    growth (growthOf): the log of its most, and its first knot; HI, LO: the errors (metres) at which its crowd ends and
+    its window's last part goes; GROW: the rest of its knots, up to AT; AT: where its far data begins (its finest
+    level's: assets/kit/plant.js; a vertex's number, x 1024 and the rest, two slots). */
+const SLOTS = ['most', 'from', 'hi', 'lo', 'k1', 'k2', 'k3', 'k4', 'k5', 'k6', 'k7', 'k8', 'k9', 'k10', 'at', 'at2'];   // (in order: four vec4, as the GPU reads them: src/scatter/trees.js ruleOf)
+export const RULE = { E: SLOTS.indexOf('most'), HI: SLOTS.indexOf('hi'), LO: SLOTS.indexOf('lo'), GROW: SLOTS.indexOf('k1'), AT: SLOTS.indexOf('at') };
 /** Where a chunk's planes lie in a shape's layer of clumps (src/detail/impostor.js): plane a (0: across x, 1: across y,
     2: across z) of chunk c is tile 3c + a, TILES a row. The plane's own two axes: [u, v]. Its corners' uv lie a step of
     the packing (assets/kit/plant.js: 1024ths) inside its tile, so no pixel at its edge reads the next one (IN). */
@@ -470,6 +518,7 @@ export function levelOf(S, lo = 0, hi = Infinity, { keep = false, clumps = true 
       index.push(o, o + 1, o + 2, o, o + 2, o + 3);
     }
   }
-  const rule = new Float32Array(16); rule[RULE.HI] = S.win.hi; rule[RULE.LO] = S.win.lo;
+  const rule = new Float32Array(SLOTS.length); rule[RULE.HI] = S.win.hi; rule[RULE.LO] = S.win.lo;
+  rule[RULE.E] = S.grow.most; rule[RULE.E + 1] = S.grow.at[0]; rule.set(S.grow.at.subarray(1), RULE.GROW);   // (its kept's growth: growthOf)
   return { ...out, index: Uint32Array.from(index), rule, far: hi === Infinity ? S.far.data : null };
 }

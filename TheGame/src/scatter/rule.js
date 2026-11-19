@@ -27,7 +27,7 @@
 // and young (its placement's `young`: how much of the ground its saplings cover), in the class of its saplings. Each
 // layer whose cells are as large as the growth map's texels writes what it leaves there for the layers after it.
 import * as THREE from 'three/webgpu';
-import { Fn, If, Loop, float, int, uint, vec2, vec4, ivec2, uniform, uniformArray, smoothstep, clamp, mix, max, min, abs, floor, length, dot, pow, log, exp, sqrt, cos, sin, packHalf2x16, unpackHalf2x16 } from 'three/tsl';
+import { Fn, If, Loop, Break, float, int, uint, vec2, vec4, ivec2, uniform, uniformArray, smoothstep, clamp, mix, max, min, abs, floor, length, dot, pow, log, exp, sqrt, cos, sin, packHalf2x16, unpackHalf2x16 } from 'three/tsl';
 import { rnd, vnoise, groveAt, leadAt, riverInfo, shareOf, nearLake } from '../world/land.nodes.js';
 import { U } from '../core/uniforms.js';
 import { scatterRow } from '../../assets/index.js';
@@ -124,22 +124,43 @@ function ofLayer(L, name, type = 'float') { const u = (L.uniforms ||= {}); retur
     does not grow, its asset's height and a shape at random. pos: where it stands (posIn). Nodes, worked out where the
     thing is known to be e's. */
 export function grownIn(c, L, e, pos) {
-  const a = e.asset, GR = a.growth, AG = e.ages, n = e.shapes[1], N = numbersOf(e), h0 = (k) => uint(k + L.seed - 300), r = rnd(c.x, c.y, h0(312));
+  const a = e.asset, GR = a.growth, AG = e.ages, N = numbersOf(e), seed = ofLayer(L, 'seed', 'uint'), h0 = (k) => seed.add(uint(k - 300)), r = rnd(c.x, c.y, h0(312));
   const own = mix(N.lo, N.hi, GR && AG ? rnd(c.x, c.y, h0(304)) : pow(rnd(c.x, c.y, h0(304)), 1.3)), h = float(1).toVar(), shape = float(0).toVar();
   if (GR && AG) {
-    const age = (e.young ? mix(AG[0], AG[1], r.mul(r)) : mix(AG[0], AG[1], vnoise(pos.div(grovesOf(e.biome, L).clumps * 2.5), h0(311))).mul(mix(AGED[0], AGED[1], r))).toVar();
-    GR.stages.forEach((S, j) => {
-      if (S.offset >= n) return;   // (a sapling: only its first stages)
-      const lo = j ? S.from : -1, hi = j < GR.stages.length - 1 && GR.stages[j + 1].offset < n ? S.to : 1e9;
-      If(age.greaterThanEqual(lo).and(age.lessThan(hi)), () => {
-        const ag = clamp(age, S.from, S.to), low = ag.lessThan(S.year);
-        const t = low.select(log(ag.div(S.from)).div(Math.log(S.year / S.from)), log(ag.div(S.year)).div(Math.log(S.to / S.year)));
-        h.assign(exp(low.select(mix(float(Math.log(S.hFrom)), float(Math.log(S.h)), t), mix(float(Math.log(S.h)), float(Math.log(S.hTo)), t))).mul(own));
-        shape.assign(floor(rnd(c.x, c.y, h0(309)).mul(S.variants)).add(S.offset));
+    const G = grownOf(L), at = e.i * G.span, row = (k) => G.rows.element(k), H = row(at);
+    const age = (e.young ? mix(H.x, H.y, r.mul(r)) : mix(H.x, H.y, vnoise(pos.div(H.z), h0(311))).mul(mix(AGED[0], AGED[1], r))).toVar();
+    // its stage: the first whose ages hold its age (each stage's If did it, its numbers written in: the same work a thread)
+    Loop({ start: int(0), end: int(H.w), type: 'int', condition: '<' }, ({ i }) => {
+      const j = i.mul(3).add(at + 1), A = row(j), B = row(j.add(1)), C = row(j.add(2));
+      If(age.greaterThanEqual(A.x).and(age.lessThan(A.y)), () => {
+        // (before its year: from its first age to its year; after it: from its year to its last)
+        const ag = clamp(age, A.z, A.w), low = ag.lessThan(B.x), t = log(ag.div(low.select(A.z, B.x))).div(low.select(B.y, B.z));
+        h.assign(exp(mix(low.select(C.x, C.y), low.select(C.y, C.z), t)).mul(own));
+        shape.assign(floor(rnd(c.x, c.y, h0(309)).mul(B.w)).add(C.w));
+        Break();
       });
     });
   } else { h.assign(own.mul(N.height)); shape.assign(floor(rnd(c.x, c.y, h0(309)).mul(N.n)).min(N.n.sub(1))); }
   return { h, shape };
+}
+/** How each of a layer's entries grows, a table of uniforms grownIn reads, one for the layer (until 2026-11-19 its
+    numbers were written into the packing's code: each growing kind's own code, its stages unrolled with their ages,
+    heights and logarithms in it). span rows an entry, entry i's from i * span: [its ages (its biome's, or a sapling's),
+    how wide its groves' patches are (its biome's at the layer's scale), how many stages it may be drawn at (a sapling:
+    its first ones)], then three rows a stage: [where it holds from (none before its first: -1), to (none past its last:
+    1e9), its first and last age], [its year, log(year / first), log(last / year), its variants], [log of its height at
+    its first age, at its year, at its last, its first shape]. As many stages an entry as the layer's most. */
+function grownOf(L) {
+  if (L.grown) return L.grown;
+  const stagesOf = (e) => (e.asset.growth && e.ages ? e.asset.growth.stages.filter((s) => s.offset < e.shapes[1]) : []);
+  const most = Math.max(1, ...L.entries.map((e) => stagesOf(e).length)), rows = [];
+  for (const e of L.entries) {
+    const S = stagesOf(e);
+    rows.push(new THREE.Vector4(e.ages?.[0] ?? 0, e.ages?.[1] ?? 0, grovesOf(e.biome, L).clumps * 2.5, S.length));
+    S.forEach((s, j) => rows.push(new THREE.Vector4(j ? s.from : -1, j < S.length - 1 ? s.to : 1e9, s.from, s.to), new THREE.Vector4(s.year, Math.log(s.year / s.from), Math.log(s.to / s.year), s.variants), new THREE.Vector4(Math.log(s.hFrom), Math.log(s.h), Math.log(s.hTo), s.offset)));
+    for (let j = S.length * 3; j < most * 3; j++) rows.push(new THREE.Vector4());
+  }
+  return (L.grown = { rows: uniformArray(rows, 'vec4'), span: 1 + most * 3 });
 }
 /** Entry e's own numbers as grownIn reads them (its scale's two ends, its asset's height, its shapes), uniforms kept with
     it: what sizes a thing of it is then code alike for every entry of its sort, and the stands whose kinds differ only in
