@@ -15,6 +15,7 @@
 // - whether the device survives (device.lost), and what the device said wrong (uncaptured errors).
 // A lost device fails; the rest is shown.
 import { webkit } from 'playwright-core';
+import { webkitAt } from '../browsers.js';
 import { execFileSync } from 'node:child_process';
 import { machine, unfit, machineLine } from './machine.js';
 import { MACHINE, BUDGET_MB, FRAME_MS } from '../../src/core/budget.js';
@@ -26,9 +27,10 @@ import { MACHINE, BUDGET_MB, FRAME_MS } from '../../src/core/budget.js';
     destroyed buffer a submission uses (WebKit says only "Validation failure."); the device's loss and its errors. */
 export function watch(frameMs) {
   const W = (window.__device = { buffers: 0, submits: 0, longest: 0, over: 0, lost: null, errors: [], top: null, long: null, dead: [] });
-  // (the ledger's most, read in the page a tenth of a second apart, what it held then with it: it rises by gigabytes
-  // the seconds before a device is lost, between two of the gate's looks)
-  setInterval(() => { const L = window.__game?.memory?.(); if (L && L.gpu > (W.top?.device ?? -1)) W.top = { device: L.gpu, classes: L.classes, rows: L.rows.slice(0, 8), makers: L.makers.slice(0, 8), over: L.over, unnoted: L.unnoted, buffers: W.buffers }; }, 100);
+  // (the ledger's most, read in the page every frame, what it held then with it: it rises by gigabytes the seconds before
+  // a device is lost, between two of the gate's looks)
+  const keep = () => { const L = window.__game?.memory?.(); if (L && L.gpu > (W.top?.device ?? -1)) W.top = { device: L.gpu, classes: L.classes, rows: L.rows.slice(0, 8), makers: L.makers.slice(0, 8), over: L.over, unnoted: L.unnoted, buffers: W.buffers }; requestAnimationFrame(keep); };
+  requestAnimationFrame(keep);
   const DEAD = new WeakSet(), LABEL = new WeakMap(), GROUP = new WeakMap(), HOLDS = new WeakMap();
   const where = () => (new Error().stack || '').split('\n').map((l) => l.trim().replace(/^at\s+/, '').replace(/https?:\/\/[^/]+\//, '').replace(/\?[^:)]*/, '')).filter((l) => /(^|\W)(src|assets)\//.test(l)).slice(0, 2).join(' < ');
   const buffers = (dev) => {
@@ -82,10 +84,10 @@ function gpuProcess() {
 /** The device on MACHINE: { ready (s), peak and settled (MB, the ledger's), classes at the peak against BUDGET_MB, the
     largest pools, unnoted, buffers (the gate's own count, at the peak), process (MB, its most), longest submission (ms),
     over (how many took more than FRAME_MS), lost, errors, pass }. url: the game's. */
-export async function device(url, { secs = 60 } = {}) {
-  const before = machine(), short = unfit(before);   // (a machine short of memory measures its disk: not measured)
+export async function device(url, { secs = 60, machined = true } = {}) {
+  const before = machined ? machine() : null, short = before && unfit(before);   // (machined: false where the caller reads the machine itself, the hour)   // (a machine short of memory measures its disk: not measured)
   if (short) { const out = { machine: MACHINE, host: { before }, notMeasured: short, pass: true }; say(out); return out; }
-  const browser = await webkit.launch({ headless: true });
+  const browser = await webkit.launch({ headless: true, ...webkitAt() });
   try {
     const page = await (await browser.newContext({ viewport: { width: MACHINE.width, height: MACHINE.height }, deviceScaleFactor: MACHINE.dpr })).newPage();
     await page.addInitScript(watch, FRAME_MS);
@@ -96,7 +98,7 @@ export async function device(url, { secs = 60 } = {}) {
     Object.assign(out, { shown: s.shown == null ? null : +(s.shown / 1e3).toFixed(1), settled: out.samples.at(-1) ?? null, longest: Math.round(s.longest ?? 0), over: s.over ?? 0, submits: s.submits ?? 0, lost: s.lost ?? null, errors: s.errors ?? [], long: s.long ?? null, dead: s.dead ?? [], process: Math.round(out.process) });
     out.honest = out.buffers == null || out.peak >= out.buffers;   // (the ledger holds at least the buffers the device made)
     out.pass = !out.lost && out.ready != null;
-    out.host = { before, after: machine() }; out.notMeasured = unfit(before, out.host.after);   // (swap that grew while it ran: not measured either)
+    if (before) { out.host = { before, after: machine() }; out.notMeasured = unfit(before, out.host.after); }   // (swap that grew while it ran: not measured either)
     say(out);
     return out;
   } finally { await browser.close(); }
@@ -141,7 +143,7 @@ export function lines(d) {
   const mb = (n) => (n == null ? '–' : `${(n / 1024).toFixed(2)} GB`);
   return [
     ...host,
-    d.lost ? `**The device was lost** ${(d.lost.at / 1e3).toFixed(0)} s in (${d.lost.reason}: ${d.lost.message}), on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}×.` : d.ready == null ? `**The game never came** on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}×.` : `The device lived, ready ${d.ready} s in, on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}×.`,
+    d.lost ? `**The device was lost** ${(d.lost.at / 1e3).toFixed(0)} s in (${d.lost.reason}: ${d.lost.message}), on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}×.` : 'The device lived.',   // (whether the game came, and when, is readyLine's to say)
     `GPU memory (the game's ledger): peak ${mb(d.peak)}, settled ${mb(d.settled)}, against the budget's ${mb(d.budget)}; unnoted by any pool ${mb(d.unnoted)}; WebKit's processes at most ${mb(d.process)} resident${d.honest ? '' : `; **the ledger is short**: the device made ${mb(d.buffers)} of buffers alone`}.`,
     `By class at the peak: ${Object.entries(d.classes ?? {}).map(([c, x]) => `${c} ${x.gpu} MB of ${x.budget}${x.gpu > x.budget ? ' (over)' : ''}`).join(', ') || '–'}.`,
     `The largest pools: ${(d.rows ?? []).map(([n, g]) => `${n} ${g} MB`).join('; ') || '–'}.`,
