@@ -1244,3 +1244,4 @@ _One entry per request cycle, newest last._
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-19 | `1dcaa42` | the intent at idea, with the research written whole into it; the six notes files; `NativeGame/` with its README |
