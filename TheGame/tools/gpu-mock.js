@@ -51,6 +51,10 @@ export async function mock({ webgl = false, dpr = 1, record = false, lean = fals
     capabilities: { getUniformBufferLimit: () => 65536 }, utils: { getTextureSampleData: () => ({ primarySamples: 1, samples: 1, isMSAA: false }) },
     extensions: { has: () => true, get: () => ({}) }, createNodeBuilder: (o, r) => new Builder(o, r) };
   let target = null, mrt = null;
+  // (each compute pass built as three builds it, when it is first handed to be compiled or run, in that order: three
+  // writes a function's code once, in the first shader that calls it, and that shader lays its functions out in another
+  // order than every later one, so which pass is built first decides which two passes' code is the same)
+  const builtFirst = new WeakSet(), given = (n) => { computed.add(n); if (builtFirst.has(n)) return; builtFirst.add(n); try { compute(n); } catch { /* the tool that builds it says why */ } };
   const renderer = {
     backend, get coordinateSystem() { return backend.coordinateSystem; }, library: new THREE.StandardNodeLibrary(), nodes: { getCacheKey: () => 0, library: null }, contextNode: TSL.context(), _bindings: undefined,
     debug: { diagnostics: { keywords: false }, onNodeBuilderCreated: null }, info: { render: {}, compute: {}, memory: {}, autoReset: true, reset() {} },
@@ -62,7 +66,7 @@ export async function mock({ webgl = false, dpr = 1, record = false, lean = fals
     size: { W: size[0] * dpr, H: size[1] * dpr }, getDrawingBufferSize: (v) => v.set(renderer.size.W, renderer.size.H), getSize: (v) => v.set(renderer.size.W / dpr, renderer.size.H / dpr), setSize() {}, setPixelRatio() {},
     getRenderTarget: () => target, setRenderTarget: (t) => { target = t; if (record) calls.push(`target ${id(t)}`); },
     render: (o) => { drawn.add(o); if (record) calls.push(`render ${id(o)}`); }, clear() {}, setRenderObjectFunction() {}, getRenderObjectFunction: () => null, setViewport() {}, setScissor() {}, setScissorTest() {}, copyTextureToTexture() {}, copyFramebufferToTexture() {}, setAnimationLoop() {}, dispose() {}, setClearColor() {}, getClearColor: (c) => c, getClearAlpha: () => 1, initRenderTarget() {},
-    compileComputeAsync: (passes) => { for (const p of [passes].flat()) computed.add(p); return Promise.resolve(); }, compute: (p) => { for (const n of [p].flat()) computed.add(n); }, computeAsync: (p) => { for (const n of [p].flat()) computed.add(n); return Promise.resolve(); },
+    compileComputeAsync: (passes) => { for (const p of [passes].flat()) given(p); return Promise.resolve(); }, compute: (p) => { for (const n of [p].flat()) given(n); }, computeAsync: (p) => { for (const n of [p].flat()) given(n); return Promise.resolve(); },
     compileAsync: (root) => { if (root?.isMesh) drawn.add(root); return Promise.resolve(); },   // (a pass of its own compiled: what a frame draws once it is made, src/core/compile.js drawMade)
     getArrayBufferAsync: () => Promise.resolve(new ArrayBuffer(64)), readRenderTargetPixelsAsync: (t, x, y, w, h) => Promise.resolve(new Uint8Array(Math.max(4, w * h * 4))),
   };
