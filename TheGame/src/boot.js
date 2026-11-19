@@ -23,7 +23,7 @@ import { loadingStep, loadingSay, loadingDone, loadingLast } from './ui/loading.
 import { lastRunLine, keepRun } from './core/lastrun.js';   // what the last start reached, where it was killed (an iPhone's: no log a Mac reads)
 import { HMIN, heightAt } from './world/land.js';
 import { createUniforms } from './core/uniforms.js';
-import { keepMeasure, measureNow, dialAfter, DIAL_LEAST } from './detail/measure.js';
+import { keepMeasure, measureNow, dialAfter, DIAL_ASKED } from './detail/measure.js';
 import { farthest, farthestMost } from './detail/extent.js';
 import { setImpostorRenderer } from './detail/impostor.js';
 import { setPlanes } from './core/frustum.js';
@@ -130,7 +130,7 @@ export async function boot({ profile = 'world' } = {}) {
   const governor = createGovernor(renderer, { apply: (r) => screen.set(r), most: () => screen.out });   // (the drawn ratio within the canvas's)
   game.governor = governor;   // the film holds it still while it plays
   keepMeasure(() => screen.out);   // the one measure of size on screen, for every level of detail (src/detail/measure.js)
-  governor.hold(DIAL_LEAST < 1);   // (a page drawn finer than the dial's rest, ?truth's, is a still, drawn offline: no frame's time turns its dials)
+  governor.hold(DIAL_ASKED < 1);   // (a page drawn finer than the dial's rest, ?truth's, is a still, drawn offline: no frame's time turns its dials)
   // the game's own start, at the dial's rest (the world built at the game's pace), then, once that first view is
   // complete, the dial turned to the page's least (src/detail/measure.js: the truth's; what it brings in is waited for
   // by settle()), the game's its rest

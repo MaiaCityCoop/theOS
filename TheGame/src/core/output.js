@@ -11,3 +11,7 @@ import { budgetShare } from './gpu.js';
     1.54, a canvas of 600 × 1298. */
 export const outputRatio = (w = globalThis.innerWidth ?? OUTPUT.width, h = globalThis.innerHeight ?? OUTPUT.height) =>
   Math.min(globalThis.devicePixelRatio || 1, 2, Math.sqrt((OUTPUT.width * OUTPUT.height * budgetShare()) / Math.max(1, w * h)));
+/** The most pixels a canvas has on this device, in the output's own shape (as outputRatio holds it: OUTPUT's pixels, of
+    them the device's share): what is sized by the most a picture can ask of it (the land's pages, src/terrain/pages.js).
+    An iPhone's, its share 0.375: 1176 × 661. */
+export const mostOutput = () => { const s = Math.sqrt(budgetShare()); return { width: Math.round(OUTPUT.width * s), height: Math.round(OUTPUT.height * s) }; };
