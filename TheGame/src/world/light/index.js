@@ -7,9 +7,10 @@ import { createShadows } from '../shadow.js';
 import { createCanopy } from './canopy.js';
 
 /** groundAt: the ground's height at a point, as a node (src/world/land.nodes.js), for the canopy's probes; land: the
-    land's pages (src/terrain/pages.js), whose colour the ground round the eye is read off (canopy.js). */
-export function createLight(renderer, { groundAt, land }) {
-  const shadows = createShadows(renderer), canopy = createCanopy(renderer, { groundAt, land });
+    land's pages (src/terrain/pages.js), whose colour the ground round the eye is read off; crowns: what a metre of crown
+    takes at a point (src/terrain/layers.js crownsAt, crownsVersion), for the probes too (canopy.js). */
+export function createLight(renderer, { groundAt, land, crowns }) {
+  const shadows = createShadows(renderer), canopy = createCanopy(renderer, { groundAt, land, crowns });
   return {
     shadows, canopy,
     /** The casters compiled for the shadow cascades (src/world/shadow.js compile; a promise). */

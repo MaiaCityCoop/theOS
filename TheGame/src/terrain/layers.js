@@ -25,7 +25,8 @@ import { byte, un } from '../scatter/growth.js';
 import { BAND } from '../detail/error.js';
 import { standsOf, rowsOf, densOf } from '../scatter/rule.js';
 import { detailOf } from '../detail/index.js';
-import { seenOf, seenVersion } from '../detail/seen.js';
+import { seenOf, crownOf, seenVersion } from '../detail/seen.js';
+import { CROWN_EXTINCTION } from '../world/light/physics.js';
 import { sizeOf } from '../../assets/kinds.js';
 const noise = byRole('noise');   // the baked cloudy noise: whichever material plays that part (its `role`)
 
@@ -140,7 +141,7 @@ export const CASTERS = Object.freeze({
 
 // the layers' table: a layer's material (its number: src/materials/bake.js), its tile (metres), its pattern's size
 // (metres; 0: none), and whether it goes with the meadow's blades (1)
-let TABLE = null, STAND_T = null;
+let TABLE = null, STAND_T = null, STAND_K = null, crowned = 0;
 /** The layers' and the stands' tables, made once the world's textures are there (before node code reads them). */
 export const layerTables = (tex) => {
   if (TABLE) return;
@@ -148,7 +149,40 @@ export const layerTables = (tex) => {
   // the stands': (its crowns' colour (-1: none yet), its grain), (its plants' span (0: none), from, to (shares of where
   // they are gone), how far its shadows reach (-1: none))
   STAND_T = uniformArray(STANDS.flatMap((S) => [new THREE.Vector4(...(S.colour ?? [-1, -1, -1]), S.grain), new THREE.Vector4(S.span, ...S.fade, S.reach)]).concat([new THREE.Vector4(), new THREE.Vector4()]), 'vec4').setGroup(renderGroup);
+  // and how much of the light a metre of each stand's crowns takes (per metre): the light's own till its kinds' crowns
+  // are measured (crownK, as standColours finds them)
+  STAND_K = uniformArray(STANDS.map(() => CROWN_EXTINCTION), 'float').setGroup(renderGroup);
 };
+/** How much of the light a metre of a stand's crowns takes (per metre; null while none of its kinds' crowns is
+    measured): each kind's from how much of its round its crown covers seen from above (seen.js crownOf), that much of
+    the light taken through its depth, Beer–Lambert's (-ln(1 - cover) / depth; its depth its crown's at its oldest, at
+    its mean scale), weighted as their colours are (seenColour: its share of the stand times its crown's round). */
+const crownK = (S) => {
+  let sum = 0, of = 0;
+  for (const e of S.entries) {
+    const a = e.asset, w = e.from ? 0 : e.most * e.reach * e.reach, cover = w > 0 ? crownOf(a) : null;
+    if (cover == null) continue;
+    const base = a.growth?.base ? a.growth.base(a.growth.years.at(-1)) : 0, scale = a.placement.scale ? (a.placement.scale[0] + a.placement.scale[1]) / 2 : 1, depth = ((a.measure?.most ?? a.size.height) - base) * scale;
+    if (depth > 0) { sum += (w * -Math.log(1 - cover)) / depth; of += w; }
+  }
+  return of > 0 ? sum / of : null;
+};
+/** How many times what a metre of the stands' crowns takes has changed (the canopy's probes are made again: src/world/
+    light/canopy.js). */
+export const crownsVersion = () => crowned;
+/** How much of the ground a stand's crowns cover at a point (0 … 1): each of its things' chance to stand in a cell there
+    (D: its layer's densOf there) by its crown's round of the cell. Node code. */
+const coverOf = (T, D) => clamp(T.entries.reduce((s, e) => s.add(D[e.i].mul((Math.PI * e.reach * e.reach) / (T.L.cell * T.L.cell))), float(0)), 0, 1);
+/** How much of the light a metre of crown takes at p (per metre): each stand's (STAND_K), by how much of the ground its
+    crowns cover there (coverOf, as the layer map counts it), the light's own (physics.js CROWN_EXTINCTION) for what of
+    the ground none covers. Node code, in a Fn: for the canopy's probes (src/world/light/canopy.js). */
+export function crownsAt(p) {
+  if (!STAND_K) return float(CROWN_EXTINCTION);
+  const I = riverInfo(p).toVar(), ctx = { p, dist: float(0), d: abs(I.x), w: I.y, b: I.z }, dens = new Map(), sum = float(0).toVar(), of = float(0).toVar();
+  for (const T of STANDS) if (!dens.has(T.L)) dens.set(T.L, densOf(T.L, p, ctx));
+  STANDS.forEach((T, id) => { const c = coverOf(T, dens.get(T.L)).toVar(); sum.addAssign(c.mul(STAND_K.element(id))); of.addAssign(c); });
+  return sum.add(max(float(1).sub(of), 0).mul(CROWN_EXTINCTION)).div(max(of, 1));
+}
 /** What a stand whose kinds have far ends shows ([r, g, b], linear albedo; null while none of them does): each kind's
     that shows (src/detail/seen.js) by how much of the ground it covers where the stand is thick, as its cover counts it
     (layerWords): its share of the stand (its `most`, the slice of the patches it leads in: rule.js densOf) times its
@@ -168,6 +202,7 @@ let seenAt = -1;
 export function standColours() {
   if (!STAND_T || seenVersion() === seenAt) return -1;
   seenAt = seenVersion();
+  STANDS.forEach((S, i) => { const k = crownK(S); if (k != null && k !== STAND_K.array[i]) { STAND_K.array[i] = k; crowned++; } });   // (and what a metre of its crowns takes, as its kinds' crowns are measured)
   let near = Infinity;
   STANDS.forEach((S, i) => {
     if (!S.seen) return;
@@ -241,7 +276,7 @@ export function layerWords(tex, p, texel) {
   const st = [0, 1].map(() => ({ id: int(NO_STAND).toVar(), c: float(0).toVar(), n: float(0).toVar() }));
   STANDS.forEach((T, id) => {
     const g = T.grain;
-    const D = dens.get(T.L), c = clamp(T.entries.reduce((s, e) => s.add(D[e.i].mul((Math.PI * e.reach * e.reach) / (T.L.cell * T.L.cell))), float(0)), 0, 1).toVar();
+    const c = coverOf(T, dens.get(T.L)).toVar();
     If(c.greaterThan(st[1].c), () => {
       const n = nz(p.div(23 * g).add(0.7), 23 * g).r.mul(0.35).add(nz(prr.div(31.7 * g).add(0.2), 31.7 * g).g.mul(0.35)).add(nz(pr.div(CROWNS * g), CROWNS * g).g.mul(0.3)).toVar();
       If(c.greaterThan(st[0].c), () => { st[1].id.assign(st[0].id); st[1].c.assign(st[0].c); st[1].n.assign(st[0].n); st[0].id.assign(id); st[0].c.assign(c); st[0].n.assign(n); })
