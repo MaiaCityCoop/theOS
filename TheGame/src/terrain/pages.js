@@ -129,6 +129,9 @@ function pagesNeeded() {
   return NEED;
 }
 
+/** Textures made on the GPU now, each sent once, empty, and the page keeping none of their data. */
+const madeEmpty = (renderer, ts) => { for (const t of ts) { renderer.initTexture(t); for (const m of t.mipmaps) m.data = new Uint8Array(0); } };
+
 let LAND = null;
 /** The land's pages as made last (null before): what else reads the ground there (a rock's skirt: src/scatter/drawer.js). */
 export const landPages = () => LAND;
@@ -148,16 +151,16 @@ export function createPages(renderer, tex) {
   const SLOTS = Math.min(PACKED ? Math.min(2 * LAYERS_MOST, VALID, pagesNeeded()) : Math.min(LAYERS_MOST, 640), Math.floor(roomOf('ground') / SLOT_BYTES)), PER = Math.min(SLOTS, LAYERS_MOST);   // (PER: layers an array; and never more than the ground's class has room for: src/core/budget.js)
   const look = { minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, anisotropy: ANISO, colorSpace: THREE.NoColorSpace, generateMipmaps: false };
   const laidInto = (n) => Object.assign(new THREE.StorageArrayTexture(SLOT, SLOT, n), look, { mipmaps: [{ width: SLOT, height: SLOT }, { width: SLOT / 2, height: SLOT / 2 }] });
-  const blocks = (format, n) => {   // (every layer there from the start, empty, filled as pages are laid)
+  const fresh = [], blocks = (format, n) => {   // (every layer there from the start, empty, filled as pages are laid; made on the GPU once owned, below)
     const zero = new Uint8Array(n * (SLOT / 4) ** 2 * 16), mips = [0, 1].map((l) => ({ data: zero.subarray(0, n * (SLOT / 4 >> l) ** 2 * 16), width: SLOT >> l, height: SLOT >> l }));
     const t = Object.assign(new THREE.CompressedArrayTexture(mips, SLOT, SLOT, n, format, THREE.UnsignedByteType), look, { needsUpdate: true });
-    renderer.initTexture(t); for (const m of mips) m.data = new Uint8Array(0);   // (sent once, empty; the page keeps none of it)
-    return t;
+    fresh.push(t); return t;
   };
   const arrays = (format) => Array.from({ length: Math.ceil(SLOTS / PER) }, (_, k) => blocks(format, Math.min(PER, SLOTS - k * PER)));
   const A = PACKED ? arrays(THREE.RGBA_S3TC_DXT5_Format) : [laidInto(SLOTS)], N = PACKED ? arrays(THREE.RED_GREEN_RGTC2_Format) : [laidInto(SLOTS)], X = PACKED ? arrays(THREE.RED_GREEN_RGTC2_Format) : null;
   const SA = PACKED ? laidInto(BATCH) : A[0], SN = PACKED ? laidInto(BATCH) : N[0];   // (where a batch is laid: its own layers, or the atlas's)
   note("the land's pages", SLOTS * SLOT_BYTES + (PACKED ? BATCH * SLOT * SLOT * 1.25 * 8 : 0), 0, 'ground', A, N, X, SA, SN);
+  madeEmpty(renderer, fresh);   // (named its owner's first, then made: counted as the ground's from its first byte, src/core/gpu.js own)
   const tA = A.map((t) => texture(t)), tN = N.map((t) => texture(t)), tX = X ? X.map((t) => texture(t)) : null;
   // ---- the page table: for each level, its window's pages ----
   const T = gpuStorage('uint', LEVELS * K * K, "the land's page table", 'ground'), table = new Uint32Array(LEVELS * K * K), TN = T.node.toReadOnly();

@@ -190,11 +190,13 @@ let R = null;
     did not ask): gpuStorage makes an ordinary buffer, kept twice. */
 export const useGPU = (renderer) => { R = renderer?.backend?.device ? renderer : null; if (R) { countMade(R.backend.device); ownedMade(R.backend); } timesOn(R?.backend.device); };
 /** What three makes of a texture a pool owns (own), called and counted as its owner's, when it makes it (again: a target
-    made larger). */
+    made larger): made as its owner's class's (asClass), so its bytes are its owner's from the first (the tally and the
+    budget's check never see a pool's make as another class's: 2026-11-19, the land's pages, made before they were
+    owned, took 'other' past its 192 MB in WebKit, src/terrain/pages.js). One rule for every pool: own it, then make it. */
 const ownedMade = (backend) => {
   const U2 = backend.textureUtils; if (!U2 || U2.__owned) return; U2.__owned = true;
   const make = U2.createTexture;
-  U2.createTexture = function (texture, options) { const r = make.call(this, texture, options), o = OWNS.get(texture), g = o && backend.get(texture)?.texture; if (g) relabel(g, o.label, o.cls); return r; };
+  U2.createTexture = function (texture, options) { const o = OWNS.get(texture), r = o ? asClass(o.cls, () => make.call(this, texture, options)) : make.call(this, texture, options), g = o && backend.get(texture)?.texture; if (g) relabel(g, o.label, o.cls); return r; };
 };
 export const lean = () => !!R;
 /** Whether the renderer's GPU has a WebGPU feature (none without WebGPU). */
