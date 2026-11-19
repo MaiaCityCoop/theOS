@@ -16,14 +16,14 @@
 import * as THREE from 'three/webgpu';
 import { float, vec2, vec3, vec4, uv, uniform, texture, mrt, positionGeometry, abs, length, mix, smoothstep, sqrt, max, clamp, If } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { note } from '../core/gpu.js';
+import { note, budgetOf } from '../core/gpu.js';
 import { compileFor } from '../core/compile.js';
 import { heightAt as heightCPU } from '../world/land.js';
 import { camDist, riverInfo, heightAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, biomesAt } from '../world/land.nodes.js';
 import { CLEARINGS } from '../../world/places.js';
 import { offWays, waysVersion } from '../world/ways.js';
 import { source } from '../core/settle.js';
-import { FADE_FRAMES } from '../core/budget.js';
+import { FADE_FRAMES, BUDGET_MB } from '../core/budget.js';
 import { ownGpuMs, pace, frameShare } from '../core/pace.js';
 import { recipes } from '../core/registry.js';
 import { pxKMost, farMost } from '../detail/measure.js';
@@ -33,16 +33,25 @@ import { ringsOf, bandsOf } from './grass.js';
 import { BLOCK } from './regions.js';
 import { SLOT } from '../terrain/pages.js';
 
-const N = 512;   // texels a side of every level; level 0's texel is 0.5 m to the 68° lens and grows with a longer one, so it always covers what reads it
-/** How far round the camera level 0 surely reaches, metres as the 68° lens sees them: half its side, less the 32 texels
-    the camera walks before it is drawn again (update); each level after reaches twice as far. What reads level 0 alone
-    (the CPU's copy, src/world/rocksolid.js) ends within it. */
-export const REACH = (N * 0.5) / 2 - 32 * 0.5;
+const SIDE = 512;   // texels a side of every level, on the Mac (sideOf: a device with less room, fewer); level 0's texel is 0.5 m to the 68° lens and grows with a longer one, so it always covers what reads it
+/** How far round the camera level 0 surely reaches with N texels a side, metres as the 68° lens sees them: half its
+    side, less the 32 texels the camera walks before it is drawn again (update); each level after reaches twice as far.
+    What reads level 0 alone (the CPU's copy, src/world/rocksolid.js) ends within it. */
+const reachAt = (N) => (N * 0.5) / 2 - 32 * 0.5;
 /** How far the maps reach: as far as what reads them is drawn at the most pixels the screen can draw (the maps are a
     capacity: src/detail/measure.js pxKMost, farMost): the meadow's end, and where the largest of the stones that lie
     by them is gone (src/scatter/rocks.js: every rock to where it is, by the one rule); never less than level 0's. */
-const reachOf = () => Math.max(REACH, ...recipes('asset').filter((a) => a.placement?.engine === 'grass').map((a) => bandsOf(ringsOf(a), a.height, pxKMost()).end),
+const reachOf = (level0) => Math.max(level0, ...recipes('asset').filter((a) => a.placement?.engine === 'grass').map((a) => bandsOf(ringsOf(a), a.height, pxKMost()).end),
   ...recipes('asset').filter((a) => a.placement?.engine === 'rocks' && !a.placement.outcrops).map((a) => farMost(GONE, most(a.size.length))));
+/** How many levels reach as far as the maps must with N texels a side (each twice the one before's). */
+const levelsAt = (N) => Math.max(1, Math.ceil(Math.log2(reachOf(reachAt(N)) / reachAt(N)) - 1e-9) + 1);
+/** What the maps hold with N texels a side, bytes: two sets of their levels and a staging window, two maps each, 8
+    bytes a texel. */
+const bytesAt = (N) => (2 * levelsAt(N) + 1) * 2 * N * N * 8;
+/** Their side on this device: as large a share of the ground's room as SIDE's take of the Mac's (budget.js BUDGET_MB;
+    src/core/gpu.js budgetOf, the device's, at boot): the largest whole number of a page's sides (SLOT) that fits it, at
+    least one. SIDE on the Mac. */
+const sideOf = () => { const fits = (bytesAt(SIDE) * budgetOf('ground')) / BUDGET_MB.ground; let N = SIDE; while (N > SLOT && bytesAt(N) > fits) N -= SLOT; return N; };
 const FADE = FADE_FRAMES;   // (from the map before to the new one, where its texel steps: src/core/budget.js)
 // (G: the map being drawn; R[set][level]: what each map of the two sets was drawn with, for reading it; W: how much of
 // the second set is read)
@@ -61,7 +70,7 @@ export function createGround(renderer, tex) {
   // (MRT): the ground (height, grass, its height, stones) and the grass's colour (and its dryness), the levels side by
   // side in one target (what reads them binds two textures a set, whatever the levels: a stage binds 16 at most). Two
   // sets of them: the one read, and the one before it while what is read passes from it to the new one
-  const LV = Math.max(1, Math.ceil(Math.log2(reachOf() / REACH) - 1e-9) + 1);
+  const N = sideOf(), REACH = reachAt(N), LV = levelsAt(N);
   const rts = [0, 1].map(() => new THREE.RenderTarget(N * LV, N, { ...opts, type: THREE.HalfFloatType, count: 2 }));
   // (and a staging window: a level drawn in it a piece at a time, then copied into its place whole)
   const stage = new THREE.RenderTarget(N, N, { ...opts, type: THREE.HalfFloatType, count: 2 });
