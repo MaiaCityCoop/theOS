@@ -32,7 +32,7 @@ export function sitesIn(root, files) {
   for (const file of files) {
     linter.verify(readFileSync(root + file, 'utf8'), [{ languageOptions: { ecmaVersion: 'latest', sourceType: 'module' } }]);
     const ast = linter.getSourceCode()?.ast;
-    if (ast) walk(ast, null, [], (node, fns) => { if (makes(node)) out.push({ file, fn: fns.findLast(Boolean) ?? '(module)', line: node.loc.start.line, column: node.loc.start.column + 1 }); });
+    if (ast) walk(ast, null, [], (node, fns) => { if (makes(node)) { const at = (node.type === 'CallExpression' ? node.callee.property : node).loc.start; out.push({ file, fn: fns.findLast(Boolean) ?? '(module)', line: at.line, column: at.column + 1 }); } });   // (a call, where a stack says it is: at its method's name; a new, at itself)
   }
   return out;
 }
@@ -44,9 +44,9 @@ export function placeAt(sites, frame) {
   const nearest = (L) => L.filter((s) => s.column === frame.column).reduce((a, s) => (!a || Math.abs(s.line - frame.line) < Math.abs(a.line - frame.line) ? s : a), null);
   return named.length === 1 ? named[0] : named.length ? nearest(named) : nearest(here);
 }
-/** The places (of sites) the frames were at: each frame's (placeAt), or, where it cannot be told, every place of its
-    function (it was in it). */
-export const placesAt = (sites, frames) => new Set(frames.flatMap((f) => { const p = placeAt(sites, f); return p ? [p] : sites.filter((s) => s.file === f.file && s.fn === f.fn); }));
+/** The places (of sites) the frames were at, each frame's (placeAt): where one cannot be told, none (a place is built
+    only where a frame was surely at it: a gap is never hidden by a guess). */
+export const placesAt = (sites, frames) => new Set(frames.map((f) => placeAt(sites, f)).filter(Boolean));
 const makes = (n) => (n.type === 'NewExpression' && /NodeMaterial$/.test(n.callee.name ?? n.callee.property?.name ?? '')) || (n.type === 'CallExpression' && n.callee.type === 'MemberExpression' && n.callee.property.name === 'compute' && n.callee.object.type === 'CallExpression');
 const FN = new Set(['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression']);
 /** A function's name as the stack gives it: its own, or what it is given to (a variable, a property, a method, a member). */

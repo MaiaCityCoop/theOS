@@ -39,7 +39,8 @@ const SITE = new WeakMap(), ROOT = new URL('..', import.meta.url).pathname;
 for (const [C, flag] of [[THREE.Material, 'isMaterial'], [THREE.ComputeNode, 'isComputeNode']]) Object.defineProperty(C.prototype, flag, { configurable: true, set(v) { Object.defineProperty(this, flag, { value: v, writable: true, enumerable: true, configurable: true }); SITE.set(this, framesHere(ROOT)); } });
 // (the game's own files and every place in them that makes shaders, read once: a frame named by its place's own line;
 // git asked as from here, whatever a hook running it set: inside one, GIT_DIR made it list the repository's from its top)
-const FILES = spawnSync('git', ['ls-files', '*.js'], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, GIT_DIR: '', GIT_WORK_TREE: '', GIT_INDEX_FILE: '' } }).stdout.split('\n').filter((f) => f && !/^(tools|node_modules)\//.test(f) && !/worker/i.test(f)), SITES = sitesIn(ROOT, FILES);
+const GIT = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^GIT_(DIR|WORK_TREE|INDEX_FILE)$/.test(k)));   // (set empty, git finds no repository at all: the census saw nothing, and said nothing)
+const FILES = spawnSync('git', ['ls-files', '*.js'], { cwd: ROOT, encoding: 'utf8', env: GIT }).stdout.split('\n').filter((f) => f && !/^(tools|node_modules)\//.test(f) && !/worker/i.test(f)), SITES = sitesIn(ROOT, FILES);
 const placeOf = (f) => { const s = placeAt(SITES, f); return s ? `${f.file}:${s.line} ${f.fn}` : `${f.file} ${f.fn}`; };   // (where it is made: its own line, where it is sure)
 const at = (x) => { const F = SITE.get(x) ?? []; return F.length ? ` at ${[placeOf(F[0]), ...F.slice(1, 2).map((f) => `${f.file} ${f.fn}`)].join(' < ')}` : ''; };
 const BUILT = [], built_ = (x) => { const f = SITE.get(x)?.[0]; if (f) BUILT.push(f); };   // (the game's places whose materials and passes were built here: unmade below)
@@ -149,6 +150,7 @@ buildAll('the library');
 console.error = said;
 // (a place that makes shaders the smoke does not build, and tools/unbuilt.json does not know: a new gap, a failure;
 // one it knows, said; one it knows now built, said, to be taken out of it)
+if (!SITES.length) failed.push(`the game's code gave no place that makes shaders (git ls-files in ${ROOT}: ${FILES.length} files): nothing was held against what was built`);   // (a census that sees nothing must not pass)
 const KNOWN = new URL('./unbuilt.json', import.meta.url), unmade = unbuilt(), known = existsSync(KNOWN) ? JSON.parse(readFileSync(KNOWN, 'utf8')).sites : {}, count = {};
 for (const u of unmade) count[u.at] = (count[u.at] ?? 0) + 1;
 for (const [at, n] of Object.entries(count)) if (n > (known[at] ?? 0)) failed.push(`what the game makes at ${at} the smoke never builds (${n} place${n > 1 ? 's' : ''}: ${unmade.filter((u) => u.at === at).map((u) => `line ${u.line}`).join(', ')}), so the gate never compiles it: make it here, or name it in tools/unbuilt.json with why`);
