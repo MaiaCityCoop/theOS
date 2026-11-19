@@ -42,8 +42,14 @@ function program(m) {
     return vec4(sqrt(clamp(M.col, 0, 1)), clamp(M.h, 0, 1));
   });
   const mat = new THREE.NodeMaterial(); mat.vertexNode = vec4(uv().mul(2).sub(1), 0, 1); mat.fragmentNode = outputStruct(frag(), raw); mat.depthTest = mat.depthWrite = false;
+  mat.name = `painted: ${m.name}`;   // (what it is, where pipelines are told apart: the compile log, the gate, the census)
   return mat;
 }
+/** Material m's painting program: its tile (8 bits) and its heights and roughness (floats), drawn over a quad (a tool
+    paints one alone by it: tools/paints.js). */
+export const paintingOf = program;
+/** The relief program over the heights painted into src (bumpInv: one over the material's bump), for the same tool. */
+export const reliefOf = reliefProgram;
 // The relief of a painted tile, one program for every material: the normal by the height's steps to the next texel
 // across and the next down (the tile tiles: past its last texel lies its first), the roughness beside it. The same
 // numbers as painting the material twice more a texel over (its height there), which each material's own pass did until
