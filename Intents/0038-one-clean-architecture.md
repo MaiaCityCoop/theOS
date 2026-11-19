@@ -181,6 +181,97 @@ numbers are written below.
 
 **Out of scope:** new assets, the body's look (0036, waiting on Samuel's pick), the Bible (0037), and the story pipeline.
 
+## Handover for a fresh agent (2026-11-19 12:45): start here, no other context needed
+
+**Stopped on purpose:** Samuel's usage ran out, so every worker session was told to stop. Nothing is running except the
+merge watcher. Pick up from here with no other background.
+
+**What the game is:** TheGame (this repo's `TheGame/`) is a WebGPU open world (land, forests, grass, water, a tent camp)
+on three.js, running in Safari and Chrome on Macs and iPhones. Live build: https://play.next.maia.city (next deploys itself
+from `main`). `?hud` shows the frame, memory and settle readout on any device; the build id is at the top right.
+
+**The target architecture (one clean design):**
+1. **One error dial** (ERROR_PX, measured at the drawn rows) decides every level of detail. `?truth` is the same pipeline
+   at dial 0, not a mode.
+2. **One budget from the device** (src/core/budget.js, the only home of numbers): GPU memory by class (geometry, ground,
+   light, upscale/post, other). The Mac case is 2048 MB. An iPhone tab may hold 1.5 GB in all (WebKit's documented
+   WebContent limit, with WebGPU billed to it), so the phone gets 768 MB today.
+3. **Fixed pools, not stores sized from read-backs:** one pool per class, sized once at boot by a plan step (every
+   made-once part registers need(dial); one solve; then make). Plants and rocks live in 64 KB pages, streamed by priority
+   (dial pixels of error removed per byte), the least important evicted first, coarse roots always resident. Nothing
+   vanishes; it only coarsens. Memory is flat from frame 1. Full design: `research_notes/0038-fixed-pools.md`.
+4. **One pacing rule** (src/core/pace.js): every job that spreads over frames is held to its class's share of the 12 ms
+   frame by the GPU's own timestamps, never under one whole unit a frame, and no submission over 50 ms.
+5. **Data lives once:** workers hand results over and let them go; nothing is kept on the page that is on the GPU.
+
+**Next steps, in order (each a small PR, merged on green CPU CI, then checked on next):**
+1. **Mac reload and phone memory:** PR #398 (ready; check it on a device after merge): bake
+   outlines.json and crowds.bin for every device class's atlases, and fail the build if one is missing. Without it, next
+   measures outlines at runtime and Safari reloads the page for memory.
+2. **Trees missing at the phone's share** even after #385 (the rest dial is sane at 2.27): bisect main 48c7e58 → 289c988
+   → current at share 0.375 (force it with a 1 GiB adapter stand-in), logging the rest dial, each tree level's band, and
+   draws. Things must coarsen with the dial, never vanish. Lead (draw path, 12:50): the trees' bands are sane on the CPU and
+   nothing is out, so suspect the stand tiers holding 0 regions after the rest dial rises (#373's store turn in tier.js).
+3. **Fixed pools:** stage 1 is PR #396 (pool.js, plan/planDial). Then, in parallel and in separate files: the made-once
+   stores plan themselves (growth map, land lists, ground maps, rocks; started on draft branch aven/0038-made-once-plan
+   8bab8ee9: the rocks' meshes planned, the rest not, verified only by lint and smoke); stage 2, the heap's shapes into pages (heap.js,
+   drawer.js feed); stage 4, the resident tiers into region pages with no swap (tier.js). Prove each with storecheck walks at
+   share 1 and 0.375: memory flat, zero layouts, no frame drawn short.
+4. **Water is missing on the Mac too** (the ground's look on 269288f: share 1 and 0.375, water on or off, a bare bed and no
+   page errors), so it is not only memory. Find why the river's water draws nothing. The tent appearing and disappearing on
+   the phone: check after step 3.
+   **Also from the ground's last look:** #394 (the land's level from the smooth surface, merged) may stop the start settling
+   ("settle() did not resolve in 300 s"; 269288f settled in 43 s). Unconfirmed: compare main with and without #394 first.
+   The diamonds and triangle patches remained with #374 at share 1. The drafts #255 and #256 bind 6 storage textures in the
+   page compute pass against WebGPU's default of 4 (fixed on their branches by asking maxStorageTexturesPerShaderStage and
+   laying the relief only where it fits; not yet passed on a GPU).
+5. **The page's own memory** (WebKit's pages held up to 3.26 GB; frames stalled 2.5 s outside the frame): measure
+   WebContent while settling, workers against the main heap against GC, and cut the largest.
+6. Then 60 fps per-pass ceilings (`gate.js bench --ratchet`), and quality items (Todo).
+
+**Open PRs:** #379 and #382 (the start waits only for wanted far ends; bakes kept by shape). Both are **red in CI**: the far
+tier's gather binds 10 storage buffers against the limit of 8 (#379's T0 and WANT buffers). The fix is to read the wanted
+shapes from the far tiers' own bucket counts (a Tier.found), drop the T0/WANT buffers and want(), and set T.farEnd in
+drawer.js, applying the same change to far.js on #382. **#379 is merged** (0f1fbd69, 2026-11-19): its fix, c4a39b92,
+passed CI (check and build), but it is not GPU-checked, so check the start on next. #382 still needs main merged in (it
+conflicts) and the same change in far.js.
+#392, #394, #396 and #398 are merged. Drafts #255 and #275 conflict with main; #256 and #265 don't. All four need a GPU look.
+
+**Branches not in main, all pushed (2026-11-19, the MacBook):** no worktree or session is left on the MacBook, so these
+branches on GitHub are the only copies of their work:
+- `aven/0038-made-once-plan` (8bab8ee9): the made-once stores' plan, step 3 above.
+- `aven/0038-start-view-smoke` (cd091cfc, WIP): the start's view held by the smoke.
+- `aven/0038-placer-functions` (3b749198, WIP): the census counts what the start makes before its first frame.
+- `aven/0038-smoke-throw` (15eca2e5): the smoke's census sees an unpacked tree's places too.
+- `aven/0038-paints-wip` (9e605868, WIP): `tools/paints.js`, each material's painting compared texel by texel between two
+  versions.
+- Not 0038: `claude/earth-data-skill-placeholder-fc1555`, tag `keep/earth-data-skill`.
+
+**The MacBook (8 GB, Samuel's own):** bun is 1.4.4, the repo's pin. Its GPU may run blank-page checks (`gate.js wgsl`) one
+at a time under the lock. While Samuel works on it, it runs no full-game browser runs: one in WebKit at Retina took about
+3 GB and swapped the machine. The memory guard passed it at 51 % free with 4.2 GB already swapped, so the proposal for the
+gate is to refuse when swap is high, too.
+
+**Branches left to finish (2026-11-19 13:10; every other 0038 branch was merged or deleted):**
+| Branch | PR | What finishing it takes |
+| --- | --- | --- |
+| aven/0038-far-module | #382 | CI red: 10 storage buffers against 8. Merge main (it has #379's fix: the wanted shapes read from the far tiers' own bucket counts, no T0/WANT buffers), make the same change in far.js, then a GPU check that a second start bakes nothing |
+| aven/0038-made-once-plan | none | Pools: the made-once stores plan themselves. Only the rocks' meshes are planned so far; add the growth map, the land lists and the ground maps, prove at dial 0 (geometry within its budget) and dial 1 (byte-identical), open a PR |
+| aven/0038-start-view-smoke | none | CI fails on an empty start view (every first-view drawer asks and puts; workers get the game's preload). It passed locally: open a PR |
+| aven/0038-canopy-error | #255 | The canopy by its stand's cover (with #256). The storage-texture fix is pushed; one GPU look at shares 1 and 0.375, then ready |
+| aven/0038-canopy-relief | #256 | The canopy's relief in the land's pages; it goes with #255 |
+| aven/0038-river-ripples | #265 | The river's stationary ripples. One clean GPU look, once water draws again (step 4) |
+| aven/0038-litter-sheen | #275 | The ground's sheen; it waits for a measured roughness source (Roth 2020, Bousquet 2005). Finish with a source or close |
+| aven/0038-paints-wip | none | tools/paints.js: the materials' painting checked texel by texel. Finish as a tool PR or drop |
+| aven/0038-shots | none | Screenshots for PRs (data, not code): keep as the picture store or delete |
+
+Kept on purpose, not 0038's: aven/0033-avenmac-wip, aven/0033-solids-wip, feat/bald (#5), claude/earth-data-skill-placeholder-fc1555,
+test/e2e-first-screen.
+
+**How to work here:** branch `aven/0038-*`; one PR a change; a root cause, not a patch; no reverts (fix forward);
+`bun tools/gate.js` and the CPU proofs in `TheGame/tools/` before pushing; GPU runs only under `tools/gpu/lock.js`
+(the Mac mini has 8 GB and swaps: numbers are valid only with the game's footprint free).
+
 ## Where we stand (2026-11-19 12:30): read this first to take over
 
 The master is `0038 master · avenMAIA MacMini`; it alone edits this file. Workers ship PRs on `aven/0038-*`; a watcher merges every
