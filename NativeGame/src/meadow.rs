@@ -66,7 +66,7 @@ struct Tile {
 
 /// The finest cell of the GPU grass and its levels (as in `wind.wesl`).
 const FINE: f32 = 0.04;
-const LEVELS: u32 = 5;
+const LEVELS: u32 = 4;
 
 /// Lays each level's tiles around the eye, on whole cells, so every blade stays fixed to the world; hides them all
 /// high above, where the far land alone is drawn.
@@ -81,6 +81,16 @@ fn lay(eye: Query<&GlobalTransform, With<Eye2>>, mut tiles: Query<(&Tile, &mut T
         // the cell size rides in the scale (the shader reads it back); y stays 1
         *t = Transform::from_xyz(ox + tile.a as f32 * n * s, 0.0, oz + tile.b as f32 * n * s).with_scale(Vec3::new(s, 1.0, s));
         *v = if high { Visibility::Hidden } else { Visibility::Inherited };
+    }
+}
+
+/// Focuses the lens where the eye looks: on the land straight ahead, or far when it looks over it.
+fn focus(mut cam: Query<(&GlobalTransform, &mut bevy::post_process::dof::DepthOfField), With<Eye2>>) {
+    for (g, mut dof) in &mut cam {
+        let (at, ahead) = (g.translation(), g.forward().as_vec3());
+        let above = at.y - crate::terrain::height(at.x, at.z);
+        let d = if ahead.y < -0.02 { above / -ahead.y } else { 60.0 };
+        dof.focal_distance = d.clamp(1.5, 400.0);
     }
 }
 
@@ -254,7 +264,7 @@ pub fn plugin(app: &mut App) {
         .add_systems(OnExit(View::Studio), leave)
         .add_systems(
             Update,
-            (stream, lay, reframe, crate::clouds::drift).run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio)),
+            (stream, lay, reframe, focus, crate::clouds::drift).run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio)),
         )
         .add_systems(Update, (hours, sun).chain().run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio)));
 }
@@ -384,6 +394,26 @@ fn enter(
         // SMAA, not TAA: TAA blends each frame with the last, and on blades a few pixels thin it pulled the sky of the
         // frame before into them (the white-blue streaks); SMAA smooths each frame on its own
         cam.insert(bevy::anti_alias::smaa::Smaa { preset: bevy::anti_alias::smaa::SmaaPreset::High });
+    }
+    if !off("HAZE") {
+        // haze: distance fades into the air's own blue-grey, warm toward the sun; ~12 km to the horizon of sight
+        cam.insert(DistanceFog {
+            color: Color::srgb(0.62, 0.70, 0.80),
+            directional_light_color: Color::srgba(1.0, 0.88, 0.70, 0.5),
+            directional_light_exponent: 20.0,
+            falloff: FogFalloff::from_visibility_colors(45_000.0, Color::srgb(0.35, 0.48, 0.66), Color::srgb(0.80, 0.85, 0.92)),
+        });
+    }
+    // the lens's depth of field cost about 10 ms a frame here: only when asked for (MEADOW_DOF=1)
+    if std::env::var_os("MEADOW_DOF").is_some() {
+        // a 35 mm lens at f/1.8: what is far off softens, as in a photograph
+        cam.insert(bevy::post_process::dof::DepthOfField {
+            mode: bevy::post_process::dof::DepthOfFieldMode::Gaussian,
+            aperture_f_stops: 1.8,
+            focal_distance: 6.0,
+            max_circle_of_confusion_diameter: 12.0,
+            ..default()
+        });
     }
     if !off("AO") {
         cam.insert(ScreenSpaceAmbientOcclusion::default()); // soft shading where blades crowd and meet the ground

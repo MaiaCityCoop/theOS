@@ -120,9 +120,18 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
         let fine = clamp(0.1 / px - 0.5, 0.0, 1.0);
         let m = (tnoise(p, 0.17, 90u) - 0.5) + 0.5 * (tnoise(p, 0.045, 91u) - 0.5) * clamp(0.03 / px - 0.5, 0.0, 1.0);
         colour = colour * (1.0 + biome.micro.y * m * 1.6 * fine);
+        // from afar, a sward is countless blade tips: fine streaks lighter and darker, stretched along the view, so
+        // the carpet beyond the blades reads as grass and not as paint
+        // the view's direction along the ground: how the ground position changes from one pixel row to the next
+        let along = normalize(dpdy(p) + vec2<f32>(1e-6, 0.0));
+        let across = vec2<f32>(-along.y, along.x);
+        let streak = tnoise(vec2<f32>(dot(p, across) * 9.0, dot(p, along) * 0.8), 1.0, 95u) - 0.5;
+        colour = colour * (1.0 + 0.5 * streak * (1.0 - bare) * (1.0 - fine * 0.7));
         pbr_input.material.base_color = vec4<f32>(colour, 1.0);
         pbr_input.material.perceptual_roughness = rough;
-        pbr_input.material.reflectance = vec3<f32>(0.0);
+        // a sward catches the low sun as a soft sheen (a field of blade tips); bare soil does not
+        pbr_input.material.reflectance = vec3<f32>(0.12 * (1.0 - bare));
+        pbr_input.material.perceptual_roughness = mix(0.85, rough, bare);
         // the fine relief: the slope of small noise tilts the normal, so tiny bumps catch and lose the light
         let e = 0.01;
         let h0 = tnoise(p, 0.12, 92u) * 0.6 + tnoise(p, 0.04, 93u) * 0.4;
