@@ -32,9 +32,9 @@ import { HMIN, HMAX } from '../world/land.js';
 import { note, gpuStorage, roomOf } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { source, ready } from '../core/settle.js';
-import { FRAME_MS, FRAME_MS_BY_CLASS } from '../core/budget.js';
+import { FRAME_MS, FRAME_MS_BY_CLASS, OUTPUT } from '../core/budget.js';
 import { ownGpuMs, pace } from '../core/pace.js';
-import { pxAt, dialPxAt } from '../detail/measure.js';
+import { pxAt, dialPxAt, pxKAt } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
 import { endOf } from '../scatter/grass.js';
 import { reliefShares, reliefOverSnow } from './relief.js';
@@ -44,6 +44,9 @@ import { laid, slopeAt, groundRead, cavityOf, PSTEPS } from './material.js';
 import { wear } from './decals.js';
 import { steps, colours } from '../materials/bake.js';
 import { snowDepth } from '../world/light.js';
+import { farthestMost } from '../detail/extent.js';
+import RIG from '../../camera/rig.js';
+import { at as rigAt } from '../camera/rig.js';
 
 /** Texels a page's layer has a side: the land's evaluation laid at once, a page; what the ground's maps are drawn in
     pieces of too (src/scatter/ground.js). */
@@ -73,6 +76,58 @@ const stampOf = (f) => (f % 31) + 1;   // (what a pixel's ask is marked with: it
     footprint, and the bias (as biasAt, in JS). */
 const levelOf = (raw, b) => Math.min(TOP, Math.max(0, Math.floor(raw + b - 0.5)));
 
+// ---- how many pages the land needs: what the pixels ask for, by the asks' own rule, at the most pixels a canvas has ----
+// Over open flat land (nothing on it hides any of it), at the output (src/core/budget.js OUTPUT), for each of the rig's
+// keys (camera/rig.js: its lens and its pace; src/camera/rig.js at): the view of it that holds the most land, its
+// picture's top edge on the horizon, and the same walked ahead at its pace for as long as the pages keep what was asked
+// (slotFor: two sweeps, a sweep a fixation: src/world/physics.js FIXATION), every page any of them asks (a block's finest
+// pixel's: the footprint's level, half a level finer (levelOf); the page across an edge it lies near; every page over
+// each), with the last level's pins all round as far as that lens draws the land (pinTop: src/detail/extent.js
+// farthestMost); the most of the keys'. Each block of SWEEP pixels down is asked from (a page is never fewer pixels tall
+// than PAGE / (ANISO × 2^1.5), more than a block), a block in every PAGE / 2^1.5 / SWEEP across (a page is never fewer
+// pixels wide than that: its texels at most 2^1.5 a pixel across the eye's ray), and the last. The walk is pictured as
+// often as the eye moves the side of the finest page it asks, so every page it crosses is asked by one of its pictures.
+let NEED = 0;
+/** How many pages the land needs at the most (above): the pool is sized by it, the ground class's room its ceiling. */
+function pagesNeeded() {
+  if (NEED) return NEED;
+  const { width: W, height: H } = OUTPUT, across = Math.max(1, Math.floor(PAGE / 2 ** 1.5 / SWEEP)) * SWEEP, keyOf = (l, i, j) => l * 1e12 + (i + 5e5) * 1e6 + (j + 5e5);
+  // the pages a view asks for: the eye `eye` metres over the land at (0, z), its pitch, its picture `fov` degrees tall;
+  // the finest level it asks
+  const asked = (pages, eye, z, pitch, fov, reach) => {
+    let finest = TOP;
+    const t = Math.tan((fov * Math.PI) / 360), c = Math.cos(pitch), sn = Math.sin(pitch);
+    const ground = (px, py, out) => {   // (a pixel's point on the land, or false past the horizon or the land's reach)
+      const x = ((2 * px) / W - 1) * t * (W / H), y = (1 - (2 * py) / H) * t, ry = y * c + sn, rz = y * sn - c;
+      if (ry >= 0) return false;
+      const k = eye / -ry; if (Math.hypot(x * k, rz * k) > reach) return false;
+      out[0] = x * k; out[1] = z + rz * k; return true;
+    };
+    const p = [0, 0], qx = [0, 0], qy = [0, 0];
+    for (let by = 0; by < H; by += SWEEP) for (let b = 0; b < W + across - SWEEP; b += across) {
+      const px = Math.min(b, W - SWEEP) + SWEEP / 2, py = Math.min(H - 1, by + SWEEP - 0.5);   // (its finest pixel: its nearest row's)
+      if (!ground(px, py, p) || !ground(px + 1, py, qx) || !ground(px, py + 1, qy)) continue;
+      const lx = Math.hypot(qx[0] - p[0], qx[1] - p[1]), ly = Math.hypot(qy[0] - p[0], qy[1] - p[1]), raw = Math.log2(Math.max(Math.max(lx, ly) / ANISO, Math.min(lx, ly)) / S0), L = levelOf(raw, 0);
+      finest = Math.min(finest, L);
+      const s = sideOf(L), i = Math.floor(p[0] / s), j = Math.floor(p[1] / s), e = (2 ** (raw - L) * 0.5 * ANISO) / PAGE, fx = p[0] / s - i, fz = p[1] / s - j;
+      for (const a of [0, fx < e ? -1 : fx > 1 - e ? 1 : 0]) for (const d of [0, fz < e ? -1 : fz > 1 - e ? 1 : 0]) {
+        let ii = i + a, jj = j + d;
+        for (let l = L; l <= TOP; l++, ii = Math.floor(ii / 2), jj = Math.floor(jj / 2)) { const k = keyOf(l, ii, jj); if (pages.has(k)) break; pages.add(k); }
+      }
+    }
+    return finest;
+  };
+  for (const key of RIG.keys) {
+    const v = rigAt(key.h), pitch = (-v.fov * Math.PI) / 360, reach = farthestMost() / (2 * Math.tan((v.fov * Math.PI) / 360) * pxKAt(1)), pages = new Set();   // (the land's reach as the measure's lens sees it, through this one)
+    const walk = v.speed * 2 * FIXATION, n0 = Math.ceil(walk / sideOf(asked(pages, key.h, 0, pitch, v.fov, reach)));
+    for (let k = 1; k <= n0; k++) asked(pages, key.h, (-walk * k) / n0, pitch, v.fov, reach);
+    const P = sideOf(TOP), n = Math.ceil(reach / P);
+    for (let j = -n - 1; j <= n; j++) for (let i = -n - 1; i <= n; i++) if (Math.hypot(Math.max(i * P, 0, -(i + 1) * P), Math.max(j * P, 0, -(j + 1) * P)) <= reach) pages.add(keyOf(TOP, i, j));
+    NEED = Math.max(NEED, pages.size);
+  }
+  return NEED;
+}
+
 let LAND = null;
 /** The land's pages as made last (null before): what else reads the ground there (a rock's skirt: src/scatter/drawer.js). */
 export const landPages = () => LAND;
@@ -81,13 +136,15 @@ export function createPages(renderer, tex) {
   layerTables(tex);
   // ---- the atlas: a page a layer, two mips. Where the GPU has block compression (BC: every desktop) it is kept in
   // blocks, as the world's materials are (src/materials/bake.js): A (BC3) the colour, gamma 2, and the height; N (BC5)
-  // the relief; X (BC5) the carpet's share and the stands' shade: 3 bytes a texel, so 4096 pages in about 250 MB, what
-  // the 4K screen asks for at its own density (3000–3500 pages at the gate's views), in two arrays of up to 2048 layers
-  // (a device's most). A page is laid into a layer of its own batch first, and packed into blocks from there. Elsewhere A
-  // and N are four bytes a texel each (N with the carpet and the shade in it), 640 pages, laid straight into the atlas ----
+  // the relief; X (BC5) the carpet's share and the stands' shade: 3 bytes a texel, 60 KB a page. As many pages as the
+  // land needs at the most (pagesNeeded), never more than the ground's class has room for, nor than a page table entry
+  // names (its slot's 12 bits: VALID), in arrays of up to a device's most layers. A page is laid into a layer of its own
+  // batch first, and packed into blocks from there. Elsewhere A and N are four bytes a texel each (N with the carpet and
+  // the shade in it), 640 pages at the most, laid straight into the atlas. Where the pages asked for do not fit, every
+  // pixel asks a little coarser (the bias) ----
   const dev = renderer.backend.device, PACKED = !!dev?.features?.has('texture-compression-bc'), LAYERS_MOST = dev?.limits?.maxTextureArrayLayers ?? 256;
   const SLOT_BYTES = SLOT * SLOT * 1.25 * (PACKED ? 3 : 8);   // (a page's texels, with its second mip, in its formats: what the note below counts a slot)
-  const SLOTS = Math.min(PACKED ? Math.min(2 * LAYERS_MOST, 4096) : Math.min(LAYERS_MOST, 640), Math.floor(roomOf('ground') / SLOT_BYTES)), PER = Math.min(SLOTS, LAYERS_MOST);   // (PER: layers an array; and never more than the ground's class has room for: src/core/budget.js)
+  const SLOTS = Math.min(PACKED ? Math.min(2 * LAYERS_MOST, VALID, pagesNeeded()) : Math.min(LAYERS_MOST, 640), Math.floor(roomOf('ground') / SLOT_BYTES)), PER = Math.min(SLOTS, LAYERS_MOST);   // (PER: layers an array; and never more than the ground's class has room for: src/core/budget.js)
   const look = { minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, anisotropy: ANISO, colorSpace: THREE.NoColorSpace, generateMipmaps: false };
   const laidInto = (n) => Object.assign(new THREE.StorageArrayTexture(SLOT, SLOT, n), look, { mipmaps: [{ width: SLOT, height: SLOT }, { width: SLOT / 2, height: SLOT / 2 }] });
   const blocks = (format, n) => {   // (every layer there from the start, empty, filled as pages are laid)
