@@ -16,7 +16,7 @@
 //                           rule's own expectation: src/scatter/rule.js densOf) and their crowns' pattern
 //   the grass's colour      the meadow's as its blades' tips show it (the carpet's), and which two stands those are
 import * as THREE from 'three/webgpu';
-import { If, Loop, float, int, uint, vec2, vec3, abs, max, min, clamp, smoothstep, log2, sqrt, round, uniformArray, renderGroup } from 'three/tsl';
+import { If, Loop, float, int, uint, vec2, vec3, abs, max, min, clamp, smoothstep, log2, sqrt, round, uniformArray, renderGroup, array } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { byRole } from '../core/registry.js';
 import { riverInfo, biomesAt, grassFrom, groveAt, leadAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, BASE, LAID, PATH_W } from '../world/land.nodes.js';
@@ -235,8 +235,10 @@ export function layerWords(tex, p, texel) {
   const stage = stageAt(p).toVar(), bare0 = bareMask(p).toVar(), dry = Lb.dry.toVar();
   // ---- the layers, each laid over what is under it as much as its rule says (a layer's share of the ground shrinks by
   // what is laid over it) ----
-  const S = LAYERS.map(() => float(0).toVar()); S[FLOOR].assign(1);
-  const over = (id, t) => { const k = float(t).toVar(); for (const s of S) s.mulAssign(float(1).sub(k)); S[id].addAssign(k); };
+  // (each step: k of what is there replaced by what it lays, adds [[id, how much]]; worked out from the last back, each
+  // what it adds times what the steps after it leave of it: a step costs a few numbers, not one a layer)
+  const steps = [{ k: float(1), adds: [[FLOOR, float(1)]]}];
+  const over = (id, t) => { const k = float(t).toVar(); steps.push({ k, adds: [[id, k]] }); };
   // a biome's ground: its floor, its spots and its trees' litter laid over each other, then all of it over what is there
   const biome = ({ bio, groves, floor, spots, litter }) => {
     const wt = share.get(bio).mul(bio.mix ?? 1).toVar(), own = new Map([[floor, float(1)]]);
@@ -246,8 +248,7 @@ export function layerWords(tex, p, texel) {
       const lead = leadAt(p, groves).mul(0.7).add(0.15).toVar(), thick = smoothstep(0.1, 0.6, groveAt(p, groves)).toVar();
       for (const { id, slice: [a, b] } of litter) put(id, (a > 0 ? smoothstep(a - 0.06, a + 0.06, lead) : float(1)).mul(b < 1 ? float(1).sub(smoothstep(b - 0.06, b + 0.06, lead)) : float(1)).mul(thick).toVar());
     }
-    for (const s of S) s.mulAssign(float(1).sub(wt));
-    for (const [id, v] of own) S[id].addAssign(wt.mul(v));
+    steps.push({ k: wt, adds: [...own].map(([id, v]) => [id, wt.mul(v)]) });
   };
   UNDER.forEach(biome);
   over(BARE, max(bare0.sub(stage), 0).mul(float(1).sub(dry)));
@@ -255,14 +256,21 @@ export function layerWords(tex, p, texel) {
   over(PATHS, placeOff(p, pathMask(pathN(p))));
   OVER.forEach(biome);
   over(STAGE, stage);
-  // the four strongest, then in the order they are laid
-  const top = [0, 1, 2, 3].map(() => ({ id: int(EMPTY).toVar(), w: float(0).toVar() }));
-  S.forEach((s, id) => {
+  const S = LAYERS.map(() => float(0).toVar()), left = float(1).toVar();
+  for (let i = steps.length - 1; i >= 0; i--) {
+    for (const [id, a] of steps[i].adds) S[id].addAssign(a.mul(left));
+    if (i > 0) left.mulAssign(float(1).sub(steps[i].k));
+  }
+  // the four strongest, then in the order they are laid (the layers' shares looked through in a loop, so its body is
+  // written once, not once a layer)
+  const top = [0, 1, 2, 3].map(() => ({ id: int(EMPTY).toVar(), w: float(0).toVar() })), SA = array(S).toVar();
+  Loop(S.length, ({ i }) => {
+    const s = SA.element(i).toVar(), id = int(i);
     const c = top.map((t) => s.greaterThan(t.w).toVar());   // (held: the slots change as they are assigned)
-    for (let i = 3; i >= 0; i--) {   // (from the last: each takes what was before it, if what comes is stronger than that)
-      const fromAbove = i > 0 ? c[i - 1] : null, here = c[i];
-      if (fromAbove) { top[i].id.assign(fromAbove.select(top[i - 1].id, here.select(int(id), top[i].id))); top[i].w.assign(fromAbove.select(top[i - 1].w, here.select(s, top[i].w))); }
-      else { top[i].id.assign(here.select(int(id), top[i].id)); top[i].w.assign(here.select(s, top[i].w)); }
+    for (let k = 3; k >= 0; k--) {   // (from the last: each takes what was before it, if what comes is stronger than that)
+      const fromAbove = k > 0 ? c[k - 1] : null, here = c[k];
+      if (fromAbove) { top[k].id.assign(fromAbove.select(top[k - 1].id, here.select(id, top[k].id))); top[k].w.assign(fromAbove.select(top[k - 1].w, here.select(s, top[k].w))); }
+      else { top[k].id.assign(here.select(id, top[k].id)); top[k].w.assign(here.select(s, top[k].w)); }
     }
   });
   const sum = top.reduce((a, t) => a.add(t.w), float(0)).max(1e-6).toVar();

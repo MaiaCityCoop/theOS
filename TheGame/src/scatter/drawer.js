@@ -764,10 +764,14 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     };
   };
   /** A tier's meshes told their level (what a material its levels share reads of it: alike), and where its band begins
-      (near, metres: what the first view waits for, src/core/screen.js), each time its band is reckoned again. */
+      (near, metres: what the first view waits for, src/core/screen.js), each time its band is reckoned again: only where
+      its material rises out of the ground as it arrives (a make that tells its levels: handover.js levelOfMesh's
+      arrived). Another, untold, is waited for: one that came later would come at once. */
   const tagLevel = (T, i) => {
+    const Lv = MAKE?.levelOf?.(i) ?? null;
+    for (const m of T.meshes) Object.assign(m.userData, { heapLevel: i, Lv });
+    if (!Lv) return;   // (near only where the material rises as it comes: a level whose numbers its meshes tell; not a make's dot, nor its shade)
     const near = () => { for (const m of T.meshes) m.userData.near = T.near; }, band = T.band;
-    for (const m of T.meshes) Object.assign(m.userData, { heapLevel: i, Lv: MAKE?.levelOf?.(i) ?? null });
     T.band = () => { band(); near(); }; near();
   };
   const kinds = new WeakMap();   // (by the placer's place: its kinds, by how they are drawn)
