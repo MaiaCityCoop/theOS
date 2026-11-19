@@ -52,7 +52,7 @@ import { CLEARINGS } from '../../world/places.js';
 import { recipe, recipes, versionOf } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
 import { kindOf, sizeOf, most } from '../../assets/kinds.js';
-import { levelOf, handOver, sinkInto } from '../detail/handover.js';
+import { levelOf, levelOfMesh, handOver, sinkInto } from '../detail/handover.js';
 import { createAtlas, bakers, viewClip, tileClip, impostorRead, clumpRead, facingOf, facingEnc, planeFrame, litIn, atlases } from '../detail/impostor.js';
 import { levelsUnder, PICTURES } from '../detail/atlas.js';
 import { offScreen, clipOf, Tier } from './tier.js';
@@ -319,7 +319,9 @@ function plantMaterial(tex, D) {
       return { position: positionGeometry, normal: attribute('normal', 'vec3'), uv: attribute('uv', 'vec2'), part: pa.x, ao: pa.y, cn: attribute('cn', 'vec3'), root: attribute('root', 'vec3'), twig: pa.z, shade: seedOf(B), ...own,
         crowd: { tip: tg.xyz, go: tg.w, rule: [0, 1, 2, 3].map((j) => ofMesh(`rule${j}`, new THREE.Vector4(), 'vec4')) } };
     };
-    const LU = Lv && levelOf(Lv, D.fade), LC = Lv ? levelEnds(Lv) : null;   // (its level's sizes as they are, uniforms: every level one shader)
+    // (its level's sizes as they are, uniforms: every level one shader; Lv.mesh: as each mesh drawing it tells them, one
+    // material for all its levels, src/scatter/drawer.js)
+    const LU = Lv && (Lv.mesh ? levelOfMesh(D.fade) : levelOf(Lv, D.fade)), LC = Lv ? (Lv.mesh ? levelEndsMesh() : levelEnds(Lv)) : null;
     // what a pixel needs: where on its texture, and its light. The world's stands are lit where their pixels are, after
     // the prepass (src/core/gbuffer.js): their prepass writes what that light needs (vW: its point, vN: its way, vTint:
     // its green, vK: ao, wrap, shines, clumps) and they are drawn in no colour pass (2026-11-19: at eye level a stand had
@@ -503,8 +505,11 @@ function plantMaterial(tex, D) {
     uniforms all, so every level of a stand's plants is one shader, and every level of its impostors one (2026-11-19:
     first, middle and last were three, differing in two words). */
 const levelEnds = (Lv) => ({ lo: uniform(Lv.lo), hi: uniform(Number.isFinite(Lv.hi) ? Lv.hi : 1e9), first: uniform(Lv.first ? 1 : 0, 'uint'), last: uniform(Lv.last ? 1 : 0, 'uint') });
+/** The same as the mesh drawing it tells them (mesh.userData.Lv, src/scatter/drawer.js), read at each draw. */
+const ofLv = (f, type = 'float') => uniform(0, type).onObjectUpdate(({ object }) => { const Lv = object?.userData?.Lv; return Lv ? f(Lv) : 0; });
+const levelEndsMesh = () => ({ lo: ofLv((Lv) => Lv.lo), hi: ofLv((Lv) => (Number.isFinite(Lv.hi) ? Lv.hi : 1e9)), first: ofLv((Lv) => (Lv.first ? 1 : 0), 'uint'), last: ofLv((Lv) => (Lv.last ? 1 : 0), 'uint') });
 function impostorMaterial(G, D, Lv, src) {
-  const LU = levelOf(Lv, G.fade), LC = levelEnds(Lv), slot = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.slot ?? 0);
+  const LU = Lv.mesh ? levelOfMesh(G.fade) : levelOf(Lv, G.fade), LC = Lv.mesh ? levelEndsMesh() : levelEnds(Lv), slot = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.slot ?? 0);
   const vP = varyingProperty('vec3', 'iP'), vE = varyingProperty('vec3', 'iE'), vS = varyingProperty('float', 'iS');
   const vK = varyingProperty('vec4', 'iK'), vT = varyingProperty('vec3', 'iT'), vX = varyingProperty('vec3', 'iX'), vLit = varyingProperty('vec4', 'iLit');
   const m = new THREE.NodeMaterial();
@@ -894,7 +899,7 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     // a vertex of the draw as the material takes it: of the plant's own mesh at heap level `lv` (which it is: B.y; its
     // shade: its seed, B.w), unpacked, with its kind's numbers
     const feedOf = (lv, at) => {   // (at: where the draw's vertex lies, the drawer's: drawer.js atOf)
-      const level = uniform(lv, 'uint');
+      const level = uniform(lv, 'uint').onObjectUpdate(({ object }) => object?.userData?.heapLevel ?? lv);   // (the level the mesh drawing it is of: one material for all its levels, src/scatter/drawer.js)
       return {
         vertex: (B) => {
           const kind = uint(B.y.add(0.5)), R = heapRow(D.H, kind, level).toVar(), P = at(R), e = R.y.add(P.vertex.mul(uint(2))), r0 = D.numOf(kind, 0).toVar(), r3 = D.numOf(kind, 3).toVar();
@@ -913,14 +918,17 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
       // (its mesh from where its impostor's error would be seen down to where every plant has handed over, the BAND
       // under; its impostor from where it may come; each a fifth wider either way while the camera moves between packings)
       wants: (kind, rows) => { const R3 = D.numOf(kind, 3), T = R3.z, r = ratioOf(T, pxOf(rows[0].w, rows[0].xy), R3.y); return { mesh: T.lessThanEqual(0).or(r.greaterThan(0.8 / BAND)), far: T.greaterThan(0).and(r.lessThan(1.25)) }; },
-      material: (src, i) => impostorMaterial(G, () => D, { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, first: i === 0, last: i === n - 1 }, src),
+      material: (src) => impostorMaterial(G, () => D, { mesh: true }, src),   // (its level as each mesh tells it: make.levelOf)
       version: () => `${G.far.version()}|${measureVersion()}`, ready: G.far.ready,   // (packed again when one comes, or the measure changes: wants reads it)
     };
     const D = createDrawer(scene, renderer, tex, {
       name: `plants, ${G.name}`, LEVELS, SHADE: { ...SH, shrink: 1 }, SMOOTH: uniform(1),
       // (boxOf: a mesh's box as its family measured it, metres at scale 1 (assets/kit/plant.js), in its shape's sizes and
       // as far as it leans: its stand's lean moves a point sideways by its height, at most the lean of its wind's numbers)
-      make: { per: 2, onBlock: G.far?.onBlock, far, numbers: { rows: 5, of: (k) => numbers.subarray(k * 20, k * 20 + 20) }, boxOf: (k, b) => { const K = G.KS[k] || 1, L = numbers[k * 20 + 5] * Math.max(Math.abs(b[1]), b[4], 0); return [(b[0] - L) / K, b[1] / K, (b[2] - L) / K, (b[3] + L) / K, b[4] / K, (b[5] + L) / K]; }, material: (src, i, shadow, at) => { const { m, shape, slot } = make(shadow ? null : { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, first: i === 0, last: i === n - 1 }, feedOf(i, at)); m.vertexNode = Fn((builder) => shape(src.readAt(0, slot), src.readAt(1, slot), passOf(builder)))(); return m; } },
+      make: { per: 2, onBlock: G.far?.onBlock, far, numbers: { rows: 5, of: (k) => numbers.subarray(k * 20, k * 20 + 20) }, boxOf: (k, b) => { const K = G.KS[k] || 1, L = numbers[k * 20 + 5] * Math.max(Math.abs(b[1]), b[4], 0); return [(b[0] - L) / K, b[1] / K, (b[2] - L) / K, (b[3] + L) / K, b[4] / K, (b[5] + L) / K]; }, material: (src, i, shadow, at) => { const { m, shape, slot } = make(shadow ? null : { mesh: true }, feedOf(i, at)); m.vertexNode = Fn((builder) => shape(src.readAt(0, slot), src.readAt(1, slot), passOf(builder)))(); return m; },
+        // (what a level's meshes tell its material (mesh.userData.Lv, src/scatter/drawer.js); and how a level's material is
+        // made other than by its numbers: its crowd's levels alike, the shade (no crowd: feedOf) its own)
+        levelOf: (i) => (i < n ? { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, first: i === 0, last: i === n - 1 } : null), alike: (i) => (i < n ? 'crowd' : 'shade') },
       // (what the browser keeps of it is good while its recipes and their rooms are what they were: registry.json's versions)
       zoo: { kinds: KINDS, ALL: G.meshes, fingerprint: () => `plants 6|${G.kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.px}:${l.room.verts}:${l.room.tris}`).join()}|${A.key}` },   // (and the atlases' numbers its far ends are built for)
     });
