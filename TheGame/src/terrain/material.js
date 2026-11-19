@@ -11,7 +11,7 @@ import { TRUTH, pxAt, dialPxAt } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
 import { camDist, riverInfo, riverNear, heightAt, baseB, roofAt, hashI, BASE } from '../world/land.nodes.js';
 import { OCT_LAM, OCT_AMP } from '../world/land.js';
-import { layerOf, standOf, standFade, CARPET, SLOPES, NO_STAND, SHADE_REACH, CROWNS } from './layers.js';
+import { layerOf, standOf, standFade, canopyShownAt, CARPET, SLOPES, NO_STAND, SHADE_REACH, CROWNS, RELIEF_MOST } from './layers.js';
 import { lit, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
 import { passOf, motion } from '../core/pass.js';
 import { endOf, bladeLight, tuftShade, underShade, meadowSeen } from '../scatter/grass.js';
@@ -142,9 +142,12 @@ export function laid(tex, p, s, D, X) {
   // the stands: far off, where their plants have sunk away, the land wears their crowns' colour, as much of it as they
   // cover; and how much of the light they would take from their floor (laid on it by the pixel, past where their
   // shadows are drawn: SHADE_REACH)
-  const shade = float(0).toVar();
+  // (and the stands' relief there: each its cover times its relief's top where its cover is whole, laid into the page
+  // whole, as one measure v2 measures a plant against it; the land shows it where the plants are gone: terrainMaterial)
+  const shade = float(0).toVar(), relief = float(0).toVar();
   for (const T of X.stands) If(T.id.notEqual(NO_STAND).and(T.c.greaterThan(0.003)), () => {
     const S = standOf(T.id), fade = standFade(S, D, T.c);   // (by its cover here: a thick stand hands over sooner)
+    relief.addAssign(T.c.mul(S.relief));
     If(fade.greaterThan(0.003).or(S.reach.greaterThan(0)), () => {
       const under2 = smoothstep(float(1.08).sub(T.c.mul(0.75)), float(1.22).sub(T.c.mul(0.75)), T.n.add(T.c.mul(0.45)));   // where a plant is, as many as cover says
       // (darker than a crown's own colour: seen from afar it is mostly its own shade; where the texel can no longer hold
@@ -158,7 +161,7 @@ export function laid(tex, p, s, D, X) {
     });
   });
   M.c.mulAssign(X.macro.add(1));   // the land's colour variation, from the baked cloudy noise
-  return { c: M.c, h: M.h, n: M.n, cv: M.g, shade };
+  return { c: M.c, h: M.h, n: M.n, cv: M.g, shade, r: relief };
 }
 /** How much of the light reaches a texel of the ground for its own relief, h its height: what lies low (the gaps
     between stones, a crack) sits in its neighbours' shade; the grass's carpet less (its blades are drawn over it, cv its
@@ -210,6 +213,16 @@ export function terrainMaterial(vt) {
       const sp = P.cell.mul(P.k.add(1)), G = vt.read(wp, vec2(sp, 0), vec2(0, sp), dist, { lod: true });
       raise.addAssign(G.cv.mul(U.uMeadowTop).mul(past));
     });
+    // past where the stands' plants are gone, the land raised by their relief (the pages': cover times each stand's top,
+    // src/terrain/layers.js), as much as their canopy shows there (canopyShownAt) and as long as it shows, over a dial
+    // pixel (handed over within BAND)
+    if (RELIEF_MOST > 0) {
+      const far = canopyShownAt(float(RELIEF_MOST), dist).mul(smoothstep(1, BAND, dialPxAt(pxAt(float(RELIEF_MOST), dist)))).toVar();
+      If(far.greaterThan(0), () => {
+        const sp = P.cell.mul(P.k.add(1)), R = vt.relief(wp, vec2(sp, 0), vec2(0, sp), dist).toVar();
+        raise.addAssign(R.mul(canopyShownAt(R, dist)).mul(smoothstep(1, BAND, dialPxAt(pxAt(R, dist)))));
+      });
+    }
     vRel.assign(share);
     const h = L.h.add(raise).toVar();
     if (!pre) { vWorld.assign(vec3(wp.x, h, wp.y)); vI.assign(L.I); vN.assign(L.N); vHill.assign(L.hill); }   // (vWorld without the snow's depth: the light and the air do not need it)

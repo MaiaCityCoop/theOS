@@ -36,6 +36,7 @@ import { most, footprintOf, footprintReach } from '../../assets/kinds.js';
 import { CLEARINGS } from '../../world/places.js';
 import { WORDS } from './growth.js';
 import { limitOf } from '../core/gpu.js';
+import { FOOT } from '../../assets/kit/plant.js';
 
 const R0 = 0.69, PER = 1.8, CLUMPS = 55, PATCHES = 90, TOP = 1;   // R0: metres of reach where the classes begin (0.69-2.8 m, 2.8-11 m, ...); PER: a cell's side to its class's middle reach; CLUMPS, PATCHES: a biome's groves and the patches where one kind leads, metres, at the class of a grown tree (TOP), where its biome does not say (its `groves`)
 const SHADE = 0.85;   // how much of the light coming down through a crown its foliage takes where it is deepest, over its middle
@@ -141,6 +142,24 @@ export function grownIn(c, L, e, pos) {
   } else { h.assign(own.mul(N.height)); shape.assign(floor(rnd(c.x, c.y, h0(309)).mul(N.n)).min(N.n.sub(1))); }
   return { h, shape };
 }
+/** How tall a thing of entry e that grows stands at `age` (metres at scale 1), as grownIn works it out on the GPU: its
+    stage's height, straight in the logarithms of age and height between where the stage begins, its year and where it
+    ends (only its first stages, a sapling). */
+const heightIn = (e, age) => {
+  const st = e.asset.growth.stages.filter((S) => S.offset < e.shapes[1]), j = Math.max(0, st.findIndex((S, i) => i === st.length - 1 || age < S.to)), S = st[j];
+  const ag = Math.min(Math.max(age, S.from), S.to), low = ag < S.year;
+  const t = low ? Math.log(ag / S.from) / Math.log(S.year / S.from) : Math.log(ag / S.year) / Math.log(S.to / S.year);
+  return Math.exp(low ? Math.log(S.hFrom) + (Math.log(S.h) - Math.log(S.hFrom)) * t : Math.log(S.h) + (Math.log(S.hTo) - Math.log(S.h)) * t);
+};
+/** The crown top over the ground a thing of entry e has on the mean, as grownIn grows it (metres): at its placement's
+    middle scale; one that grows by its stand's ages at their mean (a grown tree's own share of its stand's too, AGED; a
+    sapling's skewed young, r²), its height by age; one that does not grow, its asset's height. What a stand's relief
+    stands for where its cover is whole (src/terrain/layers.js reliefTop). */
+export const meanTopOf = (e) => {
+  const a = e.asset, P = a.placement, AG = e.ages, s = P.scale ? (P.scale[0] + P.scale[1]) / 2 : 1, grows = !!(a.growth && AG);
+  const age = grows ? (e.young ? AG[0] + (AG[1] - AG[0]) / 3 : ((AG[0] + AG[1]) / 2) * ((AGED[0] + AGED[1]) / 2)) : 0;
+  return Math.max(0, (grows ? heightIn(e, age) : most(a.size.height)) * s - FOOT);
+};
 /** Entry e's own numbers as grownIn reads them (its scale's two ends, its asset's height, its shapes), uniforms kept with
     it: what sizes a thing of it is then code alike for every entry of its sort, and the stands whose kinds differ only in
     them pack by one pipeline (they were literals: each stand's pass a compile of its own). */

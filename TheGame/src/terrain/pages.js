@@ -39,7 +39,7 @@ import { BAND } from '../detail/error.js';
 import { endOf } from '../scatter/grass.js';
 import { reliefShares, reliefOverSnow } from './relief.js';
 import { SOIL_RELIEF, FIXATION } from '../world/physics.js';
-import { layerTables, layerWords, layersFrom, standColours, MAPN } from './layers.js';
+import { layerTables, layerWords, layersFrom, standColours, MAPN, RELIEF_MOST } from './layers.js';
 import { laid, slopeAt, groundRead, cavityOf, PSTEPS } from './material.js';
 import { wear } from './decals.js';
 import { steps, colours } from '../materials/bake.js';
@@ -128,6 +128,40 @@ function pagesNeeded() {
   return NEED;
 }
 
+// ---- the stands' relief: a channel of its own (src/terrain/layers.js RELIEF_MOST; none where no stand has one) ----
+/** The bytes a slot's relief takes (with its second mip): half a byte a texel in blocks (BC4), four elsewhere. */
+const reliefBytes = (packed) => (RELIEF_MOST > 0 ? SLOT * SLOT * 1.25 * (packed ? 0.5 : 4) : 0);
+/** No stand has a relief: nothing laid, nothing read. */
+const noRelief = () => ({ textures: null, staging: 0, lay() {}, pack() {}, copy() {} });
+/** The relief's channel: its atlas (as the pages', in arrays of PER layers: BC4 where the GPU has blocks, else laid
+    straight into it), the layer a batch is laid into, how a texel of it is laid (the stands' relief as a share of the
+    highest), and a batch's blocks packed (each mip's rows as long as the first's: a row of either is the 256 bytes a
+    copy into a texture asks for) and copied into its slots. */
+function reliefChannel(renderer, { PACKED, SLOTS, PER, laidInto, arrays }) {
+  const RR = PACKED ? arrays(THREE.RED_RGTC1_Format, 8) : [laidInto(SLOTS)], SR = PACKED ? laidInto(BATCH) : RR[0];
+  const ROW = SLOT / 4, BLOCKS = ROW * ROW + (SLOT / 8) ** 2, RBLOCKS = ROW * ROW + (SLOT / 8) * ROW;
+  const BLR = PACKED ? gpuStorage('uvec2', BATCH * RBLOCKS, "the land's pages: the batch's relief blocks", 'ground') : null, tSR = texture(SR), uB = uniform(0, 'uint');
+  const kernel = PACKED ? Fn(() => {
+    const id = globalId.x, b = id.div(uint(BLOCKS)), k = id.sub(b.mul(uint(BLOCKS)));
+    If(b.lessThan(uB), () => {
+      const two = k.greaterThanEqual(uint(ROW * ROW)), kk = two.select(k.sub(uint(ROW * ROW)), k), side = two.select(uint(SLOT / 8), uint(ROW)), bx = kk.mod(side), by = kk.div(side), lv = two.select(int(1), int(0));
+      const v = []; for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) v.push(tSR.load(ivec2(int(bx.mul(uint(4)).add(uint(i))), int(by.mul(uint(4)).add(uint(j))))).depth(int(b)).level(lv).x.toVar());
+      const h = steps(v);
+      BLR.node.element(b.mul(uint(RBLOCKS)).add(two.select(uint(ROW * ROW), uint(0))).add(by.mul(uint(ROW))).add(bx)).assign(uvec2(h[0], h[1]));
+    });
+  })().computeKernel([64, 1, 1]) : null;
+  return {
+    textures: RR.map((t) => texture(t)), staging: PACKED ? BATCH * SLOT * SLOT * 1.25 * 4 : 0,
+    lay(store, mip, at, layer, r) { store(SR, mip, at, layer, vec4(clamp(r.div(RELIEF_MOST), 0, 1), 0, 0, 1)); },
+    pack(n) { if (kernel) { uB.value = n; renderer.compute(kernel, [Math.ceil((n * BLOCKS) / 64), 1, 1]); } },
+    copy(list, e, gpu) {
+      if (!BLR) return;
+      const rb = gpu(BLR.attr).buffer;
+      list.forEach((q, b) => [0, 1].forEach((l) => e.copyBufferToTexture({ buffer: rb, offset: (b * RBLOCKS + (l ? ROW * ROW : 0)) * 8, bytesPerRow: ROW * 8, rowsPerImage: ROW >> l }, { texture: gpu(RR[Math.floor(q.slot / PER)]).texture, mipLevel: l, origin: { x: 0, y: 0, z: q.slot % PER } }, { width: SLOT >> l, height: SLOT >> l, depthOrArrayLayers: 1 })));
+    },
+  };
+}
+
 let LAND = null;
 /** The land's pages as made last (null before): what else reads the ground there (a rock's skirt: src/scatter/drawer.js). */
 export const landPages = () => LAND;
@@ -141,23 +175,25 @@ export function createPages(renderer, tex) {
   // names (its slot's 12 bits: VALID), in arrays of up to a device's most layers. A page is laid into a layer of its own
   // batch first, and packed into blocks from there. Elsewhere A and N are four bytes a texel each (N with the carpet and
   // the shade in it), 640 pages at the most, laid straight into the atlas. Where the pages asked for do not fit, every
-  // pixel asks a little coarser (the bias) ----
+  // pixel asks a little coarser (the bias). And where any stand has a relief (src/terrain/layers.js RELIEF_MOST), a page
+  // holds it too: R (BC4, half a byte a texel; elsewhere four), the stands' relief there as a share of the highest ----
   const dev = renderer.backend.device, PACKED = !!dev?.features?.has('texture-compression-bc'), LAYERS_MOST = dev?.limits?.maxTextureArrayLayers ?? 256;
-  const SLOT_BYTES = SLOT * SLOT * 1.25 * (PACKED ? 3 : 8);   // (a page's texels, with its second mip, in its formats: what the note below counts a slot)
+  const SLOT_BYTES = SLOT * SLOT * 1.25 * (PACKED ? 3 : 8) + reliefBytes(PACKED);   // (a page's texels, with its second mip, in its formats: what the note below counts a slot)
   const SLOTS = Math.min(PACKED ? Math.min(2 * LAYERS_MOST, VALID, pagesNeeded()) : Math.min(LAYERS_MOST, 640), Math.floor(roomOf('ground') / SLOT_BYTES)), PER = Math.min(SLOTS, LAYERS_MOST);   // (PER: layers an array; and never more than the ground's class has room for: src/core/budget.js)
   const look = { minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, anisotropy: ANISO, colorSpace: THREE.NoColorSpace, generateMipmaps: false };
   const laidInto = (n) => Object.assign(new THREE.StorageArrayTexture(SLOT, SLOT, n), look, { mipmaps: [{ width: SLOT, height: SLOT }, { width: SLOT / 2, height: SLOT / 2 }] });
-  const blocks = (format, n) => {   // (every layer there from the start, empty, filled as pages are laid)
-    const zero = new Uint8Array(n * (SLOT / 4) ** 2 * 16), mips = [0, 1].map((l) => ({ data: zero.subarray(0, n * (SLOT / 4 >> l) ** 2 * 16), width: SLOT >> l, height: SLOT >> l }));
+  const blocks = (format, n, bytes = 16) => {   // (every layer there from the start, empty, filled as pages are laid; bytes: a block's)
+    const zero = new Uint8Array(n * (SLOT / 4) ** 2 * bytes), mips = [0, 1].map((l) => ({ data: zero.subarray(0, n * (SLOT / 4 >> l) ** 2 * bytes), width: SLOT >> l, height: SLOT >> l }));
     const t = Object.assign(new THREE.CompressedArrayTexture(mips, SLOT, SLOT, n, format, THREE.UnsignedByteType), look, { needsUpdate: true });
     renderer.initTexture(t); for (const m of mips) m.data = new Uint8Array(0);   // (sent once, empty; the page keeps none of it)
     return t;
   };
-  const arrays = (format) => Array.from({ length: Math.ceil(SLOTS / PER) }, (_, k) => blocks(format, Math.min(PER, SLOTS - k * PER)));
+  const arrays = (format, bytes) => Array.from({ length: Math.ceil(SLOTS / PER) }, (_, k) => blocks(format, Math.min(PER, SLOTS - k * PER), bytes));
   const A = PACKED ? arrays(THREE.RGBA_S3TC_DXT5_Format) : [laidInto(SLOTS)], N = PACKED ? arrays(THREE.RED_GREEN_RGTC2_Format) : [laidInto(SLOTS)], X = PACKED ? arrays(THREE.RED_GREEN_RGTC2_Format) : null;
   const SA = PACKED ? laidInto(BATCH) : A[0], SN = PACKED ? laidInto(BATCH) : N[0];   // (where a batch is laid: its own layers, or the atlas's)
-  note("the land's pages", SLOTS * SLOT_BYTES + (PACKED ? BATCH * SLOT * SLOT * 1.25 * 8 : 0), 0, 'ground');
-  const tA = A.map((t) => texture(t)), tN = N.map((t) => texture(t)), tX = X ? X.map((t) => texture(t)) : null;
+  const RC = (RELIEF_MOST > 0 ? reliefChannel : noRelief)(renderer, { PACKED, SLOTS, PER, laidInto, arrays });   // (the stands' relief: its own channel)
+  note("the land's pages", SLOTS * SLOT_BYTES + (PACKED ? BATCH * SLOT * SLOT * 1.25 * 8 : 0) + RC.staging, 0, 'ground');
+  const tA = A.map((t) => texture(t)), tN = N.map((t) => texture(t)), tX = X ? X.map((t) => texture(t)) : null, tR = RC.textures;
   // ---- the page table: for each level, its window's pages ----
   const T = gpuStorage('uint', LEVELS * K * K, "the land's page table", 'ground'), table = new Uint32Array(LEVELS * K * K), TN = T.node.toReadOnly();
   let lo = Infinity, hi = -1, version = 0;   // (version: how many times the table has changed)
@@ -241,7 +277,7 @@ export function createPages(renderer, tex) {
       M.c.mulAssign(cavityOf(M.h, M.cv));   // (the depth of its own relief, in its colour: material.js cavityOf)
       const a = vec4(sqrt(clamp(M.c, 0, 1)), clamp(M.h, 0, 1)), n = vec4(clamp(M.n.mul(0.5).add(0.5), 0, 1), clamp(M.cv, 0, 1), clamp(M.shade, 0, 1));
       const layer = PACKED ? int(b) : int(P.w), at = uvec2(x, y);   // (packed: the batch's own layer; else its slot in the atlas)
-      If(two, () => { store(SA, 1, at, layer, a); store(SN, 1, at, layer, n); }).Else(() => { store(SA, 0, at, layer, a); store(SN, 0, at, layer, n); });
+      If(two, () => { store(SA, 1, at, layer, a); store(SN, 1, at, layer, n); RC.lay(store, 1, at, layer, M.r); }).Else(() => { store(SA, 0, at, layer, a); store(SN, 0, at, layer, n); RC.lay(store, 0, at, layer, M.r); });
     });
   })().computeKernel([8, 8, 1]);
   // the batch packed into blocks (src/materials/bake.js steps, colours), a block of 4 × 4 texels a thread: of each page,
@@ -262,11 +298,13 @@ export function createPages(renderer, tex) {
   })().computeKernel([64, 1, 1]) : null;
   const pack = (list) => {
     renderer.compute(packKernel, [Math.ceil((list.length * 3 * BLOCKS) / 64), 1, 1]);
+    RC.pack(list.length);
     const e = dev.createCommandEncoder(), gpu = (x) => renderer.backend.get(x), buffer = gpu(BLK.attr).buffer;
     list.forEach((q, b) => [A, N, X].forEach((T2, t) => [0, 1].forEach((l) => {
       const side = SLOT / 4 >> l, first = (b * 3 + t) * BLOCKS + (l ? (SLOT / 4) ** 2 : 0);
       e.copyBufferToTexture({ buffer, offset: first * 16, bytesPerRow: side * 16, rowsPerImage: side }, { texture: gpu(T2[Math.floor(q.slot / PER)]).texture, mipLevel: l, origin: { x: 0, y: 0, z: q.slot % PER } }, { width: SLOT >> l, height: SLOT >> l, depthOrArrayLayers: 1 });
     })));
+    RC.copy(list, e, gpu);
     dev.queue.submit([e.finish()]);
   };
 
@@ -624,7 +662,10 @@ export function createPages(renderer, tex) {
         mip they call for. level: the steps its level goes by, where not dx, dy (the raised ground's: material.js). ->
         { c: its colour (linear), h: its height, n: its relief (the normal's x, z), cv: the carpet's share, shade: the
         stands' } */
-    read(p, dx, dy, d, { eye = null, lod = false, level = null } = {}) {
+    /** The page at p for those steps (as read: the level they want, or the finest in over it; while it fades in, the one
+        under it): { s1, l1, w1 (how far it has faded in), s2, l2, inPage (where a point lies in a page of a level, and
+        the steps there), at (a read of a texture with them; lod: at the mip they call for), inArray }. Node code. */
+    found(p, dx, dy, d, { lod = false, level = null } = {}) {
       const u = { WIN, uFrame }, m0 = (level ? this.level(level[0], level[1], d) : this.level(dx, dy, d)).toVar(), bias = this.biasAt(d).toVar();
       const sideAt = (lv) => exp2(float(lv)).mul(PAGE * S0), pageAt = (lv) => ivec2(floor(p.div(sideAt(lv))));
       // the finest page in for that level or over it, and while it fades in, the one under it
@@ -650,6 +691,23 @@ export function createPages(renderer, tex) {
       const at = (t, P, layer) => { const r = t.sample(P.uv).depth(layer); return lod ? r.level(log2(max(max(length(P.gx), length(P.gy)).mul(SLOT), 1e-6))) : r.grad(P.gx, P.gy); };
       // (in its array: the first PER slots the first's, the rest the second's)
       const inArray = (slot, fn) => { if (tA.length > 1) If(slot.lessThan(PER), () => fn(0, slot)).Else(() => fn(1, slot.sub(PER))); else fn(0, slot); };
+      return { s1, l1, w1, s2, l2, inPage, at, inArray };
+    },
+    /** The stands' relief at p (metres: src/terrain/layers.js, each its cover times its relief's top), as its page holds
+        it, at the mip the steps call for: readable where there are no steps of a pixel's own (a vertex stage, a compute
+        pass: one measure v2 measures a plant against it there). Every level coarser than the one asked at p is in
+        (a page's parents come first). 0 where no stand has one. Node code. */
+    relief(p, dx, dy, d) {
+      if (!tR) return float(0);
+      const F = this.found(p, dx, dy, d, { lod: true }), r = float(0).toVar();
+      If(F.s1.greaterThanEqual(0), () => {
+        F.inArray(F.s1, (j, layer) => { r.assign(F.at(tR[j], F.inPage(p, F.l1), layer).x); });
+        If(F.w1.lessThan(1).and(F.s2.greaterThanEqual(0)), () => { F.inArray(F.s2, (j, layer) => { r.assign(mix(F.at(tR[j], F.inPage(p, F.l2), layer).x, r, F.w1)); }); });
+      });
+      return r.mul(RELIEF_MOST);
+    },
+    read(p, dx, dy, d, { eye = null, lod = false, level = null } = {}) {
+      const { s1, l1, w1, s2, l2, inPage, at, inArray } = this.found(p, dx, dy, d, { lod, level });
       // ---- parallax (as much as reliefShares says: from where the relief near the eye lets go until the flat ground is
       // within the one error): the ground's own height (h, 0 … 1, the land's at 0.5, SOIL_RELIEF from lowest to highest),
       // the soil's (not the grass's carpet: its blades stand over it), what of it stands out of the snow, seen along
