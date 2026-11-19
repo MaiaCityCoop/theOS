@@ -388,7 +388,8 @@ fn enter(
         }
     }
     if !off("BLOOM") {
-        cam.insert(Bloom::NATURAL);
+        // a little more bloom than natural: the sun and the backlit grass bleed light, as through a real lens
+        cam.insert(Bloom { intensity: 0.22, ..Bloom::NATURAL });
     }
     if !off("TAA") {
         // SMAA, not TAA: TAA blends each frame with the last, and on blades a few pixels thin it pulled the sky of the
@@ -399,8 +400,9 @@ fn enter(
         // haze: distance fades into the air's own blue-grey, warm toward the sun; ~12 km to the horizon of sight
         cam.insert(DistanceFog {
             color: Color::srgb(0.62, 0.70, 0.80),
-            directional_light_color: Color::srgba(1.0, 0.88, 0.70, 0.5),
-            directional_light_exponent: 20.0,
+            // a wide, warm glow around the sun: its light scattering in the haze
+            directional_light_color: Color::srgba(1.0, 0.85, 0.62, 0.85),
+            directional_light_exponent: 8.0,
             falloff: FogFalloff::from_visibility_colors(45_000.0, Color::srgb(0.35, 0.48, 0.66), Color::srgb(0.80, 0.85, 0.92)),
         });
     }
@@ -426,7 +428,7 @@ fn enter(
         perceptual_roughness: 0.85,
         reflectance: 0.05,
         // light through the blades: against the sun, grass glows
-        diffuse_transmission: if off("GLOW") { 0.0 } else { 0.45 },
+        diffuse_transmission: if off("GLOW") { 0.0 } else { 0.8 }, // backlit blades glow yellow-green
         thickness: 0.0,
         double_sided: true,
         cull_mode: None,
