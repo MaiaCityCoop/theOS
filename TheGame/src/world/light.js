@@ -16,6 +16,7 @@ import { cascades } from './shadow.js';
 import { blueAt } from './light/noise.js';
 import { SUN_DIAMETER } from './light/physics.js';
 import { SCREEN } from './light/screen.js';
+import { skyAlong, glowAlong } from './sky/dome.js';
 import { canopyAt, groundColour } from './light/canopy.js';
 
 export { snowDepth, snowCover, snowDrift, snowLift, snowLiftAtVertex, SNOW } from './weather/snow.js';
@@ -29,18 +30,18 @@ export const useBackend = (renderer) => { texelReads = !!renderer?.backend?.isWe
 // air: the far land takes the sky's colour; one height fog for everything, thickest at the ground, thinning upwards
 // (by e every airScale metres), so a line of sight from high up passes through less of it. The weather's fog (its lane) thickens it.
 const airMean = Fn(([h]) => { const k = h.div(max(U.uAirScale, 1)); return k.lessThan(1e-3).select(float(1).sub(k.mul(0.5)), float(1).sub(exp(k.negate())).div(k)); });
-// the air lit by the sun: looking towards it, the haze glows warm (light scattered forward by the air), away from it
-// it keeps the horizon's colour; the more air in the line of sight, the more of it
+// the air's own light: what the sky shows along the same way (src/world/sky/dome.js: its colour from the horizon up, and
+// its glow round the sun), so the far land melts into the very sky behind it; the more air in the line of sight, the
+// more of it
 /** The air between the eye and w, as its two parts: k, how much of a surface's colour comes through, and col, the air's
-    own light: a height fog lit by the sun, worked out here. A material that lights itself per vertex (a tree:
+    own light: a height fog, its light the sky's along the same way. A material that lights itself per vertex (a tree:
     src/scatter/trees.js) carries them to its pixels; airAt mixes them. (Hillaire's air in froxels, stage 9b, is on its
     own branch, aven/0038-stage9b, until it fits the light's 3 ms.) */
 const airHere = Fn(([w, eye]) => {
-  const d = w.sub(eye), dist = length(d), towards = max(normalize(d).dot(U.uSunDir), 0);
-  const glow = U.uSun.mul(pow(towards, 6).mul(0.22).add(pow(towards, 40).mul(0.25))).mul(U.uSunDir.y.max(0).mul(-1).add(1).mul(0.6).add(0.4));
+  const d = w.sub(eye), dist = length(d), v = normalize(d);
   // (and by where the land is no longer drawn it is all air: from high up the land's end is not an edge against the sky)
   const end = smoothstep(U.uLandEnd.mul(0.55), U.uLandEnd.mul(0.94), dist), k0 = exp(dist.negate().mul(U.uHaze).mul(airMean(U.uAirH)).mul(lane.fog.mul(40).add(1))).mul(float(1).sub(end));
-  return vec4(U.uHazeCol.add(glow), k0);
+  return vec4(skyAlong(v).add(glowAlong(v)), k0);
 });
 export const airOf = (w, eye = U.uCam) => {
   const A = airHere(w, eye), dist = length(w.sub(eye));
