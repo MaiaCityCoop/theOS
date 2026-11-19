@@ -275,8 +275,11 @@ const entryOf = (EN, nE, STEPS) => () => {
     atomic a bucket a workgroup: its place among its bucket's, counted in A, then put(b, i) writes it there (none: only
     counted). K: the buckets. */
 const intoBuckets = (K) => {
-  const wgN = workgroupArray('uint', K).toAtomic().setName('wgTierBucketCount'), wgAt = workgroupArray('uint', K).setName('wgTierBucketAt');
-  const each = (lid, fn) => { if (K <= WG) If(lid.lessThan(uint(K)), () => fn(lid)); else Loop({ start: lid, end: uint(K), type: 'uint', condition: '<', update: WG }, ({ i }) => fn(i)); };
+  // (up to a workgroup's worth of buckets, as many as it has invocations, K of them used, K a uniform: every kind of so
+  // many draws one shader; they were one for every K, differing only in it, 2026-11-19. More than that, its own)
+  const n = K <= WG ? WG : K, uK = uniform(K, 'uint');
+  const wgN = workgroupArray('uint', n).toAtomic().setName('wgTierBucketCount'), wgAt = workgroupArray('uint', n).setName('wgTierBucketAt');
+  const each = (lid, fn) => { if (K <= WG) If(lid.lessThan(uK), () => fn(lid)); else Loop({ start: lid, end: uint(K), type: 'uint', condition: '<', update: WG }, ({ i }) => fn(i)); };
   return (L, on, A, put = null) => {
     const lid = localId.x;
     each(lid, (b) => { atomicStore(wgN.element(b), uint(0)); });
@@ -581,7 +584,7 @@ function residentOf(T, me, s, ends) {
         X[n * 2] = L.id; X[n * 2 + 1] = bitsOf(L.pad / sc);   // (its pad as the measure has distances: the lens's)
         cells += c; n++; w.next++;
       }
-      if (w.next === per * per) { waits.delete(L.key); release(w); }   // (all of it visited: what it takes the place of let go)
+      if (w.next === per * per) { waits.delete(L.key); did('swaps', w.was.length); release(w); }   // (all of it visited: what it takes the place of let go; swaps: the regions so replaced, joined or split, said to the frame: tools/gate/motion.js --swaps)
     }
     CELLS.left -= cells;
     return { n, cells };

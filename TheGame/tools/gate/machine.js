@@ -1,7 +1,7 @@
 // The machine a measure runs on (intent 0038, 2026-11-19: the Mac mini at 6 % free memory with 6.9 GB of its 8 GB swap
 // in use, WebKit crashing at launch even on about:blank, GPU work paged to disk: the night's numbers may have measured
 // the disk, not the game). Its free memory and swap, read before and after every measured run (onMachine: tools/gate.js
-// device, walks, bench, compile, paths, all and the hour). A run is not measured, and said so, where it would start with less memory free than the game
+// device, walks, bench, compile, paths, all, motion and the hour). A run is not measured, and said so, where it would start with less memory free than the game
 // may hold on the GPU (budget.js GPU_MB: on one memory, as a Mac has it, the GPU's is the machine's), or where the swap
 // grew while it ran. Where the machine's memory cannot be read (not a Mac), nothing is refused.
 import { execFileSync } from 'node:child_process';

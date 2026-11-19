@@ -276,7 +276,7 @@ export function bakeTextures(renderer, { spare = 6, first = null } = {}) {
     a: (m, p) => (data(m) >= 0 ? tD.sample(p).depth(data(m)) : tA.sample(p).depth(layer(m))),
     /** its relief at uv: .xy the normal's x and y */
     n: (m, p) => tN.sample(p).depth(layer(m)),
-    /** its roughness at uv */
-    r: (m, p, dx = null, dy = null) => { const s = (tR ?? tN).sample(p).depth(layer(m)), t = dx ? s.grad(dx, dy) : s; return tR ? t.r : t.a; },
+    /** its roughness at uv (dx, dy: its steps there; lv: its level, read so where no steps are, a vertex stage) */
+    r: (m, p, dx = null, dy = null, lv = null) => { const s = (tR ?? tN).sample(p).depth(layer(m)), t = lv != null ? s.level(lv) : dx ? s.grad(dx, dy) : s; return tR ? t.r : t.a; },
   };
 }
