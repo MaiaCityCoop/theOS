@@ -110,7 +110,7 @@ export class Tier {
     if (!made(this.passes, 'run')) { this.make(renderer); return; }   // (its passes made first: until they are, it packs nothing, and draws nothing: src/core/compile.js)
     this.key = key;
     const cells = this.patchesIn();
-    renderer.compute(this.passes); own.packed(); did('packs'); if (this.movers) did('moving'); did('kcells', Math.round(cells / 1000)); this.empty = !n;   // (moving: a tier packed every frame, its things moving; not a change of what stands: src/core/work.js changed)
+    renderer.compute(this.passes); own.packed(); own.ask(renderer); did('packs'); if (this.movers) did('moving'); did('kcells', Math.round(cells / 1000)); this.empty = !n;   // (moving: a tier packed every frame, its things moving; not a change of what stands: src/core/work.js changed)
   }
   /** What it is: its meshes named so (three labels their pipelines by it: src/core/compile.js). Not its packing passes:
       three writes a compute pass's name into its code, and the tiers' passes that are one shader would then be many. */
@@ -307,11 +307,12 @@ function ownOf(T, caps, lay) {
     packed() { all++; if (!T.movers || fits !== laid) { wrong = 1; packs++; } },
     /** Nothing chosen and nothing packed: it needs no room. */
     idle() { wrong = 0; },
-    /** What its last packing found, read back (one read at a time, after a packing). */
+    /** What its last packing found, read back (one read at a time, after a packing; one packed while it was read, read
+        once it is: what it found is known whether the tier runs again or not). */
     ask(renderer) {
       if (asking || seen === all) return;
       asking = true; seen = all; const asked = packs, at = laid;
-      renderer.getArrayBufferAsync(T.count.value).then((b) => check(new Uint32Array(b), asked, at)).catch(() => { seen = -1; }).finally(() => { asking = false; });
+      renderer.getArrayBufferAsync(T.count.value).then((b) => check(new Uint32Array(b), asked, at)).catch(() => { seen = -1; }).finally(() => { asking = false; if (seen >= 0) row.ask(renderer); });
     },
   });
 }
