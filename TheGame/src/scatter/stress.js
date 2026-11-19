@@ -55,6 +55,7 @@ import { heightAt } from '../world/land.js';
 import { rnd as cellRnd } from '../core/hash.js';   // (a cell's number 0 … 1 on the CPU, as the GPU's rnd)
 import { boxIn } from '../core/frustum.js';
 import { MAXP } from './tier.js';
+import { pace, frameShare } from '../core/pace.js';
 import { inView } from './view.js';
 import { createDrawer } from './drawer.js';
 import { LADDER, FULLN, trisOf, ladderOf } from '../../assets/kit/ladder.js';
@@ -288,18 +289,21 @@ const lanesOf = (p) => (p.lanes ||= (() => {
 const arcOf = (p, th) => { th = ((th % TAU) + TAU) % TAU; let lo = 0, hi = RAYS; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (p.PH[m] <= th) lo = m; else hi = m; } return (lo + (th - p.PH[lo]) / Math.max(1e-9, p.PH[lo + 1] - p.PH[lo])) / RAYS; };
 function moversNear(p, x, z, reach, t, fn) {
   const dx = x - p.x, dz = z - p.z, l = Math.hypot(dx, dz), th = Math.atan2(dz, dx);
-  for (const L of lanesOf(p)) {
-    // (reach: metres, or what a lane's is: a lane of small things is looked at less far)
-    const far = (typeof reach === 'function' ? reach(L) : reach) + 12, G = RING[L.ring], r0 = Math.max(1, (G.rho - G.MA) * p.least - 8), r1 = (G.rho + G.MA) * p.most + 8;
-    if (r0 > l + far || r1 < l - far) continue;   // (its way lies wholly further in, or further out, than that)
-    // how far round from the place's direction a point of the way can be and still be that near: two points so far
-    // apart in direction, at these distances from the middle, are at least 2·sqrt(l·r)·sin(half the angle) apart
-    const sh = far / (2 * Math.sqrt(Math.max(1e-6, l * r0))), A = L.u0, n = A.length;
-    if (sh >= 0.999) { for (let k = 0; k < L.list.length; k++) fn(L.list[k]); continue; }
-    const ph = 2 * Math.asin(sh), ua = arcOf(p, th - ph), span = (((arcOf(p, th + ph) - ua) % 1) + 1) % 1, from = (((ua - (L.dir * L.v * t) / L.Ln) % 1) + 1) % 1;   // that stretch of the way, as shares of it; where its movers began that are on it now
-    let a = 0, b = n; while (a < b) { const m = (a + b) >> 1; if (A[m] < from) a = m + 1; else b = m; }
-    for (let k = 0, j = a % n; k < n; k++, j = (j + 1) % n) { if ((((A[j] - from) % 1) + 1) % 1 > span) break; fn(L.list[j]); }
-  }
+  for (const L of lanesOf(p)) laneNear(p, L, l, th, reach, t, fn);
+}
+/** Of lane L of plot p, the movers on the stretch near a place l metres from the plot's middle in direction th:
+    fn(m) each (moversNear's, a lane at a time: a paced look's piece). */
+function laneNear(p, L, l, th, reach, t, fn) {
+  // (reach: metres, or what a lane's is: a lane of small things is looked at less far)
+  const far = (typeof reach === 'function' ? reach(L) : reach) + 12, G = RING[L.ring], r0 = Math.max(1, (G.rho - G.MA) * p.least - 8), r1 = (G.rho + G.MA) * p.most + 8;
+  if (r0 > l + far || r1 < l - far) return;   // (its way lies wholly further in, or further out, than that)
+  // how far round from the place's direction a point of the way can be and still be that near: two points so far
+  // apart in direction, at these distances from the middle, are at least 2·sqrt(l·r)·sin(half the angle) apart
+  const sh = far / (2 * Math.sqrt(Math.max(1e-6, l * r0))), A = L.u0, n = A.length;
+  if (sh >= 0.999) { for (let k = 0; k < L.list.length; k++) fn(L.list[k]); return; }
+  const ph = 2 * Math.asin(sh), ua = arcOf(p, th - ph), span = (((arcOf(p, th + ph) - ua) % 1) + 1) % 1, from = (((ua - (L.dir * L.v * t) / L.Ln) % 1) + 1) % 1;   // that stretch of the way, as shares of it; where its movers began that are on it now
+  let a = 0, b = n; while (a < b) { const m = (a + b) >> 1; if (A[m] < from) a = m + 1; else b = m; }
+  for (let k = 0, j = a % n; k < n; k++, j = (j + 1) % n) { if ((((A[j] - from) % 1) + 1) % 1 > span) break; fn(L.list[j]); }
 }
 /** Its place only, to the bend of its lane: for what asks how far off it is. Into out. */
 const moverNearInto = (p, F, m, t, out) => { const o = m * MF; return wayInto(p, F[o + WAY], F[o + OFS], F[o + U0] + (F[o + DIR] * F[o + V] * t) / F[o + LN], out); };
@@ -615,21 +619,29 @@ export function createStress(scene, renderer, tex) {
   if (MOVING) ask([['rooms']]).then(([rooms]) => laid(layOut(rooms))); else laid(layOut([]));
   // what the CPU knows of what stands near: a block of a plot's lattice (BL cells a side) worked out when first looked
   // at, a few kept; and a plot's movers' own numbers
-  const BL = 32, blocks = new Map(); let built = 0;
-  const blockOf = (p, bi, bj, must = false) => {   // (must: a body is asked of it now, not at the next look)
-    const key = (p.i * 64 + bi) * 64 + bj; let b = blocks.get(key); if (b) return b;
-    if (!must && built++ >= 3) return null;   // (three new blocks a look: the rest at the next)
-    b = { X: new Float32Array(BL * BL), Z: new Float32Array(BL * BL), S: new Float32Array(BL * BL), K: new Uint16Array(BL * BL), x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity };   // (and where it lies: what lies wholly too far is not looked into)
-    for (let j = 0, n = 0; j < BL; j++) for (let i = 0; i < BL; i++, n++) {
-      const ci = bi * BL + i, cj = bj * BL + j; if (ci >= SIDE || cj >= SIDE) { b.S[n] = 0; continue; }
-      standInto(p, ci, cj, sizes, b, n); b.x0 = Math.min(b.x0, b.X[n]); b.x1 = Math.max(b.x1, b.X[n]); b.z0 = Math.min(b.z0, b.Z[n]); b.z1 = Math.max(b.z1, b.Z[n]);
+  const BL = 32, blocks = new Map();
+  // (a block of a plot's lattice, as far as it is worked out: rows of it, a row at a time as a paced look comes to it, all
+  // at once where a body is asked of it now (must); and where it lies, as far as it is. Kept while a look of the last two
+  // looked at it or a body was asked of it (used: the look it was last of): what is near, by need, let go once passed)
+  let looks = 0;
+  const blockOf = (p, bi, bj, must = false) => {
+    const key = (p.i * 64 + bi) * 64 + bj; let b = blocks.get(key);
+    if (!b) { b = { p, bi, bj, rows: 0, used: looks, X: new Float32Array(BL * BL), Z: new Float32Array(BL * BL), S: new Float32Array(BL * BL), K: new Uint16Array(BL * BL), x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity }; blocks.set(key, b); }
+    b.used = looks;
+    if (must) while (b.rows < BL) rowOf(b);
+    return b;
+  };
+  const passed = () => { looks++; for (const [key, b] of blocks) if (b.used < looks - 2) blocks.delete(key); };   // (a look done: what neither it nor the one before looked at let go)
+  const rowOf = (b) => {
+    const j = b.rows++, cj = b.bj * BL + j;
+    for (let i = 0, n = j * BL; i < BL; i++, n++) {
+      const ci = b.bi * BL + i; if (ci >= SIDE || cj >= SIDE) { b.S[n] = 0; continue; }
+      standInto(b.p, ci, cj, sizes, b, n); b.x0 = Math.min(b.x0, b.X[n]); b.x1 = Math.max(b.x1, b.X[n]); b.z0 = Math.min(b.z0, b.Z[n]); b.z1 = Math.max(b.z1, b.Z[n]);
     }
-    if (blocks.size > 96) blocks.delete(blocks.keys().next().value);
-    blocks.set(key, b); return b;
   };
   // (a plot's ten thousand reckoned a part each time it is asked for, into its own numbers: all at once is a frame lost.
   // Let go again once the plot is a BAND further than the movers are looked at: kept for the plots near only)
-  const moversOf = (p) => { const M = (p.mv ||= { n: 0, F: new Float64Array(MSIDE * MSIDE * MF) }); for (let k = 0; k < 1500 && M.n < MSIDE * MSIDE; k++, M.n++) moverInto(p, M.n % MSIDE, Math.floor(M.n / MSIDE), M.F, M.n); return M; };
+  const moversOf = (p, most = 1500) => { const M = (p.mv ||= { n: 0, F: new Float64Array(MSIDE * MSIDE * MF) }); for (let k = 0; k < most && M.n < MSIDE * MSIDE; k++, M.n++) moverInto(p, M.n % MSIDE, Math.floor(M.n / MSIDE), M.F, M.n); return M; };
   // (both drawers: each of them, and their looks at what is near as one: the ladder's reach for both (a band's slots are
   // asked as far as the ladder's fine levels are, no further), a kind asked of the ladder, a kind with bands of its
   // bands too; null: neither looks this frame)
@@ -637,31 +649,66 @@ export function createStress(scene, renderer, tex) {
   const look = () => {
     const N = D.scan(), NBs = DB?.scan(); if (!N && !NBs) return null;
     const S0 = N ?? NBs;
-    return { ahead: S0.ahead, reach: S0.reach, wants: (k, s, d, own) => { N?.wants(k, s, d, own); if (k < NB) NBs?.wants(k, s, d, own); }, none() { N?.none(); NBs?.none(); }, done() { N?.done(); NBs?.done(); } };
+    return { ahead: S0.ahead, reach: S0.reach, reachAny: (sz) => Math.max(N?.reachAny(sz) ?? 0, NBs?.reachAny(sz) ?? 0), wants: (k, sz, d, own) => { N?.wants(k, sz, d, own); if (k < NB) NBs?.wants(k, sz, d, own); }, far: (k) => { N?.far(k); if (k < NB) NBs?.far(k); }, none() { N?.none(); NBs?.none(); }, done() { N?.done(); NBs?.done(); } };
   };
   // each frame: when the camera has moved, ask for the fine levels of what now
   // stands or passes near (coarser first: quick to build, and something to draw meanwhile), nearest first
   let tick = 0;
   // (the movers within sixty metres of the camera, as each look finds them, for what asks where they are: each its plot's
-  // number and its own, in two kept lists; and where a look's fold of a place lands)
-  let NEAR_P = new Int32Array(256), NEAR_M = new Int32Array(256), nearN = 0; const LOOKP = new Float64Array(2), BODYP = new Float64Array(2), BODYQ = new Float64Array(3);
-  const nearPush = (pi, m) => { if (nearN === NEAR_P.length) { const a = new Int32Array(2 * nearN), b = new Int32Array(2 * nearN); a.set(NEAR_P); b.set(NEAR_M); NEAR_P = a; NEAR_M = b; } NEAR_P[nearN] = pi; NEAR_M[nearN++] = m; };
-  // (a look at what stands near in plot p: the blocks of its lattice round the camera's own lattice point, those that
-  // lie within Rs, each thing in them asked for as large as it is that near)
-  const lookStands = (p, cam, dy, Rs, wants) => {
-    latticeInto(p, cam.x, cam.z, LOOKP); const fi = LOOKP[0], fj = LOOKP[1], rl = (Rs + p.clrMax) / p.narrow + 1, nb = Math.ceil(SIDE / BL);
-    for (let bj = Math.max(0, Math.floor((fj - rl) / BL)); bj <= Math.min(nb - 1, Math.floor((fj + rl) / BL)); bj++) for (let bi = Math.max(0, Math.floor((fi - rl) / BL)); bi <= Math.min(nb - 1, Math.floor((fi + rl) / BL)); bi++) {
-      const b = blockOf(p, bi, bj); if (!b) continue;
-      const ex = Math.max(b.x0 - cam.x, 0, cam.x - b.x1), ez = Math.max(b.z0 - cam.z, 0, cam.z - b.z1); if (ex * ex + ez * ez + dy * dy >= Rs * Rs) continue;   // (all of it further than that)
-      for (let n = 0; n < BL * BL; n++) { if (!b.S[n]) continue; const d = Math.hypot(b.X[n] - cam.x, b.Z[n] - cam.z, dy); if (d < Rs) wants(b.K[n], b.S[n], d, 0); }
+  // number and its own, in kept lists: what the last look found, and what the look under way is finding)
+  let NEAR_P = new Int32Array(256), NEAR_M = new Int32Array(256), nearN = 0, NEXT_P = new Int32Array(256), NEXT_M = new Int32Array(256), nextN = 0; const LOOKP = new Float64Array(2), BODYP = new Float64Array(2), BODYQ = new Float64Array(3);
+  const nextPush = (pi, m) => { if (nextN === NEXT_P.length) { const a = new Int32Array(2 * nextN), b = new Int32Array(2 * nextN); a.set(NEXT_P); b.set(NEXT_M); NEXT_P = a; NEXT_M = b; } NEXT_P[nextN] = pi; NEXT_M[nextN++] = m; };
+  // ---- a look, paced (src/core/pace.js): each frame as much of it as fits the frame's share for what no class names
+  // ('other'), by what its pieces took of the page's thread, one piece at the least: of each plot near in turn, a row of
+  // one of its lattice's blocks round the camera not yet worked out, a block's things (those of them a look can ask
+  // anything of at their size asked: wants; the rest within reach counted for the bands: far), then a column of its
+  // movers not yet worked out, or, all there, those on the stretch near. The look is said done (its asks to the
+  // workers, the movers near to what asks where they are) when the last piece is through. (2026-11-19: a look all in
+  // one frame took 7.8 ms, every 0.7 m: a late frame at 60 fps) ----
+  const PACED = pace(1); let job = null;
+  const begin = (N, cam) => {
+    const Rs = N.reach(SMAX), Rm = N.reach(MMAX), plots = [];
+    for (const p of PL) { const off = Math.hypot(p.x - cam.x, p.z - cam.z) - p.most; if (off > Rm) { if (p.mv && off > Rm * BAND) { p.mv = null; p.lanes = null; } continue; } plots.push(p); }   // (its movers let go: far enough not to come back at once)
+    nextN = 0;
+    return { N, Rs, kany: N.reachAny(1), plots, at: 0, blocks: null, b: 0, row: 0, lanes: null, lane: 0 };
+  };
+  // (the blocks of plot p's lattice round the camera's own lattice point, as far as Rs reaches)
+  const blocksNear = (p, cam, Rs) => {
+    latticeInto(p, cam.x, cam.z, LOOKP); const fi = LOOKP[0], fj = LOOKP[1], rl = (Rs + p.clrMax) / p.narrow + 1, nb = Math.ceil(SIDE / BL), out = [];
+    for (let bj = Math.max(0, Math.floor((fj - rl) / BL)); bj <= Math.min(nb - 1, Math.floor((fj + rl) / BL)); bj++) for (let bi = Math.max(0, Math.floor((fi - rl) / BL)); bi <= Math.min(nb - 1, Math.floor((fi + rl) / BL)); bi++) out.push(blockOf(p, bi, bj));
+    return out;
+  };
+  // (row j of a block: of what stands in it within reach, what a look can ask anything of at its size, asked; the rest
+  // counted for the bands. False where the block lies wholly further than that: none of it looked at)
+  const lookRow = (b, j, cam, dy, J) => {
+    if (!j) { const ex = Math.max(b.x0 - cam.x, 0, cam.x - b.x1), ez = Math.max(b.z0 - cam.z, 0, cam.z - b.z1); if (ex * ex + ez * ez + dy * dy >= J.Rs * J.Rs) return false; }
+    for (let n = j * BL, e = n + BL; n < e; n++) {
+      const sz = b.S[n]; if (!sz) continue; const d = Math.hypot(b.X[n] - cam.x, b.Z[n] - cam.z, dy); if (d >= J.Rs) continue;
+      if (d < sz * J.kany) J.N.wants(b.K[n], sz, d, 0); else J.N.far(b.K[n]);
     }
+    return true;
   };
-  // (and at what passes near in it: of its lanes that run near, the movers on the stretch near; those within sixty
-  // metres kept for what asks where they are)
-  const lookMovers = (p, cam, dy, t, reachOfSize, wants) => {
-    const M = moversOf(p), F = M.F, each = (m) => { moverNearInto(p, F, m, t, LOOKP); const o = m * MF, d = Math.hypot(LOOKP[0] - cam.x, LOOKP[1] - cam.z, dy); if (d < 60) nearPush(p.i, m); if (d < reachOfSize(F[o + SZ])) wants(F[o + KIND], F[o + SZ], d, F[o + V] * 0.35); };
-    if (M.n < MSIDE * MSIDE) for (let m = 0; m < M.n; m++) each(m); else moversNear(p, cam.x, cam.z, (L) => Math.max(60, reachOfSize(L.maxS)), t, each);
+  // (what passes near in plot p, a lane of it: the movers on the stretch near; those within sixty metres kept for what
+  // asks where they are)
+  const lookLane = (p, L, cam, dy, t, J) => {
+    const F = p.mv.F, reachOfSize = J.N.reach, each = (m) => { moverNearInto(p, F, m, t, LOOKP); const o = m * MF, d = Math.hypot(LOOKP[0] - cam.x, LOOKP[1] - cam.z, dy); if (d < 60) nextPush(p.i, m); if (d < reachOfSize(F[o + SZ])) J.N.wants(F[o + KIND], F[o + SZ], d, F[o + V] * 0.35); };
+    const dx = cam.x - p.x, dz = cam.z - p.z; laneNear(p, L, Math.hypot(dx, dz), Math.atan2(dz, dx), (Q) => Math.max(60, reachOfSize(Q.maxS)), t, each);
   };
+  // the next piece of a look (a row, a lane: none much longer than another); false where it is through
+  const piece = (J, cam, dy, t) => {
+    const p = J.plots[J.at]; if (!p) return false;
+    if (!J.blocks) J.blocks = J.N.ahead < J.Rs && Math.hypot(p.x - cam.x, p.z - cam.z) - p.most < J.Rs ? blocksNear(p, cam, J.Rs) : [];
+    if (J.b < J.blocks.length) {
+      const b = J.blocks[J.b];
+      if (b.rows < BL) rowOf(b);   // (a row of it worked out)
+      else if (!lookRow(b, J.row, cam, dy, J) || ++J.row === BL) { J.b++; J.row = 0; }   // (a row of it looked at)
+      return true;
+    }
+    if (HERDS.length && !J.lanes) { if (moversOf(p, MSIDE).n === MSIDE * MSIDE) { J.lanes = lanesOf(p); J.lane = 0; } return true; }   // (a column of its movers worked out)
+    if (J.lanes && J.lane < J.lanes.length) { lookLane(p, J.lanes[J.lane++], cam, dy, t, J); return true; }   // (a lane of them looked at)
+    J.at++; J.blocks = null; J.b = 0; J.row = 0; J.lanes = null; return J.at < J.plots.length;
+  };
+  const finish = (J) => { [NEAR_P, NEXT_P] = [NEXT_P, NEAR_P]; [NEAR_M, NEXT_M] = [NEXT_M, NEAR_M]; nearN = nextN; J.N.done(); passed(); };
   const pump = () => {
     if (!PL.length) {   // the city's plan has come: its plots, to the GPU
       const cp = window.__game?.city?.plots; if (!cp?.length || !LAY) return;
@@ -672,21 +719,12 @@ export function createStress(scene, renderer, tex) {
     if (!(tick++ & 3)) keepNear(U.uCam.value.x, U.uCam.value.z);   // (which plots are near changes slowly: asked every fourth frame)
     const cam = U.uCam.value, dy = U.uDy.value;
     if (API.pause) return;
-    built = 0;
     each((d) => d.skinsIn());
-    const N = look(); if (!N) return;
-    did('scan');   // (a look at its millions near: a busy frame, its length not counted by the governor)
-    // as far as the coarsest of the fine levels is asked for (and a fifth): of what stands, and of the largest mover
-    const ahead = N.ahead, t = U.uTime.value, reachOfSize = N.reach, wants = N.wants, Rs = reachOfSize(SMAX), Rm = reachOfSize(MMAX);
-    if (Rm <= dy) { N.none(); return; }
-    nearN = 0;
-    for (const p of PL) {
-      const off = Math.hypot(p.x - cam.x, p.z - cam.z) - p.most;
-      if (off > Rm) { if (p.mv && off > Rm * BAND) { p.mv = null; p.lanes = null; } continue; }   // (its movers let go: far enough not to come back at once)
-      if (off < Rs && ahead < Rs) lookStands(p, cam, dy, Rs, wants);   // what stands: the blocks of its lattice round the camera's own lattice point
-      if (HERDS.length) lookMovers(p, cam, dy, t, reachOfSize, wants);   // what passes: of its lanes that run near, the movers on the stretch near
-    }
-    N.done();
+    if (!job) { const N = look(); if (!N) return; if (N.reach(MMAX) <= dy) { N.none(); return; } job = begin(N, cam); }
+    PACED.tick(); did('scan');
+    const t0 = performance.now(), t = U.uTime.value, share = frameShare('other'); let n = 0;
+    while (job && (n === 0 || (n < PACED.left && performance.now() - t0 < share))) { n++; if (!piece(job, cam, dy, t)) { finish(job); job = null; } }   // (as many as the pace says, and no more once the share is spent: the page's own time is known as it goes)
+    PACED.measured(n, performance.now() - t0, share, true);
   };
   // ---- what of it is solid (src/world/bodies.js): the things round a point, each with its kind's box and shapes (its
   // family's, beside its recipe: assets/zoo). Where they stand is reckoned here as the GPU reckons it (standsAt,
