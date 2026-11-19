@@ -1,0 +1,45 @@
+{
+  "commit": "6ea75d6ee1b37f28ea76379c0f98e880bd8d1b73",
+  "why": "The game before intent 0038, restored on main 2026-11-19 (#408): smooth on a Mac and an iPhone.",
+  "walk": "tools/gate/play.js: Chrome headless 1920x1080 at scale 1, 15 s after the first frame, W held 20 s from where the walker starts (beside the tent).",
+  "machines": {
+    "MacBook-Air-von-Samuel": {
+      "measured": "2026-11-19, the machine busy as it is while Samuel works (other sessions, a Rust build)",
+      "runs": [
+        {
+          "p50": 16.7,
+          "p99": 33.3,
+          "worst": 333.3,
+          "over16": 17,
+          "hitches": 10,
+          "frames": 1161,
+          "walked": 14.9,
+          "memory": 1300,
+          "first": 7100
+        },
+        {
+          "p50": 16.7,
+          "p99": 150,
+          "worst": 666.6,
+          "over16": 304,
+          "hitches": 114,
+          "frames": 774,
+          "walked": 14.9,
+          "memory": 1126,
+          "first": 4052
+        },
+        {
+          "p50": 16.7,
+          "p99": 50,
+          "worst": 733.2,
+          "over16": 163,
+          "hitches": 68,
+          "frames": 943,
+          "walked": 14.9,
+          "memory": 1673,
+          "first": 2350
+        }
+      ]
+    }
+  }
+}
