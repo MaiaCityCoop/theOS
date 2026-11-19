@@ -15,7 +15,7 @@
 // GPU never answers holds the ones after it, and the veil says which it is (making: src/boot.js).
 import { source } from './settle.js';
 
-let last = Promise.resolve(), turns = 0;   // (turns: what the world waits for, waiting its turn here or being made)
+let last = Promise.resolve(), turns = 0, ended = 0;   // (turns: what the world waits for, waiting its turn here or being made; ended: turns over, of any kind)
 
 /** Run `fn` (it may be async) when its turn comes: after everything asked for here before it, and before anything asked
     after it (drawing what was just compiled, say, so that it does not draw while the next compile is half done).
@@ -23,8 +23,8 @@ let last = Promise.resolve(), turns = 0;   // (turns: what the world waits for, 
     what it gives. */
 export function inTurn(fn, counted = true) {
   if (counted) turns++;
-  const done = last.then(fn, fn);   // (in turn, whether the one before it went well or not)
-  if (counted) done.then(() => turns--, () => turns--);
+  const done = last.then(fn, fn), over = () => { ended++; if (counted) turns--; };   // (in turn, whether the one before it went well or not)
+  done.then(over, over);
   last = done.catch(() => {});   // (never two at once: three keeps the running compile's state in the renderer)
   return done;
 }
@@ -131,14 +131,14 @@ function readTurn(t) {
                   byName: each material's or pass's pipelines, each one's own time */
 export function compiles() {
   const ms = (t) => t.ms ?? performance.now() - t.at, issued = (t) => Math.max(0, ...t.pipes.map((p) => p.at - t.at)), gpu = (t) => sum(t.pipes, (p) => p.own ?? 0), compiled = (L) => L.filter((p) => !p.shared);
-  const read = TURNS.map((t) => ({ t, overtook: readTurn(t) })), first = TURNS.filter((t) => t.inView), byName = {};
+  const inView = (t) => (t.list && view ? t.list.filter((e) => view.has(e)).length : t.inView), read = TURNS.map((t) => ({ t, overtook: readTurn(t) })), first = TURNS.filter(inView), byName = {};
   const own = (p) => p.own ?? p.ms, top = (L) => L.reduce((a, p) => (own(p) > own(a) ? p : a));
   for (const p of PIPES) (byName[familyOf(p)] ||= []).push(Math.round(own(p) ?? -1));
   return {
     firstView: { asks: view?.size ?? null, turns: first.length, pipes: sum(first, (t) => compiled(t.pipes).length), ms: first.length ? Math.round(Math.max(...first.map((t) => t.at + ms(t))) - first[0].at) : 0, gpu: Math.round(sum(first, gpu)) },
     pipelines: { render: PIPES.filter((p) => p.kind === 'render').length, compute: PIPES.filter((p) => p.kind === 'compute').length, shared: PIPES.filter((p) => p.shared).length, sync: PIPES.filter((p) => p.sync).length, waiting: PIPES.filter((p) => p.ms == null).length, modules, kb: Math.round(moduleBytes / 1024) },
     parallel: { overtook: sum(read, (r) => r.overtook), of: sum(TURNS, (t) => Math.max(0, compiled(t.pipes).filter((p) => p.ms != null).length - 1)) },
-    turns: read.map(({ t, overtook }) => ({ name: t.name, asks: t.asks, inView: t.inView, pipes: compiled(t.pipes).length, shared: t.pipes.length - compiled(t.pipes).length, issued: Math.round(issued(t)), ms: Math.round(ms(t)), gpu: Math.round(gpu(t)), overtook, ...(compiled(t.pipes).some((p) => p.ms != null) ? { slowest: ((p) => ({ name: familyOf(p), own: Math.round(own(p)) }))(top(compiled(t.pipes).filter((p) => p.ms != null))) } : {}), ...(t.failed ? { failed: true } : {}) })),
+    turns: read.map(({ t, overtook }) => ({ name: t.name, asks: t.asks, inView: inView(t), pipes: compiled(t.pipes).length, shared: t.pipes.length - compiled(t.pipes).length, issued: Math.round(issued(t)), ms: Math.round(ms(t)), gpu: Math.round(gpu(t)), overtook, ...(compiled(t.pipes).some((p) => p.ms != null) ? { slowest: ((p) => ({ name: familyOf(p), own: Math.round(own(p)) }))(top(compiled(t.pipes).filter((p) => p.ms != null))) } : {}), ...(t.failed ? { failed: true } : {}) })),
     slowest: compiled(PIPES).filter((p) => p.ms != null).sort((a, b) => own(b) - own(a)).slice(0, 20).map((p) => ({ name: familyOf(p), kind: p.kind, own: Math.round(own(p)), ms: Math.round(p.ms) })),
     byName,
   };
@@ -194,10 +194,10 @@ function made1(maker, list) {
   const names = [...new Set(list.map((e) => e.name))], over = (L) => { done += L.filter((e) => e.counted).length; for (const e of L) open.delete(e); };
   now = names.length > 1 ? `${names[0]} and ${names.length - 1} more` : names[0];
   // (the turn timed, compiles: the pipelines it asks of the GPU while it runs)
-  const t = { name: now, asks: list.length, inView: 0, at: performance.now(), ms: null, pipes: [] };
+  const t = { name: now, asks: list.length, inView: 0, list, at: performance.now(), ms: null, pipes: [] };   // (list: while it runs, for its share of the first view as it is read)
   TURNS.push(t); running = t;
   return Promise.resolve(maker(list.map((e) => e.what)))
-    .finally(() => { t.ms = performance.now() - t.at; t.inView = view ? list.filter((e) => view.has(e)).length : 0; if (running === t) running = null; })
+    .finally(() => { t.ms = performance.now() - t.at; t.inView = view ? list.filter((e) => view.has(e)).length : 0; t.list = null; if (running === t) running = null; })
     .then((got) => { for (const e of list) { const S = stateOf(own(e.what)); if (!got || got.has(e.what)) S.set(e.pass, 'made'); else S.delete(e.pass); } over(list); },
       (err) => {
         t.failed = true;
@@ -228,8 +228,10 @@ export async function ahead(groups) { for (const g of groups) { g(); await Promi
     the pass a twin of it draws in), which it is then given: three labels a pipeline by its material's name, and the
     veil says it (making). */
 export const labelled = (material, object, pass = '') => (material.name ||= [object.name || object.parent?.name || material.type, pass].filter(Boolean).join(' '));
-/** What frames asked to be made: how many, how many are, and what is being made now (the veil: src/boot.js). */
-export const making = () => ({ asked, done, now });
+/** What frames asked to be made: how many, how many are, and what is being made now (the veil: src/boot.js); ended:
+    how many turns are over, of any kind (what was made since a frame: src/boot.js draws again behind the veil only
+    then). */
+export const making = () => ({ asked, done, now, ended });
 const computeMakers = new WeakMap();
 const ownMakers = new WeakMap();
 /** Draw `mesh` (a pass of its own: a quad drawn straight into the renderer's target as `camera` sees it, not an object of

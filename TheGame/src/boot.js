@@ -211,13 +211,27 @@ export async function boot({ profile = 'world' } = {}) {
     weather.before(camera, gy); shadows.render(scene, camera, gy);   // (what a condition draws before the picture: the clouds' shadow map)
     screen.render(scene, camera);   // (through its lens, where the camera brings one)
   }
-  let last = 0, wasBusy = false, veiled = false;
+  let last = 0, wasBusy = false, veiled = false, stillAt = -1;
+  const veil = (game.veil = { frames: 0, drawn: 0, longest: 0 });   // (the frames behind the veil: how many, how many drawn, the longest between two, ms: __game.veil)   // (stillAt: the turns over when the last frame behind the veil was drawn, where it changed nothing; -1: it changed something)
   function frame(now) {
     requestAnimationFrame(frame);
     const ms = last ? now - last : 16.7; last = now;
     U.uTime.value = (now - t0) / 1000;
     tex.flush();   // (materials asked for since the last frame: src/materials/bake.js)
-    if (lakes) { lakes.update(camera); if (lakes.version !== lakesSeen) { lakesSeen = lakes.version; grown.ground.refresh(); terrain.refresh(); } }   // (new lakes: the ground under the camera drawn again, and its layers)
+    if (lakes) { lakes.update(camera); if (lakes.version !== lakesSeen) { lakesSeen = lakes.version; grown.ground.refresh(); terrain.refresh(); stillAt = -1; } }   // (new lakes: the ground under the camera drawn again, and its layers)
+    // (behind the veil, a frame that would be the last one drawn again is not drawn: nothing was made since it, and it
+    // changed nothing. three's compile, building a material's code, yields to the page for a frame to be drawn after
+    // every 8 ms of it, and the start's frames, each drawing the whole world, held it to 8 ms a frame: one turn of 207
+    // asks spent 168 s building in Chrome, 2026-11-19, the master's compile log. The frame after a turn is over is
+    // drawn, and the veil lifts on such a frame: only a turn's end changes what the first view waits for. What a frame
+    // asked to be painted, and new lakes, are taken in all the same: a turn of their own, or a change)
+    // (passed over, the canvas is cleared all the same, under the veil: a frame presented keeps the browser's frames
+    // coming at the screen's rate, which three's compile waits for. A page that presents nothing may get its frames
+    // throttled, headless above all, and three's wait then ends only on its own timer, 100 ms a step: the master's
+    // Chrome log of this, 2026-11-19)
+    if (veiled) { veil.frames++; veil.longest = Math.max(veil.longest, ms); }
+    if (veiled && stillAt === making().ended) { renderer.setRenderTarget(null); renderer.clear(); tell(); return; }
+    if (veiled) veil.drawn++;
     renderer.info.reset();
     governor.begin();
     const c0 = performance.now();
@@ -230,7 +244,7 @@ export async function boot({ profile = 'world' } = {}) {
     if (!veiled) governor.end(ms, now, live() && grown.scatter.over, wasBusy);
     wasBusy = busy();
     if (!game.covered) tick(changed());   // (whether the world is complete: src/core/settle.js)
-    if (veiled) { tell(); game.work = taken(); } else hitch(ms, now);   // (the start's frames, behind the veil: what they wait for told, not logged as the game's; what each did let go all the same, or every frame after the first that did anything would count as changing what is drawn, and the world would never be complete)
+    if (veiled) { stillAt = changed() ? -1 : making().ended; tell(); game.work = taken(); } else hitch(ms, now);   // (the start's frames, behind the veil: what they wait for told, not logged as the game's; what each did let go all the same, or every frame after the first that did anything would count as changing what is drawn, and the world would never be complete)
     hud?.frame(ms, now, controls && controls.band !== 'eye' ? `  ${controls.band} ${Math.round(controls.height)} m` : '');
   }
 
