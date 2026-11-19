@@ -151,7 +151,8 @@ export function waterMaterials(tex) {
     const H = normalize(V.add(U.uSunDir)), nh = max(n.dot(H), 0), nv = max(n.dot(V), 1e-3), nl = max(n.dot(U.uSunDir), 0);
     const dn = dFdx(n), dm = dFdy(n), a2 = min(float((SUN_DIAMETER / 4) ** 2).add(min(dn.dot(dn).add(dm.dot(dm)).mul(2 * NDF_FILTER_VARIANCE), NDF_FILTER_MOST)), 1);
     const g1 = (x) => x.mul(2).div(x.add(sqrt(a2.add(float(1).sub(a2).mul(x.mul(x)))))), lobe = nh.mul(nh).mul(a2.sub(1)).add(1);
-    const glint = U.uSun.mul(sunAt(vWorld)).mul(reflects(max(V.dot(H), 1e-3), WATER_IOR)).mul(a2.div(lobe.mul(lobe))).mul(g1(nv).mul(g1(nl))).div(nv.mul(4));
+    const share = sunAt(vWorld, 'soft', up).toVar();   // (the sun's share here, its shadows and clouds: read once, for the glint and the light into the water)
+    const glint = U.uSun.mul(share).mul(reflects(max(V.dot(H), 1e-3), WATER_IOR)).mul(a2.div(lobe.mul(lobe))).mul(g1(nv).mul(g1(nl))).div(nv.mul(4));
 
     // ---- under it: the bed as the picture has it, through the water ----
     // the light's way down to the bed (the sun's, refracted) and the eye's way back up (the refracted view's): what the
@@ -170,7 +171,7 @@ export function waterMaterials(tex) {
     // what it gives: the light into the water (the one light's on a level surface there, less what the surface reflects
     // of it) as much as the water scatters back over that way (its reflectance R∞, as much as the way lets build up);
     // what it reflects; its foam; all through the air before it, and the air's own light where the picture's is kept less
-    const Lin = lightOn({ n: up, w: vWorld, V }), into = Lin.sky.mul(1 - SKY_REFLECTED).add(Lin.sun.mul(float(1).sub(reflects(max(U.uSunDir.y, 1e-3), WATER_IOR))));
+    const Lin = lightOn({ n: up, w: vWorld, V, sun: share }), into = Lin.sky.mul(1 - SKY_REFLECTED).add(Lin.sun.mul(float(1).sub(reflects(max(U.uSunDir.y, 1e-3), WATER_IOR))));
     const world = worldAlong(vWorld, R), seen = mix(sky, max(world.c, vec3(0)), world.hit);   // (what the world shows along it; where nothing, the sky)
     const own = vec3(...R_INF).mul(into).mul(float(1).sub(left)).mul(float(1).sub(F)).add(seen.mul(F)).add(glint);
     const surface = mix(own, vec3(0.8).mul(Lin.sky.add(Lin.sun)), foam), A = airOf(vWorld);
