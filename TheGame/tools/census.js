@@ -9,9 +9,23 @@
 // for, counted with no GPU, and no machine's memory, in the way.
 //
 //   bun tools/census.js          a table, then the same as one line of JSON (census-json: …)
+//   --buffer=<bytes>             on a device whose adapter says its largest buffer is so large (the one sign of its class
+//                                the game reads: src/core/gpu.js shareOf; an iPhone's 1073741824, its share 0.375), and
+//   --window=<w>x<h>@<dpr>       a window of w × h CSS pixels at dpr device pixels a point (an iPhone's 390x844@3): then
+//                                what the first view holds there, by class against the device's budget, its largest
+//                                pools, and the dial at rest (memory: …). The tiers' own stores are not in it: they are
+//                                sized by what their packings find, read back from the GPU, and the stand-in finds none
 import { mock } from './gpu-mock.js';
 
-const M = await mock({ lean: true }), { THREE, renderer } = M;
+const ARG = Object.fromEntries(process.argv.slice(2).map((a) => a.replace(/^--/, '').split('=')));
+const [WW, WH, WD] = ARG.window ? ARG.window.split(/[x@]/).map(Number) : [1920, 1080, 1];
+const M = await mock({ lean: true, size: [WW, WH], dpr: WD }), { THREE, renderer } = M;
+Object.assign(globalThis, { innerWidth: WW, innerHeight: WH, devicePixelRatio: WD });
+if (ARG.buffer) {   // (the device's adapter, as src/boot.js asks it before anything is sized: its share of the budget)
+  const nav = globalThis.navigator, limits = { maxBufferSize: +ARG.buffer, maxStorageBufferBindingSize: Math.min(+ARG.buffer, 2 ** 30) };
+  nav.gpu = { requestAdapter: async () => ({ limits, info: { vendor: 'census', architecture: '' } }) };
+  await (await import('../src/core/gpu.js')).askedLimits(); nav.gpu = undefined;
+}
 // (where each material and compute pass is made, as the loader hands it over: its place's own name, tools/glob.js)
 const SITE = new WeakMap(); globalThis.__made = (id, x) => { if (x && typeof x === 'object' && !SITE.has(x)) SITE.set(x, id); return x; };
 
@@ -140,11 +154,17 @@ const several = [...ways.values()].filter((w) => w.by.size > 1).map((w) => {
 }).sort((a, b) => b.ways - a.ways);
 // (the first view's programs by their size: what a compiler reads)
 const sizes = [...ways.values()].map((w) => ({ pass: w.pass, kb: Math.round(w.bytes / 1024), who: [...new Set([...w.by.values()].flatMap((x) => [...x]))].slice(0, 3) })).sort((a, b) => b.kb - a.kb);
+// ---- with a device: what the GPU holds there, by class against its budget, and the dial at rest ----
+let memory = null;
+if (ARG.buffer) {
+  const L = (await import('../src/core/gpu.js')).ledger();
+  memory = { share: L.share, rest: L.rest, whole: L.budget, noted: L.noted, classes: Object.fromEntries(Object.entries(L.classes).map(([c, v]) => [c, { budget: v.budget, held: v.noted }])), rows: L.rows.slice(0, 16) };
+}
 const result = {
   first: { asks: first.length, programs: Object.values(programs).reduce((a, b) => a + b, 0), pipelines: Object.values(pipelines).reduce((a, b) => a + b, 0), byPass: count(first, (e) => e.pass), programsByPass: programs, pipelinesByPass: pipelines, several, sizes, shaders, computeKb: Math.round(shaders.reduce((t, x) => t + x.kb, 0)), byFamily: count(first, (e) => `${familyOf(e)} · ${e.pass}`) },
   made,
   after: { asks: after.length, byPass: count(after, (e) => e.pass), byFamily: count(after, (e) => `${familyOf(e)} · ${e.pass}`) },
-  camera: [p.x, p.y, p.z].map((v) => +v.toFixed(1)), reach: +cascades().half[0].toFixed(1),
+  camera: [p.x, p.y, p.z].map((v) => +v.toFixed(1)), reach: +cascades().half[0].toFixed(1), memory,
 };
 {
   console.log(`census: the first view waits for ${result.first.asks} asks, ${result.first.programs} programs, ${result.first.pipelines} pipelines; ${result.after.asks} more come after it (camera at ${result.camera}, the near cascade's reach ${result.reach} m)`);
@@ -155,6 +175,11 @@ const result = {
   console.log(`  the packing's compute shaders: ${shaders.length}, ${result.first.computeKb} KB of WGSL; the largest:`); for (const z of shaders.slice(0, 14)) console.log(`    ${String(z.kb).padStart(5)} KB  ${z.who.join(' | ')}`);
   console.log('  by family and pass, the first view:'); for (const [k, n] of Object.entries(result.first.byFamily)) console.log(`    ${String(n).padStart(4)}  ${k}`);
   console.log(`  after it, by pass: ${JSON.stringify(result.after.byPass)}`); for (const [k, n] of Object.entries(result.after.byFamily).slice(0, 12)) console.log(`    ${String(n).padStart(4)}  ${k}`);
+}
+if (memory) {
+  console.log(`memory: on a share of ${memory.share} (${memory.whole} MB), the dial at rest ${memory.rest}; the first view holds ${memory.noted} MB:`);
+  for (const [c, v] of Object.entries(memory.classes)) console.log(`  ${c.padEnd(13)} ${String(v.held).padStart(7)} MB of ${v.budget}`);
+  for (const [n, mb, , c] of memory.rows) console.log(`    ${String(mb).padStart(7)} MB  ${c}: ${n}`);
 }
 console.log(`census-json: ${JSON.stringify(result)}`);
 process.exit(0);
