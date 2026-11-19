@@ -144,6 +144,12 @@ export class Tier {
       slots' vec4s as floats, one array a slot } a bucket; wanted: how many it found, past its room too), for what the
       CPU must know of where things stand (src/scatter/trees.js: what of a stand is solid round the walker). Only what is
       packed is read, bucket by bucket, through one buffer kept for it (in the ledger, as large as the largest read). */
+  /** On WebGPU: how many things the last packing found for each of its buckets, read back (a promise of a Uint32Array,
+      a bucket each): its counts alone, not its rows (read). */
+  async found(renderer) {
+    const K = this.geometries.length, me = this.residentRow, b = new Uint32Array(await renderer.getArrayBufferAsync(me ? GR.Cs.attr : this.count.value));
+    return me ? b.slice(me.kb, me.kb + K) : b.slice(0, K);
+  }
   async read(renderer) {
     // (a resident tier's counts and where each bucket's things begin, as its gather laid them out: in the rows every
     // resident tier shares, from its own on; its own patches' where they were set, here (their buffer is bound by no
