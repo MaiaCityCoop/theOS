@@ -47,9 +47,13 @@ let veiled = true; ready.then(() => { veiled = false; });
 export const frameShare = (cls) => (veiled ? FRAME_MS : FRAME_MS_BY_CLASS[cls]);
 
 // ---- a submission's own time on the GPU by the GPU's own clock: two timestamps the GPU writes itself, one before the
-// submission's work and one after it (an empty compute pass each, in command buffers of their own about it), read back.
-// Not heard on the page's thread, so a stall of it is not charged to the GPU (2026-11-19: the ground's pieces, well
-// under a millisecond each, were heard 231 and 461 ms late, frame after frame) ----
+// submission's work and one after it (a compute pass of one workgroup doing nothing each, in command buffers of their
+// own about it), read back. Not heard on the page's thread, so a stall of it is not charged to the GPU (2026-11-19: the
+// ground's pieces, well under a millisecond each, were heard 231 and 461 ms late, frame after frame). The marks work:
+// an Apple GPU samples its clock at a pass's stages, and a pass that dispatches nothing has none, so neither browser
+// writes its timestamps (2026-11-19, the M2: WebKit and Chrome alike read 0 for both of an empty pass, 3-4 µs apart for
+// a pass of one workgroup doing nothing, 4.6-5.2 ms for one doing 5 ms of work; every stamp of the hour's WebKit run
+// and of Chrome's had read 0) ----
 // One query set a device, made at its first stamp and never again: Metal gives a process 32 counter sample buffers, a
 // query set one each where the browser does not pool them (Dawn, src/dawn/native/metal/QuerySetMTL.h; pooled since
 // 2026-07, after Chrome 138), so a set a stamp in flight, made whenever none was free, ran out of them: some 6,000
@@ -63,14 +67,16 @@ const CLOCK = "the GPU's clock", CLOCKS = new WeakMap();
     the clock's slots, a pair a stamp, so the most stamps in flight on a device. 8 bytes a slot, 16 more read back.
     unit: queries. source: WebGPU, https://www.w3.org/TR/webgpu/#dom-gpudevice-createqueryset */
 const QUERIES = 4096;
-/** The device's clock: its one query set, what it is resolved to and read back through, the pairs held; made at its
-    first stamp, the make's errors caught (made: whether it could be made; dead: not, or the device is gone). */
+/** The device's clock: its one query set, what it is resolved to and read back through, the pass its marks dispatch
+    (one workgroup doing nothing), the pairs held; made at its first stamp, the make's errors caught (made: whether it
+    could be made; dead: not, or the device is gone). */
 function clockOf(device) {
   let C = CLOCKS.get(device);
   if (C) return C;
   const bytes = QUERIES * 8, buf = (usage) => device.createBuffer({ size: bytes, usage, label: CLOCK });
   device.pushErrorScope('out-of-memory'); device.pushErrorScope('validation');
-  C = { device, set: device.createQuerySet({ type: 'timestamp', count: QUERIES, label: CLOCK }), res: buf(GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC), out: buf(GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ), held: new Uint8Array(QUERIES / 2), next: 0, due: [], reading: false, dead: false, raw: null };
+  const nothing = device.createComputePipeline({ label: CLOCK, layout: 'auto', compute: { module: device.createShaderModule({ label: CLOCK, code: '@compute @workgroup_size(1) fn main() {}' }), entryPoint: 'main' } });
+  C = { device, nothing, set: device.createQuerySet({ type: 'timestamp', count: QUERIES, label: CLOCK }), res: buf(GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC), out: buf(GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ), held: new Uint8Array(QUERIES / 2), next: 0, due: [], reading: false, dead: false, raw: null };
   C.made = Promise.all([device.popErrorScope(), device.popErrorScope()]).then((e) => !e.some(Boolean), () => false);
   CLOCKS.set(device, C);
   return C;
@@ -85,7 +91,8 @@ function stampedMs(device, submit, raw = (cbs) => device.queue.submit(cbs)) {
   C.held[i] = 1; C.next = (i + 1) % C.held.length; C.raw = raw;
   const mark = (end) => {
     const e = device.createCommandEncoder({ label: CLOCK });
-    e.beginComputePass({ label: CLOCK, timestampWrites: end ? { querySet: C.set, endOfPassWriteIndex: 2 * i + 1 } : { querySet: C.set, beginningOfPassWriteIndex: 2 * i } }).end();
+    const p = e.beginComputePass({ label: CLOCK, timestampWrites: end ? { querySet: C.set, endOfPassWriteIndex: 2 * i + 1 } : { querySet: C.set, beginningOfPassWriteIndex: 2 * i } });
+    p.setPipeline(C.nothing); p.dispatchWorkgroups(1); p.end();   // (a stage for the GPU's clock to be sampled at)
     return e.finish({ label: CLOCK });
   };
   raw([mark(false)]); submit(); raw([mark(true)]);
