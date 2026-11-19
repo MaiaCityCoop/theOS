@@ -79,9 +79,9 @@ export function keepMeasure(out = () => 1) {
 export const dialK = () => pxK() / ERROR_PX();
 /** The live pixel at the most pixels the screen can draw (its own ratio) and the least the dial will be on this page
     (DIAL_LEAST: 1, the governor only raises it; or the truth's), in the dial's pixels so: what a capacity is sized for. */
-export const pxKMost = () => pxKAt((globalThis.innerHeight || 1080) * most()) / DIAL_LEAST;
+export const pxKMost = (dial = DIAL_LEAST) => pxKAt((globalThis.innerHeight || 1080) * most()) / dial;   // (dial: another than the page's least, for what holds its own: the land, src/terrain/terrain.js)
 /** How far off a thing `size` metres large is still px dial pixels large, at the most (pxKMost). */
-export const farMost = (px, size) => (size * pxKMost()) / px;
+export const farMost = (px, size, dial) => (size * pxKMost(dial)) / px;
 /** Each frame, before anything chooses (src/boot.js choose, tools/bench.js): the governor may have changed the inside's
     ratio. True where the measure changed. */
 export const measureNow = () => keep();
