@@ -27,11 +27,11 @@ import { cascades } from '../shadow.js';
 import { dialPxAt } from '../../detail/measure.js';
 import { blueAt } from './noise.js';
 import { note, mark } from '../../core/gpu.js';
+import { blank } from '../../core/blank.js';
 import { drawMade } from '../../core/compile.js';
 
-const white = Object.assign(new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1), { needsUpdate: true });
 /** What the screen's light passes left, for the colour pass to read (white until they run, and where they never do). */
-export const SCREEN = { contact: texture(white), on: uniform(0) };   // (contact: the contact shadows' share of the sun)
+export const SCREEN = { contact: texture(blank(1)), on: uniform(0) };   // (contact: the contact shadows' share of the sun)
 
 /** The screen's light for the world's frame: made, and run after every prepass of `screen` (src/core/screen.js
     afterPrepass), before the colour; null where there is none (the WebGL 2 fallback). */

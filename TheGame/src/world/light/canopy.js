@@ -37,6 +37,7 @@ import { castRoute, arrived, CASTS, cascades } from '../shadow.js';
 import { drawMade } from '../../core/compile.js';
 import { shown, arriving } from '../../core/settle.js';
 import { note, more, mark } from '../../core/gpu.js';
+import { blank } from '../../core/blank.js';
 import { HMIN, HMAX } from '../land.js';
 import { WALKER } from '../../../world/scale.js';
 
@@ -54,12 +55,11 @@ const layout = () => {
   return LAYOUT;
 };
 
-const black = Object.assign(new THREE.DataTexture(new Uint16Array([0, 0, 0, 0]), 1, 1, THREE.RGBAFormat, THREE.HalfFloatType), { needsUpdate: true });
 /** The canopy's numbers for the materials: its probes and where they lie (x, z of their middle, side, their ground's
     reference height); its map and where it lies, and its cameras' heights (over, under, their depth's range); whether
     it is there. */
 const CANOPY = {
-  probes: texture(black), at: uniform(new THREE.Vector4(0, 0, 1, 0)), ground: uniform(new THREE.Color(0, 0, 0)),   // (ground: none until it is read, no colour of its own; a uniform, read back from its texel: the light's textures are few, src/world/light/tables.js)
+  probes: texture(blank(0, THREE.HalfFloatType)), at: uniform(new THREE.Vector4(0, 0, 1, 0)), ground: uniform(new THREE.Color(0, 0, 0)),   // (ground: none until it is read, no colour of its own; a uniform, read back from its texel: the light's textures are few, src/world/light/tables.js)
   map: texture(new THREE.DepthTexture(1, 1)), mapAt: uniform(new THREE.Vector4(0, 0, 1, 0)), cams: uniform(new THREE.Vector3()), on: uniform(0), groundOn: uniform(0),   // (on, groundOn: how much of the probes and of the ground's colour is read: none until made, then faded in, createCanopy)
 };
 
