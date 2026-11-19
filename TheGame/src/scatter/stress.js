@@ -75,7 +75,8 @@ const PLOTS = Math.round(CITY.people / CITY.perVillage), RAYS = 64, PH_AT = 4 + 
 const SMIN = 0.25, SMAX = 2.2, MMAX = 6, MFAR = 1400, CELL = 1.4, FIT = 1.5, FADE = 0.02;   // an asset's largest side, metres (a mover's up to MMAX, seen as far as MFAR); CELL: a lattice cell's side, about; FIT: the cell's side a kind's own size is meant for
 // its levels, finest first: the ladder's (assets/kit/ladder.js: n, a level's mesh; px, the size on screen it is drawn
 // down to), and of each: P, its tier's cells a patch (a block of a plot's lattice: it divides 1000); slots: how many
-// kinds' the heap holds at once (none: every kind's); cap: the most of it drawn at once
+// kinds' the heap holds at once (none: every kind's); cap: what it reckons it draws at once (its tier's rooms till its
+// own count is read back: src/scatter/tier.js)
 const LEVELS = [
   { P: 2, slots: 8, cap: 64 },
   { P: 4, slots: 48, cap: 256 },
