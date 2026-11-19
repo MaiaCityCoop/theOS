@@ -213,6 +213,14 @@ for (const [at, n] of Object.entries(count)) if (n > (known[at] ?? 0)) failed.pu
 const closed = Object.entries(known).filter(([at, n]) => (count[at] ?? 0) < n).map(([at]) => at), fullOnly = Object.keys(count).filter((at) => J.full?.[at]);
 const secs = ((performance.now() - t0) / 1000).toFixed(1), P = world.pipelines, summary = { world, library: libraryMade, stress: built.size - before - libraryMade, glsl, secs: +secs, unbuilt: unmade.map((u) => `${u.at} (line ${u.line})`), failed: [...new Set(failed)] };
 keep(summary);
+// every stage of every module built within the device's count of sampled textures (WebGPU's
+// maxSampledTexturesPerShaderStage, the stand-in's as a device gives a page by default): past it the pipeline is no
+// pipeline (WebKit, 2026-11-19: the cut's rocks bound 17)
+{
+  const most = M.renderer.backend.device?.limits?.maxSampledTexturesPerShaderStage ?? 16, count = (code) => (code ? [...code.matchAll(/var\s+\w+\s*:\s*texture_(?!storage)/g)].length : 0);
+  for (const t of shaders.render) { const [vertex, fragment] = t.split('\0'); for (const [stage, code] of [['vertex', vertex], ['fragment', fragment]]) { const n = count(code); if (n > most) failed.push(`${named.get(t)}: its ${stage} stage samples ${n} textures, past the device's ${most}`); } }
+  for (const t of shaders.compute) { const n = count(t); if (n > most) failed.push(`${named.get(t)}: its compute stage samples ${n} textures, past the device's ${most}`); }
+}
 const wgslAt = process.argv.indexOf('--wgsl');
 if (wgslAt > 0) writeFileSync(process.argv[wgslAt + 1], JSON.stringify({ render: [...shaders.render].map((t) => { const [vertex, fragment] = t.split('\0'); return { label: named.get(t), vertex, fragment }; }), compute: [...shaders.compute].map((code) => ({ label: named.get(code), code })) }));
 if (process.argv.includes('--json')) { console.log(JSON.stringify(summary)); process.exit(failed.length ? 1 : 0); }
