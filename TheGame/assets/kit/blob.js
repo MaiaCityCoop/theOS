@@ -9,9 +9,13 @@
 //   blobMesh(k, l) -> { index: Uint32Array (3 a triangle), verts: Uint32Array (4 a vertex: solid.js) }
 //     level l of the ladder, each vertex with where it lies on level l + 1's mesh (that mesh's normal there too): drawn
 //     part way between the two, a level turns into the next with nothing to see when the one takes over from the other
+//   blobBand(k, l, room) -> surface.js packLevel's { index, verts, count, box, clusters } and short
+//     band l of the surfaces' (src/detail/error.js surfaceBand) as the heap holds a still solid's: its cluster
+//     hierarchy's (blobHierarchy, diamonds.js)
 //   ball(n, at, own), onBall(C, …), faceOf(dir): a ball cut as a cube's faces, for any surface (a creature's hull too)
 import { LADDER, FULLN, DOTN, trisOf, vertsOf, underOf } from './ladder.js';
-import { packSolid, dotMesh } from './solid.js';
+import { packSolid, dotMesh, STILL_PER, stillOf } from './solid.js';
+import { packLevel, levelSizes, trimmed } from './surface.js';
 import { hash4 } from '../../src/core/hash.js';
 import { ballHierarchy, warp, Q } from './diamonds.js';
 
@@ -178,6 +182,19 @@ const gridOf = (k) => 2 ** Math.round(Math.log2(fullOf(k)));
 /** Kind k's cluster hierarchy (diamonds.js, clusters.js build's record): its surface as each level draws it, no swell
     (a level is drawn where its measured error allows it, not where a swollen body covers as much). */
 export const blobHierarchy = (k) => ballHierarchy((n) => blobAt(kindOf(k), n, 1), gridOf(k));
+
+// ---- a kind's bands (stage 8b): what the heap holds of it for each band of sizes on screen ----
+const DAGS = new Map();   // (the last few kinds' hierarchies: a worker asked for one kind's bands one after another builds it once)
+const dagOf = (k) => { if (!DAGS.has(k)) { if (DAGS.size >= 3) DAGS.delete(DAGS.keys().next().value); DAGS.set(k, blobHierarchy(k)); } return DAGS.get(k); };
+/** Band l of kind k, packed for the heap no larger than room (surface.js packLevel), from its hierarchy, and whether
+    it is anywhere drawn coarser than a pixel (short: cut down to its room). */
+export function blobBand(k, l, room = null) {
+  const D = dagOf(k), was = trimmed.n, m = packLevel(D, l, STILL_PER, stillOf(D), room);
+  return { ...m, short: trimmed.n > was };
+}
+/** What each band of kind k holds, as surface.js levelSizes says: [triangles, vertices, clusters], a band
+    (tools/rooms.js measures the zoo's rooms by it). */
+export const blobBandSizes = (k) => levelSizes(dagOf(k));
 /** Kind k's mesh at level l of the ladder. */
 export function blobMesh(k, l) {
   const K = kindOf(k), n = LADDER[l].n;

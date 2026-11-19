@@ -20,8 +20,9 @@
 // src/boot.js); a part not drawn now (leave) holds nothing up, for it does no work meanwhile.
 const SOURCES = new Map(), LEFT = new Set();
 let part = '';
-/** A part whose work ends later than the frame that asks for it: fn(held) -> how much of it is still out (0: none).
-    held: the clock stood still since the last frame (a still's; what grows by the clock would never be done). first:
+/** A part whose work ends later than the frame that asks for it: fn(held, frame) -> how much of it is still out (0:
+    none). held: the clock stood still since the last frame (a still's; what grows by the clock would never be done);
+    frame: asked after a frame was drawn (tick), not by a reader (waiting). first:
     the first frame shown waits for it (drawn: what that frame draws, its pipelines, src/core/compile.js); the rest
     stream in after it, and only ready and settle wait for them. */
 export const source = (name, fn, { first = false } = {}) => { let k = name; for (let i = 2; SOURCES.has(k); i++) k = `${name} (${i})`; SOURCES.set(k, { fn, part, first }); };
@@ -76,7 +77,7 @@ export function tick(did) {
   frames++;
   const held = V.U.uTime.value === clock; clock = V.U.uTime.value;
   let out = 0, lost = 0, own = 0;   // (lost: the parts that could not say what they have out: the start waits for them no more, a still does; own: what the first frame shown waits for)
-  for (const [name, s] of SOURCES) { if (LEFT.has(s.part)) continue; try { const n = s.fn(held) || 0; out += n; if (s.first) own += n; } catch (e) { lost++; if (!broke.has(name)) { broke.add(name); console.warn(`settle: '${name}' could not say what is still out: the start waits for it no more, a still does`, e); } } }   // (a part that cannot say holds the world incomplete, and never stops the frame)
+  for (const [name, s] of SOURCES) { if (LEFT.has(s.part)) continue; try { const n = s.fn(held, true) || 0; out += n; if (s.first) own += n; } catch (e) { lost++; if (!broke.has(name)) { broke.add(name); console.warn(`settle: '${name}' could not say what is still out: the start waits for it no more, a still does`, e); } } }   // (a part that cannot say holds the world incomplete, and never stops the frame)
   const moved = viewChanged(), T = V.temporal;
   if (view && !own) { view({ frames }); view = null; }
   still = moved || did || out + lost > 0 || T.age === 0 ? 0 : still + 1;

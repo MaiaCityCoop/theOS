@@ -204,7 +204,19 @@ const wear = (mesh, tex, row, shape = 0) => {
 // each plant its own green (its leaves'): lighter or darker by its seed, warmer (yellower) or cooler (bluer) by its turn,
 // each even over its plants; and their mean, what a stand of them shows on the whole (farOf: src/detail/seen.js)
 const WARM = [1.07, 1.0, 0.78], COOL = [0.86, 0.98, 1.1], LIGHTER = [0.84, 0.3];
-const ownGreen = (turn, seed) => mix(vec3(...WARM), vec3(...COOL), turn.mul(1.1631).fract()).mul(seed.mul(LIGHTER[1]).add(LIGHTER[0]));
+// how a leaf's colour varies among the leaves of one plant and among the plants of one kind, each a share of all its
+// variation (Hunter L, a and b alike, over nine kinds of tree and shrub). source: Kwolek 1982, "Variations in leaf
+// coloration using a reflectance colorimeter", Journal of Arboriculture 8(6): 157-159 (leaves 35%, trees 45%)
+const LEAF_VARIES = { leaves: 0.35, plants: 0.45 };
+// ... so each card (a branch's end, as each of Kwolek's leaves was one) strays from its plant's warmth by its own dice as a
+// leaf strays from its plant's colour: its variance that share of the plants' (both even, so the spreads go as the square
+// root). Round its plant's own and not cut at the plants' ends: a plant's cards on the whole are its own green, as its far
+// end is (src/detail/impostor.js) and as the stand's mean is (GREEN)
+const CARD_STRAYS = Math.sqrt(LEAF_VARIES.leaves / LEAF_VARIES.plants);
+const ownGreen = (turn, seed, dice = null) => {
+  const h = turn.mul(1.1631).fract(), hue = dice ? h.add(dice.sub(0.5).mul(CARD_STRAYS)) : h;
+  return mix(vec3(...WARM), vec3(...COOL), hue).mul(seed.mul(LIGHTER[1]).add(LIGHTER[0]));
+};
 const GREEN = WARM.map((w, c) => ((w + COOL[c]) / 2) * (LIGHTER[0] + LIGHTER[1] / 2));
 const CH = Object.fromEntries(PICTURES.map((P) => [P.name, P.channels.length]));   // (a far end's pictures' numbers a texel, by name)
 const ofMesh = (key, start, type) => uniform(start, type).onObjectUpdate(({ object }) => object?.userData?.[key]);
@@ -250,8 +262,9 @@ const sayLight = () => {
   lightSaid = true;
   lightFamily(FAMILY.stands, (f) => {
     const share = sunAt(f.w, 'vertex').toVar();
-    const S = standLight({ w: f.w, n0: f.n, Ve: f.Ve, part: float(f.part), ao: f.ao, wrap: f.wrap, shines: f.shines, clumps: f.clumps, tint: vec3(1), share, glint: f.glint });
-    const P = lightOn({ n: f.n, w: f.w, V: f.Ve, sun: share, ndl: f.n.dot(U.uSunDir).add(f.wrap).div(f.wrap.add(1)).max(0), through: f.shines, ao: f.ao });
+    const [wrap, shines, ao, clumps] = f.own;   // (as gWrite took them, below)
+    const S = standLight({ w: f.w, n0: f.n, Ve: f.Ve, part: float(f.part), ao, wrap, shines, clumps, tint: vec3(1), share, glint: f.glint });
+    const P = lightOn({ n: f.n, w: f.w, V: f.Ve, sun: share, ndl: f.n.dot(U.uSunDir).add(wrap).div(wrap.add(1)).max(0), through: shines, ao });
     const col = f.part.equal(uint(PART.plane)).select(f.colour.mul(P.sky.add(P.sun)).mul(S.sky), f.colour.mul(S.sky.add(S.sun.mul(contactShade()))));
     return vec4(toScreen(col.add(S.add).add(S.spec)).rgb, 1);   // (and a card's leaves' highlight: leafGlint, from its prepass)
   });
@@ -353,10 +366,10 @@ function plantMaterial(tex, D) {
       // plane, cn: one phase a card; uv.y: 0 at its foot), quicker and wider the harder it blows. In a calm all of it is
       // still: a sway of millimetres is no motion to the eye, only leaves' edges creeping by parts of a pixel (a shimmer).
       // Where it is at a time: the clock's, and for the prepass the clock's a frame ago (where it was: its motion)
-      const ws = windStrength, cardN = V.cn;
+      const ws = windStrength, cardN = V.cn, phase = cardN.dot(vec3(12.9, 78.2, 37.7)).add(B.z);   // (a card's own phase: its card's way, and its plant's)
       const at = (time) => {
         const kk = swayOf(A, B, up, sway, s, time);
-        const flutter = sin(time.mul(ws.mul(5).add(1.6)).add(cardN.dot(vec3(12.9, 78.2, 37.7))).add(B.z)).mul(ws.mul(0.14)).mul(card).mul(V.uv.y.min(1)).mul(flutters).mul(swing);
+        const flutter = sin(time.mul(ws.mul(5).add(1.6)).add(phase)).mul(ws.mul(0.14)).mul(card).mul(V.uv.y.min(1)).mul(flutters).mul(swing);
         return vec3(A.x, A.z, A.y).add(turn(lp.mul(s))).add(vec3(kk.x.add(windDir.x.mul(flutter)), flutter.mul(0.4), kk.y.add(windDir.y.mul(flutter))));
       };
       const w = at(U.uTime).toVar();
@@ -367,9 +380,11 @@ function plantMaterial(tex, D) {
       // a card seen edge-on is a flat sliver, not a brush: it fades as it turns away
       // … and foliage right at the eye is let go (walking through a low crown, no card fills the picture)
       vCut.assign(vec2(mix(0.45, 0.16, smoothstep(15, 220, far)), max(smoothstep(0.06, 0.42, abs(normalize(turn(cardN)).dot(Ve))), body).mul(smoothstep(0.35, 1.3, far))));
-      // each plant its own green: lighter or darker, and warmer (yellower) or cooler (bluer)
+      // each plant its own green: lighter or darker, and warmer (yellower) or cooler (bluer); each card its own warmth round
+      // its plant's (CARD_STRAYS), by its own dice
       const leaf = part.greaterThan(0.5), n0 = normalize(turn(V.normal));
-      const tint = leaf.select(ownGreen(B.z, V.shade).mul(Tn), vec3(1));
+      const dice = fract(sin(phase).mul(43758.5453));   // (a card's own dice, from its phase)
+      const tint = leaf.select(ownGreen(B.z, V.shade, dice).mul(Tn), vec3(1));
       if (pass === 'pre' && DEFER) {   // (deferred: what its pixels' light needs, written in its prepass; a chunk's plane's wrap and turn)
         vW.assign(w); vN.assign(n0); vTint.assign(tint); vK.assign(vec4(ao, wrap, shines, clumps)); vCn.assign(normalize(turn(cardN).add(vec3(0, 1e-6, 0))));
         if (vLit) vLit.assign(vec4(0, 0, wrap, B.x));
@@ -418,7 +433,7 @@ function plantMaterial(tex, D) {
           // frame, sitting on the plane as a leaf does), and as much as is still its mesh's (handing); cut in the prepass
           const C = clumpRead(FAR.clumps(), vClump.x, vUv, vClump.y), t = floor(vUv.mul(atlases().TILE)), keep = hash(uint(t.x).add(uint(t.y).mul(uint(4099))).add(uint(vClump.x).mul(uint(1000003))));
           cut(builder, C.cover.lessThan(0.5).or(keep.greaterThanEqual(vClump.z)).or(handing(vFade).not()));
-          if (pass === 'pre' && DEFER) gWrite({ family: FAMILY.stands, part: PART.plane, colour: C.colour.mul(C.colour).mul(vTint), n: turnOf(vLit.w).turn(C.normal).add(vEye.mul(0.35)), w: vW, ao: C.light, wrap: vK.y, shines: vK.z, clumps: vK.w });   // (deferred: what its light needs)
+          if (pass === 'pre' && DEFER) gWrite({ family: FAMILY.stands, part: PART.plane, colour: C.colour.mul(C.colour).mul(vTint), n: turnOf(vLit.w).turn(C.normal).add(vEye.mul(0.35)), w: vW, own: [vK.y, vK.z, C.light, vK.w] });   // (deferred: what its light needs)
           if (pass === 'pre' || pass === 'shadow') return;
           If(shadow.not(), () => {
             // lit as its leaves are, pixel by pixel, their way there turned with the plant and pulled a little towards
@@ -437,7 +452,7 @@ function plantMaterial(tex, D) {
       if (pass === 'pre' && DEFER) If(vPart.lessThan(1.5), () => {
         const glint = float(0).toVar();
         If(leaf.not(), () => { const W = tex.a(floor(vLay.y.add(0.5)), vUv); T.assign(vec4(W.rgb.mul(mix(0.74, 1, W.a)), 1)); }).Else(() => { glint.assign(leafGlint({ rough: tex.r(floor(vLay.x.add(0.5)), vUv), ns: vCn, Ve: normalize(U.uCam.sub(vW)) })); });
-        gWrite({ family: FAMILY.stands, part: leaf.select(uint(PART.card), uint(PART.wood)), colour: T.rgb.mul(T.rgb).mul(vTint), n: vN, w: vW, ao: vK.x, wrap: vK.y, shines: vK.z, clumps: vK.w, glint });
+        gWrite({ family: FAMILY.stands, part: leaf.select(uint(PART.card), uint(PART.wood)), colour: T.rgb.mul(T.rgb).mul(vTint), n: vN, w: vW, glint, own: [vK.y, vK.z, vK.x, vK.w] });   // (own: wrap, shines, ao, clumps, as its light reads them: sayLight)
       });
       if (pass === 'pre') return motion(vWas, leaf.select(float(1), float(0)));   // (where it was a frame ago; a leaf's card is thin)
       if (pass === 'shadow') return vec4(0);   // (into a shadow map: its depth and its cut-out, no light)
@@ -490,7 +505,7 @@ function impostorMaterial(G, D, Lv, src) {
       // one to a pixel drawn: CELL of them over its sphere's width, 2 r4.w of its Ks at scale 1), its turn, its sphere's
       // radius in the world
       vP.assign(unturn(w.sub(c)).div(Rw)); vE.assign(unturn(U.uCam.sub(c)).div(Rw)); vS.assign(share);
-      const CELL = atlases().CELL;
+      const CELL = atlases().STORED;   // (its atlas's texels a view: a texel a drawn pixel)
       vK.assign(vec4(B.y, clamp(log2(r3.y.mul(CELL).div(r4.w.mul(2).mul(own).max(1e-3))), 0, levelsUnder(CELL)), B.x, Rw));
       // what it is lit by, as its mesh is (standLight): the sun as it reaches its middle, once for the plant (a few
       // pixels), and its kind's numbers its mesh's corners carry (its leaves' wrap and how much the sun shines through
@@ -530,7 +545,7 @@ function impostorMaterial(G, D, Lv, src) {
 // ---- the far ends baked: each shape's impostor and its clumps, each picture from the level of the heap the measure picks
 // at its own size ----
 let BAKING = false;   // (one shape at a time, of every stand: the bakers' targets are one set)
-const BAKED = 5;   // the bake's own version, in what the browser keeps of it (farOf): one more whenever how a far end is baked changes
+const BAKED = 6;   // the bake's own version, in what the browser keeps of it (farOf): one more whenever how a far end is baked changes
 /** A stand's far ends (G: its group; D(): its drawer, once made): its two atlases (the impostors' views, a layer a shape,
     VIEWS x VIEWS views of CELL texels a side; its chunks' planes, a layer a shape that has clumps, G.clumpLayer, G.tiles
     tiles of TILE texels a row: the atlases' numbers, src/detail/impostor.js atlases), and what bakes them. Each shape
@@ -539,7 +554,7 @@ const BAKED = 5;   // the bake's own version, in what the browser keeps of it (f
     is drawn from the level the measure picks at its own size (levelAt): a view CELL texels over the plant's sphere, a
     chunk's plane TILE texels over the longest side of its chunk; never from more than a picture so small shows. */
 function farOf(renderer, tex, G, D) {
-  const A = atlases(), n = G.meshes, views = createAtlas(renderer, { name: `plants, ${G.name}: impostors`, side: A.VIEWS * A.CELL, layers: n, cell: A.CELL, views: A.VIEWS });
+  const A = atlases(), n = G.meshes, views = createAtlas(renderer, { name: `plants, ${G.name}: impostors`, side: A.VIEWS * A.STORED, layers: n, cell: A.STORED, views: A.VIEWS });   // (from the level read where an impostor comes in: atlasesOf STORED)
   let clumps = null; const clumpsOf = () => (clumps ||= createAtlas(renderer, { name: `plants, ${G.name}: clumps`, side: G.tiles * A.TILE, layers: G.clumpy, cell: A.TILE }));   // (a stand none of whose shapes has clumps: one tile, which nothing reads)
   const queue = [], queued = new Uint8Array(n), waiting = new Map(); let version = 0, any = false, M = null, out = 0, swept = false;
   // the levels a shape's pictures are drawn from (far: its far data, assets/kit/crowd.js): the measure's at each

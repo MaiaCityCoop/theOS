@@ -13,7 +13,7 @@
 // state of its own (src/world/things.js: gone, grown; tinted and worn where a drawer is made with `state`), looked up
 // by its placer's name and its cell (`thing`) or a key its placer gives, and a seed of its own (B.w) its look may
 // differ by:
-//   createDrawer(scene, renderer, tex, { name, LEVELS, SHADE, SMOOTH, ghost, skins, ground, soft, relief, make, state, zoo }) ->
+//   createDrawer(scene, renderer, tex, { name, LEVELS, SHADE, SMOOTH, ghost, skins, skinShare, ground, soft, relief, make, state, bands, zoo }) ->
 //     tier(level, { cell, P, cap, sizes, place, shadow, casts, far, thing }) -> that level's tier (tier.js) for a placer:
 //                               `place` is the placer's node code for a cell (where a thing stands in it, of which
 //                               kind, how large); the drawer tests whether it is of the level and drops it into the
@@ -73,7 +73,7 @@ import { bandOf, padOf } from '../detail/handover.js';
 import { dialK, pxKMost, pxOn, farFor, farMost, spanAt, pxAt, dialPxAt, DIAL_LEAST } from '../detail/measure.js';
 import { source } from '../core/settle.js';
 import { asking } from '../core/workers.js';
-import { note, gpuIndex } from '../core/gpu.js';
+import { note, gpuIndex, short } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
 import { ready, computeMaker } from '../core/compile.js';
 import { did } from '../core/work.js';
@@ -114,10 +114,17 @@ let POOL = null;
 export const pool = () => (POOL ||= (() => {
   const workers = Array.from({ length: 3 }, () => asking(new Worker(new URL('./recipes.worker.js', import.meta.url), { type: 'module' }), "the recipes' worker")); let turn = 0;
   const ask = (jobs) => workers[turn++ % workers.length]({ jobs }).then(({ out }) => out);
+  ask.to = (key, jobs) => workers[key % workers.length]({ jobs }).then(({ out }) => out);   // (one worker for what is asked of a key: a kind's bands where its hierarchy is kept)
   ask.all = (jobs) => { for (const w of workers) w.worker.postMessage({ id: -1, jobs }); };
   return ask;
 })());
 
+// whether a drawer's kinds are surfaces (its levels bands: BANDED), and whether they bring their bands themselves (BANDS:
+// asked so, `bands`)
+const bandedOf = (solid, LEVELS, asked) => { const banded = solid && !!LEVELS[0].band; return [banded, banded && !!asked]; };
+// how many kinds' own textures a drawer holds at once: as many as asked (most), no more than the device's layers, its
+// share of them where several drawers draw one zoo (share: src/scatter/stress.js)
+const skinsOf = (renderer, solid, most, share = 1) => Math.round(Math.min(solid ? most : 0, renderer.backend.device?.limits?.maxTextureArrayLayers ?? 256) * share);
 /** name: its own (the ledger's, and what the browser keeps its coarse meshes under); LEVELS: the levels, finest first
     (the ladder's n and px, and of each: slots); SHADE: what casts the shadows (its shrink); SMOOTH: a uniform
     (whether levels turn into each other; the lens is the world's one, U.uPxK); ghost: a thing draws back from an eye inside it;
@@ -125,9 +132,11 @@ export const pool = () => (POOL ||= (() => {
     has (none: the ladder's most: a slot of the heap is as large as that); thin: [lo, hi] (intent 0033): no
     dot, a thing's last mesh thins away pixel by pixel from hi pixels on screen down to lo, its shadow with it; still: its
     kinds stand on no skeleton and their vertices carry their coarse normal and shade finely (assets/kit/solid.js);
+    bands: its kinds bring their bands themselves (BANDS, below: the zoo's blobs); skinShare: of the texture layers
+    there are, its share (several drawers drawing one zoo: src/scatter/stress.js);
     zoo: its kinds ({ first (the zoo's number
     of its first kind), ALL, STAND, MOVING, lookOfKind (of its k-th kind), fingerprint }: assets/zoo). */
-export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHADE, SMOOTH, ghost: GHOST = GHOSTING, corners: CORNERS = false, skins: SKINSMAX = 1024, ground: GROUND = false, soft: SOFT = false, relief: RELIEF = 90, full: FULLMOST = 0, make: MAKE = null, state: STATE = false, thin: THIN = null, still: STILL = false, zoo: { first = 0, kinds: KINDS = null, ALL, STAND = ALL, MOVING = 0, lookOfKind, fingerprint } }) {
+export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHADE, SMOOTH, ghost: GHOST = GHOSTING, corners: CORNERS = false, skins: SKINSMAX = 1024, skinShare: SKINSHARE, ground: GROUND = false, soft: SOFT = false, relief: RELIEF = 90, full: FULLMOST = 0, make: MAKE = null, state: STATE = false, thin: THIN = null, still: STILL = false, bands: BANDSOF, zoo: { first = 0, kinds: KINDS = null, ALL, STAND = ALL, MOVING = 0, lookOfKind, fingerprint } }) {
   // MAKE: another make of vertex than the solids' ({ per: elements a vertex, flat: its meshes' corners are their
   // vertices in order (none shared: drawn by class, no corner is looked up), material(src, level, shadow, at): its
   // material (at(R): where a draw's vertex lies in the heap, and whether it is drawn), dot: its last level is the drawer's
@@ -137,8 +146,12 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // only where it says (its kinds' looks then say the dot's colour: a made thing's, src/scatter/placed.js).
   // KINDS: the zoo's numbers of its kinds, where they are not one after another from `first`
   // BANDED: its kinds are surfaces, each level some clusters of its hierarchy (src/scatter/cut.js), level 0 their cut;
-  // none of it a dot
-  const SOLID = !MAKE, BANDED = SOLID && !!LEVELS[0].band, DOT = (SOLID && !BANDED) || !!MAKE?.dot, NL = SOLID || DOT ? ALL : 0, kindNo = (k) => (KINDS ? KINDS[k] : first + k);
+  // none of it a dot. BANDS: its kinds bring their bands themselves (assets/zoo/index.js bandOf), each built by need
+  // (what is near asked, nearest and largest first; the farthest band of every kind in the background) and kept by
+  // the browser; its heap laid out when told (lay: from what is left once the rest is made), every level of it slots;
+  // what draws a kind meanwhile, or where its band is not in, is another's (src/scatter/stress.js: the ladder's). How
+  // many kinds it draws coarser than a pixel, or not at all, is said (gpu.js short)
+  const SOLID = !MAKE, [BANDED, BANDS] = bandedOf(SOLID, LEVELS, BANDSOF), DOT = (SOLID && !BANDED) || !!MAKE?.dot, NL = SOLID || DOT ? ALL : 0, kindNo = (k) => (KINDS ? KINDS[k] : first + k);
   // A make's own levels are drawn a kind a draw while its kinds are few (BYKIND): each mesh's own list of corners its
   // draw's index, no vertex worked out for nothing. Of more kinds (hundreds of species, a city of buildings), a level is
   // drawn in a few draws by the size of its meshes (CLASSED): a draw for each power of two of triangles, each thing
@@ -148,7 +161,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   const WORN = GROUND || (!SOLID && DOT);   // (its dot is the mean of the world's material its kind wears, in its tint)
   const L = LEVELS.length, STREAMED = LEVELS.filter((l) => l.slots).length, HULL = LEVELS.findIndex((l) => l.n > 0 && l.n <= 2), ROWS = (GROUND ? 3 : 2) + (STATE ? 1 : 0), SR = ROWS - 1;   // ROWS: what a tier packs of a thing, rows of four; SR: where a drawer made with `state` packs the thing's own (its tint, its wear: src/world/things.js)
   const room = (i) => LEVELS[i].room ?? (FULLMOST && LEVELS[i].n === FULLN ? { tris: trisOf(FULLMOST), verts: vertsOf(FULLMOST) } : roomOf(i));   // the most a level's mesh may be (a level's own, or the ladder's)
-  const H = createHeap({ kinds: ALL, name: `${name}: meshes`, levels: LEVELS.map((l, i) => { const r = room(i); return MAKE ? (DOT && i === L - 1 ? { idx: 3, elems: 3, one: true } : { idx: CORNERED && !l.slots ? r.tris * 3 : 0, elems: r.verts * MAKE.per, slots: l.slots, sizes: l.rooms && !l.slots ? { idx: CORNERED ? Uint32Array.from(l.rooms, (x) => x.tris * 3) : new Uint32Array(ALL), elems: Uint32Array.from(l.rooms, (x) => x.verts * MAKE.per) } : null }) : { idx: r.tris * 3, elems: r.verts, slots: l.slots, one: l.n === DOTN, shape: !CORNERS && l.n > 0 ? ballCorners(l.n) : null }; }) });   // (shape: a level's ball, the ladder's: what is one is drawn by its one list of corners; another make's dot: one mesh for all)
+  const H = createHeap({ kinds: ALL, name: `${name}: meshes`, later: BANDS, levels: LEVELS.map((l, i) => { const r = room(i); return MAKE ? (DOT && i === L - 1 ? { idx: 3, elems: 3, one: true } : { idx: CORNERED && !l.slots ? r.tris * 3 : 0, elems: r.verts * MAKE.per, slots: l.slots, sizes: l.rooms && !l.slots ? { idx: CORNERED ? Uint32Array.from(l.rooms, (x) => x.tris * 3) : new Uint32Array(ALL), elems: Uint32Array.from(l.rooms, (x) => x.verts * MAKE.per) } : null }) : { idx: r.tris * 3, elems: r.verts, slots: l.slots, one: l.n === DOTN, shape: !CORNERS && l.n > 0 ? ballCorners(l.n) : null }; }) });   // (shape: a level's ball, the ladder's: what is one is drawn by its one list of corners; another make's dot: one mesh for all)
   const LO = uniformArray(LEVELS.map((l) => l.px));
   // every kind's look, six rows of numbers a kind: [its own texture's mean colour, model], [its second tint, metres a
   // tile of its textures], [the layer of the world's texture it takes its relief from, the layer its own texture lies in
@@ -189,7 +202,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // every kind's own texture (assets/kit/blob.js: blobSkin), SKIN pixels a side: a layer of one array texture for each
   // kind that is large enough on screen to show it, painted in a worker when it comes near, its layer given to another
   // when it has gone (as the fine meshes are: the pump, below). Ten thousand at once would be 950 MB; these are 89.
-  const SKINS = Math.min(SOLID ? SKINSMAX : 0, renderer.backend.device?.limits?.maxTextureArrayLayers ?? 256);   // (none: its kinds wear the world's materials, and nothing of this is made)
+  const SKINS = skinsOf(renderer, SOLID, SKINSMAX, SKINSHARE);   // (none: its kinds wear the world's materials, and nothing of this is made)
   const skinRT = SKINS ? new THREE.RenderTarget(SKIN, SKIN, { depth: SKINS, depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace }) : null;
   if (SKINS) { Object.assign(skinRT.texture, { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping, anisotropy: 2 }); renderer.initRenderTarget(skinRT); }
   const skinTex = SKINS ? texture(skinRT.texture) : null, skins = { who: new Int32Array(SKINS).fill(-1), used: new Float64Array(SKINS), slot: new Int32Array(ALL).fill(-1) };
@@ -497,20 +510,43 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   const skinAt = new Int32Array(ALL);   // the round a kind's own texture was last wanted in
   const wantAt = new Int32Array(ALL * L);   // wantAt: the round a kind's level was last wanted in; speed: the camera's, metres a second
   const pending = new Set(); let round = 1;   // round: each look at what stands near; a level wanted in the last one is not put out
+  // (of a drawer of bands: which of a kind's bands are short, coarser than a pixel (not in yet, or cut down to its room);
+  // the kinds a look found short (what draws them now is not the band they ask, or is short); what is asked in the
+  // background, the farthest band of every kind (later: not what the world complete waits on))
+  const SHORT = new Uint8Array(BANDS ? ALL * L : 0).fill(1), nearShort = new Set(), later = new Set(); let laterAt = 0;
+  const looked = new Set();   // (the kinds the last look asked for)
+  const tellShort = () => { if (!BANDS) return; let n = nearShort.size; for (let k = 0; k < ALL; k++) if (!looked.has(k) && SHORT[k * L + L - 1]) n++; short(name, n); };
   // what is asked of the workers: a few at a time, the next as one comes back; of a level no more than it has room for
   let queue = []; const asked = new Int32Array(L);
   const feed = () => {
+    if (!H.laid) return;   // (a heap laid out later: nothing can be put in yet)
     const rooms = new Int32Array(L).fill(-1), roomOf = (l) => (rooms[l] < 0 ? (rooms[l] = H.room(l, round)) : rooms[l]);   // (how many a level can take in: counted once a feed, not for every one asked)
     while (busy < 6 && queue.length) {
       const batch = [];   // (the small levels a dozen a message, the large ones one)
       while (queue.length && batch.length < (batch.length && batch[0].l >= 3 ? 12 : 1)) {
-        const q = queue[0], id = q.k * L + q.l; if (batch.length && q.l < 3) break;
+        const q = queue[0], id = q.k * L + q.l; if (batch.length && (q.l < 3 || BANDS)) break;
         queue.shift(); if (pending.has(id) || H.has(q.k, q.l) || roomOf(q.l) <= asked[q.l]) continue;
         pending.add(id); asked[q.l]++; batch.push(q);
       }
       if (!batch.length) continue;
       busy++;
+      if (BANDS) { askBands(batch[0]); continue; }
       ask(batch.map(({ k, l }) => (SOLID ? ['mesh', kindNo(k), l, LEVELS[l].delta ?? LADDER[l].delta, { tris: room(l).tris, elems: H.pools[l].elems }] : ['mesh', kindNo(k), l]))).then((out) => { busy--; out.forEach((mesh, n) => { stats.built++; if (!batch[n].l) stats.full++; done.push({ k: batch[n].k, l: batch[n].l, mesh }); }); feed(); });   // (a solid's box measured there too: kindBox)
+    }
+    feedLater();
+  };
+  // (a drawer of bands: one of a kind's, of the worker that keeps its hierarchy; its farthest, every kind's, kept by the
+  // browser and read back from there at a later start. later: asked in the background)
+  const bandJob = (q) => ['band', kindNo(q.k), q.l, { tris: room(q.l).tris, elems: H.pools[q.l].elems }, FP, q.l === L - 1];
+  const askBands = (q) => ask.to(kindNo(q.k), [bandJob(q)]).then(([mesh]) => { if (q.later) laterBusy--; else busy--; stats.built++; done.push({ ...q, mesh }); feed(); });
+  // (in the background, while nothing near is asked: the farthest band of the next kind that has not got it, while
+  // that band has slots free: every kind is drawn so from afar)
+  let laterBusy = 0;
+  const feedLater = () => {
+    const l = L - 1, p = H.pools[l];
+    for (let tries = 0; BANDS && laterBusy < 1 && busy === 0 && !queue.length && p.n - p.held - asked[l] > 0 && tries < ALL; tries++, laterAt = (laterAt + 1) % ALL) {
+      const id = laterAt * L + l; if (H.has(laterAt, l) || pending.has(id)) continue;
+      later.add(id); pending.add(id); asked[l]++; laterBusy++; askBands({ k: laterAt, l, later: true }); return;
     }
   };
   // a kind's own texture: asked of the workers like a mesh; when it has come, written into a layer of the array (a free
@@ -545,17 +581,19 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     for (let sent = 0, puts = 0, n = done.length; n > 0 && sent < 220000 && puts < 12; n--) {
       const d = done.shift(), id = d.k * L + d.l;
       if (d.l < 2 && wantAt[id] >= round - 1 && (pending.has(id + 1) || now - putAt[id + 1] < GROW * 1000)) { done.push(d); continue; }
-      pending.delete(id); asked[d.l]--; if (wantAt[id] < round - 1) continue;
+      pending.delete(id); later.delete(id); asked[d.l]--; if (!d.later && wantAt[id] < round - 1) continue;   // (one asked in the background: put in whenever it comes)
       sent += d.mesh.draw ?? d.mesh.index.length; puts++;
       if (d.mesh.box) kindBox(d.k, boxIn(d.k, d.mesh.box));   // (before it is drawn: its box as large as it)
-      if (H.put(d.k, d.l, d.mesh, round, round, U.uTime.value)) {
-        stats.put++; putAt[id] = now; grewAt = U.uTime.value; did('meshes'); did('kB', Math.round((d.mesh.index.byteLength + d.mesh.verts.byteLength) / 1024));
+      if (H.put(d.k, d.l, d.mesh, round, d.later ? 0 : round, U.uTime.value)) {
+        stats.put++; putAt[id] = now; if (!d.later) grewAt = U.uTime.value; did('meshes'); did('kB', Math.round((d.mesh.index.byteLength + d.mesh.verts.byteLength) / 1024));
+        if (BANDS) { SHORT[id] = d.mesh.short ? 1 : 0; tellShort(); }
         if (!d.l) for (const T0 of fulls) { for (const at of T0.slotArgs(H.pools[0].slot[d.k])) T0.setLength(at / 5, d.mesh.draw ?? d.mesh.index.length); if (MAKE) { const g = T0.geometries[H.pools[0].slot[d.k]]; g.setIndex(gpuIndex(d.mesh.index, g.index)); } }   // (another make's: its corners are the slot's draw's own list)   // (its slot's draw: as long as it)
       }
     }
   };
   // each frame until every kind's coarse levels are in
   const start = () => {
+    if (coarse < 0 && !OWN.length) { coarse = ALL; return; }   // (no level every kind has its own of: nothing to fill)
     if (coarse < 0) {
       if (keptOwn) { const recs = keptOwn; keptOwn = false; fill(recs); }   // (the browser's answers: what it kept read back, the rest made)
       else { loadedAt ||= performance.now(); if (performance.now() - loadedAt > 1500) fill(); }   // (the browser's answers are waited for a moment into the first frames: a busy start holds them back)
@@ -581,17 +619,25 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // made); a size on screen is the measure's (src/detail/measure.js)
   const near = (inv, ahead) => {
     round++;
-    const asks = [], want = [], lo = LEVELS[STREAMED - 1].px;
+    const asks = [], want = [], lo = LEVELS[STREAMED - 1].px; nearShort.clear(); looked.clear();
     // a thing s metres large, d metres off: its size on screen now, and as it will be when a mesh asked for now has come
     // (`ahead`: the camera travelling, and the thing itself: a fine level that will have been passed by then is not asked for)
     const wants = (k, s, d, own) => {
       // (its texture by the pixels drawn, as its shader reads it; its levels by the dial's pixels: src/detail/error.js)
       const drawn = pxOn(s * 1.2, Math.max(1e-3, d * inv)), drawnThen = pxOn(s * 1.2, (d + ahead + own) * inv), px = dialPx(drawn), then = dialPx(drawnThen);
       if (SKINS && drawn > SKINPX) { skinAt[k] = round; if (skins.slot[k] >= 0) skins.used[skins.slot[k]] = round; else if (drawnThen > SKINPX && !skinPending.has(k)) want.push([drawn, k]); }
+      let w = STREAMED;
       for (let l = STREAMED - 1; l >= 0 && px > LEVELS[l].px; l--) {
+        w = l;
         if (H.has(k, l)) { H.touch(k, l, round); wantAt[k * L + l] = round; }
         else if (then > LEVELS[l].px) { wantAt[k * L + l] = round; if (!pending.has(k * L + l)) asks.push({ k, l, px }); }
       }
+      if (!BANDS) return;
+      looked.add(k);
+      // (whether what draws it now is short: the finest of it that is in, no finer than it asks, is not the one it asks,
+      // or is short; none in: another draws it, the ladder's)
+      let e = w; while (e < L && !H.has(k, e)) e++;
+      if (e !== w || SHORT[k * L + e]) nearShort.add(k);
     };
     return {
       /** How far off a thing of that size is still asked for. */
@@ -600,7 +646,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       /** Nothing is near enough: nothing asked. */
       none() { queue = []; },
       /** All that is near has been said: ask, nearest and coarsest first. */
-      done() { queue = asks.sort((p, q) => q.l - p.l || q.px - p.px); feed(); skinAsks.length = 0; for (const [, k] of want.sort((a, b) => b[0] - a[0])) skinAsks.push(k); skinFeed(); },
+      done() { queue = asks.sort((p, q) => q.l - p.l || q.px - p.px); feed(); tellShort(); skinAsks.length = 0; for (const [, k] of want.sort((a, b) => b[0] - a[0])) skinAsks.push(k); skinFeed(); },
     };
   };
   // ---- a tier: level i of the kinds a placer places (tier.js). What stands in a cell, of which kind and how large,
@@ -649,7 +695,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // stages say which shows. What is cut out as leaves has a draw of its own at the levels it is cards (leafy: another
   // state of the pipeline); what is of the level's own shape, a ball of the ladder's, the last draw (KS).
   const drawsOf = (i, shadow) => {
-    const isDot = DOT && i === L - 1, perSlot = i === 0 && !shadow && !!LEVELS[0].slots, classed = !!RANGE[i] && !perSlot, byKind = !!MAKE && !classed && !perSlot && !isDot;
+    const isDot = DOT && i === L - 1, perSlot = i === 0 && !shadow && !!LEVELS[0].slots && !LEVELS[0].cut, classed = !!RANGE[i] && !perSlot, byKind = !!MAKE && !classed && !perSlot && !isDot;
     const FAR = byKind && !shadow && MAKE?.far ? MAKE.far : null, leafy = LEAVES && !shadow && i < HULL, K0 = perSlot ? H.pools[0].n : 1;
     const [cLo, cHi] = classed ? RANGE[i] : [0, -1], KS = shapeOf[i] ? (leafy ? K0 * 2 : K0) : -1;
     return { isDot, perSlot, classed, byKind, FAR, KF: FAR ? ALL : -1, leafy, K0, cLo, cHi, KS };
@@ -671,6 +717,9 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     // (heap.js), and it is the size on screen the level is drawn at, or larger while its next finer level has not come
     const ofLevel = (kind, size, dist, pad) => {
       const span = dialPxAt(spanAt(size, dist)), R = heapRow(H, kind, N.lv), has = R.z.greaterThan(uint(0));   // (its size on screen at a metre: the measure's, in dial pixels as its band: src/detail/error.js)
+      // (a banded level: where it is the finest of the kind's that is in and no finer than its size asks, heap.js
+      // effective; so of levels some of which are in by slots, one draws it, whichever are missing between)
+      if (BANDED) { const px = dialPxAt(pxAt(size, dist)), want = uint(0).toVar(); for (let j = 0; j < L - 1; j++) want.addAssign(px.lessThanEqual(LO.element(j)).select(uint(1), uint(0))); return { R, ok: has.and(whole.or(effective(heldOf(R), want, N.lv))) }; }
       const near = dist.greaterThanEqual(span.mul(N.band.from).sub(pad)).or(N.stands.greaterThan(0.5).and(R.w.shiftRight(N.under).bitAnd(uint(1)).equal(uint(0))));
       return { R, ok: has.and(whole.or(dist.lessThan(span.mul(N.band.to).add(pad)).and(near))) };
     };
@@ -717,6 +766,14 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     byKey.set(key, K);
     return K;
   };
+  // (level i's tier's cut, where it is level 0 and drawn by its cut, src/scatter/cut.js: of the things it packs, what is
+  // drawn cluster by cluster, every frame after the packing, its own draw drawing nothing; else none)
+  const cutOf = (i, shadow, T, cap, casts) => {
+    if (i || shadow || !LEVELS[0].cut) return null;
+    const C = createCut({ T, k: 0, H, room: room(0), name, things: cap }), cm = new THREE.Mesh(C.geometry, meshOf(null, 0, false, false, false, false, true, C));
+    Object.assign(cm, { name: `${name}: the cut`, frustumCulled: false, renderOrder: 1, visible: false }); cm.userData.level = 0; if (casts) cm.layers.enable(1); scene.add(cm); T.cutMesh = cm;
+    return { run(r, on) { cm.visible = on; if (on && ready(C.passes, 'run', computeMaker(r), `${name}: the cut`)) r.compute(C.passes); } };   // (its passes made first: src/core/compile.js)
+  };
   const tier = (i, { cell, P, cap, sizes, place, shadow = false, casts = false, fade = 0.02, far = Infinity, thing = null, own = false, extra = {}, table = null }) => {   // (thing: its placer's name, for a thing's own state; own: the placer chooses its own patches, else its regions are resident; extra: more of the tier's own options: tier.js; table: a resident tier's placer's own numbers, told before it packs)
     const Lv = { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity }, band = { near: uniform(0), far: uniform(1), ...bandOf(Lv, fade, padOf(cell, P)) };
     const flags = drawsOf(i, shadow), { isDot, perSlot, classed, byKind, FAR, KF, leafy, K0, cLo, cHi, KS } = flags;
@@ -756,6 +813,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
         T.far = Math.min(T.far, far); band.near.value = T.near > 0 ? T.near : -1; band.far.value = T.far;
       };
     T.band(); T.level = i; T.shaped = KS; T.label(`${name} level ${i}`);
+    const cut = cutOf(i, shadow, T, cap, casts);   // (a level 0 drawn by its cut: below)
     for (const m of T.meshes) m.renderOrder = 1 + i * 0.01;   // the fine levels first: they are the near ones, and what is behind them need not be shaded
     if (shadow) for (const m of T.meshes) m.layers.set(1);
     else if (casts && !isDot) for (const m of T.meshes) m.layers.enable(1);   // (as drawn: src/world/shadow.js; a dot casts none)
@@ -770,8 +828,10 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     T.farDraw = KF;   // (which of its draws is the far end's: -1 none)
     T.run = (r, world, ...a) => {
       if (lead) arrive();
-      if (T.n > 0) T.meshes.forEach((m, k) => { m.visible = shows(k); });
-      return run(r, `${world}|${H.versions[i]}|${i && !shadow ? H.versions[i - 1] : 0}${FAR ? `|${FAR.version()}` : ''}`, ...a);
+      if (T.n > 0) T.meshes.forEach((m, k) => { m.visible = !cut && shows(k); });
+      const out = run(r, `${world}|${H.versions[i]}|${i && !shadow ? H.versions[i - 1] : 0}${FAR ? `|${FAR.version()}` : ''}`, ...a);
+      if (cut) cut.run(r, T.n > 0 && hp.held > 0);
+      return out;
     };
     made.push(T);
     return T;
@@ -857,7 +917,8 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // the clock is held (held: it stood still since the last frame, as a still's does), it would never grow, and is grown
   // at once instead
   const waiting = (held = false) => {
-    let n = (coarse < ALL ? ALL - Math.max(0, coarse) : 0) + pending.size + queue.length + done.length + skinAsks.length + skinPending.size + skinDone.length + bonesOut;
+    if (!H.laid) return 0;   // (a heap laid out later: nothing of it is out till it is)
+    let n = (coarse < ALL ? ALL - Math.max(0, coarse) : 0) + pending.size - later.size + queue.length + done.length + skinAsks.length + skinPending.size + skinDone.length + bonesOut;
     if (SOLID && U.uTime.value - grewAt < GROW) { if (held) { H.ripen(U.uTime.value - GROW); grewAt = -1e9; } else n++; }
     return n;
   };
@@ -865,5 +926,8 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   /** A make's own numbers of kind k, row j (four), changed: into the one table and to the GPU (the plants' far ends, as
       they are baked: src/scatter/trees.js). */
   const setNum = (k, j, v) => { const o = k * STRIDE + (LR + j) * 4; look.set(v, o); lookRows.addUpdateRange(o, 4); lookRows.needsUpdate = true; };
-  return { H, LO, L, STREAMED, HULL, kindNo, lookOf, numOf, setNum, look, lookRows, sizes, skins, boneRows, fingerprint: FP, tier, tierAll, meshOf, dot, drawOf, drawShaped, shapeOf, ask, stats, pending, start, skinsIn, scan, near, waiting };
+  /** A drawer whose heap is laid out later (bands): laid now, slots[i] kinds' at level i; what is near is asked. */
+  const lay = (slots) => { H.lay(slots); feed(); tellShort(); };
+  tellShort();   // (every kind of a drawer of bands short till its bands come: said from the start)
+  return { H, LO, L, STREAMED, HULL, kindNo, lookOf, numOf, setNum, look, lookRows, sizes, skins, boneRows, fingerprint: FP, tier, tierAll, meshOf, dot, drawOf, drawShaped, shapeOf, ask, stats, pending, start, skinsIn, scan, near, waiting, lay };
 }

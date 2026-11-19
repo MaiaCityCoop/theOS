@@ -19,12 +19,29 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 import { blake3 } from '@noble/hashes/blake3.js';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 import { kitsOf, buildRegistry } from './registry.js';
-import { build, ready } from '../assets/kit/clusters.js';
+import { build, tailFrom, ready } from '../assets/kit/clusters.js';
 import { useBuilder, levelSizes } from '../assets/kit/surface.js';
 import { rockHierarchy } from '../assets/kit/rock.js';
 import { isMade, madeHierarchy } from '../assets/kit/made.js';
+import { blobBandSizes } from '../assets/kit/blob.js';
+import BLOBS from '../assets/zoo/blobs.js';
 
 const BUILDER = ['assets/kit/clusters.js', 'assets/kit/surface.js', 'assets/kit/rock.js', 'assets/kit/made.js'];
+
+// The zoo's blobs (assets/zoo/blobs.js: a family whose kinds are surfaces, assets/zoo/index.js bandOf), made by these
+// files: too many kinds to build every one's hierarchy at every change, so their room is the most of a sample of them.
+// A kind outside the sample that holds more is cut down to fit (assets/kit/surface.js trimmed), and its drawer counts
+// it short.
+const ZOO = ['assets/kit/blob.js', 'assets/kit/diamonds.js', 'assets/kit/clusters.js', 'assets/kit/surface.js', 'assets/zoo/blobs.js'];
+function zooRooms(root, was) {
+  const files = [...new Set(ZOO.flatMap((f) => [resolve(root, f), ...kitsOf(root, resolve(root, f))]))].sort(), builder = bytesToHex(blake3(utf8ToBytes(files.map((f) => readFileSync(f, 'utf8')).join('\n'))));
+  if (was?.builder === builder) return was;
+  const t0 = performance.now(), every = Math.ceil(BLOBS.count / 64), sample = Array.from({ length: Math.ceil(BLOBS.count / every) }, (_, i) => i * every);
+  const most = blobBandSizes(sample[0]);
+  for (const k of sample.slice(1)) blobBandSizes(k).forEach((s, l) => { most[l] = most[l].map((x, i) => Math.max(x, s[i])); });
+  console.log(`[rooms] the zoo's blobs: ${sample.length} kinds sampled, ${Math.round(performance.now() - t0)} ms`);
+  return { name: "the zoo's blobs", builder, print: BLOBS.print(), sampled: sample.length, shapes: [most] };
+}
 
 /** Measure the rooms of every solid whose version changed, and write rooms.json if anything did. Returns them. */
 export async function buildRooms(root) {
@@ -32,7 +49,7 @@ export async function buildRooms(root) {
   const files = [...new Set(BUILDER.flatMap((f) => [resolve(root, f), ...kitsOf(root, resolve(root, f))]))].sort(), builder = bytesToHex(blake3(utf8ToBytes([...files, resolve(root, 'node_modules/meshoptimizer/package.json')].map((f) => readFileSync(f, 'utf8')).join('\n'))));
   const was = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {}, old = was.builder === builder ? was : {}, out = { builder };
   const load = (f) => import(pathToFileURL(resolve(root, f)).href);
-  await ready; useBuilder(build);
+  await ready; useBuilder(build, tailFrom);
   for (const uid of Object.keys(manifest).sort()) {
     const r = manifest[uid]; if (r.type !== 'asset') continue;
     if (old[uid]?.version === r.version) { out[uid] = old[uid]; continue; }
@@ -43,6 +60,7 @@ export async function buildRooms(root) {
     out[uid] = { name: r.name, version: r.version, shapes: D.map(levelSizes) };
     console.log(`[rooms] ${r.name}: ${D.length} shape${D.length > 1 ? 's' : ''}, ${Math.round(performance.now() - t0)} ms`);
   }
+  out['zoo: blobs'] = zooRooms(root, was['zoo: blobs']);
   const text = JSON.stringify(out, (k, v) => (Array.isArray(v) && v.every((x) => typeof x === 'number') ? `[${v.join(', ')}]` : v), 2).replace(/"\[([\d, ]*)\]"/g, '[$1]') + '\n';
   if (!existsSync(path) || readFileSync(path, 'utf8') !== text) writeFileSync(path, text);
   return out;
