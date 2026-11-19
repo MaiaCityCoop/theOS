@@ -7,12 +7,16 @@
 //               from above and straight up from below into one depth atlas of two squares: its top and its underside. A
 //               crown is the slab between them; its gaps are gaps. As far round the eye as the shadow cascades reach (the
 //               farthest of them, SHADE_REACH), a texel half the probes' spacing
-//   the probes  one every quarter of the smallest crown's reach round its trunk (the Nyquist spacing of their kernel), at
-//               the floor, at a person's eyes and at the lowest crown's base over the ground: the share of its sky its
-//               crowns leave it. Its kernel: the slab over the probe, over four columns half a crown's reach out and four
-//               a whole one out (on the diagonals), the three rings an equal share of the sky; each lets through as much
-//               as the slab above the probe is thin (Beer–Lambert: physics.js CROWN_EXTINCTION). Its fourth number is the
-//               ground's height there
+//   the probes  one every quarter of the smallest crown's reach round its trunk (so the smallest crown's gaps are
+//               resolved), at the floor, at a person's eyes and at the lowest crown's base over the ground: the share of
+//               its sky its crowns leave it, as a surface facing up takes the sky (cosine-weighted, Lambert's): nine ways
+//               up, a Vogel disc (Vogel 1979) lifted onto the sky as Malley's method lifts it (a way's sine its point's
+//               radius on the disc), each an equal share. Each lets through as much as the slab it crosses is thin along
+//               it (Beer–Lambert: physics.js CROWN_EXTINCTION; the slab over the probe's height there, over the way's
+//               cosine), read where the way crosses its crowns' middle: where it crosses, from the floor, the middle of
+//               the slab over the probe (else halfway between the lowest crown's base and the tallest top), then again
+//               where it crosses the middle of the slab it met there (that read the one taken; the first shared by the
+//               three heights); past the map, sky. Its fourth number is the ground's height there
 //   when        made again once the eye has crossed a probe's spacing (the map held to the probes' grid, so a probe stays
 //               where it stood: no work while the eye stands still), a piece a frame: the view from above, from below,
 //               then the probes; the map and the probes each a pair, the materials reading one while the other is made.
@@ -37,16 +41,16 @@ import { HMIN, HMAX } from '../land.js';
 import { WALKER } from '../../../world/scale.js';
 
 // the canopy's layout from the cascades' reach and the crowns (made when first asked for: by then the cascades are laid
-// out, src/boot.js): side (m), probes a side (P), the map's texels a side (S), the probes' kernel ([m east, m south,
-// share]), their heights over the ground (m), their spacing (m)
+// out, src/boot.js): side (m), probes a side (P), the map's texels a side (S), the probes' ways up ([m east, m south] for
+// every metre up, and how much longer a metre up is along it: 1 / its cosine), their heights over the ground (m), the
+// crowns' middle over the ground where no slab is over a probe (m), their spacing (m)
 let LAYOUT = null;
 const layout = () => {
   if (LAYOUT) return LAYOUT;
-  const C = cascades(), { crown, radius } = C.casters, side = 2 * C.half[C.n - 1], spacing = radius / 4;
-  const P = Math.ceil(side / spacing), S = 2 * P;
-  const a = radius / 2, d = radius / Math.SQRT2, rings = [[[0, 0]], [[a, 0], [-a, 0], [0, a], [0, -a]], [[d, d], [-d, d], [d, -d], [-d, -d]]];
-  const columns = rings.flatMap((r) => r.map(([x, z]) => [x, z, 1 / (rings.length * r.length)]));
-  LAYOUT = { side, P, S, columns, heights: [0, WALKER.eye, crown], spacing };
+  const C = cascades(), { crown, radius, top } = C.casters, side = 2 * C.half[C.n - 1], spacing = radius / 4;
+  const P = Math.ceil(side / spacing), S = 2 * P, N = 9, turn = Math.PI * (3 - Math.sqrt(5));   // (nine ways, as many as the columns before them; the golden angle)
+  const ways = Array.from({ length: N }, (_, i) => { const sin = Math.sqrt((i + 0.5) / N), cos = Math.sqrt(1 - sin * sin), a = i * turn; return [(Math.cos(a) * sin) / cos, (Math.sin(a) * sin) / cos, 1 / cos]; });
+  LAYOUT = { side, P, S, ways, heights: [0, WALKER.eye, crown], mid: (crown + top) / 2, spacing };
   return LAYOUT;
 };
 
@@ -86,7 +90,7 @@ export const groundColour = () => CANOPY.ground.sample(vec2(0.5)).level(0).rgb;
     one light imports, does not pull in the land's. */
 export function createCanopy(renderer, { groundAt, land }) {
   if (!renderer.backend?.isWebGPUBackend) return null;   // (the WebGL 2 fallback: no canopy, all the sky)
-  const { side, P, S, columns, heights, spacing } = layout();
+  const { side, P, S, ways, heights, mid, spacing } = layout();
   // how far above (and below) the ground under the eye the cameras stand: clear of any ground the land has and of the
   // tallest that stands on it (src/world/land.js HMIN, HMAX; src/world/shadow.js cascades().top)
   const UP = HMAX - HMIN + cascades().top;
@@ -99,15 +103,19 @@ export function createCanopy(renderer, { groundAt, land }) {
   // (a caster drawn once it is made, and the map made again, all at once, once what it left out has come: made by need,
   // src/world/shadow.js castRoute)
   const cams = [cam(true), cam(false)], missing = new Set(), route = castRoute(renderer, () => maps[front], () => cams[0], (o) => missing.add(o));
-  // the probes: at each of its heights over the ground, the slab above its kernel's columns, each by its share
+  // the probes: at each of its heights over the ground, along each of its ways up, the slab where the way crosses its
+  // crowns' middle, each an equal share
   const probeMat = new THREE.NodeMaterial();
   probeMat.fragmentNode = Fn(() => {
     const uv = screenCoordinate.xy.div(P), xz = CANOPY.mapAt.xy.add(uv.sub(0.5).mul(CANOPY.mapAt.z)), g = groundAt(xz, float(0));
-    const seen = heights.map(() => float(0).toVar());
-    for (const [dx, dz, w] of columns) {
-      const q = xz.add(vec2(dx, dz)), s = slabAt(uvIn(vec3(q.x, 0, q.y), CANOPY.mapAt));   // (where nothing was drawn its top lies under its underside: no slab)
-      heights.forEach((h, k) => { seen[k].addAssign(exp(max(s.top.sub(max(g.add(h), s.under)), 0).mul(-CROWN_EXTINCTION)).mul(w)); });
-    }
+    const at = (o, rise) => { const q = xz.add(vec2(o[0], o[1]).mul(rise)), u = uvIn(vec3(q.x, 0, q.y), CANOPY.mapAt); return { s: slabAt(u), inMap: u.x.greaterThanEqual(0).and(u.y.greaterThanEqual(0)).and(u.x.lessThan(1)).and(u.y.lessThan(1)) }; };
+    const middleOf = (s, or) => s.top.greaterThan(s.under).select(s.top.add(s.under).mul(0.5), or);   // (where nothing was drawn its top lies under its underside: no slab)
+    const middle = middleOf(at([0, 0], 0).s, g.add(mid)), met = ways.map((o) => middleOf(at(o, max(middle.sub(g), 0)).s, middle));
+    const seen = heights.map((h) => {
+      const y = g.add(h), sum = float(0).toVar();
+      ways.forEach((o, i) => { const A = at(o, max(met[i].sub(y), 0)); sum.addAssign(A.inMap.select(exp(max(A.s.top.sub(max(y, A.s.under)), 0).mul(-o[2] * CROWN_EXTINCTION)), float(1))); });
+      return sum.div(ways.length);
+    });
     return vec4(seen[0], seen[1], seen[2], g.sub(CANOPY.mapAt.w));
   })();
   const quad = new THREE.QuadMesh(probeMat), at = new THREE.Vector4(), was = new THREE.Vector2(Infinity, Infinity);   // (at: where the map being made lies, and its ground's height; was: the probes' grid point it was made round)
