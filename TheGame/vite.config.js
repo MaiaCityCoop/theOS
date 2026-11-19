@@ -6,19 +6,21 @@ import { resolve, join, extname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { brotliCompressSync, gzipSync, constants as zlibConstants } from 'node:zlib';
 import { spawn } from 'node:child_process';
-import { buildRegistry, FOLDERS, SHARED, MEASURES } from './tools/registry.js';
+import { buildRegistry, FOLDERS, SHARED, PAINTS, MEASURES } from './tools/registry.js';
 import * as repo from '../server/repo.js';
 
 const ROOT = import.meta.dirname;
 // the registry's manifest (registry.json, tools/registry.js): made at the start, and again whenever a recipe, or what
-// every recipe builds with (SHARED: the dice, the measure), changes; and after it what is measured of the recipes, each
-// in a process of its own: the solids' rooms (rooms.json, tools/rooms.js: measured from their hierarchies, those whose
-// version changed) and the plants' outlines (outlines.json, tools/outlines.js: what the page must know of each plant
-// before any of its meshes is made, and their crowds' measures, crowds.bin); one run at a time (a change while one runs:
-// one more after it). The tools are Bun's, as every tool of the game's is (tools/glob.js), so Bun runs them whatever
-// runs Vite: `bun run build` runs Vite by its own node where a machine has node, as CI's does. And a tool that fails
-// fails the build: a release never goes out without what the build measures (next went out without outlines.json and
-// crowds.bin until 2026-11-19: node could not run them, and nothing said so but a line in the log)
+// every recipe builds with (SHARED: the dice, the measure) or what paints a material (PAINTS: the painter's code too,
+// so no painting kept between starts outlives a change to it, src/materials/bake.js), changes; and after it what is
+// measured of the recipes, each in a process of its own: the solids' rooms (rooms.json, tools/rooms.js: measured from
+// their hierarchies, those whose version changed) and the plants' outlines (outlines.json, tools/outlines.js: what the
+// page must know of each plant before any of its meshes is made, and their crowds' measures, crowds.bin); one run at a
+// time (a change while one runs: one more after it). The tools are Bun's, as every tool of the game's is
+// (tools/glob.js), so Bun runs them whatever runs Vite: `bun run build` runs Vite by its own node where a machine has
+// node, as CI's does. And a tool that fails fails the build: a release never goes out without what the build measures
+// (next went out without outlines.json and crowds.bin until 2026-11-19: node could not run them, and nothing said so
+// but a line in the log)
 const BUN = process.versions.bun ? process.execPath : 'bun';
 let measuring = null, again = false;
 const measure = () => {
@@ -33,7 +35,7 @@ const registry = {
   async buildStart() { buildRegistry(ROOT); await measure(); },
   configureServer(server) {
     buildRegistry(ROOT); measure().catch(said);
-    server.watcher.on('all', (_, file) => { if (FOLDERS.some((d) => file.startsWith(resolve(ROOT, d) + '/')) || SHARED.some((f) => file === resolve(ROOT, f))) { try { buildRegistry(ROOT); measure().catch(said); } catch (e) { said(e); } } });
+    server.watcher.on('all', (_, file) => { if (FOLDERS.some((d) => file.startsWith(resolve(ROOT, d) + '/')) || SHARED.some((f) => file === resolve(ROOT, f)) || PAINTS.has(file)) { try { buildRegistry(ROOT); measure().catch(said); } catch (e) { said(e); } } });
   },
 };
 
