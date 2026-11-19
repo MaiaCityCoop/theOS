@@ -225,8 +225,19 @@ export const hasFeature = (name) => !!R?.backend?.device?.features?.has(name);
 export const SIZED = ['maxBufferSize', 'maxStorageBufferBindingSize', 'maxUniformBufferBindingSize', 'maxComputeWorkgroupsPerDimension', 'maxTextureArrayLayers'];
 /** What to ask a device for, of its adapter's limits A: each of SIZED as A has it. */
 const limitsFrom = (A) => Object.fromEntries(SIZED.filter((k) => A?.[k] != null).map((k) => [k, A[k]]));
-/** What the device is asked for (src/boot.js): each of SIZED as this machine's adapter has it (none without WebGPU). */
-export const askedLimits = async () => limitsFrom((await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null))?.limits);
+/** What the device is asked for (src/boot.js): each of SIZED as this machine's adapter has it (none without WebGPU); and
+    what the adapter says of itself kept (adapterOf). */
+export const askedLimits = async () => {
+  const a = await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null);
+  if (a) ADAPTER = { maxBufferSize: a.limits.maxBufferSize, maxStorageBufferBindingSize: a.limits.maxStorageBufferBindingSize, vendor: a.info?.vendor ?? '', architecture: a.info?.architecture ?? '' };
+  return limitsFrom(a?.limits);
+};
+let ADAPTER = null;
+/** The class of the device the game runs on, as its adapter said it at boot (askedLimits): its largest buffer and its
+    largest storage binding (bytes: each engine sizes them from the device, WebKit at most 1 GiB on an iPhone, between 1
+    and 2 GiB on a Mac; Chrome in tiers up to 4 GiB) and who made it (vendor, architecture). Null before, and without
+    WebGPU. A measure for a person and a tool to read (window.__game.adapter, the HUD's line): nothing is sized by it. */
+export const adapterOf = () => ADAPTER;
 /** One of the renderer's GPU's limits, one of SIZED (none without WebGPU: nothing then asks). */
 export const limitOf = (name) => { if (!SIZED.includes(name)) throw new Error(`gpu: ${name} is not a limit the device is asked for (SIZED)`); return R?.backend?.device?.limits?.[name] ?? 0; };
 /** Every buffer made here within the device's limits: one larger is an error of whoever sized it, said by name. */
