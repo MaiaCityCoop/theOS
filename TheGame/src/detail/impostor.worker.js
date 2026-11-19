@@ -6,8 +6,9 @@
 // distance and alpha tested, a crown covers what its leaves cover, neither thinning away nor filling in. A texel nothing
 // covers takes its covered neighbours' rest, a few rings out, so nothing wrong is read beside an edge. A texel's way is
 // its picture's own (src/detail/impostor.js facingOf: facing the picture, in its frame, every texel of a picture in the
-// one frame), so the mean of a few is a mean of ways.
-// Plain JS: { id, colour, data, leaf, side, cell, least } is answered { id, levels: [{ colour, data, leaf, n }] }.
+// one frame), so the mean of a few is a mean of ways. And what its pictures show, as their mean (seenOf): the colour a
+// thing wears where it is no longer drawn (src/terrain/layers.js, a stand's).
+// Plain JS: { id, colour, data, leaf, side, cell, least } is answered { id, levels: [{ colour, data, leaf, n }], seen }.
 import { facingCode as enc, facingWay as dec } from './atlas.js';   // (a texel's way and its two numbers: impostor.js facingEnc's twins)
 const N3 = [0, 0, 0], E2 = [0, 0];
 /** A level as floats a texel: a (cover), c (rgb), m (its way), d (depth), w (light), f (how much of it is leaf). */
@@ -46,6 +47,22 @@ function dilate(L, cell, rings) {
     for (let i = 0; i < m; i++) { const o = at[i], p = i * 9, l = Math.hypot(put[p + 3], put[p + 4], put[p + 5]) || 1; for (let c = 0; c < 3; c++) { L.c[o * 3 + c] = put[p + c]; L.m[o * 3 + c] = put[p + 3 + c] / l; } L.d[o] = put[p + 6]; L.w[o] = put[p + 7]; L.f[o] = put[p + 8]; has[o] = 1; }
   }
 }
+/** What a layer's pictures show, their mean: each picture alike, each texel by how much of it it covers, the albedo of
+    what is leaf and of what is wood (linear: a texel keeps its square root), each by its share of what is shown:
+    [leaf r, g, b, wood r, g, b] (what is leaf and what is wood apart: a leaf's is tinted plant by plant as it is drawn,
+    src/scatter/trees.js seenOf). */
+function seenOf(L, cell) {
+  const n = L.n, cells = n / cell, out = new Float64Array(6), P = new Float64Array(6); let pics = 0;
+  for (let cy = 0; cy < cells; cy++) for (let cx = 0; cx < cells; cx++) {
+    let a = 0; P.fill(0);
+    for (let y = 0; y < cell; y++) for (let x = 0; x < cell; x++) {
+      const o = (cy * cell + y) * n + cx * cell + x, w = L.a[o], f = L.f[o]; if (!(w > 0)) continue; a += w;
+      for (let c = 0; c < 3; c++) { const v = L.c[o * 3 + c] ** 2 * w; P[c] += v * f; P[3 + c] += v * (1 - f); }
+    }
+    if (a > 0) { for (let k = 0; k < 6; k++) out[k] += P[k] / a; pics++; }
+  }
+  return Array.from(out, (v) => (pics ? v / pics : 0));
+}
 /** The level as the GPU takes it, its alpha scaled picture by picture (Castaño): the threshold under which (1 - cover)
     of the picture's texels lie, scaled onto the cut. cover: each picture's own (its finest level's mean alpha). */
 function bytesOf(L, cell, cover) {
@@ -65,9 +82,9 @@ function bytesOf(L, cell, cover) {
 self.postMessage({ here: true });   // (started: the page hears it, src/core/workers.js asking)
 self.onmessage = ({ data: { id, colour, data, leaf, side, cell, least } }) => {
   let L = floatsOf(colour, data, leaf, side), c = cell;
-  const cells = side / cell, cover = new Float32Array(cells * cells), levels = [];
+  const cells = side / cell, cover = new Float32Array(cells * cells), levels = [], seen = seenOf(L, cell);
   for (let y = 0; y < side; y++) for (let x = 0; x < side; x++) cover[Math.floor(y / cell) * cells + Math.floor(x / cell)] += L.a[y * side + x] / (cell * cell);
   dilate(L, c, 3); levels.push(bytesOf(L, c, cover));
   while (c / 2 >= least) { L = halve(L); c /= 2; dilate(L, c, 2); levels.push(bytesOf(L, c, cover)); }
-  self.postMessage({ id, levels }, levels.flatMap((l) => [l.colour.buffer, l.data.buffer, l.leaf.buffer]));
+  self.postMessage({ id, levels, seen }, levels.flatMap((l) => [l.colour.buffer, l.data.buffer, l.leaf.buffer]));
 };

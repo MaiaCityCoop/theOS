@@ -124,7 +124,7 @@ export function createAtlas(renderer, { name, side, layers, cell = side, views =
 let WORKERS = null;
 const workers = () => (WORKERS ||= Array.from({ length: Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 2)) }, () => asking(new Worker(new URL('./impostor.worker.js', import.meta.url), { type: 'module' }), "the impostors' worker")));
 /** The pictures' smaller ones, as a worker makes them (impostor.worker.js, the least busy of a few, watched:
-    src/core/workers.js): { levels: [{ colour, data, leaf, n }] }. */
+    src/core/workers.js), and what they show, their mean: { levels: [{ colour, data, leaf, n }], seen (its seenOf) }. */
 const mipsOf = (colour, data, leaf, side, cell, least) => workers().reduce((a, b) => (b.out() < a.out() ? b : a))({ colour, data, leaf, side, cell, least }, [colour.buffer, data.buffer, leaf.buffer]);
 
 /** What bakes a family's pictures: rows of `per` pictures `px` texels a side, drawn by draw(row) (a mesh whose
@@ -180,12 +180,13 @@ export function createBaker(renderer, { per, px }) {
     /** Bake `rows` rows of a thing's pictures into the atlas' layer, a row a frame: draw(r) its mesh for row r (its
         instances the row's pictures, its materials [colour, data]); least: the smallest picture's side mipped to. A
         promise of { done }, once its pictures are read back (the targets free for the next job, which waits for it):
-        done, once its layer is in the atlas, with its levels (what the browser keeps of it: src/scatter/trees.js farOf). */
+        done, once its layer is in the atlas, with { levels, seen }: its levels (what the browser keeps of it:
+        src/scatter/trees.js farOf) and what its pictures show, their mean (impostor.worker.js seenOf). */
     bake(atlas, layer, count, draw, least = LEAST) {
       const job = last.then(async () => {
         for (let r = 0; r < count; r++) { if (r) await nextFrame(); rowOf(r, draw); }
         const [c, d, l] = await Promise.all(out.map((o) => renderer.readRenderTargetPixelsAsync(o, 0, 0, W, W)));
-        return { done: mipsOf(new Uint8Array(c), new Uint8Array(d), new Uint8Array(l), W, px, least).then(({ levels }) => { atlas.put(layer, levels); return levels; }) };
+        return { done: mipsOf(new Uint8Array(c), new Uint8Array(d), new Uint8Array(l), W, px, least).then(({ levels, seen }) => { atlas.put(layer, levels); return { levels, seen }; }) };
       });
       last = job.catch(() => {});
       return job;

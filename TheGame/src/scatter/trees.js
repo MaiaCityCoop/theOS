@@ -74,6 +74,7 @@ import { BAND, FADE } from '../detail/error.js';
 import { source } from '../core/settle.js';
 import { gpuStorage } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
+import { shows } from '../detail/seen.js';
 
 /** A half float's 16 bits as the number (what assets/kit/plant.js wrote). */
 const unhalf = (h) => { const e = (h >> 10) & 31, m = h & 1023, v = e === 0 ? m * 2 ** -24 : e === 31 ? Infinity : (1 + m / 1024) * 2 ** (e - 15); return h & 0x8000 ? -v : v; };
@@ -199,6 +200,11 @@ const wear = (mesh, tex, row, shape = 0) => {
   Object.assign(mesh.userData, { hk: N.hk, ks: N.ks, wind: new THREE.Vector4(...N.wind), leaf: new THREE.Vector4(...N.leaf), twig: N.twig, tint: new THREE.Vector3(...N.tint) });
   return mesh;
 };
+// each plant its own green (its leaves'): lighter or darker by its seed, warmer (yellower) or cooler (bluer) by its turn,
+// each even over its plants; and their mean, what a stand of them shows on the whole (farOf: src/detail/seen.js)
+const WARM = [1.07, 1.0, 0.78], COOL = [0.86, 0.98, 1.1], LIGHTER = [0.84, 0.3];
+const ownGreen = (turn, seed) => mix(vec3(...WARM), vec3(...COOL), turn.mul(1.1631).fract()).mul(seed.mul(LIGHTER[1]).add(LIGHTER[0]));
+const GREEN = WARM.map((w, c) => ((w + COOL[c]) / 2) * (LIGHTER[0] + LIGHTER[1] / 2));
 const ofMesh = (key, start, type) => uniform(start, type).onObjectUpdate(({ object }) => object?.userData?.[key]);
 
 /** A stand's light at w, the one light's (src/world/light.js lightOn): the sky's and the sun's on the dome its crown makes
@@ -332,7 +338,7 @@ function plantMaterial(tex, D) {
       vCut.assign(vec2(mix(0.45, 0.16, smoothstep(15, 220, far)), max(smoothstep(0.06, 0.42, abs(normalize(turn(cardN)).dot(Ve))), body).mul(smoothstep(0.35, 1.3, far))));
       // each plant its own green: lighter or darker, and warmer (yellower) or cooler (bluer)
       const leaf = part.greaterThan(0.5), n0 = normalize(turn(V.normal));
-      const tint = leaf.select(mix(vec3(1.07, 1.0, 0.78), vec3(0.86, 0.98, 1.1), B.z.mul(1.1631).fract()).mul(V.shade.mul(0.3).add(0.84)).mul(Tn), vec3(1));
+      const tint = leaf.select(ownGreen(B.z, V.shade).mul(Tn), vec3(1));
       if (pass === 'main') {   // (the colour pass: what its pixels light themselves by; a chunk's plane's wrap and turn)
         vW.assign(w); vN.assign(n0); vTint.assign(tint); vK.assign(vec4(ao, wrap, shines, clumps));
         if (vLit) vLit.assign(vec4(0, 0, wrap, B.x));
@@ -444,7 +450,7 @@ function impostorMaterial(G, D, Lv, src) {
       // what it is lit by, as its mesh is (standLight): the sun as it reaches its middle, once for the plant (a few
       // pixels), and its kind's numbers its mesh's corners carry (its leaves' wrap and how much the sun shines through
       // them, its snow's clumps: numbersOf); its own green (as its cards': plantMaterial)
-      vT.assign(mix(vec3(1.07, 1.0, 0.78), vec3(0.86, 0.98, 1.1), B.z.mul(1.1631).fract()).mul(seedOf(B).mul(0.3).add(0.84)).mul(r0.yzw));
+      vT.assign(ownGreen(B.z, seedOf(B)).mul(r0.yzw));
       if (passOf(builder) !== 'shadow') vLit.assign(vec4(sunAt(c, 'vertex'), r2.y, r2.x, D().numOf(kind, 1).w));
       // it sways in the one wind as its mesh does (swayOf), each corner as far as its height up the plant: what it
       // shows is read where it stood still (vP), so its picture leans with the wind as the crown does; and for the
@@ -479,7 +485,7 @@ function impostorMaterial(G, D, Lv, src) {
 // ---- the far ends baked: each shape's impostor and its clumps, each picture from the level of the heap the measure picks
 // at its own size ----
 let BAKING = false;   // (one shape at a time, of every stand: the bakers' targets are one set)
-const BAKED = 4;   // the bake's own version, in what the browser keeps of it (farOf): one more whenever how a far end is baked changes
+const BAKED = 5;   // the bake's own version, in what the browser keeps of it (farOf): one more whenever how a far end is baked changes
 /** A stand's far ends (G: its group; D(): its drawer, once made): its two atlases (the impostors' views, a layer a shape,
     VIEWS x VIEWS views of CELL texels a side; its chunks' planes, a layer a shape that has clumps, G.clumpLayer, G.tiles
     tiles of TILE texels a row: the atlases' numbers, src/detail/impostor.js atlases), and what bakes them. Each shape
@@ -576,13 +582,22 @@ function farOf(renderer, tex, G, D) {
   // its numbers, once its pictures are in: its sphere; T, its impostor's error (metres, at scale 1: its views' texel and
   // what their spacing and its parallax misplace, as the crowd kit measured it for these atlases: its far data's sixth
   // number), which the one ratio holds against the dial (meshShare)
+  // and what it shows, on the whole (src/detail/seen.js): its pictures' mean (seen: their leaves' albedo and their wood's,
+  // each by its share), its leaves in its kind's green and its plants' own, on the whole (GREEN)
+  const kindOfShape = (k) => G.kinds.find((Kd) => k >= Kd.offset && k < Kd.offset + Kd.shapes);
+  const seenIn = (k, seen) => {
+    if (!seen) return;
+    const Kd = kindOfShape(k), Tn = G.numbers.subarray(k * 20 + 1, k * 20 + 4);
+    shows(Kd.asset, k - Kd.offset, Kd.shapes, [0, 1, 2].map((c) => seen[c] * Tn[c] * GREEN[c] + seen[3 + c]));
+  };
   const numbers = (k, far) => {
     const row3 = G.numbers.subarray(k * 20 + 12, k * 20 + 16);
     row3[2] = far[6];
     D().setNum(k, 4, [far[1], far[2], far[3], far[4]]); D().setNum(k, 3, row3);
     version++; any = true;
   };
-  // What the browser keeps of them (src/core/kept.js): each shape's pictures as the workers mipped them, kept under the
+  // What the browser keeps of them (src/core/kept.js): each shape's pictures as the workers mipped them, and what they
+  // show (their mean: the land's colour where its stand is no longer drawn, seenIn), kept under the
   // registry's versions of all they are baked from (the stand's kinds and their rooms: its drawer's fingerprint; their
   // paintings: their materials' versions) and the bake's own (BAKED). A start that finds them puts them in and bakes
   // nothing: the far plants are whole from the first frames, not after half a minute to a minute and a half.
@@ -604,7 +619,7 @@ function farOf(renderer, tex, G, D) {
       const per = G.tiles, rows = Math.ceil((nc * 3) / per), most = Uint32Array.from({ length: rows }, (_, r) => { let m = 0; for (let t = r * per; t < Math.min((r + 1) * per, nc * 3); t++) m = Math.max(m, T.count[Math.floor(t / 3)]); return m; });
       b = await bakers(renderer).tiles(per).bake(clumpsOf(), G.clumpLayer[k], rows, (r) => { B.rowU.value = r; B.tgeo.instanceCount = per; B.tgeo.setDrawRange(0, most[r]); return B.tile; });
     }
-    return { done: Promise.all([a.done, b?.done]).then(([va, vb]) => { keptPut(keptAs(), key, { views: va, clumps: vb ?? null }); numbers(k, far); }) };
+    return { done: Promise.all([a.done, b?.done]).then(([va, vb]) => { keptPut(keptAs(), key, { views: va.levels, seen: va.seen, clumps: vb?.levels ?? null }); numbers(k, far); seenIn(k, va.seen); }) };
   };
   return {
     views, clumps: () => clumpsOf(), version: () => version, ready: () => any,
@@ -627,7 +642,7 @@ function farOf(renderer, tex, G, D) {
         keptGet(keptAs(), keyOf(k)).then((kept) => {
           if (!kept) return queue.push(J);
           waiting.delete(k); views.put(k, kept.views); if (kept.clumps && G.clumpLayer[k] >= 0) clumpsOf().put(G.clumpLayer[k], kept.clumps);
-          numbers(k, far); out--;
+          numbers(k, far); seenIn(k, kept.seen); out--;
         }, () => queue.push(J));
       }
     },
