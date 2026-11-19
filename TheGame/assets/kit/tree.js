@@ -89,8 +89,10 @@ function lay(b, proto, P, T, light, ao, root, tip) {
   }
   b.parts.push({ proto, v0, v1: b.ao.length, i0, i1: b.index.length, T, light, ao, root, tip });
 }
-/** Two crossed cards, the whole painting on each, `rep` times across it. */
-const crossed = (rep) => [0, 1].map((c) => ({ q: [[-0.5, 0], [0.5, 0], [0.5, 1], [-0.5, 1]].map(([a, y]) => (c ? [0, y, -a] : [a, y, 0])), uv: [[0, 0], [rep, 0], [rep, rep], [0, rep]], cn: c ? [1, 0, 0] : [0, 0, 1], ao: 1, twig: 0, lit: false }));
+/** Two crossed cards, the whole painting on each, `rep` times across it. lit: each lit a little as its own card faces,
+    as a spray's twig is (lay), not only as the plant's dome: a bush's shoot is a cluster of leaves at its own angle,
+    which takes the light as it stands (a frond, flat as its card, is lit as the tuft it is part of). */
+const crossed = (rep, lit) => [0, 1].map((c) => ({ q: [[-0.5, 0], [0.5, 0], [0.5, 1], [-0.5, 1]].map(([a, y]) => (c ? [0, y, -a] : [a, y, 0])), uv: [[0, 0], [rep, 0], [rep, rep], [0, rep]], cn: c ? [1, 0, 0] : [0, 0, 1], ao: 1, twig: 0, lit }));
 const CROSSED = new Map();
 
 /** A tube along pts, radius rad[i] at each, `sides` round: its rings carried along the curve without twisting, its bark
@@ -151,11 +153,11 @@ function chestOf(pts, rad) {
     light: the normal its light is reckoned with (a crown is lit as the dome it makes, not card by card); root: what it
     grows out of (its foot, unless told); rep: how many times its sprig's picture is laid across it (a larger card's
     leaves are their own size: the picture is repeated, not stretched); proto: SHEET for one no finest level splays (a
-    bush's base). */
-export function cards(b, p, dir, s, light, ao, R0, root = p, rep = 1, proto = SPRIG) {
+    bush's base); lit: its two cards lit a little as each faces (crossed). */
+export function cards(b, p, dir, s, light, ao, R0, root = p, rep = 1, proto = SPRIG, lit = false) {
   const side0 = norm(cross(dir, Math.abs(dir[1]) < 0.95 ? [0, 1, 0] : [1, 0, 0])), turn = R0() * Math.PI;
   const x = norm(add(mul(side0, Math.cos(turn)), mul(cross(dir, side0), Math.sin(turn))));
-  let P = CROSSED.get(rep); if (!P) CROSSED.set(rep, (P = crossed(rep)));
+  const key = `${rep}|${lit}`; let P = CROSSED.get(key); if (!P) CROSSED.set(key, (P = crossed(rep, lit)));
   lay(b, proto, P, { at: p, x, y: dir, z: cross(x, dir), s }, light, ao, root, add(p, mul(dir, s)));
 }
 
@@ -329,7 +331,8 @@ function woodOf(b, N, rad, least) {
 /** Its shoots: a card at each branch's end, and where there are fewer ends than shoots, at the buds next back from them,
     and where there are fewer buds, a second at a bud, turned its own way (a branch's end bears a few shoots); each grows
     out along its branch and a little out of the bush and up, larger at its top and outside, lit as the heap's dome it
-    stands on is (a bush takes the light as a whole), as much as reaches that deep. */
+    stands on is (a bush takes the light as a whole) and a little as each of its cards faces (a shoot is a cluster at
+    its own angle: crossed), as much as reaches that deep. */
 function shootsOf(b, N, heaps, { h, shoots, size, rise, seed }) {
   const back = new Array(N.length).fill(Infinity);   // (how many buds back from a branch's end)
   for (let k = N.length - 1; k >= 0; k--) { if (!N[k].kids) back[k] = 0; if (N[k].up >= 0) back[N[k].up] = Math.min(back[N[k].up], back[k] + 1); }
@@ -340,7 +343,7 @@ function shootsOf(b, N, heaps, { h, shoots, size, rise, seed }) {
     const dir = norm(add(add(mul(N[k].dir, 0.6), mul(o, 0.4)), [(C() - 0.5) * 0.4, rise, (C() - 0.5) * 0.4]));
     const s = size[0] + (size[1] - size[0]) * Math.min(1, 0.5 * Math.min(1, p[1] / h) + 0.5 * rel) * (0.8 + 0.4 * C());
     const ao = Math.max(0.3, (0.45 + 0.55 * Math.min(1, p[1] / (h * 0.75))) * (0.65 + 0.35 * Math.min(1, rel)));
-    cards(b, sub(p, mul(dir, s * 0.2)), dir, s, norm([o[0] * 0.6, o[1] * 0.6 + 0.8, o[2] * 0.6]), ao, C, p);
+    cards(b, sub(p, mul(dir, s * 0.2)), dir, s, norm([o[0] * 0.6, o[1] * 0.6 + 0.8, o[2] * 0.6]), ao, C, p, 1, SPRIG, true);
   }
 }
 
@@ -483,6 +486,18 @@ export function tree(recipe) {
     },
     /** each shape's far end as the crowd kit reckons it, by the atlases' numbers A: { chunks (its clumps) } */
     farOf: (A) => (out.crowdRooms(A), measured().far),
+    /** Whether its rooms are known for the atlases' numbers A (kept from an earlier start, or taken), without measuring
+        anything. */
+    roomsKnown: (A) => { const o = outline ?? OUTLINES.kept.get(id); return !!(o?.rooms && o.atlas === (far ? A.key : '')); },
+    /** Its outline measured and its rooms and far ends reckoned for A (crowdRooms, farOf): what the recipes' workers
+        reckon of it at a start that has nothing of it kept (src/scatter/trees.js outlinesAhead). */
+    outlineFor: (A) => (out.crowdRooms(A), measured()),
+    /** What the workers reckoned of it (outlineFor), taken as if kept: its outline, where none was asked of it yet, and
+        its rooms and far ends. */
+    takeOutline(A, o) {
+      if (!outline) outline = o; else Object.assign(outline, { rooms: o.rooms, far: o.far, atlas: o.atlas });
+      OUTLINES.made.set(id, outline);
+    },
     /** shape `shape` at its finest as typed arrays (a plain geometry's), at any level: every level is a first share of it */
     meshAt: (level, shape = 0) => packed(finest(Math.min(shape, shapes.length - 1))),
     /** the same kind of tree grown from another seed: other shapes, other places (the library's Random). A shape of its

@@ -11,8 +11,8 @@
 //           the meadow itself (grow: the grass, a biome)
 //
 // It gives the game (window.__game: what the pages, the films and the tools read) as soon as its parts are made, before
-// they are compiled; the veil lifts on the first frame drawn complete (src/core/settle.js complete); game.ready is the
-// page's first view complete and come to rest (src/core/settle.js), what the gate waits for. The
+// they are compiled; the veil lifts on the first frame drawn with all it draws made (src/core/settle.js drawn); game.ready
+// is the page's first view complete and come to rest (src/core/settle.js), what the gate waits for. The
 // virtual camera (cine/cine.js: every frame passes through it) and the game's pill (cine/menu.js) come with it, first.
 // What each folder of src/ does: ../README.md. A frame only moves uniforms and chooses what to draw.
 import { outlinesKept, keepOutlines } from './core/outlines.js';   // (first: what was measured of the plants at an earlier start is read back before any file asks a plant's size)
@@ -30,11 +30,12 @@ import { createGovernor } from './core/governor.js';
 import { createHud } from './core/hud.js';
 import { useGPU, askedLimits, ledger } from './core/gpu.js';
 import { taken, busy, changed } from './core/work.js';
-import { settle, ready as firstView, complete, waiting, watch, tick, partOf, leave } from './core/settle.js';
+import { settle, ready as firstView, drawn, waiting, watch, tick, partOf, leave } from './core/settle.js';
 import { bakeTextures } from './materials/bake.js';
 import { createTerrain, landMaterials } from './terrain/terrain.js';
 import { createGround } from './scatter/ground.js';
 import { createScatter } from './scatter/index.js';
+import { outlinesAhead } from './scatter/trees.js';   // (what the stands need of each tree kind, reckoned in the recipes' workers)
 import { recipe } from './core/registry.js';
 import { place } from './world/place.js';
 import { stand } from './scatter/placed.js';   // what stands at a spot of its own, drawn by the one drawer (intent 0029)
@@ -64,6 +65,9 @@ const SKY = 0x9fc2e6, REACH = 6000;   // REACH: how far the stage's land is draw
 /** Start the world for this page: { profile: 'world' | 'stage' }. A promise of the game, once its parts are made. */
 export async function boot({ profile = 'world' } = {}) {
   const world = profile === 'world', t0 = performance.now();
+  // (what the stands need to know of each tree kind before they are made, its outline and rooms, reckoned in the recipes'
+  // workers from here on, beside the renderer, the textures, the ground and the land: src/scatter/trees.js outlinesAhead)
+  const outlines = outlinesAhead(world);
   const canvas = document.getElementById('c');
   // (textures of many layers: more than a device gives unasked. The land's pages are two arrays of up to 2048,
   // src/terrain/pages.js; the stress stand keeps its kinds' own textures in one, src/scatter/stress.js. And buffers as
@@ -146,7 +150,7 @@ export async function boot({ profile = 'world' } = {}) {
     game.scatter = g.scatter;   // for timings and pages that look at it
     g.packing = g.scatter.compile();   // the tiers' packing passes, side by side with the textures' (they read no target)
   };
-  if (world) scatterOf(grown);
+  if (world) { await waitsOn("the plants' outlines", outlines, null); mark('outlines'); scatterOf(grown); }
   mark('scatter');
   if (world) for (const at of Object.values(PLACES)) { const a = recipe(at.asset); if (!stand(a, at)) place(scene, a, at); }   // what stands at a named place, from the asset library: in the one list (src/scatter/placed.js), else on its own (a fire's light; no WebGPU)
   const controls = world ? createControls(camera, canvas, document.getElementById('msg'), document.getElementById('stat')) : null;
@@ -272,11 +276,12 @@ export async function boot({ profile = 'world' } = {}) {
   };
   if (!world) Object.assign(game, { show, hide, grow });
 
-  // ---- the start: what the first view draws, made; its first complete frame, the first frame ----
+  // ---- the start: what the first view draws, made; the first frame drawn with all of it, the first frame ----
   // What packs and lays the land is compiled first, side by side (it reads no target). Then the frames begin, behind the
   // veil: each draws what is made and asks for what is not, which is made aside, in turn (src/core/compile.js): what the
-  // first view draws, nothing it does not. The first of them that is complete (src/core/settle.js) is the first frame,
-  // and the veil lifts on it. Everything else is made after it, ahead of need, one at a time, holding nothing up.
+  // first view draws, nothing it does not. The first of them drawn with nothing it draws left out (src/core/settle.js
+  // drawn) is the first frame, and the veil lifts on it; what is still streaming in (a stand's meshes, its far ends, the
+  // land's pages) comes after it. Everything else is made after it, ahead of need, one at a time, holding nothing up.
   // (Until 2026-11-18 the start compiled everything the world could draw, every mesh made visible, before any frame:
   // 308 pipelines, 7.7 s of a 14.1 s cold start in Chrome, and a first picture that was not yet complete; under memory
   // pressure, three minutes on "Lighting the world")
@@ -302,7 +307,7 @@ export async function boot({ profile = 'world' } = {}) {
     veiled = true; requestAnimationFrame(frame);
     // the veil goes once the world is complete on the screen: the stage's once its first subject is in too (or after
     // 20 s without one)
-    await (world ? complete : Promise.race([first.then(() => complete), new Promise((res) => setTimeout(res, 20000))]));
+    await (world ? drawn : Promise.race([first.then(() => drawn), new Promise((res) => setTimeout(res, 20000))]));
     veiled = false;
     stampDone(renderer, FIRST_FRAME);   // (the first frame the world shows: what every measure of a start reads)
     game.loadMs = performance.now() - t0; mark('first');

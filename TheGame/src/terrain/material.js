@@ -5,7 +5,7 @@
 // nothing repeats, laid over each other in their order, the higher winning at a seam; the grass's carpet among them; the
 // stands' colour far off. Its size is one, whatever the biomes and their materials.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, attribute, positionGeometry, positionWorld, varyingProperty, cameraProjectionMatrix, dFdx, dFdy, If, Loop, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, floor, exp2, log2 } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, attribute, positionGeometry, positionWorld, varyingProperty, cameraProjectionMatrix, dFdx, dFdy, If, Loop, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, floor, exp2, log2, step } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { TRUTH, pxAt, dialPxAt } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
@@ -14,7 +14,7 @@ import { OCT_LAM, OCT_AMP } from '../world/land.js';
 import { layerOf, standOf, standFade, CARPET, SLOPES, NO_STAND, SHADE_REACH, CROWNS } from './layers.js';
 import { lit, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
 import { passOf, motion } from '../core/pass.js';
-import { endOf, bladeLight, tuftShade, underShade } from '../scatter/grass.js';
+import { endOf, bladeLight, tuftShade, underShade, meadowSeen } from '../scatter/grass.js';
 import { reliefShares, reliefOverSnow } from './relief.js';
 import { SOIL_RELIEF } from '../world/physics.js';
 
@@ -150,7 +150,9 @@ export function laid(tex, p, s, D, X) {
       // (darker than a crown's own colour: seen from afar it is mostly its own shade; where the texel can no longer hold
       // the pattern's finest scale, two texels to it, the pattern goes over into its mean, no speckle to shimmer)
       const mean = smoothstep(S.grain.mul(CROWNS / 4), S.grain.mul(CROWNS / 2), s), crown = S.colour.mul(mix(T.n, 0.5, mean).mul(0.6).add(0.42));
-      const k = fade.mul(smoothstep(0, 0.15, T.c)), top = k.mul(mix(under2, smoothstep(0.1, 0.95, T.c), mean));
+      // (none of it while it has no colour yet: its kinds' far ends not yet baked and its biome saying none,
+      // src/terrain/layers.js standColours)
+      const k = fade.mul(smoothstep(0, 0.15, T.c)).mul(step(0, S.colour.x)), top = k.mul(mix(under2, smoothstep(0.1, 0.95, T.c), mean));
       M.c.assign(mix(M.c, crown, top)); M.n.assign(M.n.mul(float(1).sub(top))); M.h.assign(mix(M.h, under2, k)); M.g.assign(M.g.mul(float(1).sub(top)));
       If(S.reach.greaterThan(0), () => { shade.assign(max(shade, T.c.mul(T.n.mul(0.9).add(0.3)).min(0.85).mul(float(1).sub(top)))); });   // the floor between the crowns in their shade (the crowns themselves in the light)
     });
@@ -237,8 +239,10 @@ export function terrainMaterial(vt) {
     const G = vt.read(p, dx, dy, rdist, { eye: normalize(U.uCam.sub(vWorld)), level: by(vWorld, [dx, dy]) });   // (along the eye's ray through the ground's relief: parallax)
     // where the meadow's blades stand, what shows between them is their lower halves, as dark to their tips as a blade
     // is (src/scatter/grass.js underShade), drawn over it; as they thin out towards its end it comes out of it (their own
-    // share at the pixel's distance: endOf), their tips' then
-    const blades = endOf(dist2), c = G.c.mul(mix(float(1), underShade(), G.cv.mul(blades))).toVar(), cv = G.cv, h = G.h;
+    // share at the pixel's distance: endOf), what a field of them shows from where the eye is then: their tips along
+    // the ground, more of their depth and the floor between them from above (meadowSeen)
+    const blades = endOf(dist2), seen = meadowSeen(normalize(U.uCam.sub(vWorld)), G.cv);
+    const c = G.c.mul(mix(float(1), mix(seen.shade, underShade(), blades), G.cv)).toVar(), cv = G.cv, h = G.h;
     // past where the shadow cascades reach round the camera (the farthest of them: SHADE_REACH, src/world/shadow.js), a
     // stand's floor lies in its crowns' shade
     const shade = SHADE_REACH > 0 ? G.shade.mul(smoothstep(SHADE_REACH * 0.8, SHADE_REACH, length(p.sub(U.uCam.xz)))) : float(0);
@@ -265,9 +269,10 @@ export function terrainMaterial(vt) {
     const colour = weathered(mix(c.mul(mix(1, 0.5, wet)), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9).toVar();
     const sun = cs.mul(sunDim()).mul(shadowAt(vWorld)).mul(float(1).sub(shade)).toVar();
     const ground = lit({ colour, n, w: vWorld, sun, ndl: sunl, sky: cs.mul(0.3).add(0.7).mul(float(1).sub(shade.mul(0.35))), gloss: wet.mul(0.3), sharp: 48 });
-    // (past the meadow's blades the carpet is their aggregate, lit as they are at their tips, the meadow's top:
-    // src/scatter/grass.js bladeLight; the ground's own light where it is bare, under snow or under the blades)
-    return mix(ground, lit({ colour, n, w: vWorld, sun, ...bladeLight(n, float(1)) }), cv.mul(float(1).sub(blades)).mul(float(1).sub(snow)));
+    // (past the meadow's blades the carpet is their aggregate, lit as they are where the eye meets them (meadowSeen: at
+    // their tips along the ground): src/scatter/grass.js bladeLight; the ground's own light where it is bare, under snow
+    // or under the blades)
+    return mix(ground, lit({ colour, n, w: vWorld, sun, ...bladeLight(n, seen.t) }), cv.mul(float(1).sub(blades)).mul(float(1).sub(snow)));
   });
 
   const m = new THREE.NodeMaterial(); m.positionNode = vertex(); m.fragmentNode = frag(); m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)

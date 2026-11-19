@@ -38,7 +38,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, bool, uniformArray, vec4, abs, max, cameraProjectionMatrix, cameraViewMatrix } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { compileFor, compileList, made, ask, pending, labelled } from '../core/compile.js';
-import { complete } from '../core/settle.js';
+import { shown } from '../core/settle.js';
 import { twinOf, passOf } from '../core/pass.js';
 import { note, mark } from '../core/gpu.js';
 import { stood, moves } from '../core/work.js';
@@ -116,7 +116,6 @@ export const castRoute = (renderer, target, camera, missed = null) => {
 // (whether what a map left out has come since: none of it still being made, and some of it made (what was let go, its
 // compile failed or not reached, comes no more: it never makes the map again). Before the first frame it is drawn again
 // at once (the first frame shows it whole); after it, by the map's own turns: a cascade a frame
-let shown = false; complete.then(() => (shown = true));
 /** missing: the casters a map left out (it is emptied once they are settled). Whether any of them came. */
 export const arrived = (missing) => {
   if (!missing.size || [...missing].some((o) => pending(o, 'cast'))) return false;
@@ -193,7 +192,7 @@ export function createShadows(renderer) {
       }
       arrived(at[0].missing);   // (the near one is drawn every frame: what it left out comes in its next)
       const gone = Math.hypot(at[n - 1].eye.x - camera.position.x, at[n - 1].eye.z - camera.position.z) > half[n - 1];
-      if (!U.uShadowOn.value || (came && !shown) || gone || at.some((A) => !A.drawn)) return half.map((_, k) => n - 1 - k);
+      if (!U.uShadowOn.value || (came && !shown()) || gone || at.some((A) => !A.drawn)) return half.map((_, k) => n - 1 - k);
       for (let i = 0; i < n - 1; i++, next = next % (n - 1) + 1) if (at[next].due) { const k = next; next = next % (n - 1) + 1; return [k, 0]; }
       return [0];
     },

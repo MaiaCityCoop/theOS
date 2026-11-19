@@ -45,7 +45,7 @@ import { U } from '../core/uniforms.js';
 import { rnd, camDist, heightAt } from '../world/land.nodes.js';
 import { layersOf, posIn, placeIn, grownIn, grovesOf, writersOf } from './rule.js';
 import { createGrowth } from './growth.js';
-import { toScreen, airOf, lightOn, sunAt, contactShade, weatherOn, snowLiftAtVertex, unlit, windAt, windDir, windStrength, ign } from '../world/light.js';
+import { toScreen, airOf, lightOn, shineOf, sunAt, contactShade, weatherOn, snowLiftAtVertex, unlit, windAt, windDir, windStrength, ign } from '../world/light.js';
 import { passOf, cut, motion, vWas } from '../core/pass.js';
 import { CLEARINGS } from '../../world/places.js';
 import { recipe, recipes, versionOf } from '../core/registry.js';
@@ -53,9 +53,9 @@ import { scatterRow } from '../../assets/index.js';
 import { kindOf, sizeOf, most } from '../../assets/kinds.js';
 import { levelOf, handOver, sinkInto } from '../detail/handover.js';
 import { createAtlas, bakers, viewClip, tileClip, impostorRead, clumpRead, facingOf, facingEnc, planeFrame, litIn, atlases } from '../detail/impostor.js';
-import { levelsUnder } from '../detail/atlas.js';
+import { levelsUnder, PICTURES } from '../detail/atlas.js';
 import { offScreen, clipOf, Tier } from './tier.js';
-import { createDrawer } from './drawer.js';
+import { createDrawer, pool } from './drawer.js';
 import { castsInto } from '../world/shadow.js';
 import { heapRow } from './heap.js';
 import { plantOf } from './plantvert.js';
@@ -74,6 +74,7 @@ import { BAND, FADE } from '../detail/error.js';
 import { source } from '../core/settle.js';
 import { gpuStorage } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
+import { shows } from '../detail/seen.js';
 
 /** A half float's 16 bits as the number (what assets/kit/plant.js wrote). */
 const unhalf = (h) => { const e = (h >> 10) & 31, m = h & 1023, v = e === 0 ? m * 2 ** -24 : e === 31 ? Infinity : (1 + m / 1024) * 2 ** (e - 15); return h & 0x8000 ? -v : v; };
@@ -199,6 +200,12 @@ const wear = (mesh, tex, row, shape = 0) => {
   Object.assign(mesh.userData, { hk: N.hk, ks: N.ks, wind: new THREE.Vector4(...N.wind), leaf: new THREE.Vector4(...N.leaf), twig: N.twig, tint: new THREE.Vector3(...N.tint) });
   return mesh;
 };
+// each plant its own green (its leaves'): lighter or darker by its seed, warmer (yellower) or cooler (bluer) by its turn,
+// each even over its plants; and their mean, what a stand of them shows on the whole (farOf: src/detail/seen.js)
+const WARM = [1.07, 1.0, 0.78], COOL = [0.86, 0.98, 1.1], LIGHTER = [0.84, 0.3];
+const ownGreen = (turn, seed) => mix(vec3(...WARM), vec3(...COOL), turn.mul(1.1631).fract()).mul(seed.mul(LIGHTER[1]).add(LIGHTER[0]));
+const GREEN = WARM.map((w, c) => ((w + COOL[c]) / 2) * (LIGHTER[0] + LIGHTER[1] / 2));
+const CH = Object.fromEntries(PICTURES.map((P) => [P.name, P.channels.length]));   // (a far end's pictures' numbers a texel, by name)
 const ofMesh = (key, start, type) => uniform(start, type).onObjectUpdate(({ object }) => object?.userData?.[key]);
 
 /** A stand's light at w, the one light's (src/world/light.js lightOn): the sky's and the sun's on the dome its crown makes
@@ -207,18 +214,22 @@ const ofMesh = (key, start, type) => uniform(start, type).onObjectUpdate(({ obje
     snow (in clumps); the air before it. n0: its way, turned with the plant; Ve: the way to the eye; share: the share of the
     sun that reaches w; tint: its own green (a card's; its wood's, white); leaf: how much of it is leaf, 0 … 1 (a far
     end's texel, which may be part leaf and part wood: src/detail/impostor.js impostorRead; else its part's, a card and a
-    plane all, its wood none), what its leaves' light is mixed in by. -> { sky, sun: what its texture's colour is
+    plane all, its wood none), what its leaves' light is mixed in by; rough, ns: a card's painting's roughness where the
+    pixel is (src/materials/bake.js tex.r) and the way its own card faces: its leaves' highlight (shineOf), reflected
+    off the card, not the dome (what a leaf reflects is as it faces). -> { sky, sun: what its texture's colour is
     multiplied by, the sky's part and the sun's apart (a pixel takes the sun's less what the contact shadows say), add:
-    what is added (the snow on it, the air before it), through: the sun through its needles } */
-const standLight = ({ w, n0, Ve, part, leaf = part.greaterThan(0.5).select(float(1), float(0)), ao, wrap, shines, clumps, tint, share }) => {
+    what is added (the snow on it, the air before it), through: the sun through its needles, spec: its leaves'
+    highlight, added } */
+const standLight = ({ w, n0, Ve, part, leaf = part.greaterThan(0.5).select(float(1), float(0)), ao, wrap, shines, clumps, tint, share, rough = null, ns = null }) => {
   const n = n0.dot(Ve).lessThan(0).select(n0.negate(), n0), sd = n.dot(U.uSunDir);
   const ndl = mix(sd, sd.add(wrap).div(wrap.add(1)), leaf).max(0);   // needles take the light round their edge
-  const Lo = lightOn({ n, w, V: Ve, sun: share, ndl, through: shines.mul(leaf), ao });   // the sun behind a brush of needles shines through it
+  const own = ns ? ns.dot(Ve).lessThan(0).select(ns.negate(), ns) : null, shine = rough ? shineOf(rough, max(own.dot(U.uSunDir), 0)) : {};   // (its leaves' highlight: off its own card, the side the eye sees)
+  const Lo = lightOn({ n, w, V: Ve, sun: share, ndl, through: shines.mul(leaf), ao, ...shine, ns: own ?? undefined });   // the sun behind a brush of needles shines through it
   const through = pow(Lo.back, 3).mul(shines).mul(leaf);
   const W = weatherOn(n, snowLiftAtVertex(w, clumps)), air = airOf(w);   // what the weather does to it (wet, its snow in clumps), and the air before it
   // (a chunk's plane is lit texel by texel, as its leaves are: here only what that light is multiplied by)
-  const keep = tint.mul(W.keep).mul(air.k), plane = step(1.5, part).greaterThan(0.5);
-  return { through, sky: plane.select(keep, Lo.sky.mul(keep)), sun: plane.select(vec3(0), Lo.sun.mul(keep)), add: W.add.mul(Lo.sky.add(Lo.sun)).mul(air.k).add(air.col.mul(float(1).sub(air.k))) };
+  const keep = tint.mul(W.keep).mul(air.k), plane = step(1.5, part).greaterThan(0.5), card = part.greaterThan(0.5).and(plane.not());
+  return { through, sky: plane.select(keep, Lo.sky.mul(keep)), sun: plane.select(vec3(0), Lo.sun.mul(keep)), add: W.add.mul(Lo.sky.add(Lo.sun)).mul(air.k).add(air.col.mul(float(1).sub(air.k))), spec: card.select(Lo.spec.mul(W.keep).mul(air.k), vec3(0)) };
 };
 
 // the one material of everything that stands in a stand, whatever its kind: shape(A, B) its vertex from what plantIn
@@ -247,7 +258,7 @@ function plantMaterial(tex, D) {
       return { position: positionGeometry, normal: attribute('normal', 'vec3'), uv: attribute('uv', 'vec2'), part: pa.x, ao: pa.y, cn: attribute('cn', 'vec3'), root: attribute('root', 'vec3'), twig: pa.z, shade: seedOf(B), ...own,
         crowd: { tip: tg.xyz, go: tg.w, rule: [0, 1, 2, 3].map((j) => ofMesh(`rule${j}`, new THREE.Vector4(), 'vec4')) } };
     };
-    const LU = Lv && levelOf(Lv, D.fade), LC = Lv ? { lo: uniform(Lv.lo), hi: uniform(Number.isFinite(Lv.hi) ? Lv.hi : 1e9) } : null;   // (its level's sizes as they are, uniforms: every level one shader)
+    const LU = Lv && levelOf(Lv, D.fade), LC = Lv ? levelEnds(Lv) : null;   // (its level's sizes as they are, uniforms: every level one shader)
     // what a pixel needs: where on its texture, and its light. In the colour pass (src/core/pass.js) the light is worked
     // out where the pixel is (vW: its point, vN: its way, vTint: its green, vK: ao, wrap, shines, clumps): that pass shades
     // one fragment a pixel (its equal test drops every hidden one before it is shaded), and at eye level a stand has
@@ -255,7 +266,8 @@ function plantMaterial(tex, D) {
     // cost seven times a pixel's. Anywhere else (a library's picture) it is worked out at its corners (vMul: the sky's part
     // of what its texture's colour is multiplied by, vSun: the sun's, which a pixel takes less what the contact shadows
     // say; vAdd: what is added), and a pixel reads its texture and is done.
-    const vUv = varyingProperty('vec2', 'tUv'), vMul = varyingProperty('vec3', 'tMul'), vSun = varyingProperty('vec3', 'tSun'), vAdd = varyingProperty('vec3', 'tAdd');
+    const vUv = varyingProperty('vec2', 'tUv'), vMul = varyingProperty('vec3', 'tMul'), vSun = varyingProperty('vec3', 'tSun'), vAdd = varyingProperty('vec3', 'tAdd'), vSpec = varyingProperty('vec3', 'tSpec');
+    const vCn = varyingProperty('vec3', 'tCn');   // (the way its own card faces: what its leaves' highlight is reflected off, standLight)
     const vW = varyingProperty('vec3', 'tW'), vN = varyingProperty('vec3', 'tN'), vTint = varyingProperty('vec3', 'tTint'), vK = varyingProperty('vec4', 'tK');
     const vPart = varyingProperty('float', 'tPart'), vCut = varyingProperty('vec2', 'tCut');   // vCut: the needles' cut, and how far a card is from edge-on
     const vLay = varyingProperty('vec2', 'tLay');   // (the layers of its leaves' and its wood's textures: its kind's)
@@ -281,7 +293,7 @@ function plantMaterial(tex, D) {
         // (the level beside it draws the same there). Its rule reckons a plant by its own size on screen, each of its
         // rungs by its own error (crowdRule). Where it is its impostor (meshShare), nothing of its mesh shows
         const own = px ?? pxOf(A.w, A.xy), at = dialPxAt(own), H = handOver(at, LU, D.sink);   // (its level's ends in the dial's pixels: src/detail/error.js)
-        const above = Lv.first ? H.u.greaterThan(0) : at.lessThan(LC.hi), below = Lv.last ? H.sunk.greaterThan(0) : at.greaterThanEqual(LC.lo);
+        const above = LC.first.equal(1).select(H.u.greaterThan(0), at.lessThan(LC.hi)), below = LC.last.equal(1).select(H.sunk.greaterThan(0), at.greaterThanEqual(LC.lo));
         const R = crowdRule(own, V, V.crowd), mesh = meshShare(V.Tf, own, V.Ks, V.shade), show = above.and(below).and(R.shown).and(mesh.greaterThan(0));
         // (its sprigs' own swing fades out over the BAND above where its crowd ends (its rule's HI, metres: its clumps or
         // its impostor come there): they, and its impostor, sway with the crown only, so nothing stops as one hands over
@@ -332,16 +344,19 @@ function plantMaterial(tex, D) {
       vCut.assign(vec2(mix(0.45, 0.16, smoothstep(15, 220, far)), max(smoothstep(0.06, 0.42, abs(normalize(turn(cardN)).dot(Ve))), body).mul(smoothstep(0.35, 1.3, far))));
       // each plant its own green: lighter or darker, and warmer (yellower) or cooler (bluer)
       const leaf = part.greaterThan(0.5), n0 = normalize(turn(V.normal));
-      const tint = leaf.select(mix(vec3(1.07, 1.0, 0.78), vec3(0.86, 0.98, 1.1), B.z.mul(1.1631).fract()).mul(V.shade.mul(0.3).add(0.84)).mul(Tn), vec3(1));
+      const tint = leaf.select(ownGreen(B.z, V.shade).mul(Tn), vec3(1));
       if (pass === 'main') {   // (the colour pass: what its pixels light themselves by; a chunk's plane's wrap and turn)
-        vW.assign(w); vN.assign(n0); vTint.assign(tint); vK.assign(vec4(ao, wrap, shines, clumps));
+        vW.assign(w); vN.assign(n0); vTint.assign(tint); vK.assign(vec4(ao, wrap, shines, clumps)); vCn.assign(normalize(turn(cardN).add(vec3(0, 1e-6, 0))));
         if (vLit) vLit.assign(vec4(0, 0, wrap, B.x));
       } else if (pass !== 'pre' && pass !== 'shadow') {   // (the prepass and the shadow map: only its depth and its cut-out count)
-        vMul.assign(vec3(0)); vSun.assign(vec3(0)); vAdd.assign(vec3(0));
+        vMul.assign(vec3(0)); vSun.assign(vec3(0)); vAdd.assign(vec3(0)); vSpec.assign(vec3(0));
         If(unlit().not(), () => {
           // its light at each corner: one look at the shadow map (nine taps) and the clouds' map; a chunk's plane's light
           // reads it too (vLit: the sun as it reaches this corner, through-light, wrap, the turn)
-          const share = sunAt(w, 'vertex').toVar(), S = standLight({ w, n0, Ve, part, ao, wrap, shines, clumps, tint, share });
+          // (and its leaves' highlight at each corner: its painting's roughness at its card's middle, read at its level 0)
+          const rough = tex.r(floor(V.twig.greaterThan(0.5).select(V.Tw, V.Lf.z).add(0.5)), vec2(0.5), null, null, 0);
+          const share = sunAt(w, 'vertex').toVar(), S = standLight({ w, n0, Ve, part, ao, wrap, shines, clumps, tint, share, rough, ns: normalize(turn(cardN).add(vec3(0, 1e-6, 0))) });
+          vSpec.assign(S.spec);
           if (vLit) vLit.assign(vec4(share, S.through, wrap, B.x));
           vMul.assign(S.sky); vSun.assign(S.sun); vAdd.assign(S.add);
         });
@@ -360,7 +375,7 @@ function plantMaterial(tex, D) {
       const leaf = vPart.greaterThan(0.5), T = vec4(1).toVar(), alpha = float(1).toVar(), shadow = unlit();
       // (the colour pass: its light where the pixel is, the same light its corners would have had (standLight), the sun
       // as it reaches the pixel looked up as a corner looks it up: one look at the shadow map, nine taps)
-      const lit = pass === 'main' ? (() => { const w = vW, share = sunAt(w, 'vertex').toVar(); return { share, ...standLight({ w, n0: normalize(vN), Ve: normalize(U.uCam.sub(w)), part: vPart, ao: vK.x, wrap: vK.y, shines: vK.z, clumps: vK.w, tint: vTint, share }) }; })() : null;
+      const lit = pass === 'main' ? (() => { const w = vW, share = sunAt(w, 'vertex').toVar(); return { share, ...standLight({ w, n0: normalize(vN), Ve: normalize(U.uCam.sub(w)), part: vPart, ao: vK.x, wrap: vK.y, shines: vK.z, clumps: vK.w, tint: vTint, share, rough: tex.r(floor(vLay.x.add(0.5)), vUv), ns: vCn }) }; })() : null;
       // (while its impostor comes, as much of its mesh as is still its own: meshShare, cross-faded under the picture built
       // over time (handing); cut in the prepass)
       const fading = () => { if (FAR) cut(builder, handing(vFade).not()); };
@@ -400,7 +415,7 @@ function plantMaterial(tex, D) {
       // (its fourth number: in the world's frame what was kept may be trusted, its motion said; drawn where the target is
       // multisampled, a library's picture, it is the coverage)
       // (the sun's part less what the contact shadows say: leaf on leaf)
-      If(shadow.not(), () => { out.assign(vec4(toScreen(T.rgb.mul(T.rgb).mul(lit ? lit.sky.add(lit.sun.mul(contactShade())) : vMul.add(vSun.mul(contactShade()))).add(lit ? lit.add : vAdd)).rgb, pass ? float(1) : alpha)); });
+      If(shadow.not(), () => { out.assign(vec4(toScreen(T.rgb.mul(T.rgb).mul(lit ? lit.sky.add(lit.sun.mul(contactShade())) : vMul.add(vSun.mul(contactShade()))).add(lit ? lit.add : vAdd).add(lit ? lit.spec : vSpec)).rgb, pass ? float(1) : alpha)); });   // (and its leaves' highlight: standLight)
       return out;
     });
     const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.alphaToCoverage = true; m.userData.pre = true; m.userData.shadow = true;   // (it takes part in the prepass: src/core/pass.js)
@@ -414,8 +429,12 @@ function plantMaterial(tex, D) {
     last level does; each pixel its three nearest views blended, and lit as its leaves are, pixel by pixel. (Its quad
     writes its own depth, not what it shows: a shader that wrote it would be worked out for every pixel hidden behind
     nearer crowns too.) */
+/** A level's ends as its material reads them: its sizes on screen and whether it is the first or the last of its stand,
+    uniforms all, so every level of a stand's plants is one shader, and every level of its impostors one (2026-11-19:
+    first, middle and last were three, differing in two words). */
+const levelEnds = (Lv) => ({ lo: uniform(Lv.lo), hi: uniform(Number.isFinite(Lv.hi) ? Lv.hi : 1e9), first: uniform(Lv.first ? 1 : 0, 'uint'), last: uniform(Lv.last ? 1 : 0, 'uint') });
 function impostorMaterial(G, D, Lv, src) {
-  const LU = levelOf(Lv, G.fade), LC = { lo: uniform(Lv.lo), hi: uniform(Number.isFinite(Lv.hi) ? Lv.hi : 1e9) }, slot = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.slot ?? 0);
+  const LU = levelOf(Lv, G.fade), LC = levelEnds(Lv), slot = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.slot ?? 0);
   const vP = varyingProperty('vec3', 'iP'), vE = varyingProperty('vec3', 'iE'), vS = varyingProperty('float', 'iS');
   const vK = varyingProperty('vec4', 'iK'), vT = varyingProperty('vec3', 'iT'), vX = varyingProperty('vec3', 'iX'), vLit = varyingProperty('vec4', 'iLit');
   const m = new THREE.NodeMaterial();
@@ -423,7 +442,7 @@ function impostorMaterial(G, D, Lv, src) {
     const A = src.readAt(0, slot), B = src.readAt(1, slot), clip = offScreen().toVar(), kind = uint(B.y.add(0.5));
     const r0 = D().numOf(kind, 0), r2 = D().numOf(kind, 2), r3 = D().numOf(kind, 3), r4 = D().numOf(kind, 4);
     const own = pxOf(A.w, A.xy), at = dialPxAt(own), H = handOver(at, LU, G.sink);
-    const above = Lv.first ? H.u.greaterThan(0) : at.lessThan(LC.hi), below = Lv.last ? H.sunk.greaterThan(0) : at.greaterThanEqual(LC.lo);
+    const above = LC.first.equal(1).select(H.u.greaterThan(0), at.lessThan(LC.hi)), below = LC.last.equal(1).select(H.sunk.greaterThan(0), at.greaterThanEqual(LC.lo));
     const share = float(1).sub(meshShare(r3.z, own, r3.y, seedOf(B)));
     If(above.and(below).and(share.greaterThan(0)), () => {
       // its sphere in the world (its scale; leaning as its mesh leans: plantMaterial's stand; sunk, it shrinks to its
@@ -444,7 +463,7 @@ function impostorMaterial(G, D, Lv, src) {
       // what it is lit by, as its mesh is (standLight): the sun as it reaches its middle, once for the plant (a few
       // pixels), and its kind's numbers its mesh's corners carry (its leaves' wrap and how much the sun shines through
       // them, its snow's clumps: numbersOf); its own green (as its cards': plantMaterial)
-      vT.assign(mix(vec3(1.07, 1.0, 0.78), vec3(0.86, 0.98, 1.1), B.z.mul(1.1631).fract()).mul(seedOf(B).mul(0.3).add(0.84)).mul(r0.yzw));
+      vT.assign(ownGreen(B.z, seedOf(B)).mul(r0.yzw));
       if (passOf(builder) !== 'shadow') vLit.assign(vec4(sunAt(c, 'vertex'), r2.y, r2.x, D().numOf(kind, 1).w));
       // it sways in the one wind as its mesh does (swayOf), each corner as far as its height up the plant: what it
       // shows is read where it stood still (vP), so its picture leans with the wind as the crown does; and for the
@@ -573,6 +592,26 @@ function farOf(renderer, tex, G, D) {
     const geo = new THREE.InstancedBufferGeometry(), tgeo = new THREE.InstancedBufferGeometry(), mesh = (g, v) => Object.assign(new THREE.Mesh(g, null), { frustumCulled: false, userData: { materials: [mat(v, colourF), mat(v, dataF)] } });   // (tgeo: no corners of its own, its vertex stage reads them)
     return (M = { kindU, levelU, rowU, sphereU, nU, cells, CL, geo, tgeo, view: mesh(geo, viewV), tile: mesh(tgeo, tileV) });
   };
+  // what a shape shows, on the whole (src/detail/seen.js), read from its pictures as they are baked or kept: their least
+  // level (each texel already its cover's mean of those under it: src/detail/impostor.worker.js), as its impostor shows
+  // it farthest, where the land takes over. Each picture alike (the land is seen from any of its views), each texel by its
+  // cover: its albedo, the square of what its colour keeps (src/detail/atlas.js PICTURES), its leaves (by its leaf
+  // picture) in its kind's green and its plants' own, on the whole (GREEN), as its impostor tints them (mix(1, tint, leaf))
+  const kindOfShape = (k) => G.kinds.find((Kd) => k >= Kd.offset && k < Kd.offset + Kd.shapes);
+  const seenIn = (k, levels) => {
+    const Lv = levels?.at(-1); if (!Lv) return;
+    const n = Lv.n, cell = n / A.VIEWS, Kd = kindOfShape(k), Tn = G.numbers.subarray(k * 20 + 1, k * 20 + 4), T = [0, 1, 2].map((c) => Tn[c] * GREEN[c] - 1), sum = [0, 0, 0], P = [0, 0, 0];
+    let pics = 0;
+    for (let py = 0; py < A.VIEWS; py++) for (let px = 0; px < A.VIEWS; px++) {
+      let w = 0; P.fill(0);
+      for (let y = 0; y < cell; y++) for (let x = 0; x < cell; x++) {
+        const o = (py * cell + y) * n + px * cell + x, a = Lv.colour[o * CH.colour + 3] / 255, f = Lv.leaf[o * CH.leaf] / 255; if (!(a > 0)) continue;
+        w += a; for (let c = 0; c < 3; c++) P[c] += a * (Lv.colour[o * CH.colour + c] / 255) ** 2 * (1 + f * T[c]);
+      }
+      if (w > 0) { for (let c = 0; c < 3; c++) sum[c] += P[c] / w; pics++; }
+    }
+    if (pics) shows(Kd.asset, k - Kd.offset, Kd.shapes, sum.map((v) => v / pics));
+  };
   // its numbers, once its pictures are in: its sphere; T, its impostor's error (metres, at scale 1: its views' texel and
   // what their spacing and its parallax misplace, as the crowd kit measured it for these atlases: its far data's sixth
   // number), which the one ratio holds against the dial (meshShare)
@@ -604,7 +643,7 @@ function farOf(renderer, tex, G, D) {
       const per = G.tiles, rows = Math.ceil((nc * 3) / per), most = Uint32Array.from({ length: rows }, (_, r) => { let m = 0; for (let t = r * per; t < Math.min((r + 1) * per, nc * 3); t++) m = Math.max(m, T.count[Math.floor(t / 3)]); return m; });
       b = await bakers(renderer).tiles(per).bake(clumpsOf(), G.clumpLayer[k], rows, (r) => { B.rowU.value = r; B.tgeo.instanceCount = per; B.tgeo.setDrawRange(0, most[r]); return B.tile; });
     }
-    return { done: Promise.all([a.done, b?.done]).then(([va, vb]) => { keptPut(keptAs(), key, { views: va, clumps: vb ?? null }); numbers(k, far); }) };
+    return { done: Promise.all([a.done, b?.done]).then(([va, vb]) => { keptPut(keptAs(), key, { views: va, clumps: vb ?? null }); numbers(k, far); seenIn(k, va); }) };
   };
   return {
     views, clumps: () => clumpsOf(), version: () => version, ready: () => any,
@@ -627,7 +666,7 @@ function farOf(renderer, tex, G, D) {
         keptGet(keptAs(), keyOf(k)).then((kept) => {
           if (!kept) return queue.push(J);
           waiting.delete(k); views.put(k, kept.views); if (kept.clumps && G.clumpLayer[k] >= 0) clumpsOf().put(G.clumpLayer[k], kept.clumps);
-          numbers(k, far); out--;
+          numbers(k, far); seenIn(k, kept.views); out--;
         }, () => queue.push(J));
       }
     },
@@ -684,6 +723,19 @@ function cutOf(G) {
     pad its band keeps for that (src/detail/handover.js padOf); what the level looks at is its region tree's
     (src/scatter/regions.js), however far its band reaches. */
 const patchOf = (cell, reach) => Math.min(256, Math.max(4, 2 ** Math.ceil(Math.log2(Math.max(1, (0.105 * reach) / cell)))));
+
+/** At a start with nothing kept of a tree kind's rooms (assets/kit/tree.js crowdRooms): its outline and its rooms
+    reckoned by the recipes' workers, a job a kind, side by side and beside the rest of the start, and taken by its asset
+    as if kept (takeOutline), before the stands are made (src/boot.js). The page's thread builds none of their meshes: it
+    built every kind's finest and reckoned its crowd, 2.9 of the scatter stage's 5 s (2026-11-19, the master's loadMs).
+    A promise, once every kind is in; a kind its worker could not reckon is reckoned on the page, as before. world:
+    whether the start makes the world's stands (the library's stage makes them when a subject asks: nothing ahead). */
+export function outlinesAhead(world = true) {
+  const A = world ? atlases() : null, kinds = world ? recipes('asset').filter((a) => a.outlineFor && !a.roomsKnown(A)) : [];
+  if (!kinds.length) return Promise.resolve();
+  const ask = pool(), plain = { ...A };
+  return Promise.all(kinds.map((a) => ask([['outline', a.uid, plain]]).then(([o]) => a.takeOutline(A, o), (e) => console.warn(`plants: the workers could not reckon '${a.name}': reckoned here`, e))));
+}
 
 /** Everything this engine places: for every stand a drawer of its own kinds (drawer.js: a heap of their shapes at their
     levels) and a tier a level of detail, each where a plant of it is the size on screen its kind asks, a draw a

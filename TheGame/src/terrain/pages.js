@@ -33,12 +33,13 @@ import { note, gpuStorage, roomOf } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { source, ready } from '../core/settle.js';
 import { FRAME_MS, FRAME_MS_BY_CLASS } from '../core/budget.js';
+import { ownGpuMs, pace } from '../core/pace.js';
 import { pxAt, dialPxAt } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
 import { endOf } from '../scatter/grass.js';
 import { reliefShares, reliefOverSnow } from './relief.js';
 import { SOIL_RELIEF, FIXATION } from '../world/physics.js';
-import { layerTables, layerWords, layersFrom, MAPN } from './layers.js';
+import { layerTables, layerWords, layersFrom, standColours, MAPN } from './layers.js';
 import { laid, slopeAt, groundRead, cavityOf, PSTEPS } from './material.js';
 import { wear } from './decals.js';
 import { steps, colours } from '../materials/bake.js';
@@ -253,31 +254,18 @@ export function createPages(renderer, tex) {
   };
   // ---- the pages a frame lays: held to what the GPU does in the ground's share of a frame ----
   // (FRAME_MS_BY_CLASS.ground, src/core/budget.js; behind the veil, till the first view is shown, the whole frame's:
-  // nothing is seen moving then). The GPU's pace is measured, not reckoned (it differs a device to the next): each lay's
-  // own time on the GPU (from when it is handed over, or when the GPU has done all handed before it, whichever is later,
-  // to when it is done), a page's share of it, and the frame's pages follow it: fewer where a page took longer, at most
-  // twice as many a frame where it took less (as the tiers' packing: src/scatter/tier.js). The pins (pinTop) and the
-  // queue (layQueue) share them, the pins first; what is left waits for the frames after. From one page a frame.
-  const PACE = { pages: 1, left: 1, grew: -1 };
+  // nothing is seen moving then), by each lay's own time on the GPU (src/core/pace.js: as the tiers' packing). The pins
+  // (pinTop) and the queue (layQueue) share them, the pins first; what is left waits for the frames after. From one page
+  // a frame.
+  const PACE = pace();
   let pinsOut = 0;   // (the last level's pages round the camera not laid yet: what the frame's pace left)
   let veiled = true; ready.then(() => { veiled = false; });
-  const paced = (list) => {
-    const q = renderer.backend?.device?.queue;
-    if (!q?.onSubmittedWorkDone) { lay(list); return; }   // (the CPU's stand-in, tools/gpu-mock.js: laid, not measured)
-    const before = q.onSubmittedWorkDone().then(() => performance.now()), t0 = performance.now();
-    lay(list);
-    const after = q.onSubmittedWorkDone().then(() => performance.now());
-    Promise.all([before, after]).then(([d0, d1]) => {
-      const own = Math.max(1e-3, d1 - Math.max(t0, d0)), fit = Math.max(1, Math.floor(((veiled ? FRAME_MS : FRAME_MS_BY_CLASS.ground) * list.length) / own));
-      if (fit < PACE.pages) PACE.pages = fit;
-      else if (PACE.grew !== frame) { PACE.pages = Math.min(fit, 2 * PACE.pages); PACE.grew = frame; }   // (more at most once a frame, twice as many at most)
-    }).catch(() => {});
-  };
-  // make each of these pages, BATCH at a time, as many as `most` and as the frame's pace leaves: how many were made
-  const make = (pages, most) => {
+  const paced = (list) => ownGpuMs(renderer, () => lay(list))?.then((ms) => PACE.measured(list.length, ms, veiled ? FRAME_MS : FRAME_MS_BY_CLASS.ground)).catch(() => {});
+  // make each of these pages, BATCH at a time, as many as the frame's pace leaves: how many were made
+  const make = (pages) => {
     let n = 0, batch = [];
     for (const q of pages) {
-      if (n >= most || PACE.left <= 0) break;
+      if (PACE.left <= 0) break;
       const k = keyOf(q.m, q.i, q.j); if (IN.has(k) || !inWin(q.m, q.i, q.j)) continue;
       const slot = slotFor(); if (slot < 0) break;
       const P = { key: k, m: q.m, i: q.i, j: q.j, slot, idx: at(q.m, q.i, q.j), used: frame, pin: !!q.pin };
@@ -411,7 +399,7 @@ export function createPages(renderer, tex) {
   // camera too), pages fading in, the bias being chosen, and until a whole sweep has been read, every frame of it,
   // since anything changed what is asked for (the camera moved, the pixels drawn, the bias, the relief's heights):
   // until then a pixel may not have asked yet
-  source('pages', () => queue.length + pinsOut + fading.length + (pick ? 1 : 0) + (sweptSince(quietFrom) ? 0 : 1));
+  source('pages', () => queue.length + pinsOut + stale.length + fading.length + (pick ? 1 : 0) + (sweptSince(quietFrom) ? 0 : 1));
 
   // ---- what update does once a frame, step by step ----
   // the frame's length: how many of a block's pixels ask (all of them within a fixation), the sweep's frames at that, and
@@ -426,6 +414,23 @@ export function createPages(renderer, tex) {
   const relay = (size) => {
     const k2 = `${U.uSand.value.toArray()}|${U.uStage.value.toArray()}|${U.uStageGround.value.toArray()}|${size.y}`;
     if (k2 !== key) { log({ k: 'flush', key: k2 }); key = k2; flush(); uPxS.value = size.y / (2 * Math.tan((34 * Math.PI) / 180)); }
+    // and the pages a stand's colour shows in, once it comes (its kinds' far ends baked: src/terrain/layers.js
+    // standColours): those laid for as far off as it comes in (a page's distance: its texel's, s × uPxS) laid again where
+    // they are (relayStale), the coarsest first; the nearer kept
+    const near = standColours();
+    if (near >= 0) { stale = [...IN.values()].filter((P) => S0 * 2 ** P.m * uPxS.value >= near).sort((a, b) => a.m - b.m); log({ k: 'stale', near, n: stale.length }); }
+  };
+  // pages laid again where they are, shown as they were till then (stale: a stand's colour come), as many as the frame's
+  // pace leaves after the pins and the queue
+  let stale = [];
+  const relayStale = () => {
+    let batch = [];
+    while (stale.length && PACE.left > 0) {
+      const P = stale.pop(); if (IN.get(P.key) !== P) continue;
+      batch.push(P); PACE.left--;
+      if (batch.length === BATCH) { paced(batch); batch = []; }
+    }
+    if (batch.length) paced(batch);
   };
   // the camera's speed: metres and radians a frame. (A jump needs nothing of its own: what was asked for before it is
   // forgotten in two sweeps, and the bias is chosen again from what is asked for after it)
@@ -454,7 +459,7 @@ export function createPages(renderer, tex) {
       const Q = IN.get(keyOf(TOP, i, j)); if (Q) { Q.pin = true; Q.used = frame; } else pins.push({ m: TOP, i, j, pin: true });
     }
     for (const Q of IN.values()) if (Q.pin && Q.m === TOP && Q.used < frame) Q.pin = false;
-    pinsOut = pins.length ? pins.length - make(pins, Infinity) : 0;   // (as many as the frame's pace leaves: after a start or a jump many, never all at once)
+    pinsOut = pins.length ? pins.length - make(pins) : 0;   // (as many as the frame's pace leaves: after a start or a jump many, never all at once)
   };
   const isStill = () => moved < 1e-4 && swung < 1e-5;
   // the pixels' asks: the last frame's read back, what is no longer asked for forgotten, the bias chosen again from asks
@@ -480,7 +485,7 @@ export function createPages(renderer, tex) {
     if (dirty) sortQueue();
     if (!queue.length) return;
     const still = isStill();
-    make(still ? queue : queue.filter((q) => !waits(q.m, q.i, q.j, cam)), Infinity); queue = queue.filter((q) => !IN.has(keyOf(q.m, q.i, q.j)) && inWin(q.m, q.i, q.j));
+    make(still ? queue : queue.filter((q) => !waits(q.m, q.i, q.j, cam))); queue = queue.filter((q) => !IN.has(keyOf(q.m, q.i, q.j)) && inWin(q.m, q.i, q.j));
   };
   // the pages fading in: done after FADE frames of the fades' clock
   const faded = () => {
@@ -537,8 +542,8 @@ export function createPages(renderer, tex) {
         sees (`disk`), and past that where the view looks (a longer lens sees farther in a narrower cone: a disk as far
         would ask for more pages than the slots hold). */
     update(camera, pin, disk = pin) {
-      frame++; PACE.left = PACE.pages; const v0 = version, cam = camera.position, size = renderer.getDrawingBufferSize(new THREE.Vector2());
-      clock(); relay(size); follow(camera, size); windows(cam); pinTop(cam, pin, disk); judge(); layQueue(cam); faded(); send(v0);
+      frame++; PACE.tick(); const v0 = version, cam = camera.position, size = renderer.getDrawingBufferSize(new THREE.Vector2());
+      clock(); relay(size); follow(camera, size); windows(cam); pinTop(cam, pin, disk); judge(); layQueue(cam); relayStale(); faded(); send(v0);
     },
     /** How much coarser than its footprint a pixel asks: half a level finer (a page is filtered as it is read, after
         the filtering its texels were laid with: so the ground is as sharp as a read of its materials, everywhere), and
