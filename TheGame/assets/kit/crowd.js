@@ -320,7 +320,7 @@ export function budgetOf(m, opts = {}, his = [Infinity]) {
     if (hi <= farLo) return { verts: 1, tris: 0 };
     let cards = 0; for (let t = 0; t < H.N; t++) if (drawnUnder(go[t], H.size, hi)) cards += H.sprigs[H.order[t]].cards;
     return { verts: 1 + (hi === Infinity ? fv : 0) + cards * 4 + sv + p * 4, tris: cards * 2 + st + p * 2 };
-  }), { chunks: H.chunks ? H.chunks.length : 0 });   // (and how many chunks its clumps are)
+  }), { chunks: H.chunks ? H.chunks.length : 0, far: farDataOf(H, H.chunks ? { n: H.chunks.length, cells: Float32Array.from(H.chunks.flatMap((C) => C.cell)), boxes: Float32Array.from(H.chunks.flatMap((C) => C.box)) } : null) });   // (and how many chunks its clumps are, and its far data as its finest level carries it: a far end baked from the outline, src/scatter/trees.js farOf)
 }
 /** How many numbers a far end's data is (crowd: far.data), its clumps `n` chunks: eight, then twelve a chunk. Its finest
     level carries it after its vertices, eight numbers a vertex (assets/kit/plant.js). */

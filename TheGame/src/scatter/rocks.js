@@ -19,6 +19,7 @@ import { farMost } from '../detail/measure.js';
 import { source } from '../core/settle.js';
 import { most } from '../../assets/kinds.js';
 import { createDrawer } from './drawer.js';
+import { cutThings } from './cut.js';
 import { placedBy, lookOf as zooLook, fingerprint } from '../../assets/zoo/index.js';
 import { rockFull, rockBody, ROCK_PER } from '../../assets/kit/rock.js';
 import { roomsOf, mostOf } from './rooms.js';
@@ -29,14 +30,17 @@ import { rocksAround, rocksDrawn } from '../world/rocksolid.js';
 // the levels: a rock's cluster hierarchy (assets/kit/clusters.js, from its full mesh alone) as the surfaces' levels hold
 // it (src/detail/error.js): level 0, every cluster a thing at the eye may need, there for the shapes that lie near,
 // drawn by the cut; every coarser level always there. A level's room: the most any shape's level holds (rooms.json,
-// measured from each shape's own hierarchy: src/scatter/rooms.js). Level 0 has a slot a shape: as many as there are
-// shapes (any of them may lie near at once), while the geometry's class has room for them beside every shape's coarser
-// levels (src/core/classes.js); fewer, said, where it has not (the nearest shapes' then: tiers.solid, below)
-const levelsOf = (Z) => {
+// measured from each shape's own hierarchy: src/scatter/rooms.js). Level 0 has a slot a shape that can lie near at
+// once: no more than an asset's shapes, nor than its rocks that can be at level 0 at once (the cut's own bound: a rock
+// a cell within where its largest is level 0's size, src/scatter/cut.js cutThings), and only while the geometry's class
+// has room for them beside every shape's coarser levels (src/core/classes.js); fewer, said, where it has not (the
+// nearest shapes' then: tiers.solid, below)
+const levelsOf = (Z, rows, famOf) => {
   const LV = Array.from({ length: SURFACE_LEVELS }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), delta: 0, room: mostOf(Z.families.flatMap((F) => roomsOf(F.F.asset, i, ROCK_PER).slice(0, F.count))) }));
   const bytes = (r) => r.tris * 3 * 4 + r.verts * 16;   // (a level's place in the heap: its corners, 4 bytes each, its elements, 16: src/scatter/heap.js)
-  const rest = LV.slice(1).reduce((s, l) => s + Z.count * bytes(l.room), 0), slots = Math.max(1, Math.min(Z.count, Math.floor((roomOf('geometry') - rest) / bytes(LV[0].room))));
-  if (slots < Z.count) console.warn(`rocks: the geometry's class has room for ${slots} of the ${Z.count} shapes' full meshes at once (src/core/classes.js): the nearest are drawn so`);
+  const near = Math.min(Z.count, rows.reduce((n, row) => n + Math.min(famOf(row).count, cutThings(row.size[1], row.cell, LV[0].px)), 0));
+  const rest = LV.slice(1).reduce((s, l) => s + Z.count * bytes(l.room), 0), slots = Math.max(1, Math.min(near, Math.floor((roomOf('geometry') - rest) / bytes(LV[0].room))));
+  if (slots < near) console.warn(`rocks: the geometry's class has room for ${slots} of the ${near} shapes' full meshes that can lie near at once (src/core/classes.js): the nearest are drawn so`);
   Object.assign(LV[0], { cut: true, slots });
   return LV;
 };
@@ -54,7 +58,7 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
   rows = gpu ? rows.filter((row) => famOf(row) || console.warn(`rocks: no family of the zoo brings the shapes of '${row.name}' (assets/zoo)`)) : [];
   rocksDrawn(rows.map((row) => row.uid));
   if (!rows.length) return [];
-  const LEVELS = levelsOf(Z), L = LEVELS.length, SMOOTH = uniform(1);
+  const LEVELS = levelsOf(Z, rows, famOf), L = LEVELS.length, SMOOTH = uniform(1);
   const D = createDrawer(scene, renderer, tex, {
     name: 'rocks', LEVELS, SHADE, SMOOTH, corners: true, thin: THIN, still: true, skins: 0, ground: true, soft: true, relief: RELIEF,
     zoo: { first: Z.first, ALL: Z.count, STAND: Z.count, MOVING: 0, lookOfKind: (k) => { const B = zooLook(Z.first + k); return { ...B, material: B.material ?? byRole('rock').uid }; }, fingerprint: () => fingerprint('rocks') },
