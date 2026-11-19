@@ -1,5 +1,6 @@
 // A crowd's measure as data (intent 0038): what the crowd kit reckons of a plant's shape (assets/kit/crowd.js: its
-// turns' order, each turn's own error and go, where its crowd ends, its kept's growth, its chunks and its cover), made
+// turns' order, each turn's own error and go, where its crowd ends, its kept's growth, its chunks and its cover, and its
+// solid pieces' widths and goes), made
 // at the build for every plant's every shape (tools/outlines.js: crowds.bin) and read by the recipes' workers
 // (src/core/crowds.js), so a start reckons none of it: a shape's levels are laid by it, as the kit lays them, the same
 // to the number. Plain JS, no three.
@@ -8,11 +9,11 @@
 // and where its arrays lie: [byte, count]), then the arrays, each at a multiple of 8 bytes.
 //   packMeasures(entries)   [[key, measure], …] -> Uint8Array
 //   unpackMeasures(buffer)  an ArrayBuffer -> Map(key -> measure), its arrays views of the buffer's
-const KINDS = { order: Uint32Array, own: Float64Array, go: Float32Array, at: Float32Array, parts: Uint32Array, starts: Uint32Array, cells: Float64Array, boxes: Float64Array, errs: Float64Array };
+const KINDS = { order: Uint32Array, own: Float64Array, go: Float32Array, at: Float32Array, parts: Uint32Array, starts: Uint32Array, cells: Float64Array, boxes: Float64Array, errs: Float64Array, solids: Float64Array };
 
 /** The arrays a measure is laid as (its chunks' parts end to end, where each begins, their cells, boxes and errors). */
 function arraysOf(m) {
-  const A = { order: m.order, own: m.own, go: m.go, at: m.grow.at };
+  const A = { order: m.order, own: m.own, go: m.go, at: m.grow.at, solids: m.solids };
   if (m.chunks) {
     const k = m.chunks.length, starts = new Uint32Array(k + 1);
     m.chunks.forEach((C, c) => (starts[c + 1] = starts[c] + C.parts.length));
@@ -40,7 +41,7 @@ export function unpackMeasures(buffer) {
   for (const [key, e] of Object.entries(index)) {
     const A = Object.fromEntries(Object.entries(e.a).map(([name, [o, count]]) => [name, new KINDS[name](buffer, base + o, count)]));
     const chunks = A.starts ? Array.from({ length: A.starts.length - 1 }, (_, c) => ({ parts: Array.from(A.parts.subarray(A.starts[c], A.starts[c + 1])), cell: Array.from(A.cells.subarray(c * 6, c * 6 + 6)), box: Array.from(A.boxes.subarray(c * 6, c * 6 + 6)), err: A.errs[c] })) : null;
-    out.set(key, { order: A.order, own: A.own, go: A.go, M: e.M, win: e.win, grow: { most: e.most, at: A.at }, chunks, eC: e.eC, cover: e.cover });
+    out.set(key, { order: A.order, own: A.own, go: A.go, M: e.M, win: e.win, grow: { most: e.most, at: A.at }, chunks, eC: e.eC, cover: e.cover, solids: A.solids });
   }
   return out;
 }
