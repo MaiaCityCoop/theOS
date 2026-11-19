@@ -41,7 +41,7 @@ import { Fn, If, Loop, float, int, uint, vec2, vec3, vec4, uvec4, ivec2, uniform
 import { gpuStorageLater, more, limitOf, roomOf, bytesOf, remade } from './gpu.js';
 import { passOf } from './pass.js';
 import { windStrength, snowDepth } from '../world/light.js';
-import { made, sameAs, ready, computeMaker } from './compile.js';
+import { made, sameAs, ask, pending, computeMaker } from './compile.js';
 import { outputRatio } from './output.js';
 
 const WG = 64, SW = 256, EPS = 2 ** -21;   // EPS: how much farther than the pyramid a box must be to be hidden (a few steps of a 24-bit depth); SW: the scans' workgroup
@@ -465,7 +465,7 @@ export const occlusion = {
       A.any = false;
       // (its passes made first: until they are, its tiers are drawn as they packed, none culled, src/core/compile.js. An
       // arena made after the start, for tiers that came later, compiled its passes as it was first culled, in the frame)
-      if (!ready(A.passes, 'run', computeMaker(renderer), 'the culling')) continue;
+      if (!made(A.passes, 'run')) { ask(A.passes, 'run', computeMaker(renderer), 'the culling'); if (pending(A.passes, 'run')) continue; }   // (one whose compile failed is run as it was before: compiled as it is first used, never left off for good)
       for (const t of A.tiers) { t.T.drawn = t.T.n > 0 && inScene(t.T.mesh, scene); A.any ||= t.T.drawn; }
       if (!A.any) continue;
       A.build();
