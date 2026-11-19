@@ -79,6 +79,34 @@ async function own(n, { moving, still, jump, mean }, name) {
   return out;
 }
 
+/** What moves (a herd: src/scatter/herds.js, through drawer.js tierAll moving), its rooms its bound (ownOf bound: the
+    most of it at the dial at rest), packed every frame for `frames` while what it finds swings past its bound and under
+    it (its things crossing a level's band as they walk), then the measure moved (reband: its bound halved). -> { laid:
+    layouts while it walked, after: layouts once the measure moved, short: frames it found more than it holds, wrong:
+    frames not known to fit past its first read } */
+async function moving(frames, most) {
+  const L = lagging(), caps = [most], out = { laid: 0, after: 0, short: 0, wrong: 0 }, T = { asset: 'check: moving', storeName: 'check: moving', slots: 2, culler: null, count: { value: null } };
+  let found = 0, bound = most, walked = false;
+  const row = ownOf(T, caps, (N) => { if (walked) out.after++; else out.laid++; caps[0] = N[0]; row.relaid(); }, undefined, () => [bound]), R = L.renderer(() => [found]);
+  for (let f = 1; f <= frames + 20; f++) {
+    await L.next();
+    if (f === frames) { walked = true; bound = Math.ceil(most / 4); row.rebound(); }   // (the dial at rest twice as coarse: a quarter of it)
+    found = Math.round(most * (1 + Math.sin(f / 5) / 2)); row.packed(); row.ask(R);
+    out.short += T.short ? 1 : 0;
+    if (f > 4 && f < frames && said('check: moving') > 0) out.wrong++;
+  }
+  return out;
+}
+/** The moving sequence, said and failed on where what moves is laid out by what it finds, or not once as the measure
+    moves. */
+async function movers() {
+  const m = await moving(600, WG * 16);
+  console.log(`  moving   1 tier , packed every frame for 600, finding up to half again its bound and down to half of it: laid out ${m.laid} times while it walked, short ${m.short} frames, not known to fit ${m.wrong}; laid out ${m.after} times once the measure moved`);
+  if (m.laid) fail(`moving: laid out ${m.laid} times by what it found while it walked`);
+  if (m.after !== 1) fail(`moving: laid out ${m.after} times once the measure moved, not once`);
+  if (!m.short) fail('moving: never short, though it found more than its bound');
+  if (m.wrong) fail(`moving: not known to fit ${m.wrong} frames while it walked`);
+}
 /** A resident tier's store as residentOf runs it (one tier its kind's: its kind laid out as soon as its read has
     answered), its regions' `cells` visited at the frame's pace (tier.js CELLS: pace, measured against geometry's share
     of a frame), a cell costing the GPU what visits all of them over `per` frames at rest; the camera jumping every
@@ -210,6 +238,7 @@ async function check() {
     if (o.past) fail(`${name}: laid out ${o.past} times for no more found than it held`);
     if (o.rest == null) fail(`${name}: never at rest`);
   }
+  await movers();
   const RES_TIERS = 42;   // (the world's resident tiers: tools/smoke.js's scatter, 2026-11-19)
   for (const cost of [0.25, 2, 10]) {
     const main = paged(RES_TIERS, cost, 8, false), cells = [['behind the veil', FRAME_MS], ['shown', FRAME_MS_BY_CLASS.geometry]].map(([how, budget]) => {
