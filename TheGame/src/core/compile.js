@@ -69,23 +69,17 @@ export const pending = (what, pass) => STATE.get(own(what))?.get(pass) === 'aske
 export const sameAs = (copy, what) => void SAME.set(copy, what);
 // what was asked of each maker since the last flush, made in one turn, side by side: a frame's asks of one pass are one
 // compile (three keeps up to sixteen pipelines in flight), not one at a time. A maker's promise gives the set of what it
-// reached (none: all of it); what it did not reach is asked again when it is next drawn. One of them that cannot be
-// made fails the whole compile: then each is made alone, in turn, so that only it is left out, and the console names it
-// and says why (2026-11-19: one pipeline WebKit would not make left every stand's and the meadow's prepass out, the
-// game never ready, and the line named them all)
+// reached (none: all of it); what it did not reach is asked again when it is next drawn
 function flush() {
   flushing = false;
-  for (const [maker, list] of asking) { asking.delete(maker); make(maker, list); }
-}
-function make(maker, list) {
-  const names = [...new Set(list.map((e) => e.name))], counted = list.some((e) => e.counted), over = () => { done += list.filter((e) => e.counted).length; };
-  inTurn(() => { now = names.length > 1 ? `${names[0]} and ${names.length - 1} more` : names[0]; return maker(list.map((e) => e.what)); }, counted)
-    .then((got) => { for (const e of list) { const S = stateOf(own(e.what)); if (!got || got.has(e.what)) S.set(e.pass, 'made'); else S.delete(e.pass); } over(); },
-      (err) => {
-        if (list.length > 1) { console.warn(`compile: one of ${list.length} (${names[0]}, …) could not be compiled: each made alone`); for (const e of list) make(maker, [e]); return; }
-        stateOf(own(list[0].what)).set(list[0].pass, 'failed'); console.warn(`compile: ${names[0]} could not be compiled, and is not drawn`, err); over();
-      })
-    .finally(() => { now = ''; });
+  for (const [maker, list] of asking) {
+    asking.delete(maker);
+    const names = [...new Set(list.map((e) => e.name))], counted = list.some((e) => e.counted);
+    inTurn(() => { now = names.length > 1 ? `${names[0]} and ${names.length - 1} more` : names[0]; return maker(list.map((e) => e.what)); }, counted)
+      .then((got) => { for (const e of list) { const S = stateOf(own(e.what)); if (!got || got.has(e.what)) S.set(e.pass, 'made'); else S.delete(e.pass); } },
+        (err) => { for (const e of list) stateOf(own(e.what)).set(e.pass, 'failed'); console.warn(`compile: ${names.join(', ')} could not be compiled, and is not drawn`, err); })
+      .finally(() => { done += list.filter((e) => e.counted).length; now = ''; });
+  }
 }
 /** Ask `maker` (make(list): a promise, see flush) for `what` to be made for `pass`, unless it is made, being made, or
     could not be: with all else asked of it before this frame is over, in turn. name: what it is, for the veil and the

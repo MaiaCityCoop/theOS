@@ -20,9 +20,9 @@ import { spanAt } from '../detail/measure.js';
 import { BAND, PX_CUT, surfaceBand } from '../detail/error.js';
 import { turnOf } from './row.js';
 import { gpuStorage, limitOf, roomOf } from '../core/gpu.js';
+import { MAXT } from '../../assets/kit/surface.js';
 
 const GROW = 1.5;   // seconds a level that came late takes to refine from what stood in for it (the drawer's)
-const MAXT = 128;   // a cluster's most triangles (assets/kit/clusters.js)
 
 /** A level's header and cluster c's numbers, from the heap (R: the kind's row at that level). */
 export const levelHead = (H, R) => { const h = H.elems.element(R.y); return { n: h.x, lo: uintBitsToFloat(h.y), hi: uintBitsToFloat(h.z) }; };

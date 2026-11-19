@@ -15,15 +15,23 @@
 import { surfaceBand, SURFACE_LEVELS } from '../../src/detail/error.js';
 
 export const HEAD = 1, REC = 3;
+/** A cluster's most triangles: the cut draws every cluster it lists as an instance of MAXT × 3 corners (src/scatter/
+    cut.js), and its count is kept in 8 bits (packLevel). Why 128: assets/kit/clusters.js, which builds clusters of it, as
+    assets/kit/diamonds.js does. */
+export const MAXT = 128;
 /** How many levels were cut down to their room (packLevel), since the start: a kind that needs more than its drawer
     holds shows here, never as a hole. */
 export const trimmed = { n: 0 };
 // The builder is the recipes' workers' alone (it brings meshoptimizer's WebAssembly): the page never makes a level.
-let BUILD = null;
-/** Who builds hierarchies here (src/scatter/recipes.worker.js, tools): assets/kit/clusters.js build. */
-export const useBuilder = (b) => { BUILD = b; };
+let BUILD = null, TAIL = null;
+/** Who builds hierarchies here (src/scatter/recipes.worker.js, tools): assets/kit/clusters.js build, and tailFrom
+    (the coarse end of one built by other means: assets/kit/diamonds.js). */
+export const useBuilder = (b, t = null) => { BUILD = b; TAIL = t; };
+const builder = (f) => { if (!f) throw new Error('surface: hierarchies are built in the recipes\' workers (useBuilder)'); return f; };
 /** The hierarchy of mesh M (clusters.js build). */
-export const hierarchyOf = (M) => { if (!BUILD) throw new Error('surface: hierarchies are built in the recipes\' workers (useBuilder)'); return BUILD(M); };
+export const hierarchyOf = (M) => builder(BUILD)(M);
+/** The rest of a hierarchy from clusters that are the whole of a surface (clusters.js tailFrom). */
+export const tailOf = (M, start) => builder(TAIL)(M, start);
 
 /** What each level of hierarchy D holds as packLevel lays it, whole: [its triangles, its vertices, its clusters], a
     level (tools/rooms.js measures every solid's so, rooms.json: what the heap makes room for). */

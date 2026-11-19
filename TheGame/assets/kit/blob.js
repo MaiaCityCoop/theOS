@@ -13,6 +13,7 @@
 import { LADDER, FULLN, DOTN, trisOf, vertsOf, underOf } from './ladder.js';
 import { packSolid, dotMesh } from './solid.js';
 import { hash4 } from '../../src/core/hash.js';
+import { ballHierarchy, warp, Q } from './diamonds.js';
 
 export const SEED = 9001;
 /** squares along an edge of kind k's full mesh: 65 … 129, so 50 700 … 199 692 triangles */
@@ -79,8 +80,8 @@ function boxOf(K) {
 /** a coarse body drawn through a round thing's surface looks smaller than it: swollen to cover as much of the screen */
 export const SWELL = { 1: 1.24, 2: 1.07, 4: 1.02 };
 // kind K's surface at level n, in its own frame: what ball() asks (out: the point; returns its shade, darker in its folds)
-const blobAt = (K, n) => {
-  const B = (K.box ||= boxOf(K)), sw = SWELL[n] ?? 1, cy = 0.5 / B.k;   // (its frame measured when its first mesh is made, not when it is only looked up)
+const blobAt = (K, n, sw = SWELL[n] ?? 1) => {
+  const B = (K.box ||= boxOf(K)), cy = 0.5 / B.k;   // (its frame measured when its first mesh is made, not when it is only looked up)
   return (x, y, z, out, o) => {
     const r = surface(K, n, x, y, z, out, o);
     out[o] = (out[o] - B.x) * sw * B.k; out[o + 1] = ((out[o + 1] - B.y - cy) * sw + cy) * B.k; out[o + 2] = (out[o + 2] - B.z) * sw * B.k;
@@ -90,9 +91,9 @@ const blobAt = (K, n) => {
 
 // ---- a ball cut as a cube's faces: n squares along an edge, its corners shared between faces ----
 // the direction of a cube's lattice point (face f, i and j of n along it), its squares evened out over the ball
-const D = [0, 0, 0], Q = 0.7853981634;
+const D = [0, 0, 0];
 function dirOf(f, i, j, n) {
-  const u = Math.tan(((2 * i) / n - 1) * Q), v = Math.tan(((2 * j) / n - 1) * Q), a = f >> 1, sg = f & 1 ? -1 : 1;
+  const u = warp(i, n), v = warp(j, n), a = f >> 1, sg = f & 1 ? -1 : 1;
   D[a] = sg; D[(a + 1) % 3] = u; D[(a + 2) % 3] = v;
   const l = Math.hypot(D[0], D[1], D[2]); D[0] /= l; D[1] /= l; D[2] /= l;
   return D;
@@ -171,6 +172,12 @@ export function ballMesh(at, n, m, D) {
   }
   return { index: F.index, verts };
 }
+/** Squares along an edge of kind k's full mesh as its hierarchy builds it (diamonds.js: a power of two): the nearest
+    to fullOf's, so 64 or 128 (49 152 or 196 608 triangles). */
+const gridOf = (k) => 2 ** Math.round(Math.log2(fullOf(k)));
+/** Kind k's cluster hierarchy (diamonds.js, clusters.js build's record): its surface as each level draws it, no swell
+    (a level is drawn where its measured error allows it, not where a swollen body covers as much). */
+export const blobHierarchy = (k) => ballHierarchy((n) => blobAt(kindOf(k), n, 1), gridOf(k));
 /** Kind k's mesh at level l of the ladder. */
 export function blobMesh(k, l) {
   const K = kindOf(k), n = LADDER[l].n;
