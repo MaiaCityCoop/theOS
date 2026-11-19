@@ -6,14 +6,19 @@
 // and the browser's memory (every process of its profile) sampled meanwhile.
 //
 //   bun tools/gpu/lock.js take <who> -- bun tools/gate/play.js <url> [--warm s] [--secs s] [--json f]
+//                                        [--check]       held to the reference's bar on this machine: exit 1 past it
+//                                        [--reference]   this walk kept as one more of the reference's runs here
 //
 // Says: the first frame (ms from the navigation), the walk's frames (p50, p99, worst, over 16.7 ms, hitches over
 // 33 ms), how far the walker went (metres: a walk that did not move is no walk), and the browser's most memory.
-// The merge rule (.claude/skills/intents/SKILL.md): a change to TheGame/src merges only where its walk is no worse
-// than the reference's on the same machine (tools/gate/reference.json).
+// The merge rule (.claude/skills/intents/SKILL.md, "The walk is the bar"): a change to TheGame/ merges only where its
+// walk on this machine is within the reference's bar (tools/gate/reference.json): p50, p99 and hitches no more than
+// the worst of the reference's own runs here (its noise, measured, so no tolerance is set by hand), and the walker
+// gone as far. A machine with no runs of the reference has no bar: walk the reference there first (--reference).
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { hostname } from 'node:os';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -45,3 +50,20 @@ try {
 } finally { clearInterval(sample); out.memory = Math.max(most, memory()); await ctx.close().catch(() => {}); rmSync(dir, { recursive: true, force: true }); }
 console.log(`play ${url}: first frame ${(out.first / 1000).toFixed(1)} s; the walk ${out.frames} frames, p50 ${out.p50} ms, p99 ${out.p99} ms, worst ${out.worst} ms, ${out.over16} over 16.7 ms, ${out.hitches} hitches over 33 ms; walked ${out.walked} m from ${out.from}; the browser at most ${out.memory} MB${out.errors?.length ? `; errors: ${out.errors.join(' · ')}` : ''}`);
 if (opt('json')) writeFileSync(opt('json'), JSON.stringify(out, null, 2));
+// ---- the bar: the reference's own runs on this machine ----
+const REF = new URL('./reference.json', import.meta.url), machine = hostname().split('.')[0], R = JSON.parse(readFileSync(REF, 'utf8'));
+const KEEP = ['p50', 'p99', 'worst', 'over16', 'hitches', 'frames', 'walked', 'memory', 'first'];
+if (args.includes('--reference')) {
+  const M = (R.machines[machine] ??= { measured: new Date().toISOString().slice(0, 10), runs: [] });
+  M.runs.push(Object.fromEntries(KEEP.map((k) => [k, out[k]])));
+  writeFileSync(REF, `${JSON.stringify(R, null, 2)}\n`); console.log(`play: kept as the reference's run ${M.runs.length} on ${machine}`);
+}
+if (args.includes('--check')) {
+  const runs = R.machines[machine]?.runs ?? [];
+  if (!runs.length) { console.log(`play: no bar on ${machine}: walk the reference (${R.commit.slice(0, 8)}) here first with --reference`); process.exit(1); }
+  const most = (k) => Math.max(...runs.map((r) => r[k])), least = (k) => Math.min(...runs.map((r) => r[k]));
+  const fails = [['p50', most('p50')], ['p99', most('p99')], ['hitches', most('hitches')]].filter(([k, bar]) => !(out[k] <= bar)).map(([k, bar]) => `${k} ${out[k]} over the bar ${bar}`);
+  if (!(out.walked >= least('walked'))) fails.push(`walked ${out.walked} m, the reference ${least('walked')} m`);
+  console.log(`play: ${fails.length ? `PAST THE BAR (${fails.join('; ')})` : 'within the bar'}: the worst of the reference's ${runs.length} runs on ${machine} (${R.commit.slice(0, 8)})`);
+  if (fails.length) process.exit(1);
+}
