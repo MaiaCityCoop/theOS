@@ -41,7 +41,7 @@ import { Fn, If, Loop, float, int, uint, vec2, vec3, vec4, uvec4, ivec2, uniform
 import { gpuStorageLater, more, limitOf, roomOf, bytesOf, remade } from './gpu.js';
 import { passOf } from './pass.js';
 import { windStrength, snowDepth } from '../world/light.js';
-import { made, sameAs } from './compile.js';
+import { made, sameAs, ready, computeMaker } from './compile.js';
 import { outputRatio } from './output.js';
 
 const WG = 64, SW = 256, EPS = 2 ** -21;   // EPS: how much farther than the pyramid a box must be to be hidden (a few steps of a 24-bit depth); SW: the scans' workgroup
@@ -335,7 +335,7 @@ function arena() {
     If(w.lessThan(at(uG, C2)).and(isSet(m0, m1, lid)), () => { LIST.element(base.add(at(g, N1)).add(CH.element(c.add(uint(2))).sub(CH.element(s0.add(uint(2))))).add(below(m0, m1, lid))).assign(LIST.element(uN.add(base).add(j))); });
   })().compute(MANY, [WG]);
   twoWrite.dispatchSize = d2;
-  Object.assign(A, { early: [prep, oneTest, oneScan, oneWrite], late: [twoTest, twoScan, twoWrite], BOX, LIST, BK, at, eye, on, debug: { bk, d1, d2, get lists() { return lists.attr; }, get chunks() { return chunks.attr; }, get boxes() { return boxes.attr; } } });
+  Object.assign(A, { early: [prep, oneTest, oneScan, oneWrite], late: [twoTest, twoScan, twoWrite], passes: [prep, oneTest, oneScan, oneWrite, twoTest, twoScan, twoWrite], BOX, LIST, BK, at, eye, on, debug: { bk, d1, d2, get lists() { return lists.attr; }, get chunks() { return chunks.attr; }, get boxes() { return boxes.attr; } } });
   ARENAS.push(A);
   return A;
 }
@@ -463,6 +463,9 @@ export const occlusion = {
     const list = [];
     for (const A of ARENAS) {
       A.any = false;
+      // (its passes made first: until they are, its tiers are drawn as they packed, none culled, src/core/compile.js. An
+      // arena made after the start, for tiers that came later, compiled its passes as it was first culled, in the frame)
+      if (!ready(A.passes, 'run', computeMaker(renderer), 'the culling')) continue;
       for (const t of A.tiers) { t.T.drawn = t.T.n > 0 && inScene(t.T.mesh, scene); A.any ||= t.T.drawn; }
       if (!A.any) continue;
       A.build();

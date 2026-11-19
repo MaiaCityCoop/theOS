@@ -36,6 +36,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, If, float, vec2, vec3, vec4, ivec2, uv, uniform, texture, textureStore, outputStruct, property, screenCoordinate, max, min, abs, floor, clamp, mix, length, smoothstep, sqrt } from 'three/tsl';
 import { note } from './gpu.js';
+import { drawMade } from './compile.js';
 import { U } from './uniforms.js';
 import { display, ign } from '../world/light.js';
 import { ERROR_PX } from '../detail/error.js';
@@ -229,10 +230,11 @@ export function createTemporal(renderer) {
       the shown, and the shown copied onto the canvas. */
   const draw = (colour, depth, motion, depthWas) => {
     tC.value = colour; tD.value = depth; tDW.value = depthWas ?? depth; tM.value = motion;
-    if (STORE) { renderer.setRenderTarget(null); renderer.render(quads[turn], cam); return; }
+    // (each once it is made: until then the canvas keeps what it had, behind the veil, src/core/compile.js drawMade)
+    if (STORE) { renderer.setRenderTarget(null); drawMade(renderer, quads[turn], cam, 'the upscale'); return; }
     tHW.value = hist[1 - turn].textures[0];
-    renderer.setRenderTarget(hist[turn]); renderer.render(quads[0], cam); renderer.setRenderTarget(null);
-    tShow.value = hist[turn].textures[1]; renderer.render(copy, cam);
+    renderer.setRenderTarget(hist[turn]); const kept = drawMade(renderer, quads[0], cam, 'the upscale'); renderer.setRenderTarget(null);
+    tShow.value = hist[turn].textures[1]; if (kept) drawMade(renderer, copy, cam, 'the upscale, shown');
   };
   return {
     K,
