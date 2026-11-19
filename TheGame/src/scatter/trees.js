@@ -746,7 +746,7 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
         extra: shadow ? { cull: SH.reach, fixed: SH.far * SH.wide } : {},   // (the stand-in in small patches: those whose shade cannot reach the view are dropped)
       });
       t.viewKeyed = !shadow; t.asset = G.name; t.drawer = D; tiers.push(t); if (!shadow) (G.drawn ||= []).push(t);   // (drawn: what says which far ends the view wants, farOf)
-      if (G.M) t.reads = G.M.version;   // (packed again when the growth map under it changes)
+      if (G.M) { t.reads = G.M.version; t.changed = G.M.changedSince; }   // (its regions where the growth map under it changed visited again: src/scatter/growth.js changedSince)
       return t;
     };
     for (let i = 0; i < n; i++) tier(i, G);

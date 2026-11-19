@@ -166,17 +166,23 @@ export function createGrowth(renderer, fields) {
       if (ms) { P.left -= k; ms.then((t) => P.measured(k, t, frameShare('geometry'))).catch(() => {}); } else clocked = false;
       if (J.r >= Math.ceil(J.h / 8)) jobs.shift();
     }
-    if (!jobs.length && pending) { pending = false; version++; }
+    if (!jobs.length && pending) { pending = false; version++; CHANGES.push({ v: version, whole: pendingWhole, rects: pendingRects.splice(0) }); pendingWhole = false; }
   };
-  let pending = false;
+  // (what each version changed: all of it (whole: the first time, a jump, the rule changed), else the strips its windows
+  // came onto, in metres, a texel wider either way (what a reader reads between texels). A window moving changes the
+  // map nowhere else: what reads it elsewhere reads what it read. 2026-11-19, the gate's walk on main: every plant tier's
+  // store emptied 174 times in 20 s, at each move of the window, and its plants drawn again from nothing)
+  let pending = false, pendingWhole = false;
+  const pendingRects = [], CHANGES = [], SEEN = new Map();   // (SEEN: each reader's version, as it last asked: a change every reader has seen is let go)
   /** The rectangles word w's window comes onto as it is kept round (x, z) (all of it the first time or after a jump),
       its new place set; null where it has not moved. */
   const moved = (Wd, x, z) => {
     const N = Wd.N, nx = Math.round((Math.floor(x / Wd.T) - N / 2) / SNAP) * SNAP, nz = Math.round((Math.floor(z / Wd.T) - N / 2) / SNAP) * SNAP, o = Wd.window;
     if (o && nx === o[0] && nz === o[1]) return null;
     Wd.origin.value.set(nx, nz); Wd.window = [nx, nz];   // (its new place first: what is read is read where it is now)
-    if (!o || Math.abs(nx - o[0]) >= N || Math.abs(nz - o[1]) >= N) { did('land', N * N); return [[nx, nz, N, N]]; }
-    return [...(nx !== o[0] ? [[nx > o[0] ? o[0] + N : nx, nz, Math.abs(nx - o[0]), N]] : []), ...(nz !== o[1] ? [[nx, nz > o[1] ? o[1] + N : nz, N, Math.abs(nz - o[1])]] : [])];   // (the strips it came onto)
+    if (!o || Math.abs(nx - o[0]) >= N || Math.abs(nz - o[1]) >= N) { did('land', N * N); pendingWhole = true; return [[nx, nz, N, N]]; }
+    const T = Wd.T, strip = ([x, z, w, h]) => { pendingRects.push([(x - 1) * T, (z - 1) * T, (x + w + 1) * T, (z + h + 1) * T]); return [x, z, w, h]; };
+    return [...(nx !== o[0] ? [[nx > o[0] ? o[0] + N : nx, nz, Math.abs(nx - o[0]), N]] : []), ...(nz !== o[1] ? [[nx, nz > o[1] ? o[1] + N : nz, N, Math.abs(nz - o[1])]] : [])].map(strip);   // (the strips it came onto)
   };
   /** What every layer that writes left at p: the light that comes through all their crowns; and foot(), whether the
       ground at p is covered by any of their things (1, else 0: their feet, each its own, rule.js footAt), worked out
@@ -194,11 +200,21 @@ export function createGrowth(renderer, fields) {
         jump, or when what the rule reads changed: `world`). Before anything that reads it packs. */
     update(x, z, world = '') {
       if (!passes.length) return;
-      if (world !== key) { key = world; jobs.length = 0; for (const Wd of words) Wd.window = null; }   // (what was left to work out of the windows before: worked out whole again)
+      if (world !== key) { key = world; jobs.length = 0; pendingWhole = true; for (const Wd of words) Wd.window = null; }   // (what was left to work out of the windows before: worked out whole again)
       writers.forEach(({ w }, n) => { const rects = moved(words[w], x, z); if (rects) { run(n, rects); pending = true; } });
       work();
     },
     /** A number that changes whenever the map does: what reads it packs again. */
     version: () => version,
+    /** What changed since version v for reader `who` (asking now, it has seen the map as it is): { whole: true } where
+        all of it may have, else { rects: [[x0, z0, x1, z1], …] } in metres, what reads the map there reads it again,
+        nothing else. A change is kept till every reader has seen it. */
+    changedSince: (v, who) => {
+      const after = CHANGES.filter((c) => c.v > v);
+      SEEN.set(who, version);
+      const least = Math.min(...SEEN.values()); while (CHANGES.length && CHANGES[0].v <= least) CHANGES.shift();
+      if (v === version) return { rects: [] };
+      return !after.length || after[0].v !== v + 1 || after.some((c) => c.whole) ? { whole: true } : { rects: after.flatMap((c) => c.rects) };
+    },
   };
 }
