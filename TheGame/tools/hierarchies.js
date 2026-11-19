@@ -7,13 +7,18 @@
 //     of the full mesh, clusters.js's search, not the same place of the cube), no farther than its error says: a sample
 //     of every kind's clusters, and the whole of its coarse end;
 //   - its cuts closed: from eyes anywhere, the error allowed growing with each sphere's distance as the cut's does, what
-//     the rule draws (each at its morph) holds every edge once each way, at the same two places: no crack, no overlap.
+//     the rule draws (each at its morph) holds every edge once each way, at the same two places: no crack, no overlap;
+//   - its bands in their rooms: every band, its hierarchy's and what stands in for it (blob.js blobBand), packed into
+//     the room the heap gives it (rooms.json, tools/rooms.js), none past it; how many are short (cut down to fit, or a
+//     stand-in: coarser than a pixel, its drawer counts them).
 //
 //   bun tools/hierarchies.js [kinds: 0,1,2] [cuts: 12]    a line a kind; exits 1 if anything fails
-import { blobHierarchy } from '../assets/kit/blob.js';
+import { readFileSync } from 'node:fs';
+import { blobHierarchy, blobBand } from '../assets/kit/blob.js';
 import { build, tailFrom, ready, gridOf, nearest } from '../assets/kit/clusters.js';
-import { useBuilder, MAXT } from '../assets/kit/surface.js';
-import { BAND } from '../src/detail/error.js';
+import { useBuilder, roomFrom, MAXT } from '../assets/kit/surface.js';
+import { STILL_PER } from '../assets/kit/solid.js';
+import { BAND, SURFACE_LEVELS } from '../src/detail/error.js';
 
 const [kinds = '0,1,2', cuts = '12'] = process.argv.slice(2);
 await ready; useBuilder(build, tailFrom);
@@ -72,10 +77,26 @@ function closed(D, n) {
   return open;
 }
 
+/** Kind k's bands packed into their rooms (rooms.json's zoo blobs): how many of its hierarchy's are cut down to fit,
+    and what of either kind passes its room, in words. */
+const ROOMS = JSON.parse(readFileSync(new URL('../rooms.json', import.meta.url), 'utf8'))['zoo: blobs'];
+function rooms(k) {
+  let cut = 0; const over = [];
+  for (let l = 0; l < SURFACE_LEVELS; l++) {
+    const r = roomFrom(ROOMS.shapes[0][l], STILL_PER, l), room = { tris: r.tris, elems: r.verts * STILL_PER };
+    for (const real of [true, false]) {
+      const m = blobBand(k, l, room, real);
+      if (m.index.length > room.tris * 3 || m.verts.length / 4 > room.elems) over.push(`band ${l}${real ? '' : ' (standing in)'} past its room`);
+      if (real && m.short) cut++;
+    }
+  }
+  return { cut, over };
+}
+
 let failed = false;
 for (const k of kinds.split(',').map(Number)) {
-  const t0 = performance.now(), D = blobHierarchy(k), ms = performance.now() - t0, broke = record(D), worst = truth(D), open = closed(D, Number(cuts));
-  failed ||= broke.length > 0 || worst > 1 || open > 0;
-  console.log(`blob ${k}: ${(12 * D.stats.N ** 2).toLocaleString()} triangles, ${D.clusters.length} clusters, built in ${ms.toFixed(0)} ms; record ${broke.length ? broke.join('; ') : 'kept'}; errors ${worst.toFixed(2)} of what they say at most; ${cuts} cuts ${open ? `with ${open} edges open` : 'closed'}`);
+  const t0 = performance.now(), D = blobHierarchy(k), ms = performance.now() - t0, broke = record(D), worst = truth(D), open = closed(D, Number(cuts)), R = rooms(k);
+  failed ||= broke.length > 0 || worst > 1 || open > 0 || R.over.length > 0;
+  console.log(`blob ${k}: ${(12 * D.stats.N ** 2).toLocaleString()} triangles, ${D.clusters.length} clusters, built in ${ms.toFixed(0)} ms; record ${broke.length ? broke.join('; ') : 'kept'}; errors ${worst.toFixed(2)} of what they say at most; ${cuts} cuts ${open ? `with ${open} edges open` : 'closed'}; bands ${R.over.length ? R.over.join('; ') : 'in their rooms'}, ${R.cut} cut down to fit`);
 }
 process.exit(failed ? 1 : 0);

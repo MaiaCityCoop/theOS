@@ -1,5 +1,5 @@
 {
-  "builder": "981fdbe3513145cfc2186bd33f8fc7f9f89bd871b6578d06ae6e596f2b7f38e0",
+  "builder": "c05f0b0605fc8a39f7b8f0a10a2741f6777c85568a2dcbb7aaa2e34281230d0f",
   "104dde1e-c26e-42fd-9aab-c6612fbe8222": {
     "name": "Bell tent",
     "version": "c59fa4405b6c1f89f0c20facc0c4c758fb2482711322d3a3a2c4bc097d47922f",
@@ -19,7 +19,7 @@
   },
   "23566c8c-0864-4278-a2f7-a3e072300223": {
     "name": "Fire pit",
-    "version": "c2a8a4287b0efd33634866d0b4ce5a2f4b6520d23c76d5ad5bdf0226fa76ecbb",
+    "version": "3316db567cb7fff8981bee1d7e6a91384fbb56157dd7e79d650d94d8600236e7",
     "shapes": [
       [
         [14627, 13383, 120],
@@ -307,6 +307,25 @@
         [196, 106, 4],
         [46, 29, 3],
         [20, 14, 2]
+      ]
+    ]
+  },
+  "zoo: blobs": {
+    "name": "the zoo's blobs",
+    "builder": "3238456cb0de281dd9e3d221004ec6ec0b4faf9af104b5d84b100b9ffad838a7",
+    "print": "bands: diamonds 1",
+    "sampled": 64,
+    "shapes": [
+      [
+        [374272, 236844, 2924],
+        [260096, 164592, 2032],
+        [131584, 83268, 1028],
+        [80384, 50868, 628],
+        [32768, 20736, 256],
+        [11520, 7298, 90],
+        [5760, 3691, 46],
+        [1440, 908, 12],
+        [380, 224, 7]
       ]
     ]
   }

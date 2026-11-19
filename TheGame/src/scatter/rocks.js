@@ -20,7 +20,8 @@ import { source } from '../core/settle.js';
 import { most } from '../../assets/kinds.js';
 import { createDrawer } from './drawer.js';
 import { placedBy, lookOf as zooLook, fingerprint } from '../../assets/zoo/index.js';
-import { rockFull, rockBody, ROCK_PER } from '../../assets/kit/rock.js';
+import { rockFull, rockBody } from '../../assets/kit/rock.js';
+import { STILL_PER } from '../../assets/kit/solid.js';
 import { roomsOf, mostOf } from './rooms.js';
 import { roomOf } from '../core/gpu.js';
 import { SURFACE_LEVELS, surfaceBand, surfacePx, GONE, BAND } from '../detail/error.js';
@@ -33,7 +34,7 @@ import { rocksAround, rocksDrawn } from '../world/rocksolid.js';
 // shapes (any of them may lie near at once), while the geometry's class has room for them beside every shape's coarser
 // levels (src/core/classes.js); fewer, said, where it has not (the nearest shapes' then: tiers.solid, below)
 const levelsOf = (Z) => {
-  const LV = Array.from({ length: SURFACE_LEVELS }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), delta: 0, room: mostOf(Z.families.flatMap((F) => roomsOf(F.F.asset, i, ROCK_PER).slice(0, F.count))) }));
+  const LV = Array.from({ length: SURFACE_LEVELS }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), delta: 0, room: mostOf(Z.families.flatMap((F) => roomsOf(F.F.asset, i, STILL_PER).slice(0, F.count))) }));
   const bytes = (r) => r.tris * 3 * 4 + r.verts * 16;   // (a level's place in the heap: its corners, 4 bytes each, its elements, 16: src/scatter/heap.js)
   const rest = LV.slice(1).reduce((s, l) => s + Z.count * bytes(l.room), 0), slots = Math.max(1, Math.min(Z.count, Math.floor((roomOf('geometry') - rest) / bytes(LV[0].room))));
   if (slots < Z.count) console.warn(`rocks: the geometry's class has room for ${slots} of the ${Z.count} shapes' full meshes at once (src/core/classes.js): the nearest are drawn so`);

@@ -9,11 +9,16 @@
 //   blobMesh(k, l) -> { index: Uint32Array (3 a triangle), verts: Uint32Array (4 a vertex: solid.js) }
 //     level l of the ladder, each vertex with where it lies on level l + 1's mesh (that mesh's normal there too): drawn
 //     part way between the two, a level turns into the next with nothing to see when the one takes over from the other
+//   blobBand(k, l, room, real) -> surface.js packLevel's { index, verts, count, box, clusters } and short
+//     band l of the surfaces' (src/detail/error.js surfaceBand) as the heap holds a still solid's: its cluster
+//     hierarchy's (blobHierarchy, diamonds.js), or until that is built for it, the ladder's mesh standing in
 //   ball(n, at, own), onBall(C, …), faceOf(dir): a ball cut as a cube's faces, for any surface (a creature's hull too)
 import { LADDER, FULLN, DOTN, trisOf, vertsOf, underOf } from './ladder.js';
-import { packSolid, dotMesh } from './solid.js';
+import { packSolid, dotMesh, STILL_PER, stillOf } from './solid.js';
+import { packLevel, levelSizes, trimmed, MAXT } from './surface.js';
 import { hash4 } from '../../src/core/hash.js';
-import { ballHierarchy, warp, Q } from './diamonds.js';
+import { surfaceBand, surfacePx, SURFACE_LEVELS } from '../../src/detail/error.js';
+import { ballHierarchy, sphereOf, warp, Q } from './diamonds.js';
 
 export const SEED = 9001;
 /** squares along an edge of kind k's full mesh: 65 … 129, so 50 700 … 199 692 triangles */
@@ -178,6 +183,59 @@ const gridOf = (k) => 2 ** Math.round(Math.log2(fullOf(k)));
 /** Kind k's cluster hierarchy (diamonds.js, clusters.js build's record): its surface as each level draws it, no swell
     (a level is drawn where its measured error allows it, not where a swollen body covers as much). */
 export const blobHierarchy = (k) => ballHierarchy((n) => blobAt(kindOf(k), n, 1), gridOf(k));
+
+// ---- a kind's bands (stage 8b): what the heap holds of it for each band of sizes on screen ----
+const DAGS = new Map();   // (the last few kinds' hierarchies: a worker asked for one kind's bands one after another builds it once)
+const dagOf = (k) => { if (!DAGS.has(k)) { if (DAGS.size >= 3) DAGS.delete(DAGS.keys().next().value); DAGS.set(k, blobHierarchy(k)); } return DAGS.get(k); };
+/** Band l of kind k, packed for the heap no larger than room (surface.js packLevel), and whether it is anywhere drawn
+    coarser than a pixel (short: a stand-in, or a band cut down to its room): its hierarchy's (real), else what stands
+    in for it until that is built (standIn). */
+export function blobBand(k, l, room = null, real = true) {
+  const D = real ? dagOf(k) : standIn(k, l), was = trimmed.n, m = packLevel(D, l, STILL_PER, stillOf(D), room);
+  return { ...m, short: !real || trimmed.n > was };
+}
+/** What each band of kind k holds, real or standing in, as surface.js levelSizes says: [triangles, vertices,
+    clusters], a band (tools/rooms.js measures the zoo's rooms by it). */
+export const blobBandSizes = (k, real) => (real ? levelSizes(dagOf(k)) : Array.from({ length: SURFACE_LEVELS }, (_, l) => levelSizes(standIn(k, l))[l]));
+// the ladder's level drawn at a band's top (the size on screen it is drawn from; a dot none: its last ball): its
+// squares along an edge
+const ladderAt = (k, l) => {
+  const top = l ? surfacePx(l - 1) : Infinity, j = LADDER.findIndex((L) => L.px < top), J = LADDER[j].n === DOTN ? LADDER.findLastIndex((L) => L.n > 0) : j;
+  return LADDER[J].n === FULLN ? fullOf(k) : LADDER[J].n;
+};
+/** What stands in for kind k's band l until its hierarchy is built: the ladder's mesh drawn at the band's top, and the
+    next band's, as a hierarchy of two levels (clusters.js's record): the first drawn while the error allowed is under
+    the band's switch, turning into the second over the last BAND of it (each vertex to its place on the second: onBall,
+    as the ladder turns), the second drawn on to the band's end. What the ladder drew, so coarser than a pixel. */
+function standIn(k, l) {
+  const K = kindOf(k), last = l === SURFACE_LEVELS - 1, hi = surfaceBand(l)[1], nA = ladderAt(k, l), nB = last ? nA : ladderAt(k, l + 1);
+  const A = ball(nA, blobAt(K, nA), true), B = nB === nA ? null : ball(nB, blobAt(K, nB), true), T = [0, 0, 0, 0, 0, 0, 0];
+  // (each vertex's way: to its place on B, where there is one; else it stays)
+  const to = (C, i) => { const w = C.where; if (B && C === A) onBall(B, w[i * 3], w[i * 3 + 1] / nA, w[i * 3 + 2] / nA, T); else { T.splice(0, 6, ...C.pos.subarray(i * 3, i * 3 + 3), ...C.nor.subarray(i * 3, i * 3 + 3)); T[6] = C.shade[i]; } return T; };
+  const meshes = B ? [A, B] : [A], V = A.V + (B?.V ?? 0), M = { V, k: 1, pos: new Float32Array(V * 3), nor: new Float32Array(V * 3), attr: new Float32Array(V) }, clusters = [];
+  let off = 0;
+  for (const C of meshes) {
+    M.pos.set(C.pos, off * 3); M.nor.set(C.nor, off * 3); M.attr.set(C.shade, off);
+    for (const c of runsOf(C, off, (i) => to(C, i))) clusters.push({ ...c, of: C });
+    off += C.V;
+  }
+  // (A's clusters give way together, to B's, at the band's switch; B's last to its end: one sphere for both, the whole's)
+  const whole = sphereOf(M.pos, Array.from({ length: M.V }, (_, v) => v)), switchAt = { err: B ? surfaceBand(l + 1)[0] : hi, ...whole }, end = { err: hi, ...whole };
+  for (const c of clusters) { c.self = c.of === A ? { err: 0, ...sphereOf(M.pos, c.verts) } : switchAt; c.parent = c.of === A ? switchAt : end; delete c.of; }
+  return { clusters, V: M.V, k: 1, M };
+}
+// a mesh's triangles in runs of MAXT, each a cluster of the record (its own vertices, numbers of M from off; each
+// vertex's way: way(i), place, normal and shade on what it turns into)
+function runsOf(C, off, way) {
+  const out = [], T = C.index.length / 3;
+  for (let s = 0; s < T; s += MAXT) {
+    const n = Math.min(MAXT, T - s), mine = new Map(), verts = [], tris = new Uint32Array(n * 3);
+    for (let i = 0; i < n * 3; i++) { const v = C.index[s * 3 + i]; if (!mine.has(v)) { mine.set(v, verts.length); verts.push(v); } tris[i] = mine.get(v); }
+    const to = new Float32Array(verts.length * 7); verts.forEach((v, j) => to.set(way(v), j * 7));
+    out.push({ tris, verts: Int32Array.from(verts, (v) => v + off), to, n });
+  }
+  return out;
+}
 /** Kind k's mesh at level l of the ladder. */
 export function blobMesh(k, l) {
   const K = kindOf(k), n = LADDER[l].n;
