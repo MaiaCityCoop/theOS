@@ -27,6 +27,7 @@ import { cascades } from '../shadow.js';
 import { dialPxAt } from '../../detail/measure.js';
 import { blueAt } from './noise.js';
 import { note, mark } from '../../core/gpu.js';
+import { drawMade } from '../../core/compile.js';
 
 const white = Object.assign(new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1), { needsUpdate: true });
 /** What the screen's light passes left, for the colour pass to read (white until they run, and where they never do). */
@@ -93,9 +94,9 @@ function createScreenLight(renderer) {
       depth.value = depthTex; size.value.set(w, h);
       proj.value.copy(camera.projectionMatrix); unproj.value.copy(camera.projectionMatrix).invert(); view.value.copy(camera.matrixWorldInverse); viewInv.value.copy(camera.matrixWorld);
       const prev = renderer.getRenderTarget(), route = renderer.getRenderObjectFunction(); renderer.setRenderObjectFunction(null);
-      mark('contact'); renderer.setRenderTarget(rt); quad.render(renderer); mark(null);   // (whose pass this is, for a tool's timing: src/core/gpu.js)
+      mark('contact'); renderer.setRenderTarget(rt); const drew = drawMade(renderer, quad, quad.camera, 'the contact shadows'); mark(null);   // (whose pass this is, for a tool's timing: src/core/gpu.js)
       renderer.setRenderTarget(prev); renderer.setRenderObjectFunction(route);
-      SCREEN.contact.value = rt.texture; SCREEN.on.value = 1;
+      SCREEN.contact.value = rt.texture; SCREEN.on.value = drew ? 1 : 0;   // (read once its pass is made and drawn: src/core/compile.js drawMade)
     },
     /** Its target (a tool's look at it). */
     target: () => rt,

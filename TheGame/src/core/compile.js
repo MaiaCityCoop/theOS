@@ -106,6 +106,19 @@ export const labelled = (material, object, pass = '') => (material.name ||= [obj
 /** What frames asked to be made: how many, how many are, and what is being made now (the veil: src/boot.js). */
 export const making = () => ({ asked, done, now });
 const computeMakers = new WeakMap();
+const ownMakers = new WeakMap();
+/** Draw `mesh` (a pass of its own: a quad drawn straight into the renderer's target as `camera` sees it, not an object of
+    a scene) once it is made for its target, and say whether it drew. Until it is made, it is made aside, for the target
+    set now (always of one kind: the same formats), and nothing is drawn: a pipeline first used in a frame is compiled
+    there, at once, and the frame waits for the GPU to compile it (2026-11-19: the start's first frames in WebKit, 0.9
+    to 1 s each, the master's own-time trace). name: what it is, for the veil and the console. */
+export function drawMade(renderer, mesh, camera, name) {
+  if (made(mesh, 'own')) { renderer.render(mesh, camera); return true; }
+  let maker = ownMakers.get(mesh);
+  if (!maker) { const target = renderer.getRenderTarget(); ownMakers.set(mesh, (maker = (list) => compileList(renderer, target, list, camera, mesh))); }
+  ask(mesh, 'own', maker, (mesh.material.name ||= name));
+  return false;
+}
 /** What makes compute passes (lists of them) on `renderer`, side by side: a maker for ask. */
 export const computeMaker = (renderer) => { let m = computeMakers.get(renderer); if (!m) computeMakers.set(renderer, (m = (lists) => renderer.compileComputeAsync(lists.flat()).then(() => null))); return m; };
 
