@@ -4,7 +4,6 @@
 use crate::View;
 use crate::film::Walker;
 use crate::world::{Eye, Plain};
-use bevy::anti_alias::taa::TemporalAntiAliasing;
 use bevy::camera::Exposure;
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
@@ -382,7 +381,9 @@ fn enter(
         cam.insert(Bloom::NATURAL);
     }
     if !off("TAA") {
-        cam.insert(TemporalAntiAliasing::default());
+        // SMAA, not TAA: TAA blends each frame with the last, and on blades a few pixels thin it pulled the sky of the
+        // frame before into them (the white-blue streaks); SMAA smooths each frame on its own
+        cam.insert(bevy::anti_alias::smaa::Smaa { preset: bevy::anti_alias::smaa::SmaaPreset::High });
     }
     if !off("AO") {
         cam.insert(ScreenSpaceAmbientOcclusion::default()); // soft shading where blades crowd and meet the ground

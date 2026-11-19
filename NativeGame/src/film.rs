@@ -187,3 +187,62 @@ pub fn take_still(mut commands: Commands, still: Res<Still>, mut frames: Local<u
         exit.write(AppExit::Success);
     }
 }
+
+/// The gate: the Meadow's four anchors (`timelines/meadow-anchors.json`), each held at its middle with its own hour and
+/// wind, 1080p without vsync; for each, the frame time over 90 frames and one picture, then quit. The same shots before
+/// and after a change show what it did (`gate.py` puts two runs side by side).
+#[derive(Resource)]
+pub struct Gate {
+    pub dir: std::path::PathBuf,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn gate(
+    mut commands: Commands,
+    g: Res<Gate>,
+    time: Res<Time>,
+    mut studio: ResMut<Studio>,
+    mut window: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
+    mut n: Local<u32>,
+    mut shot: Local<usize>,
+    mut frames: Local<Vec<f32>>,
+    mut report: Local<Vec<String>>,
+    mut exit: MessageWriter<AppExit>,
+) {
+    *n += 1;
+    if *n == 1
+        && let Ok(mut w) = window.single_mut()
+    {
+        w.present_mode = bevy::window::PresentMode::AutoNoVsync;
+        w.resolution.set_scale_factor_override(Some(1.0));
+        w.resolution.set(1920.0, 1080.0);
+    }
+    let clips = studio.timeline.clips.clone();
+    if *shot >= clips.len() {
+        if *n == 40 {
+            let _ = std::fs::write(g.dir.join("times.txt"), report.join("\n") + "\n");
+            println!("{}", report.join("\n"));
+            exit.write(AppExit::Success);
+        }
+        return;
+    }
+    // hold the shot at its middle
+    let start: f32 = clips[..*shot].iter().map(|c| c.secs).sum();
+    studio.time = start + clips[*shot].secs * 0.5;
+    studio.playing = false;
+    // the first shot waits for the shaders to compile and the grass to grow; the others for the grass to stream
+    let settle = if *shot == 0 { 400 } else { 180 };
+    if *n > settle && frames.len() < 90 {
+        frames.push(time.delta_secs() * 1000.0);
+    }
+    if frames.len() == 90 {
+        let mut f = frames.clone();
+        f.sort_by(f32::total_cmp);
+        let mean = f.iter().sum::<f32>() / f.len() as f32;
+        report.push(format!("{}\t{}\t{mean:.1} ms\tp95 {:.1} ms", *shot, clips[*shot].name, f[f.len() * 95 / 100]));
+        commands.spawn(Screenshot::primary_window()).observe(save_to_disk(g.dir.join(format!("{}.png", *shot))));
+        frames.clear();
+        *shot += 1;
+        *n = 0;
+    }
+}

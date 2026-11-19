@@ -68,6 +68,18 @@ fn main() {
     }))
     .init_state::<View>()
     .add_plugins((world::plugin, film::plugin, meadow::plugin, wind::plugin));
+    if args.get(1).map(String::as_str) == Some("--gate") {
+        let dir: PathBuf = args.get(2).expect("--gate <dir>").into();
+        let _ = std::fs::create_dir_all(&dir);
+        let anchors = std::fs::read_to_string(film::ANCHORS).expect("the anchors read");
+        let timeline = camera::Timeline::from_json(&anchors).expect("the anchors parse");
+        app.insert_resource(film::Studio::paused_at(timeline, 0.0))
+            .insert_resource(film::Gate { dir })
+            .insert_state(View::Studio)
+            .add_systems(Update, film::gate);
+        app.run();
+        return;
+    }
     if let Some((m, hour)) = measure {
         app.insert_resource(m).insert_resource(hour).insert_state(View::Meadow).add_systems(Update, meadow::measure);
         app.run();

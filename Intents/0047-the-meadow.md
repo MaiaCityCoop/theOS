@@ -109,6 +109,14 @@ pictures looked at by Samuel; the navigation self-test, `cargo run -- --navtest`
   chunks stream); one colour rule near and far; the stars only by night; the cloud layer fades as the eye nears it.
 - **The Meadow's overlay** smaller and along the top edge.
 
+- **The gate:** `cargo run -- --gate <dir>` renders the four anchors (`timelines/meadow-anchors.json`), each held at its
+  middle with its hour and wind, at 1080p without vsync; per shot the mean and p95 frame time and one picture.
+  `python3 -I NativeGame/gate.py <before> <after> <sheet.png>` puts two runs side by side. Every change is judged
+  on that sheet before Samuel looks at the app.
+- **The white-blue streaks were TAA:** with TAA off they vanished (0 bluish pixels in the close shot, from about 750);
+  on blades a few pixels thin its history pulled in the sky of the frame before. The Meadow uses SMAA now.
+  (Two earlier fixes, the depth prepass and the normals, were real but not the cause.)
+
 ### How the scene evolved
 
 The story of the Meadow, stage by stage, for the devlog. Every stage is a commit on `aven/0047-meadow`; checked out
