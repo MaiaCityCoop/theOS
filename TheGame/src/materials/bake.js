@@ -43,6 +43,8 @@ function program(m) {
   const mat = new THREE.NodeMaterial(); mat.vertexNode = vec4(uv().mul(2).sub(1), 0, 1); mat.fragmentNode = outputStruct(frag(), raw); mat.depthTest = mat.depthWrite = false;
   return mat;
 }
+export const paintingOf = program;   // (main's painting, painted alone by tools/paints.js: this line only, for the check)
+export const reliefOf = reliefProgram;
 // The relief of a painted tile, one program for every material: the normal by the height's steps to the next texel
 // across and the next down (the tile tiles: past its last texel lies its first), the roughness beside it. The same
 // numbers as painting the material twice more a texel over (its height there), which each material's own pass did until
