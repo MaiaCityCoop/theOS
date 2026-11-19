@@ -64,6 +64,10 @@ export function buildRegistry(root) {
 /** Write `text` to `path` unless the file holds it already: what the build and the dev server read is not touched for
     nothing (the dev server would read it again). The manifest's, the solids' rooms' (tools/rooms.js), the plants'
     outlines' (tools/outlines.js). */
+/** What is measured of the recipes once the registry is made, each by a tool of its own in a process of its own (the
+    dev server and the build, vite.config.js; CI, tools/fresh.js): { maker, makes (the file it writes, from the game's
+    folder) }. A file of them git keeps is held to what its maker makes of the commit (tools/fresh.js). */
+export const MEASURES = [{ maker: 'tools/rooms.js', makes: 'rooms.json' }, { maker: 'tools/outlines.js', makes: 'outlines.json' }];
 export function writeIfChanged(path, text) { if (!existsSync(path) || readFileSync(path, 'utf8') !== text) writeFileSync(path, text); }
 /** A measuring tool's own run (`bun tools/x.js`, or node: not when it is imported): make(root) on the game's folder,
     timed, and said(what it made), a line. */

@@ -34,7 +34,7 @@
 //                        has settled (src/boot.js); every capacity sized for the least dial (pxKMost)
 import { float, max } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { flag, flagNum } from '../core/flags.js';
+import { flagText } from '../core/flags.js';
 import { ERROR_PX, pxK, keepNumbers, BAND } from './error.js';
 
 
@@ -85,8 +85,9 @@ export const farMost = (px, size) => (size * pxKMost()) / px;
 /** Each frame, before anything chooses (src/boot.js choose, tools/bench.js): the governor may have changed the inside's
     ratio. True where the measure changed. */
 export const measureNow = () => keep();
-/** ?truth: the dial turned down to TRUTH_DIAL once the game's start (`ready`, src/boot.js) has settled; the game: nothing. */
-export const truthAfter = (ready) => { if (TRUTH) ready.then(() => keep(TRUTH_DIAL)); };
+/** The dial turned to the page's least (DIAL_LEAST) once its start (`ready`, src/boot.js) has settled: the game's is its
+    rest, so nothing turns; the truth's a fraction of a pixel. */
+export const dialAfter = (ready) => ready.then(() => keep(DIAL_LEAST));
 /** f() whenever the live pixel or the dial changes (a tier's band, the meadow's rings); returns what stops it. */
 export const onMeasure = (f) => { listeners.add(f); return () => listeners.delete(f); };
 /** A number that changes whenever the measure does: what packs by it packs again. */
@@ -98,18 +99,20 @@ export const measureVersion = () => version;
 // the truth as what is near, and nothing is drawn finer than the view can show. There is no truth of its own: no reach,
 // no "everything within it measured huge". A ?truth page starts as the game starts, at the dial's rest (the world built
 // at the game's pace, the far ends baked a frame at a time at the game's frame rate), and turns the dial down once that
-// start has settled (src/boot.js); then it is drawn as a still (src/core/screen.js, src/core/temporal.js). `?truth=d`
-// draws at dial d.
-/** Whether the address asks for the truth (`?truth`). */
-export const TRUTH = flag('truth');
-/** The dial the truth is drawn at: a quarter of a pixel drawn by default. The truth is drawn at every pixel of the canvas
-    (a third again finer than the game's inside each way) over 32 places of a pixel, so a quarter of an inside pixel is
-    below what its picture can show. */
-const ASKED = TRUTH ? flagNum('truth', 0.25) : 1;   // (a dial between 0 and 1; anything else, a reach in metres as ?truth once took, is the default)
-const TRUTH_DIAL = TRUTH ? (ASKED > 0 && ASKED < 1 ? Math.max(1e-3, ASKED) : 0.25) : 1;
-/** The least the dial will be on this page: 1 (the governor only raises it), or the truth's. What every capacity is sized
-    for (pxKMost), so a turn of the dial down to it finds room. */
-export const DIAL_LEAST = TRUTH ? TRUTH_DIAL : 1;
+// start has settled (src/boot.js: dialAfter); then it is drawn as a still (src/core/screen.js, src/core/temporal.js).
+// `?truth=d` draws at dial d. Nothing else of it is a mode: what differs is what the dial at its least implies.
+/** The least the dial will be on this page: what the address asks for it (dialAsked), or its rest, 1 (the governor only
+    raises it). What every capacity is sized for (pxKMost), so a turn of the dial down to it finds room. */
+export const DIAL_LEAST = dialAsked(flagText('truth'));
+/** The dial an address's `truth` asks for (its text; none: it asks for none, the dial's rest). The truth is drawn at a
+    quarter of a pixel drawn by default: at every pixel of the canvas (a third again finer than the game's inside each
+    way) over 32 places of a pixel, so a quarter of an inside pixel is below what its picture can show; `?truth=d` at d,
+    a dial over 0 and under 1 (anything else, a reach in metres as ?truth once took, the default). */
+function dialAsked(t) {
+  if (t == null) return 1;
+  const d = +t;
+  return d > 0 && d < 1 ? Math.max(1e-3, d) : 0.25;
+}
 
 /** How many pixels drawn a thing `size` metres large covers `dist` metres off, as the 68° lens sees that distance. */
 export const pxOn = (size, dist) => (size * U.uPxK.value) / dist;

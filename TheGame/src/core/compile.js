@@ -38,6 +38,12 @@ export function inTurn(fn, counted = true) {
     one asked for again of the same make is given the one made, or being made. What is laid out 'auto', or made of what
     was made before this (unknown here), is its own, never shared. On the renderer's device, once, before anything is
     compiled on it. */
+let pipesAsked = 0, pipesMade = 0;   // (the cache's own count: below)
+/** The pipelines the renderer's device has been asked to make, each make once (the one cache, sharePipelines: one asked
+    for again of the same make is not counted again; one it cannot tell, laid out 'auto', each time), and how many of
+    them are made (or failed): what the veil counts (src/boot.js), each step one compile of the GPU's. Nothing before
+    sharePipelines (nor without WebGPU). */
+export const pipelines = () => ({ asked: pipesAsked, made: pipesMade });
 export function sharePipelines(renderer) {
   const dev = renderer.backend?.device;
   if (!dev?.createComputePipelineAsync || dev.__sharing) return;
@@ -55,10 +61,11 @@ export function sharePipelines(renderer) {
     const s = JSON.stringify(d, (k, v) => { if (k === 'label') return undefined; if (k !== 'module' && k !== 'layout') return v; if (!keys.has(v)) unknown = true; return keys.get(v); });
     return unknown ? null : `${kind} ${s}`;
   };
+  const counted = (promise) => { pipesAsked++; promise.then(() => pipesMade++, () => pipesMade++); return promise; };   // (a compile asked of the device, and when it ends)
   const later = (fn, kind) => { const f = dev[fn]; dev[fn] = function (d) {
     const k = makeOf(kind, d), had = k != null && made.get(k);
-    if (k == null || had) return k == null ? f.call(this, d) : had.promise;
-    const e = { promise: f.call(this, d), pipeline: null }; made.set(k, e);
+    if (k == null || had) return k == null ? counted(f.call(this, d)) : had.promise;
+    const e = { promise: counted(f.call(this, d)), pipeline: null }; made.set(k, e);
     e.promise.then((p) => { e.pipeline = p; }, () => { if (made.get(k) === e) made.delete(k); });   // (one that failed is asked for again as it is next wanted)
     return e.promise;
   }; };
@@ -67,7 +74,8 @@ export function sharePipelines(renderer) {
   const now = (fn, kind) => { const f = dev[fn]; dev[fn] = function (d) {
     const k = makeOf(kind, d), had = k != null && made.get(k);
     if (had?.pipeline) return had.pipeline;
-    const p = f.call(this, d); if (k != null && !had) made.set(k, { promise: Promise.resolve(p), pipeline: p });
+    const p = f.call(this, d); pipesAsked++; pipesMade++;   // (made at once: asked and made)
+    if (k != null && !had) made.set(k, { promise: Promise.resolve(p), pipeline: p });
     return p;
   }; };
   now('createComputePipeline', 'compute'); now('createRenderPipeline', 'render');

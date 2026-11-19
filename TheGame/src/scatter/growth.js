@@ -28,9 +28,9 @@ import * as THREE from 'three/webgpu';
 import { Fn, If, float, int, uint, vec2, ivec2, uniform, globalId, floor, clamp, round } from 'three/tsl';
 import { gpuStorage, roomOf } from '../core/gpu.js';
 import { did } from '../core/work.js';
-import { ownGpuMs, pace } from '../core/pace.js';
-import { FRAME_MS, FRAME_MS_BY_CLASS } from '../core/budget.js';
-import { shown, source } from '../core/settle.js';
+import { ownGpuMs, pace, frameShare } from '../core/pace.js';
+import { SUBMIT_MS } from '../core/budget.js';
+import { source } from '../core/settle.js';
 
 /** Texels a window moves by at once; the most layers that write (a word each). */
 export const SNAP = 8, WORDS = 3;
@@ -95,6 +95,7 @@ export function createGrowth(renderer, fields) {
     for (const Wd of words) { Wd.base = base; base += Wd.N * Wd.N; Wd.uN.value = Wd.N; Wd.uBase.value = Wd.base; }
     for (const { w, span } of writers) { const side = 2 ** Math.ceil(Math.log2(span(words[w].N))), P = placeOf(w); P.side.value = side; P.base.value = base; base += side * side; }
     const buf = gpuStorage('uint', base, 'the growth map', 'geometry'); B = buf.node;
+    P = pace(writers.reduce((n, { w, span }) => n + Math.ceil(span(words[w].N) / 8) ** 2 + Math.ceil(words[w].N / 8) ** 2, 0));   // (its unit: a whole window, above)
     fills = writers.map(({ w, record }) => Fn(() => {
       const g = globalId.xy;
       If(g.x.lessThan(uint(uCells.z)).and(g.y.lessThan(uint(uCells.w))), () => {
@@ -121,12 +122,16 @@ export function createGrowth(renderer, fields) {
   };
   // ---- the work, a piece at a time ----
   // (in that order, in pieces of whole workgroups, each its own submission: as many workgroups a frame as fit the frame's
-  // share for geometry (behind the veil, till the first view is shown, the whole frame's: as the land's pages), by each
+  // share for geometry (frameShare: behind the veil, till the first view is shown, the whole frame's), by each
   // piece's own time on the GPU (src/core/pace.js), so no submission holds the GPU long. A window come onto whole (the
   // first time, a jump, the rule changed) was one dispatch of all of it, 256 workgroups of a layer's gather: 2 s in
   // WebKit after the first view, 2026-11-19. What reads the map packs again once all of it is worked out (version); the
   // world is not complete before (settle). Without the GPU's clock to ask (the CPU's stand-in), all of it at once)
-  const jobs = [], P = pace(1);   // (a job: writer n's rectangle of cells (fill) or texels, x z w h; r, c: its workgroups' rows done, and of the next row)
+  // (its unit: a whole window a frame, every writer's fill and gather, set as the writers are (build): a time heard on the
+  // page's thread never takes it under that (src/core/pace.js), so a stall charged to it never starves it, nor the
+  // world's Ready, which waits for it; and a piece never more than SUBMIT_MS by what a workgroup last took (each))
+  const jobs = [], each = { ms: 0 };   // (a job: writer n's rectangle of cells (fill) or texels, x z w h; r, c: its workgroups' rows done, and of the next row)
+  let P = pace(1);
   source('the growth map', () => jobs.length);
   /** Its next k workgroups at most, as a rectangle: whole rows where k holds one, else part of a row. -> [x, z, w, h, k] */
   const take = (J, k) => {
@@ -141,9 +146,10 @@ export function createGrowth(renderer, fields) {
     let clocked = true;
     while (jobs.length && (P.left > 0 || !clocked)) {
       if (!(jobs[0].w > 0 && jobs[0].h > 0)) { jobs.shift(); continue; }   // (nothing to work out)
-      const J = jobs[0], [x0, z0, ww, hh, k] = take(J, clocked ? P.left : Infinity), kernel = J.fill ? fills[J.n] : passes[J.n], u = J.fill ? uCells : uRect;
+      const most = each.ms > 0 ? Math.max(1, Math.floor(SUBMIT_MS / each.ms)) : Infinity;   // (a piece's own time no more than SUBMIT_MS)
+      const J = jobs[0], [x0, z0, ww, hh, k] = take(J, clocked ? Math.min(P.left, most) : Infinity), kernel = J.fill ? fills[J.n] : passes[J.n], u = J.fill ? uCells : uRect;
       const ms = ownGpuMs(renderer, () => { u.value.set(x0, z0, ww, hh); renderer.compute(kernel, [Math.ceil(ww / 8), Math.ceil(hh / 8), 1]); });
-      if (ms) { P.left -= k; ms.then((t) => P.measured(k, t, shown() ? FRAME_MS_BY_CLASS.geometry : FRAME_MS)).catch(() => {}); } else clocked = false;
+      if (ms) { P.left -= k; ms.then((t) => { each.ms = t / k; P.measured(k, t, frameShare('geometry')); }).catch(() => {}); } else clocked = false;
       if (J.r >= Math.ceil(J.h / 8)) jobs.shift();
     }
     if (!jobs.length && pending) { pending = false; version++; }
