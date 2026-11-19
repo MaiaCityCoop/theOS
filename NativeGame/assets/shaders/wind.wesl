@@ -7,6 +7,14 @@ struct Wind {
     params: vec4<f32>,
 };
 
+// The large shape of the land, as `terrain::big` in Rust: keep the two the same.
+fn ground(p: vec2<f32>) -> f32 {
+    return 4.0 * sin(0.0110 * p.x + 0.7) * cos(0.0093 * p.y - 1.1)
+        + 2.5 * sin(0.0057 * p.x + 0.0043 * p.y + 2.0)
+        + 0.45 * sin(0.071 * p.x - 0.052 * p.y + 0.3) * sin(0.048 * p.x + 0.083 * p.y + 1.9)
+        + 0.25 * sin(0.15 * p.x + 0.11 * p.y + 4.0);
+}
+
 fn sway(world: vec3<f32>, time: f32, strength: f32) -> vec3<f32> {
     let dir = normalize(vec2<f32>(0.8, 0.6));
     let along = dot(world.xz, dir);
@@ -20,7 +28,7 @@ fn sway(world: vec3<f32>, time: f32, strength: f32) -> vec3<f32> {
     // the blade bends as an arc of constant curvature from its root, so it keeps its length: a point s up the blade
     // moves out by (1 - cos ks) / k and down to sin(ks) / k. The curvature, in radians per metre, grows with the wind.
     let k = max((0.15 + 1.1 * gust + 0.35 * ripple + flutter * own) * strength * (0.8 + 0.4 * own), 0.0) + 1e-4;
-    let s = max(world.y, 0.0);
+    let s = max(world.y - ground(world.xz), 0.0); // how far up the blade, above the land under it
     let a = min(k * s, 1.4); // never past lying flat
     let out = (1.0 - cos(a)) / k;
     let up = sin(a) / k - s;

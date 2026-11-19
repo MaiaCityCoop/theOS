@@ -73,6 +73,7 @@ fn walk(
     motion: Res<AccumulatedMouseMotion>,
     scroll: Res<bevy::input::mouse::AccumulatedMouseScroll>,
     cursor: Query<&bevy::window::CursorOptions>,
+    state: Res<State<View>>,
     mut walker: ResMut<Walker>,
     mut eye: Query<(&Camera, &mut Transform, &mut Projection), With<Camera3d>>,
 ) {
@@ -102,7 +103,10 @@ fn walk(
     walker.pos += m * speed * time.delta_secs();
     walker.pos.y = walker.pos.y.clamp(LOWEST, HIGHEST);
     let (sp, cp) = walker.pitch.to_radians().sin_cos();
-    let cam = camera::Camera { pos: walker.pos, look: walker.pos + Vec3::new(sy * cp, sp, -cy * cp), mm: 35.0, roll: 0.0 };
+    // the walker's height is above the land under it: on the Meadow's hills the eye rises and falls with the ground
+    let ground = if *state.get() == View::Meadow { crate::terrain::height(walker.pos.x, walker.pos.z) } else { 0.0 };
+    let at = walker.pos + Vec3::Y * ground;
+    let cam = camera::Camera { pos: at, look: at + Vec3::new(sy * cp, sp, -cy * cp), mm: 35.0, roll: 0.0 };
     for (c, mut t, mut p) in &mut eye {
         if c.is_active {
             aim(&cam, &mut t, &mut p);
@@ -142,7 +146,10 @@ fn play(
             studio.playing = false;
         }
     }
-    let Some(cam) = studio.timeline.at(studio.time) else { return };
+    let Some(mut cam) = studio.timeline.at(studio.time) else { return };
+    // the shots' heights are above the land: over the Meadow's hills the camera and its aim follow the ground
+    cam.pos.y += crate::terrain::height(cam.pos.x, cam.pos.z);
+    cam.look.y += crate::terrain::height(cam.look.x, cam.look.z);
     // the shot's own hour and wind, where it gives them (a value, or [from, to] across the shot)
     if let Some((i, q)) = studio.timeline.shot_at(studio.time) {
         let shot = &studio.timeline.clips[i];

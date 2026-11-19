@@ -67,8 +67,14 @@ pub struct Eye2;
 #[derive(Resource)]
 struct Field {
     material: Handle<crate::wind::Grass>,
-    shown: HashMap<(i32, i32), (Entity, i32)>,
-    growing: HashMap<(i32, i32), (Task<Mesh>, i32)>,
+    /// The land's own material: no texture, the colour is in the geometry.
+    ground: Handle<StandardMaterial>,
+    /// Each chunk shown: its grass, its ground, and the ring class it was grown for.
+    shown: HashMap<(i32, i32), (Entity, Entity, i32)>,
+    growing: HashMap<(i32, i32), (Task<(Mesh, Mesh)>, i32)>,
+    /// The land beyond the grass, out to the horizon, and where the eye was when it was last built.
+    far: Handle<Mesh>,
+    far_at: Vec2,
 }
 
 /// The ring class of a chunk `ring` chunks from the camera's: rings 0 and 1 are one class (full detail), rings 7 and out
@@ -105,12 +111,12 @@ fn stream(
     let pool = AsyncComputeTaskPool::get();
     let mut started = 0;
     for &(key, c) in &wanted {
-        let ok_shown = field.shown.get(&key).is_some_and(|s| s.1 == c);
+        let ok_shown = field.shown.get(&key).is_some_and(|s| s.2 == c);
         let ok_growing = field.growing.get(&key).is_some_and(|g| g.1 == c);
         if !ok_shown && !ok_growing && started < 6 {
             let (x, z) = key;
             let s = share(c);
-            field.growing.insert(key, (pool.spawn(async move { chunk(x, z, s) }), c));
+            field.growing.insert(key, (pool.spawn(async move { (chunk(x, z, s), crate::terrain::chunk(x, z, CHUNK, s)) }), c));
             started += 1;
         }
     }
@@ -118,8 +124,9 @@ fn stream(
     let keep: HashMap<(i32, i32), i32> = wanted.into_iter().collect();
     let gone: Vec<_> = field.shown.keys().filter(|k| !keep.contains_key(*k)).copied().collect();
     for k in gone {
-        if let Some((e, _)) = field.shown.remove(&k) {
-            commands.entity(e).despawn();
+        if let Some((grass, ground, _)) = field.shown.remove(&k) {
+            commands.entity(grass).despawn();
+            commands.entity(ground).despawn();
         }
     }
     field.growing.retain(|k, _| keep.contains_key(k));
@@ -127,13 +134,24 @@ fn stream(
     let ready: Vec<_> = field
         .growing
         .iter_mut()
-        .filter_map(|(k, (task, c))| check_ready(task).map(|mesh| (*k, *c, mesh)))
+        .filter_map(|(k, (task, c))| check_ready(task).map(|meshes| (*k, *c, meshes)))
         .collect();
-    for (k, c, mesh) in ready {
+    for (k, c, (grass, ground)) in ready {
         field.growing.remove(&k);
-        let e = commands.spawn((GrassWorld, MEADOW, Mesh3d(meshes.add(mesh)), MeshMaterial3d(field.material.clone()))).id();
-        if let Some((old, _)) = field.shown.insert(k, (e, c)) {
-            commands.entity(old).despawn();
+        let g = commands.spawn((GrassWorld, MEADOW, Mesh3d(meshes.add(grass)), MeshMaterial3d(field.material.clone()))).id();
+        let l = commands.spawn((GrassWorld, MEADOW, Mesh3d(meshes.add(ground)), MeshMaterial3d(field.ground.clone()))).id();
+        if let Some((old_grass, old_ground, _)) = field.shown.insert(k, (g, l, c)) {
+            commands.entity(old_grass).despawn();
+            commands.entity(old_ground).despawn();
+        }
+    }
+    // the land beyond the grass: rebuilt around the eye whenever it has moved 40 m (or risen far)
+    let here = Vec2::new(at.x, at.z);
+    if here.distance(field.far_at) > 40.0 {
+        field.far_at = here;
+        let inner = CHUNK * (RINGS as f32 - 0.5);
+        if let Some(mut m) = meshes.get_mut(&field.far) {
+            *m = crate::terrain::far(here.x, here.y, inner);
         }
     }
 }
@@ -161,7 +179,7 @@ pub fn plugin(app: &mut App) {
         .add_systems(OnExit(View::Studio), leave)
         .add_systems(
             Update,
-            (stream, reframe, crate::ground::follow, crate::clouds::drift).run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio)),
+            (stream, reframe, crate::clouds::drift).run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio)),
         )
         .add_systems(Update, (hours, sun).chain().run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio)));
 }
@@ -229,10 +247,9 @@ fn enter(
         ..default()
     });
     commands.spawn((GrassWorld, MEADOW, Stars, Mesh3d(meshes.add(star_dome(2500, 9_000.0))), MeshMaterial3d(stars), bevy::light::NotShadowCaster));
-    // the ground floor under the grass: soil, crumbs, pebbles and litter, baked from generated micro-geometry
-    commands.spawn((GrassWorld, MEADOW, crate::ground::floor(&mut meshes, &mut materials, &mut images)));
     // the clouds: fair-weather cumulus 1.5 km up, drifting with the wind
-    commands.spawn((GrassWorld, MEADOW, crate::clouds::layer(&mut meshes, &mut materials, &mut images, 0.45)));    // the parts that cost time, each switchable for measuring: MEADOW_NO_<PART>=1
+    commands.spawn((GrassWorld, MEADOW, crate::clouds::layer(&mut meshes, &mut materials, &mut images, 0.45)));
+    // the parts that cost time, each switchable for measuring: MEADOW_NO_<PART>=1
     let off = |part: &str| std::env::var_os(format!("MEADOW_NO_{part}")).is_some();
     // the world is drawn at 1080p (the gate), not at the window's full Retina size (about five times the pixels), into
     // an image the interface then shows over the whole window; the interface itself stays sharp on top
@@ -294,22 +311,13 @@ fn enter(
         ..default()
         },
     });
-    // the grass itself is grown around the camera as it moves (`stream`)
-    commands.insert_resource(Field { material: blades, shown: default(), growing: default() });
-    // the ground
-    commands.spawn((
-        GrassWorld,
-        MEADOW,
-        Mesh3d(meshes.add(crate::grass::ground(400_000.0, 400))),
-        // the grass carpet: the blades' colours as a fine texture, so past the blades the field goes on to the horizon
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::WHITE,
-            base_color_texture: Some(images.add(crate::grass::carpet())),
-            uv_transform: bevy::math::Affine2::from_scale(Vec2::splat(400_000.0 / 2.5)),
-            perceptual_roughness: 0.9,
-            ..default()
-        })),
-    ));
+    // the land: its own material, no texture (the colour is in the geometry, from terrain.rs)
+    let ground = materials.add(StandardMaterial { base_color: Color::WHITE, perceptual_roughness: 0.95, reflectance: 0.3, cull_mode: None, ..default() });
+    // the land beyond the grass, to the horizon, rebuilt around the eye as it moves (`stream`)
+    let far = meshes.add(crate::terrain::far(0.0, 0.0, crate::grass::CHUNK * (crate::grass::RINGS as f32 - 0.5)));
+    commands.spawn((GrassWorld, MEADOW, Mesh3d(far.clone()), MeshMaterial3d(ground.clone())));
+    // the grass and the near land are grown around the camera as it moves (`stream`)
+    commands.insert_resource(Field { material: blades, ground, shown: default(), growing: default(), far, far_at: Vec2::ZERO });
 }
 
 fn leave(

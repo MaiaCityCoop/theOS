@@ -87,6 +87,16 @@ pictures looked at by Samuel; the navigation self-test, `cargo run -- --navtest`
   world to capture the mouse, Escape to let it go and again to go home; the pace grows with height. Grounds now reach
   400 km, the horizon from 12 km.
 
+- **The land in three dimensions, no textures** (Samuel: "never apply the legacy texture logic, but fully procedural
+  3D"): one height function (`terrain.rs`) of rolling hills, swells, tussock mounds and centimetre bumps. The near land
+  grows with the grass chunks, a 96-cell grid per 8 m square near the eye, coarser further out, with skirts so
+  neighbours never gap; beyond the grass, rings out to 200 km are rebuilt around the eye as it moves. Stones and
+  pebbles are generated, partly buried shapes. Every colour is in the geometry, from measured reflectances; large
+  patches of lusher, sparser and drier sward give a view from above its structure. The texture floor and the grass
+  carpet are gone. Grass, thatch and low plants grow on the land; the wind shader computes the same large shape to know
+  a blade's height above the ground; the walker and the Studio's shots keep their height above the land.
+- **Frame rate at 1080p:** Samuel saw 29 to 52 fps in the Meadow ("frame rate looks fine").
+
 ### How the scene evolved
 
 The story of the Meadow, stage by stage, for the devlog. Every stage is a commit on `aven/0047-meadow`; checked out

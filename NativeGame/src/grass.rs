@@ -7,6 +7,8 @@ use bevy::asset::RenderAssetUsages;
 use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::prelude::*;
 
+use crate::terrain;
+
 /// The grass around the camera: chunks of `CHUNK` metres, fixed to the world, `RINGS` chunks out to each side.
 pub const CHUNK: f32 = 8.0;
 pub const RINGS: i32 = 9;
@@ -211,7 +213,7 @@ pub fn chunk(cx: i32, cz: i32, share: f32) -> Mesh {
                     1 => Head::Panicle,
                     _ => Head::Plume,
                 };
-                flowering_stem(&mut g, Vec3::new(x, 0.0, z), 0.55 + 0.4 * r(3), yaw, kind, &r);
+                flowering_stem(&mut g, Vec3::new(x, terrain::height(x, z), z), 0.55 + 0.4 * r(3), yaw, kind, &r);
             }
             continue;
         }
@@ -229,9 +231,10 @@ pub fn chunk(cx: i32, cz: i32, share: f32) -> Mesh {
         let tip_light = tip * Vec3::new(1.15, 1.12, 0.95); // tips catch more light and yellow a little
         let root = tip * 0.28; // the root sits in the shade of its neighbours
         let start = g.pos.len() as u32;
+        let ground = terrain::height(x, z);
         for s in 0..=segs {
             let t = s as f32 / segs as f32;
-            let p = Vec3::new(x, 0.0, z) + dir * (lean * height * t * t) + Vec3::Y * (height * (t - 0.35 * lean * t * t));
+            let p = Vec3::new(x, ground, z) + dir * (lean * height * t * t) + Vec3::Y * (height * (t - 0.35 * lean * t * t));
             // full width over the lower half, then a long even taper to a fine point, as a real blade narrows
             let w = width * (1.0 - ((t - 0.45) / 0.55).clamp(0.0, 1.0)).powf(1.2);
             let n = (side + Vec3::Y * 1.5).normalize(); // bent toward the sky, so a field is lit evenly
@@ -299,7 +302,7 @@ fn low_plants(g: &mut Geo, cx: i32, cz: i32, share: f32) {
         if r(2) > 1.1 - lush {
             continue; // low plants where the grass is thin
         }
-        let at = Vec3::new(x, 0.006, z);
+        let at = Vec3::new(x, terrain::height(x, z) + 0.006, z);
         let a0 = r(3) * std::f32::consts::TAU;
         match (r(4) * 10.0) as u32 {
             // clover: a small patch of trifoliate leaves on short stalks (linear reflectance: a cool mid green)
@@ -372,7 +375,7 @@ fn thatch(g: &mut Geo, cx: i32, cz: i32, share: f32) {
         for s in 0..=segs {
             let t = s as f32 / segs as f32;
             let arch = (t * std::f32::consts::PI).sin() * 0.012 * r(8); // a little arched, not glued flat
-            let p = Vec3::new(x, lift + arch, z) + dir * (len * t) + side * (0.02 * r(9) * t * t);
+            let p = Vec3::new(x, terrain::height(x, z) + lift + arch, z) + dir * (len * t) + side * (0.02 * r(9) * t * t);
             let w = width * (1.0 - 0.7 * t);
             let n = (Vec3::Y + side * 0.3 * (r(10) - 0.5)).normalize();
             let c = colour * (0.85 + 0.3 * t);
@@ -384,96 +387,4 @@ fn thatch(g: &mut Geo, cx: i32, cz: i32, share: f32) {
             g.idx.extend_from_slice(&[a, a + 1, a + 2, a + 1, a + 3, a + 2]);
         }
     }
-}
-
-/// The grass carpet: what a field of grass looks like from further than its blades are drawn. A tile of fine streaks
-/// and small clumps in the blades' own colours, seamless, with its smaller copies made here so it fades evenly.
-pub fn carpet() -> Image {
-    use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
-    use bevy::render::render_resource::{Extent3d, TextureDescriptor, TextureFormat};
-    const N: usize = 512;
-    let wrap = |v: i32, p: i32| v.rem_euclid(p) as u32;
-    // value noise with whole cells per tile, so it repeats without a seam; stretched in x for blade-like streaks
-    let noise = |u: f32, v: f32, cu: i32, cv: i32, seed: u32| {
-        let (x, y) = (u * cu as f32, v * cv as f32);
-        let (ix, iy) = (x.floor() as i32, y.floor() as i32);
-        let (fx, fy) = (x - ix as f32, y - iy as f32);
-        let (sx, sy) = (fx * fx * (3.0 - 2.0 * fx), fy * fy * (3.0 - 2.0 * fy));
-        let c = |dx: i32, dy: i32| h(wrap(ix + dx, cu), wrap(iy + dy, cv), seed);
-        let a = c(0, 0) + (c(1, 0) - c(0, 0)) * sx;
-        let b = c(0, 1) + (c(1, 1) - c(0, 1)) * sx;
-        a + (b - a) * sy
-    };
-    // the carpet in the blades' own linear colours, a little darker for the shade between them
-    let deep = Vec3::new(0.016, 0.045, 0.008);
-    let light = Vec3::new(0.045, 0.110, 0.017);
-    let straw = Vec3::new(0.15, 0.12, 0.05);
-    let mut level: Vec<Vec3> = (0..N * N)
-        .map(|i| {
-            let (u, v) = ((i % N) as f32 / N as f32, (i / N) as f32 / N as f32);
-            let streak = noise(u, v, 160, 24, 3) * 0.6 + noise(u, v, 90, 12, 4) * 0.4;
-            let clump = noise(u, v, 6, 6, 5);
-            let dry = (noise(u, v, 3, 3, 6) - 0.6).max(0.0) * 1.5;
-            deep.lerp(light, (0.25 + 0.75 * streak * clump).min(1.0)).lerp(straw, dry * streak)
-        })
-        .collect();
-    let mut data = Vec::new();
-    let (mut size, mut mips) = (N, 0);
-    loop {
-        for c in &level {
-            let b = |x: f32| (x.clamp(0.0, 1.0).powf(1.0 / 2.2) * 255.0) as u8;
-            data.extend_from_slice(&[b(c.x), b(c.y), b(c.z), 255]);
-        }
-        mips += 1;
-        if size == 1 {
-            break;
-        }
-        let half = size / 2;
-        level = (0..half * half)
-            .map(|i| {
-                let (x, y) = (2 * (i % half), 2 * (i / half));
-                (level[y * size + x] + level[y * size + x + 1] + level[(y + 1) * size + x] + level[(y + 1) * size + x + 1]) / 4.0
-            })
-            .collect();
-        size = half;
-    }
-    let blank = Image::default();
-    Image {
-        data: Some(data),
-        texture_descriptor: TextureDescriptor {
-            size: Extent3d { width: N as u32, height: N as u32, depth_or_array_layers: 1 },
-            format: TextureFormat::Rgba8UnormSrgb,
-            mip_level_count: mips,
-            ..blank.texture_descriptor.clone()
-        },
-        sampler: ImageSampler::Descriptor(ImageSamplerDescriptor {
-            address_mode_u: ImageAddressMode::Repeat,
-            address_mode_v: ImageAddressMode::Repeat,
-            mag_filter: ImageFilterMode::Linear,
-            min_filter: ImageFilterMode::Linear,
-            mipmap_filter: ImageFilterMode::Linear,
-            anisotropy_clamp: 16,
-            ..default()
-        }),
-        ..blank
-    }
-}
-
-/// The ground under and beyond the blades: a plane whose vertices carry a large-scale patchiness (lush, thin, dry),
-/// so the carpet's tile never reads as a repeat from afar.
-pub fn ground(size: f32, cells: u32) -> Mesh {
-    let mut mesh = Plane3d::default().mesh().size(size, size).subdivisions(cells).build();
-    let colours: Vec<[f32; 4]> = mesh
-        .attribute(Mesh::ATTRIBUTE_POSITION)
-        .and_then(|a| a.as_float3())
-        .unwrap_or(&[])
-        .iter()
-        .map(|p| {
-            let (lush, dry) = (field(p[0], p[2], 37.0, 7), field(p[0], p[2], 83.0, 8));
-            let k = 0.75 + 0.45 * lush;
-            [k * (1.0 + 0.25 * dry), k * (1.0 + 0.05 * dry), k * (1.0 - 0.2 * dry), 1.0]
-        })
-        .collect();
-    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colours);
-    mesh
 }

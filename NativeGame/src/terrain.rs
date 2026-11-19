@@ -1,0 +1,220 @@
+//! The land itself, in three dimensions: one height function for everything (rolling hills, swells, tussock mounds,
+//! centimetre bumps), meshes that follow it near the eye and out to the horizon, and stones and pebbles as real
+//! generated shapes lying on it. No textures: every colour is carried by the geometry, from measured reflectances.
+//!
+//! The large terms are plain sums of sines, so the wind shader (`assets/shaders/wind.wesl`) can compute the same
+//! ground and know how high a blade's point is above it.
+
+use bevy::asset::RenderAssetUsages;
+use bevy::mesh::{Indices, PrimitiveTopology};
+use bevy::prelude::*;
+
+/// The large shape of the land: hills and swells. Also in `wind.wesl` (`ground`): keep the two the same.
+pub fn big(x: f32, z: f32) -> f32 {
+    4.0 * (0.0110 * x + 0.7).sin() * (0.0093 * z - 1.1).cos()
+        + 2.5 * (0.0057 * x + 0.0043 * z + 2.0).sin()
+        + 0.45 * (0.071 * x - 0.052 * z + 0.3).sin() * (0.048 * x + 0.083 * z + 1.9).sin()
+        + 0.25 * (0.15 * x + 0.11 * z + 4.0).sin()
+}
+
+fn hash(x: i32, z: i32, seed: u32) -> f32 {
+    let mut h = (x as u32).wrapping_mul(0x8da6_b343) ^ (z as u32).wrapping_mul(0xd816_3841) ^ seed.wrapping_mul(0x9E37_79B1);
+    h ^= h >> 13;
+    h = h.wrapping_mul(0x85eb_ca6b);
+    h ^= h >> 16;
+    (h >> 8) as f32 / (1u32 << 24) as f32
+}
+
+/// Smooth value noise, cells `cell` metres wide.
+pub fn noise(x: f32, z: f32, cell: f32, seed: u32) -> f32 {
+    let (x, z) = (x / cell, z / cell);
+    let (ix, iz) = (x.floor() as i32, z.floor() as i32);
+    let (fx, fz) = (x - ix as f32, z - iz as f32);
+    let (sx, sz) = (fx * fx * (3.0 - 2.0 * fx), fz * fz * (3.0 - 2.0 * fz));
+    let c = |dx: i32, dz: i32| hash(ix + dx, iz + dz, seed);
+    let a = c(0, 0) + (c(1, 0) - c(0, 0)) * sx;
+    let b = c(0, 1) + (c(1, 1) - c(0, 1)) * sx;
+    a + (b - a) * sz
+}
+
+/// The small shape: tussock mounds and the crumbly unevenness of a meadow's floor, a few centimetres.
+fn small(x: f32, z: f32) -> f32 {
+    0.09 * noise(x, z, 1.3, 1) + 0.035 * noise(x, z, 0.4, 2) + 0.012 * noise(x, z, 0.12, 3)
+}
+
+/// The height of the ground at (x, z), in metres.
+pub fn height(x: f32, z: f32) -> f32 {
+    big(x, z) + small(x, z)
+}
+
+fn normal_of(f: &dyn Fn(f32, f32) -> f32, x: f32, z: f32, e: f32) -> Vec3 {
+    Vec3::new(f(x - e, z) - f(x + e, z), 2.0 * e, f(x, z - e) - f(x, z + e)).normalize()
+}
+
+/// The colour of the bare ground at a point: loam, darker where damp, with patches of dead litter and moss
+/// (linear reflectance: dry loam about 0.10, damp 0.05, dead grass 0.15 to 0.25, moss about 0.06 in green).
+fn soil(x: f32, z: f32) -> Vec3 {
+    let damp = (noise(x, z, 3.0, 4) - 0.45).clamp(0.0, 0.35) / 0.35;
+    let litter = (noise(x, z, 0.7, 5) - 0.4).clamp(0.0, 0.4) / 0.4;
+    let moss = (noise(x, z, 2.1, 6) - 0.62).clamp(0.0, 0.3) / 0.3;
+    let grain = 0.85 + 0.3 * noise(x, z, 0.05, 7);
+    let loam = Vec3::new(0.105, 0.075, 0.052).lerp(Vec3::new(0.05, 0.036, 0.026), damp);
+    loam.lerp(Vec3::new(0.19, 0.15, 0.09), litter * 0.7).lerp(Vec3::new(0.035, 0.065, 0.018), moss) * grain
+}
+
+/// The colour of the land seen from afar, where its grass is too small to draw: the sward's own average green,
+/// varying in large patches (lusher, sparser, drier) so a view from above has structure.
+fn sward(x: f32, z: f32) -> Vec3 {
+    let lush = noise(x, z, 60.0, 8);
+    let dry = noise(x, z, 170.0, 9);
+    let fine = 0.9 + 0.2 * noise(x, z, 9.0, 10);
+    Vec3::new(0.030, 0.070, 0.014).lerp(Vec3::new(0.050, 0.095, 0.018), lush).lerp(Vec3::new(0.10, 0.09, 0.045), dry * dry * 0.6) * fine
+}
+
+/// Geometry being built.
+#[derive(Default)]
+struct Geo {
+    pos: Vec<[f32; 3]>,
+    nrm: Vec<[f32; 3]>,
+    col: Vec<[f32; 4]>,
+    idx: Vec<u32>,
+}
+
+impl Geo {
+    fn vert(&mut self, p: Vec3, n: Vec3, c: Vec3) -> u32 {
+        self.pos.push(p.to_array());
+        self.nrm.push(n.to_array());
+        self.col.push([c.x, c.y, c.z, 1.0]);
+        self.pos.len() as u32 - 1
+    }
+    fn mesh(self) -> Mesh {
+        Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, self.pos)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, self.nrm)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, self.col)
+            .with_inserted_indices(Indices::U32(self.idx))
+    }
+
+    /// A stone: an irregular, flattened, partly buried rounded shape `size` metres across, at (x, z).
+    fn stone(&mut self, x: f32, z: f32, size: f32, seed: u32) {
+        // an icosahedron, each corner pushed in or out, then the whole squashed and sunk into the ground
+        let t = (1.0 + 5.0f32.sqrt()) / 2.0;
+        let corners = [
+            (-1.0, t, 0.0), (1.0, t, 0.0), (-1.0, -t, 0.0), (1.0, -t, 0.0),
+            (0.0, -1.0, t), (0.0, 1.0, t), (0.0, -1.0, -t), (0.0, 1.0, -t),
+            (t, 0.0, -1.0), (t, 0.0, 1.0), (-t, 0.0, -1.0), (-t, 0.0, 1.0),
+        ];
+        let faces: [[u32; 3]; 20] = [
+            [0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
+            [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1],
+        ];
+        let r = |k: u32| hash(seed as i32, k as i32, 77);
+        let squash = 0.45 + 0.35 * r(1);
+        let stretch = 0.8 + 0.5 * r(2);
+        let yaw = r(3) * std::f32::consts::TAU;
+        let (sy, cy) = yaw.sin_cos();
+        let ground = height(x, z);
+        let pts: Vec<Vec3> = corners
+            .iter()
+            .enumerate()
+            .map(|(i, &(a, b, c))| {
+                let v = Vec3::new(a, b, c).normalize() * (0.75 + 0.45 * r(10 + i as u32));
+                let v = Vec3::new(v.x * stretch, v.y * squash, v.z) * size * 0.5;
+                Vec3::new(v.x * cy - v.z * sy, v.y, v.x * sy + v.z * cy) + Vec3::new(x, ground - size * 0.12, z)
+            })
+            .collect();
+        // grey to brown, a little darker below, lichen-pale on some tops (linear: rock about 0.15 to 0.25)
+        let grey = Vec3::new(0.21, 0.20, 0.18).lerp(Vec3::new(0.15, 0.12, 0.09), r(4)) * (0.8 + 0.35 * r(5));
+        for f in faces {
+            let (a, b, c) = (pts[f[0] as usize], pts[f[1] as usize], pts[f[2] as usize]);
+            let n = (b - a).cross(c - a).normalize_or_zero();
+            let shade = if n.y > 0.5 && r(6) > 0.6 { grey.lerp(Vec3::new(0.30, 0.31, 0.24), 0.35) } else { grey * (0.85 + 0.15 * n.y) };
+            let i0 = self.vert(a, n, shade);
+            let i1 = self.vert(b, n, shade);
+            let i2 = self.vert(c, n, shade);
+            self.idx.extend_from_slice(&[i0, i1, i2]);
+        }
+    }
+}
+
+/// One square of the land, `size` metres from (x0, z0), `n` cells a side, in the colour `colour` gives: a grid on the
+/// height function, with a short skirt hanging down its edges so neighbours of another resolution never show a gap.
+fn patch(g: &mut Geo, x0: f32, z0: f32, size: f32, n: u32, h: &dyn Fn(f32, f32) -> f32, colour: &dyn Fn(f32, f32) -> Vec3) {
+    let step = size / n as f32;
+    let start = g.pos.len() as u32;
+    for j in 0..=n {
+        for i in 0..=n {
+            let (x, z) = (x0 + i as f32 * step, z0 + j as f32 * step);
+            g.vert(Vec3::new(x, h(x, z), z), normal_of(h, x, z, step * 0.5), colour(x, z));
+        }
+    }
+    let at = |i: u32, j: u32| start + j * (n + 1) + i;
+    for j in 0..n {
+        for i in 0..n {
+            g.idx.extend_from_slice(&[at(i, j), at(i, j + 1), at(i + 1, j), at(i + 1, j), at(i, j + 1), at(i + 1, j + 1)]);
+        }
+    }
+    // the skirt: each edge vertex again, 0.3 m lower
+    let drop = 0.3;
+    let edges: [Vec<(u32, u32)>; 4] = [
+        (0..=n).map(|i| (i, 0)).collect(),
+        (0..=n).map(|j| (n, j)).collect(),
+        (0..=n).rev().map(|i| (i, n)).collect(),
+        (0..=n).rev().map(|j| (0, j)).collect(),
+    ];
+    for edge in edges {
+        for w in edge.windows(2) {
+            let (a, b) = (at(w[0].0, w[0].1), at(w[1].0, w[1].1));
+            let (pa, pb) = (Vec3::from(g.pos[a as usize]), Vec3::from(g.pos[b as usize]));
+            let ca = Vec3::new(g.col[a as usize][0], g.col[a as usize][1], g.col[a as usize][2]);
+            let na = g.vert(pa - Vec3::Y * drop, Vec3::Y, ca);
+            let nb = g.vert(pb - Vec3::Y * drop, Vec3::Y, ca);
+            g.idx.extend_from_slice(&[a, b, na, b, nb, na]);
+        }
+    }
+}
+
+/// The ground of one grass chunk (`CHUNK` metres square at chunk (cx, cz)), its detail by `share` (see
+/// `grass::share`): centimetre cells and stones near the eye, coarser further out.
+pub fn chunk(cx: i32, cz: i32, size: f32, share: f32) -> Mesh {
+    let mut g = Geo::default();
+    let n = if share >= 1.0 { 96 } else if share >= 0.35 { 40 } else if share >= 0.09 { 16 } else { 8 };
+    let near = share >= 1.0;
+    let colour = |x: f32, z: f32| if near { soil(x, z) } else { soil(x, z).lerp(sward(x, z), 0.5) };
+    patch(&mut g, cx as f32 * size, cz as f32 * size, size, n, &height, &colour);
+    if share >= 0.35 {
+        // pebbles, 1 to 4 cm, a few to the square metre, and now and then a stone of 8 to 30 cm
+        let count = (5.0 * size * size * share) as u32;
+        for k in 0..count {
+            let seed = (cx.wrapping_mul(92837) ^ cz.wrapping_mul(689287)) as u32 ^ k.wrapping_mul(2654435761);
+            let (x, z) = (cx as f32 * size + hash(seed as i32, 1, 5) * size, cz as f32 * size + hash(seed as i32, 2, 5) * size);
+            let size = if hash(seed as i32, 3, 5) < 0.02 { 0.08 + 0.22 * hash(seed as i32, 4, 5) } else { 0.01 + 0.03 * hash(seed as i32, 4, 5) };
+            g.stone(x, z, size, seed);
+        }
+    }
+    g.mesh()
+}
+
+/// The land from beyond the grass to the horizon: rings around (cx, cz) from `inner` metres out to 200 km, wider the
+/// further out, on the large shape only, in the sward's colour. Rebuilt as the eye moves.
+pub fn far(cx: f32, cz: f32, inner: f32) -> Mesh {
+    let mut g = Geo::default();
+    let (rings, segs) = (90u32, 192u32);
+    for r in 0..=rings {
+        let radius = inner * (200_000.0f32 / inner).powf(r as f32 / rings as f32);
+        for s in 0..segs {
+            let a = s as f32 / segs as f32 * std::f32::consts::TAU;
+            let (x, z) = (cx + a.cos() * radius, cz + a.sin() * radius);
+            // sunk a little under the near ground where they meet, so the near one always shows
+            let y = big(x, z) - if r == 0 { 0.3 } else { 0.05 };
+            g.vert(Vec3::new(x, y, z), normal_of(&big, x, z, radius * 0.02 + 0.5), sward(x, z));
+        }
+    }
+    let at = |r: u32, s: u32| r * segs + s % segs;
+    for r in 0..rings {
+        for s in 0..segs {
+            g.idx.extend_from_slice(&[at(r, s), at(r, s + 1), at(r + 1, s), at(r, s + 1), at(r + 1, s + 1), at(r + 1, s)]);
+        }
+    }
+    g.mesh()
+}
