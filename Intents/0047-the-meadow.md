@@ -123,6 +123,14 @@ pictures looked at by Samuel; the navigation self-test, `cargo run -- --navtest`
   the blades are found at that height (parallax), as blade-wide streaks along the view, never finer than two pixels.
   No baking and no texture: it is computed per pixel from the same numbers as the blades.
 
+- **The asset architecture (begun), after SmartImposter, fully procedural:** every asset has one full-detail master
+  (`library::master(asset, seed)`: rocks from `terrain::rock_master`, plants from one `grass::plant` generator shared
+  with the field); everything else is to be made from it. Planned: views of each master baked into an atlas
+  (octahedral impostor), copies drawn as instanced masters near and as impostors far with per-pixel dissolves between,
+  so millions of placements hold 30 fps; then the grass tile itself as an asset whose far view is the carpet.
+- **The Library** (home tile D): each asset's master on a turntable; ← → step through, Space a new individual, the
+  caption its generator, sizes and triangle count.
+
 ### How the scene evolved
 
 The story of the Meadow, stage by stage, for the devlog. Every stage is a commit on `aven/0047-meadow`; checked out

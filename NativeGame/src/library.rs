@@ -43,6 +43,7 @@ pub fn builtin() -> Vec<Asset> {
         asset("plantain", "plant", "plantain", [0.18, 0.30], [0.04, 0.09, 0.025], [0.05, 0.11, 0.03], 1.0),
         asset("dandelion", "plant", "dandelion", [0.24, 0.40], [0.045, 0.11, 0.03], [0.055, 0.13, 0.035], 1.0),
         asset("moss", "plant", "moss", [0.12, 0.32], [0.03, 0.075, 0.015], [0.07, 0.11, 0.02], 1.0),
+        asset("grass tuft", "plant", "grass_tuft", [0.12, 0.45], [0.045, 0.120, 0.018], [0.100, 0.230, 0.035], 1.0),
         asset("seed head", "plant", "seed_head", [0.55, 0.95], [0.30, 0.24, 0.10], [0.20, 0.16, 0.08], 1.0),
     ]
 }
@@ -82,4 +83,28 @@ pub fn read() -> BTreeMap<String, Asset> {
 pub fn colour(a: &Asset, r: f32) -> bevy::math::Vec3 {
     let (x, y) = (a.colour[0], a.colour[1]);
     bevy::math::Vec3::new(x[0] + (y[0] - x[0]) * r, x[1] + (y[1] - x[1]) * r, x[2] + (y[2] - x[2]) * r)
+}
+
+/// The master of an asset: its one full-detail individual for `seed`, at the origin. Everything else (the field's
+/// copies, its far views) is made from this.
+pub fn master(a: &Asset, seed: u32) -> bevy::prelude::Mesh {
+    let r = |k: u32| {
+        let mut x = seed.wrapping_mul(0x9E37_79B1) ^ k.wrapping_mul(0x85EB_CA77);
+        x ^= x >> 15;
+        x = x.wrapping_mul(0x2C1B_3C6D);
+        x ^= x >> 13;
+        (x >> 8) as f32 / (1u32 << 24) as f32
+    };
+    let col = colour(a, r(1));
+    if a.kind == "rock" {
+        let size = a.size[0] + (a.size[1] - a.size[0]) * r(2);
+        crate::terrain::rock_master(&a.generator, size, col, a.flatness, seed)
+    } else {
+        crate::grass::plant_master(&a.generator, seed, col)
+    }
+}
+
+/// How many triangles a mesh has.
+pub fn triangles(m: &bevy::prelude::Mesh) -> usize {
+    m.indices().map(|i| i.len() / 3).unwrap_or(0)
 }

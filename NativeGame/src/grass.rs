@@ -345,51 +345,9 @@ fn low_plants(g: &mut Geo, cx: i32, cz: i32, share: f32) {
         let a0 = r(3) * std::f32::consts::TAU;
         let pick = r(4) * total.max(1e-6);
         let which = if pick < kinds[0] { 0 } else if pick < kinds[0] + kinds[1] { 5 } else if pick < kinds[0] + kinds[1] + kinds[2] { 7 } else { 9 };
-        match which {
-            // clover: a small patch of trifoliate leaves on short stalks (linear reflectance: a cool mid green)
-            0..=4 => {
-                let col = tint("clover", r(5)).unwrap_or(Vec3::new(0.04, 0.1, 0.03)) * (0.8 + 0.4 * r(6));
-                for k in 0..(4 + (r(6) * 6.0) as u32) {
-                    let ka = a0 + k as f32 * 2.3;
-                    let stem = at + Vec3::new(ka.cos(), 0.0, ka.sin()) * (0.05 * r(7 + k)) + Vec3::Y * (0.04 + 0.05 * r(8 + k));
-                    g.strip(at, stem, 0.0008, col * 0.7, col, 0.0, 0.1);
-                    for l in 0..3 {
-                        let la = ka + l as f32 * std::f32::consts::TAU / 3.0;
-                        leaf(g, stem, Vec3::new(la.cos(), 0.0, la.sin()), 0.15, 0.014, 0.008, col, false);
-                    }
-                }
-            }
-            // plantain: a rosette of broad ribbed leaves lying out from the centre
-            5..=6 => {
-                let col = tint("plantain", r(5)).unwrap_or(Vec3::new(0.04, 0.1, 0.03)) * (0.8 + 0.4 * r(6));
-                let n = 5 + (r(6) * 4.0) as u32;
-                for k in 0..n {
-                    let ka = a0 + k as f32 * std::f32::consts::TAU / n as f32;
-                    leaf(g, at, Vec3::new(ka.cos(), 0.0, ka.sin()), 0.25 + 0.2 * r(7 + k), 0.09 + 0.06 * r(9 + k), 0.025, col, false);
-                }
-            }
-            // dandelion: a flatter rosette of long toothed leaves
-            7..=8 => {
-                let col = tint("dandelion", r(5)).unwrap_or(Vec3::new(0.04, 0.1, 0.03)) * (0.8 + 0.4 * r(6));
-                let n = 7 + (r(6) * 5.0) as u32;
-                for k in 0..n {
-                    let ka = a0 + k as f32 * std::f32::consts::TAU / n as f32 + 0.2 * r(7 + k);
-                    leaf(g, at, Vec3::new(ka.cos(), 0.0, ka.sin()), 0.12 + 0.15 * r(8 + k), 0.12 + 0.08 * r(9 + k), 0.016, col, true);
-                }
-            }
-            // moss: a low cushion of tiny pointed shoots, deep green to yellow-green
-            _ => {
-                let col = tint("moss", r(5)).unwrap_or(Vec3::new(0.04, 0.1, 0.03)) * (0.8 + 0.4 * r(6));
-                let radius = 0.06 + 0.1 * r(6);
-                for k in 0..40 {
-                    let ka = a0 + k as f32 * 2.4;
-                    let d = radius * r(7 + k).sqrt();
-                    let p = at + Vec3::new(ka.cos() * d, 0.0, ka.sin() * d);
-                    let up = 0.012 * (1.0 - d / radius) + 0.004;
-                    g.strip(p, p + Vec3::Y * up + Vec3::new(ka.cos(), 0.0, ka.sin()) * 0.004, 0.002, col * 0.8, col, 0.0, 0.03);
-                }
-            }
-        }
+        let kind = match which { 0..=4 => "clover", 5..=6 => "plantain", 7..=8 => "dandelion", _ => "moss" };
+        let col = tint(kind, r(5)).unwrap_or(Vec3::new(0.04, 0.1, 0.03)) * (0.8 + 0.4 * r(6));
+        plant(g, kind, at, a0, col, &r);
     }
 }
 
@@ -481,4 +439,76 @@ pub fn tile(segs: u32) -> Mesh {
         .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uv)
         .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, col)
         .with_inserted_indices(Indices::U32(idx))
+}
+
+/// A low plant of `kind` (`clover`, `plantain`, `dandelion`, `moss`) at `at`, turned by `a0`, in `col`; `r` is its
+/// own random numbers. The one generator for the field and for the library's masters.
+fn plant(g: &mut Geo, kind: &str, at: Vec3, a0: f32, col: Vec3, r: &dyn Fn(u32) -> f32) {
+    match kind {
+            // clover: a small patch of trifoliate leaves on short stalks (linear reflectance: a cool mid green)
+            "clover" => {
+                for k in 0..(4 + (r(6) * 6.0) as u32) {
+                    let ka = a0 + k as f32 * 2.3;
+                    let stem = at + Vec3::new(ka.cos(), 0.0, ka.sin()) * (0.05 * r(7 + k)) + Vec3::Y * (0.04 + 0.05 * r(8 + k));
+                    g.strip(at, stem, 0.0008, col * 0.7, col, 0.0, 0.1);
+                    for l in 0..3 {
+                        let la = ka + l as f32 * std::f32::consts::TAU / 3.0;
+                        leaf(g, stem, Vec3::new(la.cos(), 0.0, la.sin()), 0.15, 0.014, 0.008, col, false);
+                    }
+                }
+            }
+            // plantain: a rosette of broad ribbed leaves lying out from the centre
+            "plantain" => {
+                let n = 5 + (r(6) * 4.0) as u32;
+                for k in 0..n {
+                    let ka = a0 + k as f32 * std::f32::consts::TAU / n as f32;
+                    leaf(g, at, Vec3::new(ka.cos(), 0.0, ka.sin()), 0.25 + 0.2 * r(7 + k), 0.09 + 0.06 * r(9 + k), 0.025, col, false);
+                }
+            }
+            // dandelion: a flatter rosette of long toothed leaves
+            "dandelion" => {
+                let n = 7 + (r(6) * 5.0) as u32;
+                for k in 0..n {
+                    let ka = a0 + k as f32 * std::f32::consts::TAU / n as f32 + 0.2 * r(7 + k);
+                    leaf(g, at, Vec3::new(ka.cos(), 0.0, ka.sin()), 0.12 + 0.15 * r(8 + k), 0.12 + 0.08 * r(9 + k), 0.016, col, true);
+                }
+            }
+            // moss: a low cushion of tiny pointed shoots, deep green to yellow-green
+            _ => {
+                let radius = 0.06 + 0.1 * r(6);
+                for k in 0..40 {
+                    let ka = a0 + k as f32 * 2.4;
+                    let d = radius * r(7 + k).sqrt();
+                    let p = at + Vec3::new(ka.cos() * d, 0.0, ka.sin() * d);
+                    let up = 0.012 * (1.0 - d / radius) + 0.004;
+                    g.strip(p, p + Vec3::Y * up + Vec3::new(ka.cos(), 0.0, ka.sin()) * 0.004, 0.002, col * 0.8, col, 0.0, 0.03);
+                }
+            }
+    }
+}
+
+/// The master of a library plant: the full-detail individual `seed`, standing at the origin.
+pub fn plant_master(generator: &str, seed: u32, col: Vec3) -> Mesh {
+    let mut g = Geo::default();
+    let r = |k: u32| h(seed, 0x51A7, k);
+    if generator == "seed_head" {
+        let kind = match (r(12) * 3.0) as u32 {
+            0 => Head::Spike,
+            1 => Head::Panicle,
+            _ => Head::Plume,
+        };
+        flowering_stem(&mut g, Vec3::ZERO, 0.55 + 0.4 * r(3), r(5) * std::f32::consts::TAU, kind, &r);
+    } else if generator == "grass_tuft" {
+        // a tuft of the meadow's blades, as the GPU makes them, for the library
+        for k in 0..60 {
+            let a = r(100 + k) * std::f32::consts::TAU;
+            let d = 0.06 * r(200 + k).sqrt();
+            let base = Vec3::new(a.cos() * d, 0.0, a.sin() * d);
+            let tip_dir = Vec3::new(a.cos(), 0.0, a.sin());
+            leaf(&mut g, base, tip_dir, 0.8 + 0.18 * r(300 + k), 0.18 + 0.2 * r(400 + k), 0.003, col * (0.8 + 0.4 * r(500 + k)), false);
+        }
+    } else {
+        plant(&mut g, generator, Vec3::ZERO, r(3) * std::f32::consts::TAU, col, &r);
+    }
+    g.mesh()
 }

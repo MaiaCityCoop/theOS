@@ -57,6 +57,7 @@ pub fn plugin(app: &mut App) {
         .add_systems(OnEnter(View::Game), game)
         .add_systems(OnEnter(View::Studio), studio)
         .add_systems(OnEnter(View::Meadow), meadow)
+        .add_systems(OnEnter(View::Library), library)
         .init_resource::<Opened>()
         .add_systems(Update, opened.run_if(state_changed::<View>))
         .add_observer(press)
@@ -159,8 +160,23 @@ fn home(mut commands: Commands, f: Res<Fonts>) {
                     tile(Act::Open(View::Game), true, "A · GAME", "Game", "Walk the green plain. W A S D, the mouse held to look, Shift to run.", 2.0),
                     tile(Act::Open(View::Studio), false, "B · STUDIO", "Studio", "Five shots, played live through the world by the virtual camera.", 1.0),
                     tile(Act::Open(View::Meadow), false, "C · MEADOW", "Meadow", "How real can it look here? Grass in wind, a physical sky, the sun. Measured at 1080p.", 1.0),
+                    tile(Act::Open(View::Library), false, "D · LIBRARY", "Library", "Every plant and rock, each a procedural master. ← → step, Space a new individual.", 1.0),
                 ],
             ),
+        ],
+    ));
+}
+
+// ---- the Library: Home, and what the shelf shows ----
+
+fn library(mut commands: Commands, f: Res<Fonts>) {
+    commands.spawn((
+        DespawnOnExit(View::Library),
+        Node { position_type: PositionType::Absolute, top: Val::Px(12.0), left: Val::Px(12.0), right: Val::Px(12.0), column_gap: Val::Px(8.0), ..default() },
+        children![
+            (Hovered::default(), Act::Home, chip_node(), BackgroundColor(CREAM), children![text(&f.sans, CHIP_TEXT, FOREST, "Home")]),
+            (chip_node(), BackgroundColor(GLASS), children![(crate::workshop::Caption, text(&f.mono, CHIP_TEXT, FOREST, "…"))]),
+            (chip_node(), BackgroundColor(GLASS), children![text(&f.mono, CHIP_TEXT, FOREST, "← → assets · Space new individual · scroll closer")]),
         ],
     ));
 }

@@ -15,6 +15,7 @@ mod meadow;
 mod terrain;
 mod ui;
 mod wind;
+mod workshop;
 mod world;
 
 use bevy::prelude::*;
@@ -28,6 +29,7 @@ pub enum View {
     Game,
     Studio,
     Meadow,
+    Library,
 }
 
 /// Set when the app runs only to take one still for an agent: no interface, one picture, then it quits.
@@ -68,7 +70,7 @@ fn main() {
         ..default()
     }))
     .init_state::<View>()
-    .add_plugins((world::plugin, film::plugin, meadow::plugin, wind::plugin));
+    .add_plugins((world::plugin, film::plugin, meadow::plugin, wind::plugin, workshop::plugin));
     if args.get(1).map(String::as_str) == Some("--gate") {
         let dir: PathBuf = args.get(2).expect("--gate <dir>").into();
         let _ = std::fs::create_dir_all(&dir);
