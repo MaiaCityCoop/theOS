@@ -25,7 +25,7 @@ import { windAt, windStrength, unlit } from '../world/light.js';
 import { passOf, motion, vWas, drawnId, idClass } from '../core/pass.js';
 import { U } from '../core/uniforms.js';
 import { layerOf, wrapGrad } from '../world/tile.js';
-import { levelOf, handOver, sinkInto } from '../detail/handover.js';
+import { levelOfMesh, handOver, sinkInto } from '../detail/handover.js';
 import { farMost, dialPxAt } from '../detail/measure.js';
 import { SURFACE_LEVELS, FADE, BAND, GONE, surfaceBand, surfacePx } from '../detail/error.js';
 import { spanOf, most, kindOf } from '../../assets/kinds.js';
@@ -67,16 +67,20 @@ export const unstand = (id) => LIST?.unstand(id) ?? false;
 /** The made things' material, for a level of a group's drawer: a thing's vertex from the heap, its place from its tier's
     packing (A: x, z, the height of its foot, its size; B: its turn, its kind, -, its seed; S: its own state, a tint and
     how worn it is: src/world/things.js), its kind's numbers (the drawer's table: its look, and NUMS rows of its own),
-    and from there what src/world/made.nodes.js does for every made thing. Lv: its level ({ lo, hi, last }), fade and
-    sink its kinds'. Which of the level's clusters are drawn, and how far each has turned into its parent, is the cut's
+    and from there what src/world/made.nodes.js does for every made thing. Its level and its level's numbers ({ lo, hi,
+    last }) as the mesh drawing it tells them (src/scatter/drawer.js tagLevel: userData.heapLevel, Lv; lv, the level it
+    was made for: what it is drawn as until a mesh says), so one material draws every level of a group drawn alike
+    (drawer.js alike); and how far the mesh has come since it could first be drawn (userData.arrived: it rises out of the
+    ground, handOver's sink, src/core/screen.js). fade and sink its kinds'. Which of the level's clusters are drawn, and how far each has turned into its parent, is the cut's
     rule (src/scatter/cut.js), in the vertex stage: by the thing's own distance, and at level 0 by each of its clusters'
     own as the thing grows from PX_CUT to twice that (a made thing is small: its clusters are tested here, not in a
     compute pass). */
-function madeMaterial(D, src, lv, Lv, fade, sink, at) {
-  const slot = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.slot ?? 0), level = uniform(lv, 'uint'), LU = levelOf(Lv, fade);
-  // (its level's numbers uniforms: every level but the first, whose cut reads each cluster's own distance, one shader,
-  // one pipeline a pass: seven levels were seven, differing only in these two numbers, 2026-11-19)
-  const from = uniform(surfaceBand(Math.min(lv + 1, SURFACE_LEVELS - 1))[0]), CUT = lv === 0, PXC = pxCut();
+function madeMaterial(D, src, lv, fade, sink, at) {
+  // (a number of its level, as the mesh drawing it says which: every level but the first, whose cut reads each cluster's
+  // own distance, one material, one build a pass: seven levels were seven builds of the same code, 2026-11-19)
+  const ofLevel = (f, type = 'float') => uniform(f(lv), type).onObjectUpdate(({ object }) => f(object?.userData?.heapLevel ?? lv));
+  const slot = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.slot ?? 0), level = ofLevel((l) => l, 'uint'), LU = levelOfMesh(fade);
+  const from = ofLevel((l) => surfaceBand(Math.min(l + 1, SURFACE_LEVELS - 1))[0]), CUT = lv === 0, PXC = pxCut();
   const vW = varyingProperty('vec3', 'mW'), vN = varyingProperty('vec3', 'mN'), vC = varyingProperty('vec3', 'mC'), vY = varyingProperty('float', 'mY'), vK = varyingProperty('vec3', 'mK');   // (vK: its kind, the material its face wears, how worn it is)
   const m = new THREE.NodeMaterial(); m.side = THREE.DoubleSide;
   m.vertexNode = Fn(() => {
@@ -130,9 +134,12 @@ function madeMaterial(D, src, lv, Lv, fade, sink, at) {
     return out;
   })();
   m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)
-  if (src?.placeAt) m.idNode = drawnId(uniform(idClass({ family: 'made', level: lv }), 'uint'), src.placeAt(slot));   // (what its pixels' id says: src/core/pass.js)
+  if (src?.placeAt) m.idNode = drawnId(ofLevel(classOf, 'uint'), src.placeAt(slot));   // (what its pixels' id says: src/core/pass.js)
   return m;
 }
+
+// (a level's class of what draws, for what its pixels' id says: one a level, made once, src/core/pass.js idClass)
+const CLASSES = [], classOf = (lv) => (CLASSES[lv] ??= idClass({ family: 'made', level: lv }));
 
 /** A group: made kinds drawn by one drawer, its list, its tiers. */
 function groupOf(scene, tex, renderer, name, kinds, cap) {
@@ -153,7 +160,10 @@ function groupOf(scene, tex, renderer, name, kinds, cap) {
   const KINDS = kinds.map((Kd) => Kd.zoo), fade = FADE, sink = 0;   // (fade: only where a thing's level changes, exactly at its pixels: handOver's `whole`)
   const D = createDrawer(scene, renderer, tex, {
     name: `made: ${name}`, LEVELS, SHADE: { shrink: 1, far: 30, wide: 1.5 }, SMOOTH: uniform(1), state: true,
-    make: { per: 2, flat: false, dot: true, numbers: { rows: NUMS, of: numbersOf }, material: (src, i, shadow, at) => madeMaterial(D, src, i, { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity, last: false }, fade, sink, at),
+    // (a level's numbers, told by its meshes: levelOf; which levels are drawn alike, one material: every one but the
+    // first, which its clusters' own distances cut, src/scatter/drawer.js alike)
+    make: { per: 2, flat: false, dot: true, numbers: { rows: NUMS, of: numbersOf }, material: (src, i, shadow, at) => madeMaterial(D, src, i, fade, sink, at),
+      levelOf: (i) => (i < ML ? { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity, last: false } : null), alike: (i) => (i ? 'levels' : 'cut'),
       box: (k) => { const a = kinds[k].asset, B = madeBox(a), s = spanOf(a); return { min: B.min.map((v) => v / s), max: B.min.map((v, j) => (v + B.ext[j]) / s) }; } },   // (its box over every level, in its sizes: what the eye's occlusion test reads, drawer.js kindBox)
     // (what the browser keeps of it is good while its recipes and their rooms are what they were: registry.json's versions)
     zoo: { kinds: KINDS, ALL: n, lookOfKind: (k) => kinds[k].look, fingerprint: () => `made 5|${kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.slice(0, ML).map((l) => l.rooms.map((r) => `${r.verts}:${r.tris}`).join()).join('/')}` },
