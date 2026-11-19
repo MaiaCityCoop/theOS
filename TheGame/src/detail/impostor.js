@@ -6,8 +6,8 @@
 //   - the views: VIEWS x VIEWS directions over the half-sphere above (hemi-octahedral: Brucks 2018), each a cell of CELL
 //     texels a side of a shape's layer, framed by the sphere round the whole thing (assets/kit/crowd.js: sphere). Where
 //     it is drawn it is one quad facing the eye, and each pixel blends the three views nearest its own ray's way, each
-//     read where that ray meets what the view saw (one step of parallax by its depth: arycama 2024, agargaro's three.js
-//     octahedral impostors), so turning round it nothing snaps and nothing slides, and no pixel reads views chosen for
+//     read where that ray crosses the view's plane through the thing's middle (its error then the views' spacing times
+//     the sphere's radius, src/detail/atlas.js), so turning round it nothing snaps and nothing slides, and no pixel reads views chosen for
 //     another (the error src/detail/atlas.js spacingOf counts is each pixel's own); each picture keeps its normals in
 //     its own frame, where they face it (facingOf), so what is filtered between its texels is a way between theirs;
 //   - a plant's clumps (assets/kit/crowd.js clumpsOf): each chunk of its leaves three crossed planes, each a tile of TILE
@@ -259,7 +259,7 @@ export function impostorRead(A, layer, p, eye, lod) {
     const g = V.cells[k], w = [V.w.x, V.w.y, V.w.z][k], D = dirOf(g.x.div(N - 1).mul(2).sub(1), g.y.div(N - 1).mul(2).sub(1)), B = basisOf(D), dd = rd.dot(D).min(-1e-3);
     const uvAt = (h) => { const t = h.sub(p.dot(D)).div(dd), q = p.add(rd.mul(t)); return vec2(q.dot(B.right), q.dot(B.up)).mul(0.5).add(0.5); };
     const st = (uv) => { const c = inCell(uv, float(A.cell), lod); return vec2(g.x.add(c.x), g.y.add(float(1).sub(c.y))).div(N); };
-    const h0 = Dt.sample(st(uvAt(float(0)))).depth(layer).level(lod).z.mul(2).sub(1), uv = uvAt(h0), s = st(uv);   // (one step of parallax: where the ray stands as high over the view's plane as what the view saw there)
+    const s = st(uvAt(float(0)));   // (where the ray crosses the view's plane through the middle: src/detail/atlas.js)
     const c = C.sample(s).depth(layer).level(lod), d = Dt.sample(s).depth(layer).level(lod);
     out.colour.addAssign(c.rgb.mul(w)); out.cover.addAssign(c.a.mul(w)); out.normal.addAssign(facingDec(d.xy, { u: B.right, v: B.up, w: D }).mul(w)); out.depth.addAssign(d.z.mul(2).sub(1).mul(w)); out.light.addAssign(d.w.mul(w));
     out.leaf.addAssign(Lt.sample(s).depth(layer).level(lod).r.mul(w));
