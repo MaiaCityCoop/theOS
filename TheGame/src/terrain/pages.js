@@ -37,7 +37,7 @@ import { outputRatio } from '../core/output.js';
 import { ownGpuMs, pace } from '../core/pace.js';
 import { pxAt, dialPxAt, pxKAt } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
-import { endOf } from '../scatter/grass.js';
+import { standsFor } from '../scatter/grass.js';
 import { reliefShares, reliefOverSnow } from './relief.js';
 import { SOIL_RELIEF, FIXATION } from '../world/physics.js';
 import { layerTables, layerWords, layersFrom, standColours, MAPN } from './layers.js';
@@ -662,7 +662,7 @@ export function createPages(renderer, tex) {
       const q = vec2(p).toVar();
       if (eye) {
         const dl = d.mul(U.uLodInv), share = reliefShares(dl, PSTEPS).parallax.mul(reliefOverSnow(snowDepth)).toVar();
-        const meadow = float(1).sub(endOf(dl)).mul(smoothstep(1, BAND, dialPxAt(pxAt(U.uMeadowTop, dl)))).mul(reliefOverSnow(snowDepth)).toVar();
+        const meadow = float(1).sub(standsFor(dl)).mul(smoothstep(1, BAND, dialPxAt(pxAt(U.uMeadowTop, dl)))).mul(reliefOverSnow(snowDepth)).toVar();
         If(share.add(meadow).greaterThan(0.01).and(s1.greaterThanEqual(0)), () => {
           inArray(s1, (j, layer) => {
             const cv = tX ? at(tX[j], inPage(p, l1), layer).x : at(tN[j], inPage(p, l1), layer).z;   // (the carpet's share there)
