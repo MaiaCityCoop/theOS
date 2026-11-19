@@ -29,8 +29,7 @@ import { source } from '../core/settle.js';
 import { onMeasure, dialK } from '../detail/measure.js';
 import { Resident, WG, BLOCK, MARGIN } from './regions.js';
 import { BAND } from '../detail/error.js';
-import { FRAME_MS_BY_CLASS } from '../core/budget.js';
-import { ownGpuMs, pace } from '../core/pace.js';
+import { ownGpuMs, pace, frameShare } from '../core/pace.js';
 
 /** The patches a placer that chooses its own may hand a tier at most (the stress stand's plots, the herds, a list's
     runs; and the WebGL 2 fallback's square patches): each tier looks at the nearest of them first. */
@@ -687,7 +686,8 @@ export function ready() {
 // in, a piece at a time) it only adds to the store it holds: nothing is copied forward.
 // From one piece a tier, a workgroup's cells, at the start.
 const CELLS = pace(WG), FRAME = {};   // (the frame's cells; and, each frame: how many tiers asked for cells the frame before, how many ask in this one)
-// (and its packings, held to geometry's share of the page's thread as their visits are to the GPU's: each packing's
+// (and its packings, held to geometry's share of the page's thread as their visits are to the GPU's (frameShare: the
+// whole frame behind the veil): each packing's
 // own time on the page, what it hands three and the GPU (its submissions, its uniforms, its tables), measured, fewer a
 // frame where they took longer; the tiers taking turns, src/scatter/index.js. 2026-11-19, WebKit: 1.5 s of a loading
 // frame in scatter select)
@@ -712,8 +712,8 @@ const timed = (renderer, cells, before, visit, after) => {
   const ms = ownGpuMs(renderer, () => renderer.compute(visit));
   renderer.compute(after);
   if (!cells) return;
-  if (ms) ms.then((t) => CELLS.measured(cells, t, FRAME_MS_BY_CLASS.geometry)).catch(() => {});
-  else CELLS.measured(cells, 0, FRAME_MS_BY_CLASS.geometry);
+  if (ms) ms.then((t) => CELLS.measured(cells, t, frameShare('geometry'))).catch(() => {});
+  else CELLS.measured(cells, 0, frameShare('geometry'));
 };
 /** Whether two regions (squares of cells) overlap. */
 const overlaps = (A, B) => A.bi * BLOCK < B.bi * BLOCK + B.w && B.bi * BLOCK < A.bi * BLOCK + A.w && A.bj * BLOCK < B.bj * BLOCK + B.w && B.bj * BLOCK < A.bj * BLOCK + A.w;
@@ -850,7 +850,7 @@ function residentOf(T, me, s, ends) {
       if (!T.n && !waits.size && !freed.length) S.fit(S.at());   // (nothing in its band, nothing to let go: it needs no room)
       if (S.wrong() || gathered || packs !== asked) ask(renderer);
       const g = `${world}|${near}|${far}|${Math.round(cx / q)},${Math.round(cy / q)},${Math.round(cz / q)}`;
-      if (n || freed.length) { const t0 = performance.now(); pack(renderer, n, cells, g); PACKS.left--; PACKS.measured(1, performance.now() - t0, FRAME_MS_BY_CLASS.geometry); } else step(renderer, g);
+      if (n || freed.length) { const t0 = performance.now(); pack(renderer, n, cells, g); PACKS.left--; PACKS.measured(1, performance.now() - t0, frameShare('geometry')); } else step(renderer, g);
       through(renderer);   // (every tier of its kind holding again what it held: what is drawn made anew, all of it at once)
     },
   };
