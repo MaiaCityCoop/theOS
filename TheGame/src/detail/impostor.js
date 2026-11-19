@@ -33,6 +33,7 @@ import { UV_TILES } from '../../assets/kit/plant.js';
 import { note, PORTABLE } from '../core/gpu.js';
 import { ownGpuMs, pace } from '../core/pace.js';
 import { shown } from '../core/settle.js';
+import { compileFor } from '../core/compile.js';
 import { FRAME_MS_BY_CLASS } from '../core/budget.js';
 import { SHARE_MB } from '../core/classes.js';
 import { FNV, fnv } from '../core/hash.js';
@@ -193,6 +194,20 @@ export function createBaker(renderer, { per, px }) {
       [0, 1, 2].forEach((w) => { const o = out[w]; o.viewport.set(0, r * px, W, px); o.scissor.set(0, r * px, W, px); o.scissorTest = true; scene.add(tris[w]); renderer.setRenderTarget(o); renderer.autoClear = false; renderer.render(scene, cam); scene.remove(tris[w]); o.viewport.set(0, 0, W, W); o.scissor.set(0, 0, W, W); o.scissorTest = false; });
     } finally { renderer.setRenderTarget(prev); renderer.setClearColor(pc, pa); renderer.autoClear = ac; }
   };
+  // (what it draws, made for its targets before its first piece draws it, aside and in turn (src/core/compile.js): a
+  // pipeline first used in a frame is made there, at once, on the page's thread. 2026-11-19, WebKit after the first
+  // view: a new baker's first row held the thread about 1.5 s, its reduce's three and its pictures' two made then)
+  const ahead = new WeakSet();
+  const makeFor = async (mesh) => {
+    const each = [...mesh.userData.materials.map((m, w) => [m, ss[w], mesh.geometry]), ...tris.map((t, w) => [t.material, out[w], t.geometry])];
+    for (const [m, target, geo] of each) {
+      if (ahead.has(m)) continue;
+      const o = Object.assign(new THREE.Mesh(geo, m), { frustumCulled: false });   // (its own stand-in: the pipeline made is the one any mesh of the same make draws with)
+      scene.add(o);
+      try { await compileFor(renderer, target, o, cam, scene); } finally { scene.remove(o); }
+      ahead.add(m);
+    }
+  };
   let last = Promise.resolve();
   return {
     /** Its reduce's three meshes (its colour's, its data's, its leaf's), as the start compiles them (tools/smoke.js) */
@@ -204,6 +219,7 @@ export function createBaker(renderer, { per, px }) {
         done, once its layer is in the atlas, with its levels (what the browser keeps of it: src/scatter/trees.js farOf). */
     bake(atlas, layer, count, draw, least = LEAST) {
       const job = last.then(async () => {
+        await makeFor(draw(0));
         // (as many pictures a frame as fit the frame's share for geometry, by each piece's own time on the GPU; at least one,
         // on any GPU; a row's pictures in pieces, each as many of them as are left this frame. Before the first view is
         // shown no frame is seen: a row whole, a frame, as fast as the GPU goes, its time still teaching the pace)
