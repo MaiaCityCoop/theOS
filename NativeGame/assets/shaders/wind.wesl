@@ -53,3 +53,114 @@ fn sway(world: vec3<f32>, time: f32, strength: f32) -> vec3<f32> {
     let side = vec2<f32>(-dir.y, dir.x) * flutter * 0.04 * strength * s;
     return vec3<f32>(dir.x * out + side.x, up, dir.y * out + side.y);
 }
+
+// ---- The GPU grass: every blade made here, each frame, from its cell on a grid fixed to the world ----
+//
+// A tile of the mesh holds 64 × 64 blade slots; each vertex carries its slot (the local x and z, in cells) and, in
+// its UV, which side of the blade (−1, 0, +1) and how far up it (0 root, 1 tip). Tiles are laid in nested levels
+// around the eye, each twice as coarse as the one inside it (their scale is the cell size). Here a slot becomes a
+// blade: its place, its height, its lean, its colour, all from a hash of its cell, so it is the same blade every
+// frame. Levels cross-fade blade by blade where they meet; past the last the grass thins away. Nothing is stored.
+
+// The hash and value noise of `terrain.rs`, bit for bit, so the blades stand exactly on the land the CPU built.
+fn thash(x: i32, z: i32, seed: u32) -> f32 {
+    var h = (bitcast<u32>(x) * 0x8da6b343u) ^ (bitcast<u32>(z) * 0xd8163841u) ^ (seed * 0x9E3779B1u);
+    h = h ^ (h >> 13u);
+    h = h * 0x85ebca6bu;
+    h = h ^ (h >> 16u);
+    return f32(h >> 8u) / 16777216.0;
+}
+
+fn tnoise(p: vec2<f32>, cell: f32, seed: u32) -> f32 {
+    let q = p / cell;
+    let i = floor(q);
+    let f = q - i;
+    let s = f * f * (3.0 - 2.0 * f);
+    let ix = i32(i.x);
+    let iz = i32(i.y);
+    let a = thash(ix, iz, seed) + (thash(ix + 1, iz, seed) - thash(ix, iz, seed)) * s.x;
+    let b = thash(ix, iz + 1, seed) + (thash(ix + 1, iz + 1, seed) - thash(ix, iz + 1, seed)) * s.x;
+    return a + (b - a) * s.y;
+}
+
+// `terrain::height`: the large shape and the small one.
+fn land(p: vec2<f32>) -> f32 {
+    let small = 0.22 * tnoise(p, 1.6, 1u) + 0.08 * tnoise(p, 0.55, 2u) + 0.025 * tnoise(p, 0.16, 3u) + 0.008 * tnoise(p, 0.05, 11u);
+    return ground(p) + small;
+}
+
+// `terrain::bare`: where the ground is bare, no grass grows.
+fn bare(p: vec2<f32>) -> f32 {
+    let n = tnoise(p, 16.0, 20u) * 0.65 + tnoise(p, 5.0, 21u) * 0.25 + tnoise(p, 1.5, 22u) * 0.10;
+    return smoothstep(0.0, 1.0, clamp((n - 0.76) / 0.06, 0.0, 1.0));
+}
+
+// The finest level's cell, in metres (625 blades a square metre), and how far a level reaches, in its cells.
+const FINE: f32 = 0.04;
+const REACH: f32 = 110.0;
+
+struct Blade {
+    position: vec3<f32>,
+    normal: vec3<f32>,
+    colour: vec4<f32>,
+};
+
+fn blade(slot: vec3<f32>, side: f32, t: f32, w: Wind, time: f32) -> Blade {
+    var out: Blade;
+    out.normal = vec3<f32>(0.0, 1.0, 0.0);
+    out.colour = vec4<f32>(0.0, 0.0, 0.0, 1.0);
+    let s = max(slot.y, FINE); // the cell size, carried in the tile's scale (see `meadow.rs`)
+    let level = u32(round(log2(s / FINE)));
+    let ci = i32(floor(slot.x / s));
+    let cj = i32(floor(slot.z / s));
+    let seed = level * 64u;
+    let p = vec2<f32>((f32(ci) + thash(ci, cj, seed + 1u)) * s, (f32(cj) + thash(ci, cj, seed + 2u)) * s);
+    // which level shows the blade here: each fades out over the outer part of its reach while the next fades in,
+    // blade by blade; the last thins away. Decided first and cheaply: most slots of a tile are not shown.
+    let d = distance(p, w.eye.xz);
+    let reach = REACH * s;
+    var keep = 1.0 - smoothstep(0.7 * reach, reach, d);
+    if (level == 4u) {
+        keep = 1.0 - smoothstep(0.45 * reach, reach, d);
+    }
+    if (level > 0u) {
+        keep = min(keep, smoothstep(0.35 * reach, 0.5 * reach, d));
+    }
+    if (thash(ci, cj, seed + 3u) >= keep) {
+        out.position = vec3<f32>(p.x, -10000.0, p.y); // no area, nothing drawn
+        return out;
+    }
+    if (thash(ci, cj, seed + 4u) < bare(p)) {
+        out.position = vec3<f32>(p.x, -10000.0, p.y);
+        return out;
+    }
+    let root = vec3<f32>(p.x, land(p), p.y);
+    let lush = tnoise(p, 7.0, 40u);
+    // a grazed meadow: 12 to 45 cm. Width: 3 to 8 mm, wider on coarser levels, and never under about a pixel at its
+    // distance, or a far blade would flicker away between the pixels
+    let height = 0.12 + 0.22 * lush * lush + 0.11 * thash(ci, cj, seed + 5u);
+    let width = max((0.0018 + 0.0022 * thash(ci, cj, seed + 6u)) * pow(2.0, f32(level) * 0.85), 0.0007 * d);
+    let yaw = thash(ci, cj, seed + 7u) * 6.2831853;
+    let r8 = thash(ci, cj, seed + 8u);
+    let lean = 0.12 + 0.55 * r8 * r8;
+    let dir = vec3<f32>(cos(yaw), 0.0, sin(yaw));
+    let across = vec3<f32>(-sin(yaw), 0.0, cos(yaw));
+    var pos = root + dir * (lean * height * t * t) + vec3<f32>(0.0, height * (t - 0.35 * lean * t * t), 0.0);
+    let wt = width * pow(1.0 - clamp((t - 0.45) / 0.55, 0.0, 1.0), 1.2);
+    pos = pos + across * wt * side;
+    out.position = pos + sway(pos, time, w.params.z);
+    out.normal = normalize(across + vec3<f32>(0.0, 1.5, 0.0));
+    // each blade its own green, from deep to light yellow-green; a little straw where the field is dry
+    let green = mix(vec3<f32>(0.045, 0.120, 0.018), vec3<f32>(0.100, 0.230, 0.035), thash(ci, cj, seed + 9u));
+    let dry = tnoise(p, 19.0, 41u);
+    let tip = mix(green, vec3<f32>(0.30, 0.24, 0.10), min(dry * dry * 0.35 * thash(ci, cj, seed + 10u), 0.2))
+        * (0.95 + 0.3 * thash(ci, cj, seed + 11u));
+    let light = tip * vec3<f32>(1.15, 1.12, 0.95);
+    let rootc = tip * 0.28;
+    var c = mix(tip, light, (t - 0.5) / 0.5);
+    if (t < 0.5) {
+        c = mix(rootc, tip, pow(t / 0.5, 0.8));
+    }
+    out.colour = vec4<f32>(c, 1.0);
+    return out;
+}

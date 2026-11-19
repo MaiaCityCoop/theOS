@@ -187,25 +187,39 @@ fn game(mut commands: Commands, f: Res<Fonts>) {
 #[derive(Component)]
 struct FrameTime;
 
+/// The Meadow's overlay: small chips along the top edge, all one height, so the picture keeps the room.
+const CHIP: f32 = 28.0;
+const CHIP_TEXT: f32 = 12.0;
+
+fn chip_node() -> Node {
+    Node { height: Val::Px(CHIP), padding: UiRect::horizontal(Val::Px(12.0)), align_items: AlignItems::Center, border_radius: BorderRadius::MAX, ..default() }
+}
+
 fn meadow(mut commands: Commands, f: Res<Fonts>) {
     commands.spawn((
         DespawnOnExit(View::Meadow),
-        Node { position_type: PositionType::Absolute, top: Val::Px(24.0), left: Val::Px(24.0), right: Val::Px(24.0), column_gap: Val::Px(14.0), align_items: AlignItems::Center, ..default() },
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(12.0),
+            left: Val::Px(12.0),
+            right: Val::Px(12.0),
+            column_gap: Val::Px(8.0),
+            align_items: AlignItems::FlexStart,
+            ..default()
+        },
         children![
-            pill(&f, Act::Home, "Home", false),
             (
-                Node { height: Val::Px(40.0), padding: UiRect::horizontal(Val::Px(18.0)), align_items: AlignItems::Center, border_radius: BorderRadius::MAX, ..default() },
-                BackgroundColor(GLASS),
-                children![(FrameTime, text(&f.mono, 15.0, FOREST, "…"))],
+                Hovered::default(),
+                Act::Home,
+                chip_node(),
+                BackgroundColor(CREAM),
+                children![text(&f.sans, CHIP_TEXT, FOREST, "Home")],
             ),
-            (
-                Node { height: Val::Px(40.0), padding: UiRect::horizontal(Val::Px(18.0)), align_items: AlignItems::Center, border_radius: BorderRadius::MAX, ..default() },
-                BackgroundColor(GLASS),
-                children![text(&f.mono, 15.0, FOREST, "click to look · W A S D walk · Shift runs · scroll to rise · Esc lets go")],
-            ),
+            (chip_node(), BackgroundColor(GLASS), children![(FrameTime, text(&f.mono, CHIP_TEXT, FOREST, "…"))]),
+            (chip_node(), BackgroundColor(GLASS), children![text(&f.mono, CHIP_TEXT, FOREST, "click to look · WASD · Shift runs · scroll rises · Esc lets go")]),
             // the wind and the hour, top right: drag or click a bar
             (
-                Node { margin: UiRect::left(Val::Auto), flex_direction: FlexDirection::Column, row_gap: Val::Px(8.0), ..default() },
+                Node { margin: UiRect::left(Val::Auto), flex_direction: FlexDirection::Column, row_gap: Val::Px(6.0), ..default() },
                 children![slider(&f, Slide::Wind, "Wind"), slider(&f, Slide::Hour, "Sun")],
             ),
         ],
@@ -225,24 +239,17 @@ struct Readout(Slide);
 
 fn slider(f: &Fonts, what: Slide, label: &'static str) -> impl Bundle {
     (
-        Node {
-            height: Val::Px(40.0),
-            padding: UiRect::horizontal(Val::Px(18.0)),
-            column_gap: Val::Px(12.0),
-            align_items: AlignItems::Center,
-            border_radius: BorderRadius::MAX,
-            ..default()
-        },
+        Node { column_gap: Val::Px(10.0), ..chip_node() },
         BackgroundColor(GLASS),
         children![
-            (text(&f.mono, 15.0, FOREST, label), Node { width: Val::Px(40.0), ..default() }),
+            (text(&f.mono, CHIP_TEXT, FOREST, label), Node { width: Val::Px(32.0), ..default() }),
             (
                 what,
-                Node { width: Val::Px(200.0), height: Val::Px(10.0), border_radius: BorderRadius::MAX, overflow: Overflow::clip(), ..default() },
+                Node { width: Val::Px(140.0), height: Val::Px(7.0), border_radius: BorderRadius::MAX, overflow: Overflow::clip(), ..default() },
                 BackgroundColor(SAND),
                 children![(Fill(what), Pickable::IGNORE, Node { width: Val::Percent(50.0), height: Val::Percent(100.0), border_radius: BorderRadius::MAX, ..default() }, BackgroundColor(CLAY))],
             ),
-            (Readout(what), text(&f.mono, 15.0, FOREST, ""), Node { width: Val::Px(52.0), ..default() }),
+            (Readout(what), text(&f.mono, CHIP_TEXT, FOREST, ""), Node { width: Val::Px(40.0), ..default() }),
         ],
     )
 }

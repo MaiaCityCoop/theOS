@@ -97,6 +97,18 @@ pictures looked at by Samuel; the navigation self-test, `cargo run -- --navtest`
   a blade's height above the ground; the walker and the Studio's shots keep their height above the land.
 - **Frame rate at 1080p:** Samuel saw 29 to 52 fps in the Meadow ("frame rate looks fine").
 
+- **The grass on the GPU:** the blades are made in the vertex shader each frame, nothing stored. Tiles of 64 × 64
+  blade slots lie in five nested levels around the eye (cells of 4, 8, 16, 32, 64 cm; 625 blades a square metre at
+  the finest, out to about 110 m); each slot becomes a blade from a hash of its world cell (place, height, lean,
+  width, green), standing on the land (the terrain's hash and noise ported bit for bit), so it is the same blade every
+  frame. Levels cross-fade blade by blade; blades are never thinner than about a pixel, or far ones flicker away; most
+  slots are rejected first and cheaply. The CPU chunks keep the land, stones, seed heads, thatch and low plants.
+  The wind's flutter had a frequency that varied in space times the running clock: neighbouring points of one blade
+  decorrelated more the longer the app ran, and tore blades into triangles in strong wind; one frequency now.
+- **The far land as nested square grids**, crack-free, under the near ground everywhere (no hole to show sky while
+  chunks stream); one colour rule near and far; the stars only by night; the cloud layer fades as the eye nears it.
+- **The Meadow's overlay** smaller and along the top edge.
+
 ### How the scene evolved
 
 The story of the Meadow, stage by stage, for the devlog. Every stage is a commit on `aven/0047-meadow`; checked out

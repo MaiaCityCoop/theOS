@@ -190,11 +190,6 @@ pub fn chunk(cx: i32, cz: i32, share: f32) -> Mesh {
     blades(cx, cz, share, false)
 }
 
-/// The close layer of a near chunk: as many again of fine blades (2 to 4 mm wide), folded at the midrib, drawn with
-/// the close material that sinks them into the ground beyond a few metres from the eye.
-pub fn close(cx: i32, cz: i32) -> Mesh {
-    blades(cx, cz, 1.0, true)
-}
 
 fn blades(cx: i32, cz: i32, share: f32, fine: bool) -> Mesh {
     let widen = (1.0 / share).sqrt().min(3.5); // fewer blades are wider, to keep the cover
@@ -217,6 +212,11 @@ fn blades(cx: i32, cz: i32, share: f32, fine: bool) -> Mesh {
             continue; // a little thinner between the clumps, and none in the bare patches
         }
         let yaw = r(5) * std::f32::consts::TAU;
+        // the ordinary blades are the GPU's now (`tile`); here only what grows among them: seed heads (below),
+        // thatch and low plants
+        if r(8) >= 0.018 + 0.03 * dry {
+            continue;
+        }
         // about one in forty goes to seed: a flowering stem with a head, in drier spots more often
         if !fine && r(8) < 0.018 + 0.03 * dry {
             if detail {
@@ -418,4 +418,53 @@ fn thatch(g: &mut Geo, cx: i32, cz: i32, share: f32) {
             g.idx.extend_from_slice(&[a, a + 1, a + 2, a + 1, a + 3, a + 2]);
         }
     }
+}
+
+/// A tile of the GPU grass: `TILE` × `TILE` blade slots, each `segs` segments up. A vertex's position is its slot
+/// (in cells), its UV which side of the blade (−1, +1, 0 at the tip) and how far up (0 to 1); the blade itself is
+/// made in the vertex shader (`wind.wesl`, `blade`).
+pub const TILE: u32 = 64;
+
+pub fn tile(segs: u32) -> Mesh {
+    use bevy::asset::RenderAssetUsages;
+    use bevy::mesh::{Indices, PrimitiveTopology};
+    let (mut pos, mut uv, mut nrm, mut col, mut idx) = (vec![], vec![], vec![], vec![], vec![]);
+    for j in 0..TILE {
+        for i in 0..TILE {
+            let start = pos.len() as u32;
+            let slot = [i as f32 + 0.5, 0.0, j as f32 + 0.5];
+            for s in 0..=segs {
+                let t = s as f32 / segs as f32;
+                let sides: &[f32] = if s == segs { &[0.0] } else { &[-1.0, 1.0] };
+                for &side in sides {
+                    pos.push(slot);
+                    uv.push([side, t]);
+                    nrm.push([0.0, 1.0, 0.0]);
+                    col.push([1.0, 1.0, 1.0, 1.0]);
+                }
+            }
+            for s in 0..segs {
+                let a = start + s * 2;
+                if s + 1 == segs {
+                    idx.extend_from_slice(&[a, a + 1, a + 2]);
+                } else {
+                    idx.extend_from_slice(&[a, a + 1, a + 2, a + 1, a + 3, a + 2]);
+                }
+            }
+        }
+    }
+    // two loose points, in no triangle, so the bounds Bevy computes for culling span the land's highs and lows
+    // (±40 m) and a blade's lean beyond the tile
+    for p in [[-2.0, -45.0, -2.0], [TILE as f32 + 2.0, 45.0, TILE as f32 + 2.0]] {
+        pos.push(p);
+        uv.push([0.0, 0.0]);
+        nrm.push([0.0, 1.0, 0.0]);
+        col.push([1.0, 1.0, 1.0, 1.0]);
+    }
+    Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, pos)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, nrm)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uv)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, col)
+        .with_inserted_indices(Indices::U32(idx))
 }

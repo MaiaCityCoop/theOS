@@ -57,6 +57,34 @@ fn reframe(frame: Option<Res<Frame>>, window: Query<&Window, With<bevy::window::
     }
 }
 
+/// A tile of the GPU grass: its level (cell size `FINE` × 2^level) and its place in the level's 4 × 4 tiles.
+#[derive(Component)]
+struct Tile {
+    level: u32,
+    a: u32,
+    b: u32,
+}
+
+/// The finest cell of the GPU grass and its levels (as in `wind.wesl`).
+const FINE: f32 = 0.04;
+const LEVELS: u32 = 5;
+
+/// Lays each level's tiles around the eye, on whole cells, so every blade stays fixed to the world; hides them all
+/// high above, where the far land alone is drawn.
+fn lay(eye: Query<&GlobalTransform, With<Eye2>>, mut tiles: Query<(&Tile, &mut Transform, &mut Visibility)>) {
+    let Ok(eye) = eye.single() else { return };
+    let at = eye.translation();
+    let high = at.y - crate::terrain::height(at.x, at.z) > HIGH;
+    let n = crate::grass::TILE as f32;
+    for (tile, mut t, mut v) in &mut tiles {
+        let s = FINE * 2f32.powi(tile.level as i32);
+        let (ox, oz) = ((at.x / s).floor() * s - 2.0 * n * s, (at.z / s).floor() * s - 2.0 * n * s);
+        // the cell size rides in the scale (the shader reads it back); y stays 1
+        *t = Transform::from_xyz(ox + tile.a as f32 * n * s, 0.0, oz + tile.b as f32 * n * s).with_scale(Vec3::new(s, 1.0, s));
+        *v = if high { Visibility::Hidden } else { Visibility::Inherited };
+    }
+}
+
 /// The grass world's camera.
 #[derive(Component)]
 pub struct Eye2;
@@ -158,7 +186,7 @@ fn stream(
             let s = share(c);
             field.growing.insert(
                 key,
-                (pool.spawn(async move { (chunk(x, z, s), (s >= 1.0 && std::env::var_os("MEADOW_NO_CLOSE").is_none()).then(|| crate::grass::close(x, z)), crate::terrain::chunk(x, z, CHUNK, s)) }), c),
+                (pool.spawn(async move { (chunk(x, z, s), None, crate::terrain::chunk(x, z, CHUNK, s)) }), c),
             );
             started += 1;
         }
@@ -227,7 +255,7 @@ pub fn plugin(app: &mut App) {
         .add_systems(OnExit(View::Studio), leave)
         .add_systems(
             Update,
-            (stream, reframe, crate::clouds::drift).run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio)),
+            (stream, lay, reframe, crate::clouds::drift).run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio)),
         )
         .add_systems(Update, (hours, sun).chain().run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio)));
 }
@@ -384,6 +412,32 @@ fn enter(
         m.extension.params.eye.w = 1.0;
         grass.add(m)
     };
+    // the GPU grass: 5 levels of 4 × 4 tiles, each tile 64 × 64 blades made in the vertex shader; the finest level
+    // with four segments a blade, the others three. Their bounds are set wide by hand (the mesh holds only slots).
+    let made = {
+        let mut m = grass.get(&blades).cloned().expect("the grass material was just added");
+        m.extension.params.eye.w = 2.0;
+        grass.add(m)
+    };
+    if !off("GRASS") {
+        let fine = meshes.add(crate::grass::tile(4));
+        let coarse = meshes.add(crate::grass::tile(3));
+        for level in 0..LEVELS {
+            for a in 0..4 {
+                for b in 0..4 {
+                    commands.spawn((
+                        GrassWorld,
+                        MEADOW,
+                        Tile { level, a, b },
+                        Mesh3d(if level == 0 { fine.clone() } else { coarse.clone() }),
+                        MeshMaterial3d(made.clone()),
+                        bevy::light::NotShadowCaster,
+                        Transform::default(),
+                    ));
+                }
+            }
+        }
+    }
     commands.insert_resource(Field { material: blades, close, ground, shown: default(), growing: default(), far, far_at: (i32::MIN, 0), far_task: None, far_high: false });
 }
 
