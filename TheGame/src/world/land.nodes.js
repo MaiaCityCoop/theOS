@@ -28,8 +28,9 @@ const riverSand = () => (WATER ? sandIs(WATER).greaterThan(0.5) : float(0).great
 // the river in the river's sandbox)
 const placed = (b, natural, p) => { const s = mix(natural, sandIs(b), sandW(p)); return b.river ? riverSand().select(natural, s) : s; };
 /** paths, bare patches, outcrops (the base biome's own): none in a sandbox */
-/** one biome's share at a point (ctx as biomesAt's): its rule, placed (the library's sandbox) */
-export const shareOf = (b, ctx) => placed(b, clamp(b.where(ctx), 0, 1), ctx.p);
+/** one biome's share at a point (ctx as biomesAt's): its rule, placed (the library's sandbox); as biomesAt kept it with
+    the place, where it has (its variables: one shader works a rule out once, however many ask) */
+export const shareOf = (b, ctx) => ctx.shares?.get(b) ?? placed(b, clamp(b.where(ctx), 0, 1), ctx.p);
 export const placeOff = (p, natural) => natural.mul(float(1).sub(sandW(p)));
 /** 1 under the roof of what stands at a place (its asset's `roofed`), 0 in the open: where no snow falls */
 export const roofAt = (p) => Object.values(PLACES).map((P) => [P, recipe(P.asset)?.roofed]).filter(([, r]) => r).reduce((a, [P, r]) => max(a, float(1).sub(smoothstep(r - 0.15, r + 0.1, length(p.sub(vec2(P.x, P.z)))))), float(0));
@@ -38,17 +39,21 @@ export const roofAt = (p) => Object.values(PLACES).map((P) => [P, recipe(P.asset
 const riverWorld = Fn(([p]) => {
   const n1 = noised(p.mul(1 / 1600), uint(40)), n2 = noised(p.mul(1 / 330).add(17.3), uint(41));
   return vec3(n1.x.sub(0.5).add(n2.x.sub(0.5).mul(0.28)), n1.yz.mul(1 / 1600).add(n2.yz.mul(0.28 / 330)));
-});
+}).setLayout({ name: 'riverWorld', type: 'vec3', inputs: [{ name: 'p', type: 'vec2' }] });
+/** the river in its sandbox, meandering round its middle (sand: U.uSand, its middle in xy; s: how much of p is the
+    sandbox's): its field, as riverRaw's (a function of its own: written once in a shader that reads the river at
+    several places; the uniforms handed to it, as a function may not name one) */
+const riverMeander = Fn(([p, sand, s]) => {
+  const d = p.sub(sand.xy), c = Math.cos(MEANDER.turn), sn = Math.sin(MEANDER.turn), k = (2 * Math.PI) / MEANDER.wave;
+  const u = d.x.mul(c).add(d.y.mul(sn)), v = d.x.mul(-sn).add(d.y.mul(c));
+  const g = v.sub(sin(u.mul(k)).mul(MEANDER.swing)), gu = cos(u.mul(k)).mul(-MEANDER.swing * k);
+  const gr = vec2(gu.mul(c).sub(sn), gu.mul(sn).add(c)).div(1600);
+  return vec3(g.greaterThanEqual(0).select(1, -1).mul(abs(g).div(1600).add(float(1).sub(s).mul(2).mul(length(gr)).mul(1600))), gr);
+}).setLayout({ name: 'riverMeander', type: 'vec3', inputs: [{ name: 'p', type: 'vec2' }, { name: 'sand', type: 'vec3' }, { name: 's', type: 'float' }] });
 /** the river's raw field: (r, 0 on the stream's line; its gradient) */
 export const riverRaw = Fn(([p]) => {
   const R = riverWorld(p).toVar(), s = sandW(p);
-  If(U.uSand.z.greaterThan(0).and(riverSand()).and(s.greaterThan(0)), () => {
-    const d = p.sub(U.uSand.xy), c = Math.cos(MEANDER.turn), sn = Math.sin(MEANDER.turn), k = (2 * Math.PI) / MEANDER.wave;
-    const u = d.x.mul(c).add(d.y.mul(sn)), v = d.x.mul(-sn).add(d.y.mul(c));
-    const g = v.sub(sin(u.mul(k)).mul(MEANDER.swing)), gu = cos(u.mul(k)).mul(-MEANDER.swing * k);
-    const gr = vec2(gu.mul(c).sub(sn), gu.mul(sn).add(c)).div(1600);
-    R.assign(vec3(g.greaterThanEqual(0).select(1, -1).mul(abs(g).div(1600).add(float(1).sub(s).mul(2).mul(length(gr)).mul(1600))), gr));
-  });
+  If(U.uSand.z.greaterThan(0).and(riverSand()).and(s.greaterThan(0)), () => { R.assign(riverMeander(p, U.uSand.xyz, s)); });
   return R;
 });
 // ---- the lakes (src/world/land.js: what a ring of river closes round is water): their middles, how far they reach,
@@ -155,6 +160,7 @@ export function biomesAt(ctx, vars = false) {   // vars: inside a Fn, each share
   // (the place as the rules read it, bent: worked out once for all of them; world/outlines.js)
   const B = bent(ctx.p), at = { ...ctx, B: vars ? B.toVar() : B };
   const shares = LAID.map((b) => { const w = placed(b, clamp(b.where(at), 0, 1), ctx.p); return { b, w: vars ? w.toVar() : w }; });
+  if (vars) ctx.shares = new Map(shares.map(({ b, w }) => [b, w]));   // (kept with the place: what else asks of it there reads these, shareOf)
   let cover = float(1), height = float(1), stones = float(BASE.stones);
   const tufts = ctx.dist.lessThan(900).select(mix(tuftMask(ctx.p), 0.5, smoothstep(350, 900, ctx.dist)), float(0.5));   // grass in tufts, let go far off
   for (const { b, w } of shares) {
