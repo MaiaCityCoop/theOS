@@ -289,28 +289,40 @@ export function placeIn(c, L, M, pos) {
   const coarse = bios.map((b) => (b.river ? float(1) : shareOf(b, { p: pos, dist: float(0), d: float(1e5), w: float(1), b: float(0) })).mul(clump(b))).reduce((a, x) => max(a, x));
   If(rank.lessThan(coarse.mul(top)), () => {
     I.assign(riverInfo(pos));
-    const d = abs(I.x), w = I.y, ctx = { p: pos, dist: float(0), d, w, b: I.z }, clear = clearAt(pos).toVar(), F = influenceAt(pos, L, M);
-    const share = new Map(bios.map((b) => [b, shareOf(b, ctx).mul(clump(b)).mul(clear).toVar()]));
-    const leads = new Map(L.groups.filter((g) => g.entries.length > 1).map((g) => [g, leadAt(pos, grovesOf(g.biome, L)).mul(0.7).add(0.15).toVar()]));
-    const D = float(0).toVar();
+    const F = influenceAt(pos, L, M), dens = densOf(L, pos, { p: pos, dist: float(0), d: abs(I.x), w: I.y, b: I.z }, F), D = float(0).toVar();
     for (const e of L.entries) {
-      let dens = share.get(e.biome);
-      // (a kind that leads in patches: its slice of the slow noise, softly, and a third of it everywhere)
-      if (e.group && leads.has(e.group)) { const t = leads.get(e.group), [a, b] = e.slice; dens = dens.mul(e.group.most).mul((a > 0 ? smoothstep(a - 0.06, a + 0.06, t) : float(1)).mul(b < 1 ? float(1).sub(smoothstep(b - 0.06, b + 0.06, t)) : float(1)).mul(0.7).add((b - a) * 0.3)); }
-      else dens = dens.mul(e.most);
-      if (F) {
-        dens = dens.mul(mix(e.light[0], e.light[1], F.light));
-        if (e.from) dens = dens.mul(e.from.length ? clamp(F.litter(e.from).mul(1.5), 0, 1) : float(0));
-      } else if (e.from) dens = float(0);
-      if (e.lakes) dens = dens.mul(nearLake(pos));
-      if (e.shore) { const s = d.div(w); dens = dens.mul(smoothstep(e.shore[0] - 0.08, e.shore[0] + 0.08, s).mul(float(1).sub(smoothstep(e.shore[1] - 0.1, e.shore[1] + 0.1, s)))); }
-      D.addAssign(dens);
+      D.addAssign(dens[e.i]);
       If(k.lessThan(0).and(rank.lessThan(D)), () => { k.assign(e.i); });
     }
     // (and none stands on ground a larger thing covers: in a trunk, on a log, a branch or a stone)
     if (F) If(k.greaterThanEqual(0), () => { If(F.foot().greaterThan(0.5), () => { k.assign(-1); }); });
   });
   return { k, I, rank };
+}
+/** How likely each of layer L's things is to stand in a cell at pos (node code, in a Fn): the rule's own density, an
+    entry each (L.entries' order): its biome's share there (ctx: the place as the biomes read it, the river with it) in
+    its groves, off the places kept clear, its kind's slice of the patches its kinds lead in, its most, the light and the
+    litter the layers before it leave (F: influenceAt; null, nothing larger read: what grows only under another's litter
+    grows nowhere), the lakes, the shore. What places a thing (placeIn) and what the land wears for a stand where its
+    things are no longer drawn (src/terrain/layers.js) read it alike. */
+export function densOf(L, pos, ctx, F = null) {
+  const bios = [...new Set(L.entries.map((e) => e.biome))], clump = (b) => groveAt(pos, grovesOf(b, L)), clear = clearAt(pos).toVar();
+  const share = new Map(bios.map((b) => [b, shareOf(b, ctx).mul(clump(b)).mul(clear).toVar()]));
+  const leads = new Map(L.groups.filter((g) => g.entries.length > 1).map((g) => [g, leadAt(pos, grovesOf(g.biome, L)).mul(0.7).add(0.15).toVar()]));
+  const d = ctx.d, w = ctx.w;
+  return L.entries.map((e) => {
+    let dens = share.get(e.biome);
+    // (a kind that leads in patches: its slice of the slow noise, softly, and a third of it everywhere)
+    if (e.group && leads.has(e.group)) { const t = leads.get(e.group), [a, b] = e.slice; dens = dens.mul(e.group.most).mul((a > 0 ? smoothstep(a - 0.06, a + 0.06, t) : float(1)).mul(b < 1 ? float(1).sub(smoothstep(b - 0.06, b + 0.06, t)) : float(1)).mul(0.7).add((b - a) * 0.3)); }
+    else dens = dens.mul(e.most);
+    if (F) {
+      dens = dens.mul(mix(e.light[0], e.light[1], F.light));
+      if (e.from) dens = dens.mul(e.from.length ? clamp(F.litter(e.from).mul(1.5), 0, 1) : float(0));
+    } else if (e.from) dens = float(0);
+    if (e.lakes) dens = dens.mul(nearLake(pos));
+    if (e.shore) { const s = d.div(w); dens = dens.mul(smoothstep(e.shore[0] - 0.08, e.shore[0] + 0.08, s).mul(float(1).sub(smoothstep(e.shore[1] - 0.1, e.shore[1] + 0.1, s)))); }
+    return dens.toVar();
+  });
 }
 
 /** A layer's light over a texel (gatherOf): the mean of SUB x SUB points over it, two across its smallest crown (Nyquist's:
@@ -375,13 +387,14 @@ export const writersOf = (layers, M) => layers.filter((L) => L.word >= 0).map((L
 // ---- what the land reads of the rule (src/terrain/layers.js): where a biome's grown trees and its bushes stand ----
 /** A biome's stands as the land wears them far off: its grown trees (its `canopy` colour) and its bushes (its
     `understory`), each { key, P: { clumps, patches, seed, density }, kinds (their assets, with their slices of the patches
-    their kinds lead in), CV (its colour) }. rows: the trees' engine's. */
+    their kinds lead in), CV (its colour), L (the rule's layer they stand in), entries (theirs in it: densOf's) }. rows:
+    the trees' engine's. */
 export function standsOf(bio, rows) {
   const out = [];
   for (const L of layersOf(rows)) for (const g of L.groups) {
     if (g.biome !== bio) continue;
     const CV = g.kind === 'tree' ? bio.canopy : bio.understory; if (!CV) continue;
-    out.push({ key: g.kind, P: { ...grovesOf(bio, L), density: g.most }, kinds: g.entries.map((e) => ({ asset: e.asset, slice: e.slice })), CV });
+    out.push({ key: g.kind, P: { ...grovesOf(bio, L), density: g.most }, kinds: g.entries.map((e) => ({ asset: e.asset, slice: e.slice })), CV, L, entries: g.entries });
   }
   return out;
 }
