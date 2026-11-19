@@ -382,7 +382,7 @@ export function gpuIndex(list, old = null) {
     code, so the node is the same whatever it is made as. cls: the class its bytes are noted under (src/core/classes.js). */
 export function gpuStorageLater(type, name = null, cls = 'other') {
   const [Arr, size] = TYPES[type], node = storage(new THREE.StorageBufferAttribute(new Arr(size), size), type, 1); let made = 0;
-  return {
+  const me = {
     node, get attr() { return node.value; },
     make(count) {
       const bytes = Math.max(1, count) * size * 4;
@@ -397,5 +397,16 @@ export function gpuStorageLater(type, name = null, cls = 'other') {
     },
     /** Write `data` (a typed array of its numbers) from its `at`-th number on, at once (made: the GPU's own buffer). */
     write(at, data) { const a = node.value; if (R) R.backend.device.queue.writeBuffer(R.backend.get(a).buffer, at * 4, data); else { a.array.set(data, at); a.addUpdateRange(at, data.length); a.needsUpdate = true; } },
+    /** Made again for count, what it held kept: copied into the new one on the GPU before the old is let go (a heap's
+        level laid later, at its end: src/scatter/heap.js grow). */
+    grow(count) {
+      const was = made, a0 = node.value, old = R ? R.backend.get(a0).buffer : null, kept = R ? null : a0.array;
+      const bytes = me.make(count);
+      if (!was) return bytes;
+      if (R) { const e = R.backend.device.createCommandEncoder({ label: `${name ?? 'lean'}: kept` }); e.copyBufferToBuffer(old, 0, R.backend.get(node.value).buffer, 0, Math.min(was, bytes)); R.backend.device.queue.submit([e.finish()]); }
+      else node.value.array.set(kept.subarray(0, Math.min(kept.length, node.value.array.length)));
+      return bytes;
+    },
   };
+  return me;
 }
