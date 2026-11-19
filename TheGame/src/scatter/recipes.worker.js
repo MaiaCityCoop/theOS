@@ -15,6 +15,7 @@
 //                              drawn between, as its stand cut it ('shade': its shade), handed to its family
 //                              (assets/kit/plant.js plantFamily)
 import { meshOf, skinOf, bonesOf, herdRooms } from '../../assets/zoo/index.js';
+import { recipe } from '../core/registry.js';
 import { BONES } from '../../assets/kit/solid.js';
 import { useBuilder } from '../../assets/kit/surface.js';
 import { build, tailFrom, ready as built } from '../../assets/kit/clusters.js';
@@ -43,6 +44,7 @@ self.onmessage = async ({ data: { id, jobs } }) => {
     if (j[0] === 'mesh') { const m = meshOf(j[1], j[2], j[4] ?? null); if (j[3] != null) m.box ??= solidBox(m.verts, j[3]); out.push(m); move.push(m.index.buffer, m.verts.buffer); }
     else if (j[0] === 'skin') { const S = skinOf(j[1], j[2]); out.push(S); for (const l of S.levels) move.push(l.buffer); }
     else if (j[0] === 'rooms') out.push(herdRooms());
+    else if (j[0] === 'outline') out.push(recipe(j[1]).outlineFor(j[2]));   // (a tree kind's outline and rooms, for the atlases' numbers: src/scatter/trees.js outlinesAhead)
     else if (j[0] === 'bones') { const [, k0, n] = j, rows = new Float32Array(n * BONES * 12); for (let i = 0; i < n; i++) { const B = bonesOf(k0 + i); if (B) rows.set(B, i * BONES * 12); } out.push(rows); move.push(rows.buffer); }
     else {
       const [, k0, n, levels] = j, kindOf = (i) => (Array.isArray(k0) ? k0[i] : k0 + i);

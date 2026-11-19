@@ -483,6 +483,18 @@ export function tree(recipe) {
     },
     /** each shape's far end as the crowd kit reckons it, by the atlases' numbers A: { chunks (its clumps) } */
     farOf: (A) => (out.crowdRooms(A), measured().far),
+    /** Whether its rooms are known for the atlases' numbers A (kept from an earlier start, or taken), without measuring
+        anything. */
+    roomsKnown: (A) => { const o = outline ?? OUTLINES.kept.get(id); return !!(o?.rooms && o.atlas === (far ? A.key : '')); },
+    /** Its outline measured and its rooms and far ends reckoned for A (crowdRooms, farOf): what the recipes' workers
+        reckon of it at a start that has nothing of it kept (src/scatter/trees.js outlinesAhead). */
+    outlineFor: (A) => (out.crowdRooms(A), measured()),
+    /** What the workers reckoned of it (outlineFor), taken as if kept: its outline, where none was asked of it yet, and
+        its rooms and far ends. */
+    takeOutline(A, o) {
+      if (!outline) outline = o; else Object.assign(outline, { rooms: o.rooms, far: o.far, atlas: o.atlas });
+      OUTLINES.made.set(id, outline);
+    },
     /** shape `shape` at its finest as typed arrays (a plain geometry's), at any level: every level is a first share of it */
     meshAt: (level, shape = 0) => packed(finest(Math.min(shape, shapes.length - 1))),
     /** the same kind of tree grown from another seed: other shapes, other places (the library's Random). A shape of its
