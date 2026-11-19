@@ -19,7 +19,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, If, Loop, uint, int, ivec2, vec4, uniform, uniformArray, instancedArray, storage, atomicAdd, atomicStore, atomicLoad, min, instanceIndex, localId, workgroupArray, workgroupBarrier, cameraProjectionMatrix, cameraViewMatrix, uintBitsToFloat } from 'three/tsl';
 import { boxIn } from '../core/frustum.js';
 import { gpuStorageLater, more, note, hasFeature, limitOf, roomOf, bytesOf } from '../core/gpu.js';
-import { cullOf, cullable, MANY, wgOf, sizeTo, useLimits } from '../core/occlusion.js';
+import { cullOf, cullable, MANY, wgOf, sizeTo, useLimits, CULL_BYTES } from '../core/occlusion.js';
 import { did } from '../core/work.js';
 import { FNV, fnv } from '../core/hash.js';
 import { passOf, vWas } from '../core/pass.js';
@@ -439,11 +439,10 @@ function residentPackedOf(T, geos, material, { found, select, store = 0, slots =
     what it packed made again as large as all of them, its culling's ranges too; every tier of it packed again. Never
     past the room its class has left (geometry, its own buffers still in it: what it was is let go only after what it is
     is made, src/core/gpu.js), nor past what one binding holds: held to that, the rest is the dial's (the governor's). */
-const CULL = bytesOf('uvec4') + 2 * bytesOf('uint');   // (the culling's for a thing: its box and its two places in the lists, src/core/occlusion.js)
 function relayout(s) {
   const again = s.epoch > 0; s.dirty = false; s.wait = null; s.epoch++;
   const P = (me) => me.P, row = s.slots * bytesOf('vec4');
-  const own = s.tiers.reduce((n, me) => n + 2 * me.N * (row + bytesOf('uint')) + P(me) * row, 0), cull = s.tiers.reduce((n, me) => n + (me.T.culler ? P(me) * CULL : 0), 0), need = own + cull;
+  const own = s.tiers.reduce((n, me) => n + 2 * me.N * (row + bytesOf('uint')) + P(me) * row, 0), cull = s.tiers.reduce((n, me) => n + (me.T.culler ? P(me) * CULL_BYTES : 0), 0), need = own + cull;
   const most = Math.floor(Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity) / row);   // (things one binding holds)
   // (its stores and what it packed are its class's (its tiers say which); its culling's arena is geometry's)
   const room = Math.max(0, roomOf(s.cls)), things = s.tiers.reduce((n, me) => n + Math.max(2 * me.N, P(me)), 0), fit = Math.min(room / own, cull ? Math.max(0, roomOf('geometry')) / cull : Infinity, most / things);
