@@ -183,6 +183,11 @@ const inScene = (o, scene) => { for (; o; o = o.parent) { if (!o.visible && o.is
     stores, its buckets laid out in the one it gathered into, never past it; its places there are folded into the half,
     at, uHalf). What the eye can have drawn of it, not all it holds. */
 const regionOf = (t) => (t.fold ? Math.ceil(t.total / 2) : t.total);
+/** A tier's chunks in its arena (WG things each): its buckets' own (caps), or a resident tier's region's and one more
+    a bucket (where a bucket's last chunk is part full). */
+const chunksOf = (t) => (t.caps ? t.caps.reduce((a, c) => a + Math.ceil(c / WG), 0) : Math.ceil(regionOf(t) / WG) + t.K);
+/** What the culling holds for a thing, bytes: its box and its two places in the lists (what an arena makes: build). */
+export const CULL_BYTES = bytesOf('uvec4') + 2 * bytesOf('uint');
 function arena() {
   const A = { tiers: [], N: 0, G: 0, NC: 1, built: false, any: false };
   const boxes = gpuStorageLater('uvec4', 'tiers: their things\' boxes (occlusion)', 'geometry'), lists = gpuStorageLater('uint', 'tiers: what is seen, kept (occlusion)', 'geometry'), chunks = gpuStorageLater('uint', 'tiers: the culling\'s chunks (occlusion)', 'geometry');
@@ -201,7 +206,6 @@ function arena() {
   const P = pyramidNode();
   // (a tier's buckets: each a room of its own, or a resident tier's laid out by its gather in one range, their first and
   // their count written by its packing each time: src/scatter/tier.js)
-  const chunksOf = (t) => (t.caps ? t.caps.reduce((a, c) => a + Math.ceil(c / WG), 0) : Math.ceil(regionOf(t) / WG) + t.K);
   // (its buffers' room: made again only when what the arena holds has outgrown it, twice as large then; so the stores
   // of a start growing step by step make a few of them, not one a step (2026-11-19: twelve, 2.15 GB alive at once
   // under slow frames, and the device lost on an 8 GB MacBook))
@@ -357,7 +361,7 @@ const proxies = [];
 const ROOM = () => Math.floor(Math.min(limitOf('maxStorageBufferBindingSize'), limitOf('maxBufferSize')) / bytesOf('uvec4'));
 /** Whether n things' room fits what the geometry's class has left (src/core/classes.js): a box and two places in the
     lists each (what the arena makes: build). */
-const fits = (n) => n * (bytesOf('uvec4') + 2 * bytesOf('uint')) <= roomOf('geometry');
+const fits = (n) => n * CULL_BYTES <= roomOf('geometry');
 /** Whether a tier of `total` things can be culled (one that alone would fill more than an arena is drawn whole). */
 export const cullable = (total) => total <= ROOM() && fits(total);
 export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, offAt = null, also = null }) {
@@ -365,7 +369,7 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, off
   const fold = !!offAt, region = regionOf({ fold, total });   // (a resident tier's places folded into half its range: regionOf)
   if (OPEN && (OPEN.N + region > ROOM() || !fits(OPEN.N + region))) OPEN.build();   // (full: it is made as it is, and this tier opens the next)
   const A = (OPEN ||= arena()), uBase = uniform(A.N, 'uint'), uEntry = uniform(A.N, 'uint'), uHalf = uniform(Math.max(1, region), 'uint'), uFrom = uniform(0, 'uint'), me = { T, K, caps, offs, total, fold, g0: A.G, base: A.N, idx: A.tiers.length, uBase, uEntry, uHalf, uFrom, from: 0 };   // (uEntry: where the eye's passes read its list, less where its draws' things begin: from)
-  A.tiers.push(me); A.G += K; A.N += region; A.NC += caps ? caps.reduce((a, c) => a + Math.ceil(c / WG), 0) : Math.ceil(region / WG) + K;
+  A.tiers.push(me); A.G += K; A.N += region; A.NC += chunksOf({ caps, fold, total, K });
   const F = storage(args, 'uint', 5 * K), uG0 = uniform(me.g0, 'uint');
   // after the packing (its last pass, in its stead): each draw as many as it holds, no more than its room; the same
   // into the arena, with how many the draws before it hold; and as many workgroups as work out their boxes. A bucket
@@ -433,8 +437,10 @@ let MAKE = null;
 const passesOfPyramid = () => {
   if (MAKE) return MAKE;
   const P = pyramidNode(), tD = texture(new THREE.DepthTexture(1, 1)), dims = uniformArray(Array.from({ length: LEVELS + 1 }, () => new THREE.Vector4()), 'vec4');   // (each level's: where it begins, its width, its height; the depth's first)
+  // (a level's number a uniform of its pass: every level after the first, which reads the depth itself, one shader:
+  // fifteen were fifteen, differing only in it, 2026-11-19)
   const passes = Array.from({ length: LEVELS }, (_, l) => Fn(() => {
-    const was = dims.element(uint(l)), is = dims.element(uint(l + 1)), w = uint(is.y), i = instanceIndex;
+    const lv = uniform(l, 'uint'), was = dims.element(lv), is = dims.element(lv.add(uint(1))), w = uint(is.y), i = instanceIndex;
     If(i.lessThan(w.mul(uint(is.z))), () => {
       const x = i.mod(w), y = i.div(w), wm = uint(was.y).sub(uint(1)), hm = uint(was.z).sub(uint(1));
       const x0 = x.mul(uint(2)).min(wm), x1 = x.mul(uint(2)).add(uint(1)).min(wm), y0 = y.mul(uint(2)).min(hm), y1 = y.mul(uint(2)).add(uint(1)).min(hm);

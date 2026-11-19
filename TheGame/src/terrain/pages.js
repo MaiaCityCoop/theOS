@@ -39,7 +39,7 @@ import { BAND } from '../detail/error.js';
 import { endOf } from '../scatter/grass.js';
 import { reliefShares, reliefOverSnow } from './relief.js';
 import { SOIL_RELIEF, FIXATION } from '../world/physics.js';
-import { layerTables, layerWords, layersFrom, MAPN } from './layers.js';
+import { layerTables, layerWords, layersFrom, standColours, MAPN } from './layers.js';
 import { laid, slopeAt, groundRead, cavityOf, PSTEPS } from './material.js';
 import { wear } from './decals.js';
 import { steps, colours } from '../materials/bake.js';
@@ -399,7 +399,7 @@ export function createPages(renderer, tex) {
   // camera too), pages fading in, the bias being chosen, and until a whole sweep has been read, every frame of it,
   // since anything changed what is asked for (the camera moved, the pixels drawn, the bias, the relief's heights):
   // until then a pixel may not have asked yet
-  source('pages', () => queue.length + pinsOut + fading.length + (pick ? 1 : 0) + (sweptSince(quietFrom) ? 0 : 1));
+  source('pages', () => queue.length + pinsOut + stale.length + fading.length + (pick ? 1 : 0) + (sweptSince(quietFrom) ? 0 : 1));
 
   // ---- what update does once a frame, step by step ----
   // the frame's length: how many of a block's pixels ask (all of them within a fixation), the sweep's frames at that, and
@@ -414,6 +414,23 @@ export function createPages(renderer, tex) {
   const relay = (size) => {
     const k2 = `${U.uSand.value.toArray()}|${U.uStage.value.toArray()}|${U.uStageGround.value.toArray()}|${size.y}`;
     if (k2 !== key) { log({ k: 'flush', key: k2 }); key = k2; flush(); uPxS.value = size.y / (2 * Math.tan((34 * Math.PI) / 180)); }
+    // and the pages a stand's colour shows in, once it comes (its kinds' far ends baked: src/terrain/layers.js
+    // standColours): those laid for as far off as it comes in (a page's distance: its texel's, s × uPxS) laid again where
+    // they are (relayStale), the coarsest first; the nearer kept
+    const near = standColours();
+    if (near >= 0) { stale = [...IN.values()].filter((P) => S0 * 2 ** P.m * uPxS.value >= near).sort((a, b) => a.m - b.m); log({ k: 'stale', near, n: stale.length }); }
+  };
+  // pages laid again where they are, shown as they were till then (stale: a stand's colour come), as many as the frame's
+  // pace leaves after the pins and the queue
+  let stale = [];
+  const relayStale = () => {
+    let batch = [];
+    while (stale.length && PACE.left > 0) {
+      const P = stale.pop(); if (IN.get(P.key) !== P) continue;
+      batch.push(P); PACE.left--;
+      if (batch.length === BATCH) { paced(batch); batch = []; }
+    }
+    if (batch.length) paced(batch);
   };
   // the camera's speed: metres and radians a frame. (A jump needs nothing of its own: what was asked for before it is
   // forgotten in two sweeps, and the bias is chosen again from what is asked for after it)
@@ -526,7 +543,7 @@ export function createPages(renderer, tex) {
         would ask for more pages than the slots hold). */
     update(camera, pin, disk = pin) {
       frame++; PACE.tick(); const v0 = version, cam = camera.position, size = renderer.getDrawingBufferSize(new THREE.Vector2());
-      clock(); relay(size); follow(camera, size); windows(cam); pinTop(cam, pin, disk); judge(); layQueue(cam); faded(); send(v0);
+      clock(); relay(size); follow(camera, size); windows(cam); pinTop(cam, pin, disk); judge(); layQueue(cam); relayStale(); faded(); send(v0);
     },
     /** How much coarser than its footprint a pixel asks: half a level finer (a page is filtered as it is read, after
         the filtering its texels were laid with: so the ground is as sharp as a read of its materials, everywhere), and

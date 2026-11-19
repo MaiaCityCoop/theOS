@@ -60,11 +60,12 @@ function noise(a, b, C = load()) {
 
 /** The rule, for tools/gate.js bench: run() (one bench of every view; twice with --twice, the noise measured between
     them and kept), every part judged against its ceiling and printed, the ceilings lowered with --ratchet (main's
-    nightly run: at, its commit). The first run's numbers, with { ceilings: judge's }: shown, never blocking (ship-first,
+    nightly run: at, its commit); a run not measured (tools/gate/machine.js onMachine) is given back as it is. The first run's numbers, with { ceilings: judge's }: shown, never blocking (ship-first,
     2026-11-18: main is measured hourly and what is over goes back as work). */
 export async function rule(run, opt, at) {
   const a = await run(), f = (v, n = 2, w = 8) => (v == null ? '–' : v.toFixed(n)).padStart(w);
-  if (opt.twice) { const b = await run(); const n = noise(a, b); console.log(`  the noise between two runs, a part's most over every view (ms): ${Object.entries(n).map(([k, v]) => `${k} ${v.toFixed(2)}`).join(', ')}`); }
+  if (a.notMeasured) return a;   // (run on a machine short of memory, or one that swapped: neither judged nor kept)
+  if (opt.twice) { const b = await run(); if (b.notMeasured) return b; const n = noise(a, b); console.log(`  the noise between two runs, a part's most over every view (ms): ${Object.entries(n).map(([k, v]) => `${k} ${v.toFixed(2)}`).join(', ')}`); }
   const C = load(), J = judge(a, C);
   console.log(`\n  each part against its ceiling (tools/gate/ceilings.json, set from ${C.measured ?? 'nothing yet'}): ms a frame, its budget, its ceiling + noise`);
   for (const r of J.rows) if (r.ms > 0 || r.over) console.log(`  ${`${r.view}, ${r.part}`.padEnd(40)}${f(r.ms)}${f(r.budget, 2, 7)}${f(r.ceiling)} +${r.noise?.toFixed(2) ?? '?'}  ${r.noise == null ? 'no noise measured: not judged' : r.over ? 'OVER' : r.ms <= r.budget ? 'within its budget' : 'within its ceiling'}`);

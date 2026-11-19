@@ -95,10 +95,13 @@ const DEPTH = Array.from({ length: 256 }, (_, k) => { const y = (k + 0.5) / 256,
 const DEPTH_X = Float64Array.from(DEPTH, (w) => w[0]), DEPTH_Y = Float64Array.from(DEPTH, (w) => w[1]), DEPTH_Z = Float64Array.from(DEPTH, (w) => w[2]);
 
 // ---- the atlases: what they are made of, and how large ----
-/** A texel's bytes: two RGBA8 textures, its colour and cover, its way, depth and light, and an R8, how much of it is
-    leaf (impostor.js createAtlas: each of its own, so each filters as it is); MIPS: its smaller pictures under it, a
-    third more. */
-const TEXEL = 9, MIPS = 4 / 3;
+/** What an atlas keeps of a texel: three pictures, each a texture of its own so each is filtered as it is
+    (impostor.js createAtlas), by its channels, eight bits each: its colour and cover; its data, its way (facingCode),
+    depth and light; how much of it is leaf. What its textures are made as, what the worker writes (impostor.worker.js)
+    and what a texel costs, all from here. */
+export const PICTURES = [{ name: 'colour', channels: 'rgba' }, { name: 'data', channels: 'rgba' }, { name: 'leaf', channels: 'r' }];
+/** A texel's bytes: its pictures' channels; MIPS: its smaller pictures under it, a third more. */
+const TEXEL = PICTURES.reduce((s, p) => s + p.channels.length, 0), MIPS = 4 / 3;
 /** The least picture an atlas keeps, texels a side: its smaller pictures go down to it (impostor.worker.js), and one read
     at any of its levels stays inside its own cell (impostor.js inCell). */
 export const LEAST = 4;
