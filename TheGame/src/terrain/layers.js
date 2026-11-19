@@ -103,10 +103,10 @@ for (const bio of LAID) for (const { key, P, kinds, CV } of standsOf(bio, rowsOf
   const crown = Math.min(...trees.map((a) => a.growth.base(a.growth.years.at(-1)))), radius = Math.min(...trees.map((a) => a.growth.reach(a.growth.years.at(-1))));
   const top = Math.max(0, ...cast.map((a) => a.measure?.most ?? a.size.height));
   // the pattern its plants make where they are no longer drawn, as large as they are (src/terrain/material.js: CROWNS ×
-  // grain its finest scale): a tree stand's, its crowns, at the biome's grain; any other's, its own plants' footprint, so
-  // the moss and the litter that stand for themselves far off keep their size (a bush's, 0.3 of a tree, made them two to
-  // three times as large there)
-  const grain = key === 'tree' ? (CV.grain ?? 1) : footprintOf(kinds) / CROWNS;
+  // grain its finest scale): a tree stand's, its crowns, as they are; any other's, its own plants' footprint, so the moss
+  // and the litter that stand for themselves far off keep their size (a bush's, 0.3 of a tree, made them two to three
+  // times as large there)
+  const grain = key === 'tree' ? 1 : footprintOf(kinds) / CROWNS;
   STANDS.push({ bio, P, grain, fill: CV.fill ?? 2.4, colour: CV.colour, span, fade: span ? [Math.min(...spans) / (span * BAND), 1] : [0, 0], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1, crown, radius, top });
 }
 if (STANDS.length >= NO_STAND) throw new Error(`the land has ${STANDS.length} stands that wear a colour: four bits name at most ${NO_STAND - 1}`);

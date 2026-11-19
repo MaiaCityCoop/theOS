@@ -35,10 +35,11 @@
 //                 audit.md) names however they are written (marked). Not hand-set: the exported values of a module
 //                 named physics.js (physical: the one place physical constants live), budget.js (required: the
 //                 intent's requirements, its hard gates and their split), method.js (method: a published method's
-//                 own defining constants, as a filter's σ and its tile) or art.js (artistic: what a made thing was
-//                 shaped or set to by eye, as a face's form), each saying its source in its comment (`source: …`: for
-//                 an artistic one, what it was chosen against), and a physical one or a requirement its unit too
-//                 (`unit: …`); --base fails where one does not. Flag reads: every call of flag, flagNum and flagText
+//                 own defining constants, as a filter's σ and its tile), each saying its source in its comment
+//                 (`source: …`), and a physical one or a requirement its unit too (`unit: …`); --base fails where one
+//                 does not. Nor, wherever it is, a constant whose own comment cites a published source (`source: …`
+//                 naming its author and year, its link or its DOI, as d'Eon 2007): data, kept once beside what uses it (cited). A file's
+//                 name sanctions nothing else. Flag reads: every call of flag, flagNum and flagText
 //                 (src/core/flags.js)
 //   Pipelines     what a start of the world compiles (tools/smoke.js: the world made on the GPU's stand-in as
 //                 src/boot.js makes it, every material as each pass draws it and every compute pass built; what it
@@ -300,31 +301,38 @@ function numbers(m, name, init, out) {
 /** The modules whose exported values are no hand-set numbers, each module the list of its kind, and what each value's
     comment says: a physics.js holds the physical constants and a budget.js the intent's requirements (its hard gates
     and their split), each with its unit and its source; a method.js a published method's own defining constants (a
-    filter's σ, its tile), each with its source (its unit, where it has one, is not asked: a count or a ratio has none);
-    an art.js what a made thing was shaped or set to by eye (the standing rule lets a setting be set by hand where it is
-    physical or artistic: this is the artistic ones' place), each with what it was chosen against as its source. */
+    filter's σ, its tile), each with its source (its unit, where it has one, is not asked: a count or a ratio has none).
+    Data with a published source needs no file of its own: it is cited where it is (cited). */
 const CONTRACT = {
   'physics.js': { kind: 'physical', holds: 'a physical constant (physics.js)', says: ['unit', 'source'] },
   'budget.js': { kind: 'required', holds: 'a requirement (budget.js)', says: ['unit', 'source'] },
   'method.js': { kind: 'method', holds: "a published method's constant (method.js)", says: ['source'] },
-  'art.js': { kind: 'artistic', holds: 'a choice made by eye (art.js)', says: ['source'] },
 };
-const KINDS = Object.values(CONTRACT).map((c) => c.kind), HOLDS = Object.fromEntries(Object.values(CONTRACT).map((c) => [c.kind, c]));
+const KINDS = [...Object.values(CONTRACT).map((c) => c.kind), 'cited'], HOLDS = Object.fromEntries(Object.values(CONTRACT).map((c) => [c.kind, c]));
 /** The contract a module constant is under (CONTRACT), where it is an exported value (not a function) of such a module;
     else null. */
 const contracted = (m, name) => (CONTRACT[basename(m.f)] && [...m.exports.values()].includes(name) && !/Function/.test(m.consts.get(name).init.type) ? CONTRACT[basename(m.f)] : null);
 /** Whether a constant's comment (before its statement, not on the line the one before ends on, or after it on its own
     last line) says each thing its contract asks (`unit: …`, `source: …`). */
 function sourced(m, v, says) {
-  const s = v.parent.parent?.type === 'ExportNamedDeclaration' ? v.parent.parent : v.parent, before = m.sc.getTokenBefore(s)?.loc.end.line ?? 0;
-  const said = [...m.sc.getCommentsBefore(s).filter((c) => c.loc.start.line > before), ...m.sc.getCommentsAfter(s).filter((c) => c.loc.start.line === s.loc.end.line)].map((c) => c.value).join(' ');
+  const said = saidOf(m, v);
   return says.every((w) => new RegExp(`\\b${w}s?:\\s*\\S`, 'i').test(said));
 }
+/** A constant's own comment: before its statement (not on the line the one before ends on) and after it on its own
+    last line. */
+function saidOf(m, v) {
+  const s = v.parent.parent?.type === 'ExportNamedDeclaration' ? v.parent.parent : v.parent, before = m.sc.getTokenBefore(s)?.loc.end.line ?? 0;
+  return [...m.sc.getCommentsBefore(s).filter((c) => c.loc.start.line > before), ...m.sc.getCommentsAfter(s).filter((c) => c.loc.start.line === s.loc.end.line)].map((c) => c.value).join(' ');
+}
+/** Whether a constant's own comment cites a published source: `source:` naming its author and year (d'Eon 2007, Karis
+    et al. 2014; a date, 2026-11-18, is a decision, not a publication), its link or its DOI. */
+const cited = (m, v) => /\bsources?:[^]*?(https?:\/\/|\bdoi:|\b[a-z][\w'’-]*(?: et al\.?)?,? (1[89]|20)\d\d\b(?!-))/i.test(saidOf(m, v));
 /** A module's constants: each under a contract (physical, required, method; a vector or a table one constant), those
     whose comment does not say what it asks among them, and the hand-set numbers of the rest. */
 function constants(m, S) {
   for (const [name, v] of m.consts) {
     const k = contracted(m, name);
+    if (!k && cited(m, v)) { S.cited.push({ at: at(m.f, v.loc.start.line), name, value: m.sc.getText(v.init), kind: 'cited' }); continue; }
     if (!k) { numbers(m, name, v.init, S.numbers); continue; }
     const c = { at: at(m.f, v.loc.start.line), name, value: m.sc.getText(v.init), kind: k.kind };
     S[k.kind].push(c);
