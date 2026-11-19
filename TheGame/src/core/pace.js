@@ -155,6 +155,28 @@ export function frameDone() {
   const f = FRAME++;
   return QUEUE.onSubmittedWorkDone().then(() => { const ms = OWN.get(f) ?? 0; OWN.delete(f); return ms; }, () => null);
 }
+// (and, while asked, by the GPU's own clock: every submission handed over in a pass stamped (stampedMs), its own time
+// added to its pass's; one the clock could not stamp (no 'timestamp-query', every pair in flight, nothing read) counted,
+// its pass then heard. The HUD's line at ?hud, src/core/hud.js: on a phone, which pass a frame's time goes to)
+let STAMPING = false;
+const STAMPED = new Map(), MISSED = new Map();   // (a pass's name -> ms by the GPU's clock all told; -> its submissions not stamped)
+/** From now on, every submission of a pass on `device` stamped by the GPU's clock where it can be (passTimes). */
+export function stampPasses(device) {
+  if (STAMPING || !device?.queue) return;
+  STAMPING = true;
+  const q = device.queue, raw = q.submit.bind(q), missed = (n) => MISSED.set(n, (MISSED.get(n) ?? 0) + 1);
+  q.submit = (cbs) => {
+    const name = open?.name;
+    if (!name || cbs.some(isMark)) return raw(cbs);   // (outside a pass, or the clock's own: handed on)
+    const p = stampedMs(device, () => raw(cbs), raw);
+    if (!p) { missed(name); return raw(cbs); }   // (not stamped, and not handed over yet)
+    p.then((ms) => { if (ms == null) missed(name); else STAMPED.set(name, (STAMPED.get(name) ?? 0) + ms); });
+  };
+}
+/** Every pass's time on the GPU so far, by its name: { heard (ms, from when it began or the GPU was done with all before
+    it to when it is done: a bound, a stall of the page's thread in it), stamped (ms by the GPU's clock: what of it was
+    stamped, stampPasses), missed (its submissions the clock did not stamp) }. */
+export const passTimes = () => new Map([...TOTAL].map(([n, heard]) => [n, { heard, stamped: STAMPED.get(n) ?? 0, missed: MISSED.get(n) ?? 0 }]));
 /** What the passes named `names` have taken on the GPU since `reader` last asked (ms; none the first time it asks). */
 export function spentSince(reader, names) {
   const first = !READ.has(reader); if (first) READ.set(reader, new Map());
