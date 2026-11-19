@@ -15,7 +15,7 @@
 // GPU never answers holds the ones after it, and the veil says which it is (making: src/boot.js).
 import { source } from './settle.js';
 
-let last = Promise.resolve(), turns = 0, ended = 0;   // (turns: what the world waits for, waiting its turn here or being made; ended: turns over, of any kind)
+let last = Promise.resolve(), turns = 0, ended = 0, active = 0;   // (turns: what the world waits for, waiting its turn here or being made; ended: turns over, of any kind; active: one being made now)
 
 /** Run `fn` (it may be async) when its turn comes: after everything asked for here before it, and before anything asked
     after it (drawing what was just compiled, say, so that it does not draw while the next compile is half done).
@@ -23,7 +23,7 @@ let last = Promise.resolve(), turns = 0, ended = 0;   // (turns: what the world 
     what it gives. */
 export function inTurn(fn, counted = true) {
   if (counted) turns++;
-  const done = last.then(fn, fn), over = () => { ended++; if (counted) turns--; };   // (in turn, whether the one before it went well or not)
+  const go = () => { active++; return fn(); }, done = last.then(go, go), over = () => { active--; ended++; if (counted) turns--; };   // (in turn, whether the one before it went well or not)
   done.then(over, over);
   last = done.catch(() => {});   // (never two at once: three keeps the running compile's state in the renderer)
   return done;
@@ -254,8 +254,8 @@ export async function ahead(groups) { for (const g of groups) { g(); await Promi
 export const labelled = (material, object, pass = '') => (material.name ||= [object.name || object.parent?.name || material.type, pass].filter(Boolean).join(' '));
 /** What frames asked to be made: how many, how many are, and what is being made now (the veil: src/boot.js); ended:
     how many turns are over, of any kind (what was made since a frame: src/boot.js draws again behind the veil only
-    then). */
-export const making = () => ({ asked, done, now, ended });
+    then); active: whether a turn is being made now. */
+export const making = () => ({ asked, done, now, ended, active: active > 0 });
 const computeMakers = new WeakMap();
 const ownMakers = new WeakMap();
 /** Draw `mesh` (a pass of its own: a quad drawn straight into the renderer's target as `camera` sees it, not an object of

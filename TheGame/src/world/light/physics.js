@@ -14,7 +14,8 @@ export const SOLAR_CONSTANT = 1361;
 
 /** How much of the light a metre of crown takes, Beer–Lambert through foliage: k · LAI / depth, with k 0.5 for leaves at
     random angles, an LAI of 5 m² of leaf over each m² of ground and a crown 7 m deep (assumed). What the canopy's probes
-    let through a slab of crowns (src/world/light/canopy.js). unit: per metre (m⁻¹). source: Monteith & Unsworth 1990
+    let through a slab of crowns where no stand's own crowns are measured yet, or none covers the ground (src/terrain/
+    layers.js crownsAt). unit: per metre (m⁻¹). source: Monteith & Unsworth 1990
     (k 0.5, leaves at random angles); USDA Forest Service, light through mature hardwood stands in the southern
     Appalachians (k 0.53 to 0.67, LAI 4.3 to 5.4). */
 export const CROWN_EXTINCTION = 0.35;

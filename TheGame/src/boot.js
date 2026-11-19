@@ -51,6 +51,7 @@ import { createSky } from './world/sky.js';
 import { createWeather } from './world/weather/index.js';
 import { useTiles } from './world/tile.js';
 import { createLight } from './world/light/index.js';
+import { crownsAt, crownsVersion } from './terrain/layers.js';
 import { groundAt } from './world/land.nodes.js';
 import { useGround } from './world/rocksolid.js';
 import { showBodies } from './world/bodies.js';
@@ -115,7 +116,7 @@ export async function boot({ profile = 'world' } = {}) {
   let shown = null; const first = new Promise((res) => (shown = res));   // (the stage's first subject in: its first view is complete once it has settled)
   const game = (window.__game = { profile, renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 }, settle, ready: world ? firstView : first.then(() => settle()), waiting, compiles, memory: ledger });   // memory(): the GPU's memory, the one ledger (src/core/gpu.js)
   const bounds = world && flag('bounds') ? showBodies(scene) : null;   // ?bounds: what is solid round the walker drawn as lines, in every world (src/world/bodies.js)
-  const U = createUniforms(camera, SKY);
+  const U = createUniforms(camera);
   setImpostorRenderer(renderer);
   // The one way to the screen, for every view (src/core/screen.js): the world drawn at the inside's pixels (the governor's
   // dial; the screen keeps all its own), a prepass and the colour (src/core/pass.js), through the lens where the camera
@@ -170,7 +171,7 @@ export async function boot({ profile = 'world' } = {}) {
   const weather = (game.weather = createWeather({ scene, renderer, camera }));
   for (const id of weather.ids) game[id] = weather[id];
   game.sky = sky;   // the sun and the sky: one time of day drives the light (intent 0007)
-  const shadows = createLight(renderer, { groundAt, land: terrain.pages });   // the light's passes before a frame: the shadow cascades and the canopy map (src/world/light/index.js), read by every surface (src/world/light.js)
+  const shadows = createLight(renderer, { groundAt, land: terrain.pages, crowns: { at: crownsAt, version: crownsVersion } });   // the light's passes before a frame: the shadow cascades and the canopy map (src/world/light/index.js), read by every surface (src/world/light.js)
   game.light = game.shadows = shadows;
   game.controls = controls;
   const city = world ? (game.city = createCity({ scene, camera, canvas, renderer, compile: (o) => screen.compile(o, camera, scene) })) : null;   // (compiled for the target the world is drawn into)
@@ -211,14 +212,14 @@ export async function boot({ profile = 'world' } = {}) {
     weather.before(camera, gy); shadows.render(scene, camera, gy);   // (what a condition draws before the picture: the clouds' shadow map)
     screen.render(scene, camera);   // (through its lens, where the camera brings one)
   }
-  let last = 0, wasBusy = false, veiled = false, stillAt = -1;
-  const veil = (game.veil = { frames: 0, drawn: 0, longest: 0 });   // (the frames behind the veil: how many, how many drawn, the longest between two, ms: __game.veil)   // (stillAt: the turns over when the last frame behind the veil was drawn, where it changed nothing; -1: it changed something)
+  let last = 0, wasBusy = false, veiled = false, drawnAt = -1, quiet = false;
+  const veil = (game.veil = { frames: 0, drawn: 0, longest: 0 });   // (the frames behind the veil: how many, how many drawn, the longest between two, ms: __game.veil)   // (drawnAt: the turns over when the last frame behind the veil was drawn; quiet: it changed nothing)
   function frame(now) {
     requestAnimationFrame(frame);
     const ms = last ? now - last : 16.7; last = now;
     U.uTime.value = (now - t0) / 1000;
     tex.flush();   // (materials asked for since the last frame: src/materials/bake.js)
-    if (lakes) { lakes.update(camera); if (lakes.version !== lakesSeen) { lakesSeen = lakes.version; grown.ground.refresh(); terrain.refresh(); stillAt = -1; } }   // (new lakes: the ground under the camera drawn again, and its layers)
+    if (lakes) { lakes.update(camera); if (lakes.version !== lakesSeen) { lakesSeen = lakes.version; grown.ground.refresh(); terrain.refresh(); quiet = false; } }   // (new lakes: the ground under the camera drawn again, and its layers)
     // (behind the veil, a frame that would be the last one drawn again is not drawn: nothing was made since it, and it
     // changed nothing. three's compile, building a material's code, yields to the page for a frame to be drawn after
     // every 8 ms of it, and the start's frames, each drawing the whole world, held it to 8 ms a frame: one turn of 207
@@ -230,7 +231,12 @@ export async function boot({ profile = 'world' } = {}) {
     // throttled, headless above all, and three's wait then ends only on its own timer, 100 ms a step: the master's
     // Chrome log of this, 2026-11-19)
     if (veiled) { veil.frames++; veil.longest = Math.max(veil.longest, ms); }
-    if (veiled && stillAt === making().ended) { renderer.setRenderTarget(null); renderer.clear(); tell(); return; }
+    // (and while a turn is being made, what streams in meanwhile, the land's pages, a stand's meshes, waits for it: a
+    // frame drawn for them drew the whole world, and three's next step waited for it; 263 of the 469 frames behind the
+    // veil were drawn so, in Chrome on main 093a56f, the master's log, and 40 asks spent 34 s on the page's thread, of
+    // some 0.5 s of building, bun's. They come in between turns, and after the veil)
+    const M = making();
+    if (veiled && drawnAt === M.ended && (quiet || M.active)) { renderer.setRenderTarget(null); renderer.clear(); tell(); return; }
     if (veiled) veil.drawn++;
     renderer.info.reset();
     governor.begin();
@@ -244,7 +250,7 @@ export async function boot({ profile = 'world' } = {}) {
     if (!veiled) governor.end(ms, now, live() && grown.scatter.over, wasBusy);
     wasBusy = busy();
     if (!game.covered) tick(changed());   // (whether the world is complete: src/core/settle.js)
-    if (veiled) { stillAt = changed() ? -1 : making().ended; tell(); game.work = taken(); } else hitch(ms, now);   // (the start's frames, behind the veil: what they wait for told, not logged as the game's; what each did let go all the same, or every frame after the first that did anything would count as changing what is drawn, and the world would never be complete)
+    if (veiled) { drawnAt = making().ended; quiet = !changed(); tell(); game.work = taken(); } else hitch(ms, now);   // (the start's frames, behind the veil: what they wait for told, not logged as the game's; what each did let go all the same, or every frame after the first that did anything would count as changing what is drawn, and the world would never be complete)
     hud?.frame(ms, now, controls && controls.band !== 'eye' ? `  ${controls.band} ${Math.round(controls.height)} m` : '');
   }
 
