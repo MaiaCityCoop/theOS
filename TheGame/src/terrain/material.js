@@ -28,10 +28,12 @@ export const FINE = TRUTH ? 4 : 1;
     (A / λ: what level 0's reach is made from) dial pixels, whatever the measure (it is in both). */
 export const PSTEPS = Math.ceil((SOIL_RELIEF * GRID) / (NODE * FINE * Math.max(...OCT_AMP.map((A, i) => A / OCT_LAM[i]))));
 
+/** The finest step the land's normal is worked out over: an eighth of its finest octave (what resolves that octave's
+    slope; tools/slopecheck.js) */
+export const LEAST_STEP = OCT_LAM.at(-1) / 8;
 /** The step the land's normal is worked out over, seen dist metres off: its mesh's quad there (the land's levels keep
-    dist over its quad at their ratio: GRID over NODE of the finest's reach), never finer than an eighth of its finest
-    octave (what resolves that octave's slope). */
-const normalStep = (dist) => max(OCT_LAM.at(-1) / 8, dist.mul(NODE / GRID).div(U.uLandR0.mul(FINE)));
+    dist over its quad at their ratio: GRID over NODE of the finest's reach), never finer than LEAST_STEP. */
+const normalStep = (dist) => max(LEAST_STEP, dist.mul(NODE / GRID).div(U.uLandR0.mul(FINE)));
 /** The node's grid point, morphed to the coarser grid at the node's outer edge: { wp (world x, z), k (how far it is
     morphed: 0 … 1), cell (the node's quad, metres) } */
 function gridOf() {
