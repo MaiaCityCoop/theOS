@@ -210,7 +210,8 @@ from `main`). `?hud` shows the frame, memory and settle readout on any device; t
    measures outlines at runtime and Safari reloads the page for memory.
 2. **Trees missing at the phone's share** even after #385 (the rest dial is sane at 2.27): bisect main 48c7e58 → 289c988
    → current at share 0.375 (force it with a 1 GiB adapter stand-in), logging the rest dial, each tree level's band, and
-   draws. Things must coarsen with the dial, never vanish.
+   draws. Things must coarsen with the dial, never vanish. Lead (draw path, 12:50): the trees' bands are sane on the CPU and
+   nothing is out, so suspect the stand tiers holding 0 regions after the rest dial rises (#373's store turn in tier.js).
 3. **Fixed pools:** stage 1 is PR #396 (pool.js, plan/planDial). Then, in parallel and in separate files: the made-once
    stores plan themselves (growth map, land lists, ground maps, rocks); stage 2, the heap's shapes into pages (heap.js,
    drawer.js feed); stage 4, the resident tiers into region pages with no swap (tier.js). Prove each with storecheck walks at
