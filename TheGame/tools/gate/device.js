@@ -3,7 +3,13 @@
 // its GPU process died at 38 s, the device lost; Samuel's MacBook did the same, and nothing had measured it).
 // tools/gate.js device, and the first of the hour's run (hourly).
 //
-// WebKit at budget.js's MACHINE, from the start to `secs` past ready, walked forward a while in the middle:
+// Two starts, as a player has them (2026-11-19: a Mac keeps compiled shaders by their source, outside any browser's
+// profile, so a pipeline compiled before costs 3-30 ms and one compiled cold 100-1300 ms; B's salted measures):
+// - cold, the first start after the shaders changed (after an update): a fresh profile, and every shader the game makes
+//   marked anew (tools/gate/wgsl.js mark), so neither the browser nor the driver has kept any of it; measured whole,
+//   below;
+// - warm, a repeat start: the same profile and the same marks, in a browser of its own, till ready.
+// WebKit at budget.js's MACHINE, from the cold start to `secs` past ready, walked forward a while in the middle:
 // - the GPU memory as the game's own ledger keeps it (src/core/gpu.js: what the device has made, by class against
 //   BUDGET_MB, the pools largest first, what no pool notes), sampled each second: its peak and where it settles;
 // - that ledger checked by a count of the gate's own, every buffer the device makes net of its destroy(): the ledger
@@ -19,6 +25,10 @@
 import { webkit } from 'playwright-core';
 import { webkitAt } from '../browsers.js';
 import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { mark } from './wgsl.js';
 import { MACHINE, BUDGET_MB, FRAME_MS } from '../../src/core/budget.js';
 
 /** In the page, before anything of it runs: the device as the gate sees it. The buffers it makes (net of destroy); what
@@ -26,7 +36,7 @@ import { MACHINE, BUDGET_MB, FRAME_MS } from '../../src/core/budget.js';
     binds); each submission's own GPU time (the queue runs in order: from when it was submitted or the one before it was
     done, whichever was later, to its own done), the longest with what it held, and how many took more than a frame; a
     destroyed buffer a submission uses (WebKit says only "Validation failure."); the device's loss and its errors. */
-export function watch(frameMs) {
+export function watch(frameMs, salt = 0) {
   const W = (window.__device = { buffers: 0, submits: 0, longest: 0, over: 0, lost: null, errors: [], top: null, long: null, dead: [] });
   // (the ledger's most, read in the page every frame, what it held then with it: it rises by gigabytes the seconds before
   // a device is lost, between two of the gate's looks)
@@ -70,7 +80,7 @@ export function watch(frameMs) {
   const CODE = new WeakMap(), MADE = (window.__programs = []);
   const programs = (dev) => {
     const mod = dev.createShaderModule.bind(dev);
-    dev.createShaderModule = (d) => { const m = mod(d); CODE.set(m, d?.code); return m; };
+    dev.createShaderModule = (d) => { const m = mod(salt && d?.code ? { ...d, code: window.__gateMark(d.code, salt) } : d); CODE.set(m, d?.code); return m; };   // (salt: each module marked, tools/gate/wgsl.js mark: compiled anew, a cold start's; kept as the game wrote it)
     for (const [fn, kind] of [['createRenderPipelineAsync', 'render'], ['createRenderPipeline', 'render'], ['createComputePipelineAsync', 'compute'], ['createComputePipeline', 'compute']]) {
       const make = dev[fn].bind(dev);
       dev[fn] = (d) => { MADE.push({ kind, at: performance.now(), label: d?.label ?? '', codes: kind === 'render' ? [CODE.get(d?.vertex?.module), CODE.get(d?.fragment?.module)] : [CODE.get(d?.compute?.module)] }); return make(d); };
@@ -114,12 +124,32 @@ function gpuProcess() {
     largest pools, unnoted, buffers (the gate's own count, at the peak), process (MB, its most), longest submission (ms),
     over (how many took more than FRAME_MS), lost, errors, pass }. url: the game's. */
 export async function device(url, { secs = 60, programs = false } = {}) {
-  const browser = await webkit.launch({ headless: true, ...webkitAt() });
+  const dir = mkdtempSync(join(tmpdir(), 'gate-device-')), salt = 1 + Math.floor(Math.random() * 0x7fffffff);   // (a profile and a mark of this run's own: its start is cold)
+  try { const out = await coldStart(url, { secs, programs, dir, salt }); if (out.ready != null) out.warm = await warmStart(url, { secs, dir, salt }); return out; }
+  finally { rmSync(dir, { recursive: true, force: true }); }
+}
+/** WebKit on MACHINE, its profile `dir` (as a player's is kept from one start to the next), the device watched (watch:
+    each shader marked with salt), at url. { context, page }. */
+async function opened(url, dir, salt) {
+  const context = await webkit.launchPersistentContext(dir, { headless: true, ...webkitAt(), viewport: { width: MACHINE.width, height: MACHINE.height }, deviceScaleFactor: MACHINE.dpr });
+  const page = context.pages()[0] ?? (await context.newPage());
+  await page.addInitScript(`window.__gateMark = ${mark}`); await page.addInitScript(`(${watch})(${FRAME_MS}, ${salt})`);
+  return { context, page, t0: Date.now(), go: () => page.goto(url, { waitUntil: 'load' }) };
+}
+/** A repeat start (a player's next): the same profile and the same mark as the cold one before it, so what the browser
+    and the driver kept from it is kept, in a browser of its own; till ready. { ready, shown (s), lost }. */
+async function warmStart(url, { secs, dir, salt }) {
+  const { context, page, t0, go } = await opened(url, dir, salt);
+  try { await go(); const ready = await arrived(page, { samples: [], process: 0 }, t0, secs), s = await page.evaluate(look); return { ready, shown: s.shown == null ? null : +(s.shown / 1e3).toFixed(1), lost: s.lost ?? null }; }
+  finally { await context.close(); }
+}
+/** The first start after the shaders changed (what a player sees after an update): a fresh profile, every shader
+    marked anew (salt), so neither the browser nor the driver has kept any of it; the device measured through it. */
+async function coldStart(url, { secs, programs, dir, salt }) {
+  const { context, page, t0, go } = await opened(url, dir, salt);
   try {
-    const page = await (await browser.newContext({ viewport: { width: MACHINE.width, height: MACHINE.height }, deviceScaleFactor: MACHINE.dpr })).newPage();
-    await page.addInitScript(watch, FRAME_MS);
-    const t0 = Date.now(), out = { machine: MACHINE, budget: Object.values(BUDGET_MB).reduce((a, b) => a + b, 0), peak: 0, process: 0, samples: [] };
-    await page.goto(url, { waitUntil: 'load' });
+    const out = { machine: MACHINE, budget: Object.values(BUDGET_MB).reduce((a, b) => a + b, 0), peak: 0, process: 0, samples: [] };
+    await go();
     out.ready = await arrived(page, out, t0, secs);
     const s = out.ready == null ? await page.evaluate(look) : await stay(page, out, secs);
     Object.assign(out, { shown: s.shown == null ? null : +(s.shown / 1e3).toFixed(1), settled: out.samples.at(-1) ?? null, longest: Math.round(s.longest ?? 0), over: s.over ?? 0, submits: s.submits ?? 0, lost: s.lost ?? null, errors: s.errors ?? [], long: s.long ?? null, dead: s.dead ?? [], process: Math.round(out.process) });
@@ -128,7 +158,7 @@ export async function device(url, { secs = 60, programs = false } = {}) {
     say(out);
     if (programs) Object.defineProperty(out, 'programs', { value: await page.evaluate(firstMade).catch(() => null) });   // (programs: the first view's own, handed over, never kept with the run: megabytes of WGSL)
     return out;
-  } finally { await browser.close(); }
+  } finally { await context.close(); }
 }
 /** The game's start, as long as four stays, sampled (sample): seconds from t0 to ready, or null where it never came
     (or the device was lost before). */
@@ -169,7 +199,8 @@ async function stay(page, out, secs) {
 
 /** Whether the game came: ready (window.__game.loadMs set: the start's world made and drawn) and in how long, the first
     frame shown (the game's mark, src/core/marks.js) beside it; the hour's board's first line. */
-export const readyLine = (d) => (d?.ready != null ? `Ready: yes, ${d.ready} s in${d.shown != null ? ` (the first frame shown ${d.shown} s in)` : ''}, on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}× in WebKit.` : `**Ready: no**${d ? `, on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}× in WebKit${d.lost ? ' (the device lost first)' : ''}` : ''}: the game never came.${stillOut(d?.held, d?.submits)}`);
+const came = (r) => (r?.ready != null ? `yes, ${r.ready} s in${r.shown != null ? ` (the first frame shown ${r.shown} s in)` : ''}` : r ? `**no**${r.lost ? ' (the device lost)' : ''}` : 'not tried');
+export const readyLine = (d) => (d?.ready != null ? `Ready, cold (the first start after the shaders changed: a fresh profile, every shader compiled anew): ${came(d)}; warm (a repeat start, what the browser and the driver kept, kept): ${came(d.warm)}; on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}× in WebKit.` : `**Ready: no**${d ? `, on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}× in WebKit${d.lost ? ' (the device lost first)' : ''}` : ''}: the game never came.${stillOut(d?.held, d?.submits)}`);
 /** What still held the start when the run ended (hold): each source still out, with its count and since when, the
     start's last stage, the veil's words, the submissions drawn meanwhile (frames behind the veil, or none). */
 const stillOut = (H, submits) => (!H ? '' : ` Still out: ${Object.entries(H.sources).filter(([, h]) => h.now).map(([k, h]) => `${k} (${h.now}, since ${h.from} s)`).join(', ') || 'nothing settle.js counts'}; the start's last stage ${H.stage ? `'${H.stage[0]}', ${(H.stage[1] / 1e3).toFixed(1)} s in` : 'none'}${H.step ? `; the veil: "${H.step}"` : ''}; ${submits ?? 0} submissions drawn.`);
