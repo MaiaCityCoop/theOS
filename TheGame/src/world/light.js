@@ -153,7 +153,7 @@ const shadowOf = (w, n, how) => {
       const A = at(k), z = A.q.z.sub(C.backAt.element(k).mul(pull)), read = float(1).toVar();
       if (how === 'one') read.assign(compareAt(A.q.xy, k, z));
       else read.assign(softIn(A.q, z, cs, k));
-      r.assign(mix(1, read, share));
+      r.assign(mix(1, read, share.mul(C.on.element(k))));   // (as much of it as its cascade casts: a far one fades in as it comes, src/world/shadow.js)
     });
   });
   return r;
@@ -199,7 +199,7 @@ const shadowAtVertex = Fn(([w]) => {
     const left = float(1).toVar(), s = float(0).toVar();
     Loop({ start: int(0), end: int(cascades().n), type: 'int', condition: '<' }, ({ i }) => {
       const A = cascade(w, i);
-      If(A.e.greaterThan(0), () => { s.addAssign(left.mul(A.e).mul(vertexIn(A, i))); left.mulAssign(float(1).sub(A.e)); });
+      If(A.e.greaterThan(0), () => { s.addAssign(left.mul(A.e).mul(mix(1, vertexIn(A, i), cascades().on.element(i)))); left.mulAssign(float(1).sub(A.e)); });   // (as much as its cascade casts: shadowOf)
       If(left.lessThanEqual(0), () => { Break(); });
     });
     r.assign(s.add(left));

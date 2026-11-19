@@ -58,3 +58,9 @@ export const PROBES = 4;
     unit: ms. source: the master, 2026-11-19 (Samuel's Safari with an ad blocker, the veil at "Raising the land" for
     good: "or hasn't answered in a reasonable time puts a line on the veil") */
 export const STUCK_MS = 20000;
+/** How many frames what comes in after the first frame shown fades in over, and the ground's maps hand over in: no frame
+    changes it by more than a 36th, however slow the frames (0.6 s at 60 fps). What the first view does not wait for
+    (src/core/compile.js ask's near: the far cascades' casters, the canopy's probes) fades in as it comes, never on in
+    one frame (src/core/settle.js arriving). unit: frames. source: the ground's maps (src/scatter/ground.js), and the
+    master, 2026-11-19 ("each fades in as it arrives, over the same FADE frames the ground maps use") */
+export const FADE_FRAMES = 36;
