@@ -4,7 +4,10 @@
 // scatter's engines grow, what stands at a place, the sky, the weather, the shadows, the city; then the library's
 // subject for every asset. A material is built as each pass draws it (src/core/pass.js: its own, its prepass's and its
 // colour's twins). What would throw on a page as it builds (a name left unbound, node code that does not build, a module
-// that does not load) throws here, on the CPU, in a minute or two: CI runs it on every push.
+// that does not load) throws here, on the CPU, in a minute or two: CI runs it on every push. And every place in the
+// game's code that makes shaders (tools/sites.js) is held against what was built: one the smoke never built, and that
+// tools/unbuilt.json does not name, fails (2026-11-19: the canopy's two passes were never made here, so never compiled
+// by the gate, tools/gate/wgsl.js).
 //
 //   bun tools/smoke.js        a line a part (what it made, what it built), every failure with where it was thrown;
 //                             exit 1 if anything failed
@@ -13,8 +16,9 @@
 //   bun tools/smoke.js --wgsl f  and every shader module built (the world's and the library's), each with the part it was
 //                             built for, kept in f as JSON: what tools/gate/wgsl.js compiles on a device
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { mock } from './gpu-mock.js';
+import { framesHere, sitesIn, placeAt, placesAt } from './sites.js';
 
 const t0 = performance.now(), failed = [], made = [], bakers = [];
 // (every pipeline built, by its WGSL text, not by object: a render one is a vertex and a fragment stage)
@@ -28,12 +32,17 @@ const pipelinesOf = ({ render, compute }) => {
   return { render: render.size, compute: compute.size, modules: modules.size, bytes: [...modules].reduce((s, m) => s + Buffer.byteLength(m), 0) };
 };
 const M = await mock({ lean: true }), { THREE, renderer } = M;
-// (where each material and compute pass is made: the game's two innermost files on the stack as three's constructor
-// sets its flag; what a shader is called where it is kept, with its step and name below: tools/gate/wgsl.js)
+// (where each material and compute pass is made: the game's own frames on the stack as three's constructor sets its
+// flag, by function, tools/sites.js; what a shader is called where it is kept, with its step and name below:
+// tools/gate/wgsl.js)
 const SITE = new WeakMap(), ROOT = new URL('..', import.meta.url).pathname;
-const siteOf = () => [...new Map((new Error().stack.match(/\/[^\s():]+\.js:\d+/g) ?? []).filter((f) => f.startsWith(ROOT) && !/^(node_modules|tools)\//.test(f.slice(ROOT.length))).map((f) => [f.replace(/:\d+$/, ''), f.slice(ROOT.length)])).values()].slice(0, 2).join(' < ');
-for (const [C, flag] of [[THREE.Material, 'isMaterial'], [THREE.ComputeNode, 'isComputeNode']]) Object.defineProperty(C.prototype, flag, { configurable: true, set(v) { Object.defineProperty(this, flag, { value: v, writable: true, enumerable: true, configurable: true }); SITE.set(this, siteOf()); } });
-const at = (x) => (SITE.get(x) ? ` at ${SITE.get(x)}` : '');
+for (const [C, flag] of [[THREE.Material, 'isMaterial'], [THREE.ComputeNode, 'isComputeNode']]) Object.defineProperty(C.prototype, flag, { configurable: true, set(v) { Object.defineProperty(this, flag, { value: v, writable: true, enumerable: true, configurable: true }); SITE.set(this, framesHere(ROOT)); } });
+// (the game's own files and every place in them that makes shaders, read once: a frame named by its place's own line;
+// git asked as from here, whatever a hook running it set: inside one, GIT_DIR made it list the repository's from its top)
+const FILES = spawnSync('git', ['ls-files', '*.js'], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, GIT_DIR: '', GIT_WORK_TREE: '', GIT_INDEX_FILE: '' } }).stdout.split('\n').filter((f) => f && !/^(tools|node_modules)\//.test(f) && !/worker/i.test(f)), SITES = sitesIn(ROOT, FILES);
+const placeOf = (f) => { const s = placeAt(SITES, f); return s ? `${f.file}:${s.line} ${f.fn}` : `${f.file} ${f.fn}`; };   // (where it is made: its own line, where it is sure)
+const at = (x) => { const F = SITE.get(x) ?? []; return F.length ? ` at ${[placeOf(F[0]), ...F.slice(1, 2).map((f) => `${f.file} ${f.fn}`)].join(' < ')}` : ''; };
+const BUILT = [], built_ = (x) => { const f = SITE.get(x)?.[0]; if (f) BUILT.push(f); };   // (the game's places whose materials and passes were built here: unmade below)
 // (what three says is wrong as it builds, it says by console.error: a failure here, said with the part it was in)
 let part = 'loading';
 const said = console.error;
@@ -69,19 +78,21 @@ const ground = await tryTo('the ground', async () => {
   (await import('../src/world/rocksolid.js')).useGround(ground); await ground.compile();
   return ground;
 });
-await tryTo('the land', async () => { const { createTerrain } = await import('../src/terrain/terrain.js'), terrain = createTerrain(scene, tex, renderer); await terrain.compile(); });
+const terrain = await tryTo('the land', async () => { const { createTerrain } = await import('../src/terrain/terrain.js'), terrain = createTerrain(scene, tex, renderer); await terrain.compile(); return terrain; });
 await tryTo('what grows', async () => { const { createScatter } = await import('../src/scatter/index.js'), { ahead } = await import('../src/core/compile.js'), scatter = createScatter(scene, tex, ground, renderer, camera); await scatter.compile(); await ahead(scatter.ahead()); bakers.push(...(scatter.bakes?.() ?? [])); });   // (and every tier's own packing, as the world makes it after its first frame: src/core/compile.js)
 await tryTo('what stands at a place', async () => {
   const { recipe } = await import('../src/core/registry.js'), { place } = await import('../src/world/place.js'), { stand } = await import('../src/scatter/placed.js'), { PLACES } = await import('../world/places.js');
   for (const at of Object.values(PLACES)) { const a = recipe(at.asset); if (!stand(a, at)) place(scene, a, at); }
 });
-await tryTo('the sky, the weather, the shadows', async () => {
+const light = await tryTo('the sky, the weather, the light', async () => {
   (await import('../src/world/sky.js')).createSky(scene, camera, renderer);
   (await import('../src/world/weather/index.js')).createWeather({ scene, renderer, camera });
-  (await import('../src/world/shadow.js')).createShadows(renderer);
+  // (the light's passes as src/boot.js makes them: the shadow cascades and the canopy map with its sky probes)
+  const { createLight } = await import('../src/world/light/index.js'), { groundAt } = await import('../src/world/land.nodes.js');
+  return createLight(renderer, { groundAt, land: terrain?.pages });
 });
 await tryTo('the city', async () => { (await import('../src/city/index.js')).createCity({ scene, camera, canvas: { addEventListener() {}, style: {} }, renderer, compile: () => Promise.resolve() }); (await import('../src/world/lakes.js')).createLakes(); });
-await tryTo('a frame', async () => { game?.screen?.render(scene, camera); await Promise.resolve(); await (await import('../src/core/compile.js')).inTurn(() => {}); });   // (and what it asked to be made, made: its passes of their own, src/core/compile.js drawMade)
+await tryTo('a frame', async () => { light?.render(scene, camera, 0); game?.screen?.render(scene, camera); await Promise.resolve(); await (await import('../src/core/compile.js')).inTurn(() => {}); });   // (the light's passes before the picture, as src/boot.js draw; and what it asked to be made, made: its passes of their own, src/core/compile.js drawMade)
 
 // ---- every material made, built as each pass draws it ----
 const { twinOf } = await import('../src/core/pass.js'), { prepassTarget } = await import('../src/core/screen.js'), { lightPass } = await import('../src/core/gbuffer.js'), { CASTS } = await import('../src/world/shadow.js');
@@ -99,7 +110,7 @@ const buildAll = (where) => {
     for (const [pass, mat] of [['own', m], ['pre', twins.pre], ['main', twins.main], ['shadow', object.layers?.isEnabled?.(CASTS) ? twins.shadow : null]]) {
       if (!mat) continue;
       if (pass === 'pre') renderer.setRenderTarget(PRE_TARGET);
-      try { const s = M.build(object.isMesh || object.isPoints || object.isLine || object.isSprite ? object : { isMesh: true, geometry: new THREE.BufferGeometry(), material: mat }, mat); add(shaders.render, `${s.vertex}\0${s.fragment}`, `${part}, ${pass}`); made.push(pass); }
+      try { const s = M.build(object.isMesh || object.isPoints || object.isLine || object.isSprite ? object : { isMesh: true, geometry: new THREE.BufferGeometry(), material: mat }, mat); add(shaders.render, `${s.vertex}\0${s.fragment}`, `${part}, ${pass}`); made.push(pass); built_(m); }
       catch (e) { failed.push(`${part}, ${pass}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); }
       if (pass === 'pre') renderer.setRenderTarget(null);
     }
@@ -113,10 +124,10 @@ buildAll('the world');
 await tryTo("the far ends' reduce", async () => { const { bakers: of } = await import('../src/detail/impostor.js'); bakers.push(...of().views().reduces, ...of().tiles(1).reduces); });
 for (const o of bakers) for (const m of o.userData.materials) {
   if (built.has(m)) continue; built.add(m); part = `the world: a far end's bake (${m.name || m.type})`;
-  try { const s = M.build(o, m); add(shaders.render, `${s.vertex}\0${s.fragment}`, part); made.push('own'); } catch (e) { failed.push(`${part}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); }
+  try { const s = M.build(o, m); add(shaders.render, `${s.vertex}\0${s.fragment}`, part); made.push('own'); built_(m); } catch (e) { failed.push(`${part}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); }
 }
 let passes = 0;
-for (const node of M.computed) { part = `a compute pass of ${origin.get(node) ?? 'the start'} (${node.name || node.type || 'compute'})${at(node)}`; try { add(shaders.compute, M.compute(node), part); passes++; } catch (e) { failed.push(`${part}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); } }
+for (const node of M.computed) { part = `a compute pass of ${origin.get(node) ?? 'the start'} (${node.name || node.type || 'compute'})${at(node)}`; try { add(shaders.compute, M.compute(node), part); passes++; built_(node); } catch (e) { failed.push(`${part}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); } }
 const world = { materials: built.size, builds: made.length, passes, pipelines: pipelinesOf(shaders) };   // (counted here: the world's start, not the library's)
 
 // ---- the library: every asset's subject, as its page stands it (src/library) ----
@@ -136,13 +147,21 @@ library.traverse((o) => { for (const m of [o.material].flat()) take(o, m); });
 buildAll('the library');
 
 console.error = said;
-const secs = ((performance.now() - t0) / 1000).toFixed(1), P = world.pipelines, summary = { world, library: built.size - before, secs: +secs, failed: [...new Set(failed)] };
+// (a place that makes shaders the smoke does not build, and tools/unbuilt.json does not know: a new gap, a failure;
+// one it knows, said; one it knows now built, said, to be taken out of it)
+const KNOWN = new URL('./unbuilt.json', import.meta.url), unmade = unbuilt(), known = existsSync(KNOWN) ? JSON.parse(readFileSync(KNOWN, 'utf8')).sites : {}, count = {};
+for (const u of unmade) count[u.at] = (count[u.at] ?? 0) + 1;
+for (const [at, n] of Object.entries(count)) if (n > (known[at] ?? 0)) failed.push(`what the game makes at ${at} the smoke never builds (${n} place${n > 1 ? 's' : ''}: ${unmade.filter((u) => u.at === at).map((u) => `line ${u.line}`).join(', ')}), so the gate never compiles it: make it here, or name it in tools/unbuilt.json with why`);
+const closed = Object.entries(known).filter(([at, n]) => (count[at] ?? 0) < n).map(([at]) => at);
+const secs = ((performance.now() - t0) / 1000).toFixed(1), P = world.pipelines, summary = { world, library: built.size - before, secs: +secs, unbuilt: unmade.map((u) => `${u.at} (line ${u.line})`), failed: [...new Set(failed)] };
 keep(summary);
 const wgslAt = process.argv.indexOf('--wgsl');
 if (wgslAt > 0) writeFileSync(process.argv[wgslAt + 1], JSON.stringify({ render: [...shaders.render].map((t) => { const [vertex, fragment] = t.split('\0'); return { label: named.get(t), vertex, fragment }; }), compute: [...shaders.compute].map((code) => ({ label: named.get(code), code })) }));
 if (process.argv.includes('--json')) { console.log(JSON.stringify(summary)); process.exit(failed.length ? 1 : 0); }
 console.log(`smoke: the world ${world.materials} materials (${world.builds} builds by pass), ${world.passes} compute passes, ${P.render} render and ${P.compute} compute pipelines, ${P.modules} shader modules, ${(P.bytes / 1024).toFixed(1)} KB of WGSL; the library ${built.size - before} materials more; ${secs} s`);
 if (failed.length) { console.log(`\n${failed.length} failed:\n  ${[...new Set(failed)].join('\n  ')}`); process.exit(1); }
+if (unmade.length) console.log(`smoke: ${unmade.length} places in the game's code make shaders the smoke does not build, as tools/unbuilt.json says: ${Object.keys(count).join('; ')}`);
+if (closed.length) console.log(`smoke: now built, take out of tools/unbuilt.json: ${closed.join('; ')}`);
 console.log('smoke: every material and pass built');
 process.exit(0);   // (the game's own timers and loops would keep it running)
 
@@ -155,4 +174,13 @@ function keep(s) {
   if (!sha || git('status', '--porcelain')) return;
   mkdirSync(dir, { recursive: true });
   writeFileSync(`${dir}${sha}.json`, JSON.stringify(s));
+}
+
+/** Every place in the game's code that makes a node material or a compute pass (tools/sites.js: the game's own files,
+    not the tools' or three's), by the function it is made in, none of whose were built here: what the gate would never
+    compile (2026-11-19: the canopy's two passes, src/world/light/canopy.js, never made here, so never built, nor
+    compiled by tools/gate/wgsl.js). Each { at: 'file function', line }. */
+function unbuilt() {
+  const built = placesAt(SITES, BUILT);
+  return SITES.filter((x) => !built.has(x)).map((x) => ({ at: `${x.file} ${x.fn}`, line: x.line }));
 }
