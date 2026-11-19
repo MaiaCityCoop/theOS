@@ -56,7 +56,7 @@ const ground = await tryTo('the ground', async () => {
   return ground;
 });
 await tryTo('the land', async () => { const { createTerrain } = await import('../src/terrain/terrain.js'), terrain = createTerrain(scene, tex, renderer); await terrain.compile(); });
-await tryTo('what grows', async () => { const { createScatter } = await import('../src/scatter/index.js'), scatter = createScatter(scene, tex, ground, renderer, camera); await scatter.compile(); bakers.push(...(scatter.bakes?.() ?? [])); });
+await tryTo('what grows', async () => { const { createScatter } = await import('../src/scatter/index.js'), { ahead } = await import('../src/core/compile.js'), scatter = createScatter(scene, tex, ground, renderer, camera); await scatter.compile(); await ahead(scatter.ahead()); bakers.push(...(scatter.bakes?.() ?? [])); });   // (and every tier's own packing, as the world makes it after its first frame: src/core/compile.js)
 await tryTo('what stands at a place', async () => {
   const { recipe } = await import('../src/core/registry.js'), { place } = await import('../src/world/place.js'), { stand } = await import('../src/scatter/placed.js'), { PLACES } = await import('../world/places.js');
   for (const at of Object.values(PLACES)) { const a = recipe(at.asset); if (!stand(a, at)) place(scene, a, at); }
@@ -67,7 +67,7 @@ await tryTo('the sky, the weather, the shadows', async () => {
   (await import('../src/world/shadow.js')).createShadows(renderer);
 });
 await tryTo('the city', async () => { (await import('../src/city/index.js')).createCity({ scene, camera, canvas: { addEventListener() {}, style: {} }, renderer, compile: () => Promise.resolve() }); (await import('../src/world/lakes.js')).createLakes(); });
-await tryTo('a frame', async () => { game?.screen?.render(scene, camera); });
+await tryTo('a frame', async () => { game?.screen?.render(scene, camera); await Promise.resolve(); await (await import('../src/core/compile.js')).inTurn(() => {}); });   // (and what it asked to be made, made: its passes of their own, src/core/compile.js drawMade)
 
 // ---- every material made, built as each pass draws it ----
 const { twinOf } = await import('../src/core/pass.js'), { prepassTarget } = await import('../src/core/screen.js');

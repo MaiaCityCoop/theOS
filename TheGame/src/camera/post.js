@@ -21,6 +21,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, uv, uniform, texture, If, min, max, abs, floor, step, mix, clamp, smoothstep } from 'three/tsl';
 import { note } from '../core/gpu.js';
+import { drawMade } from '../core/compile.js';
 
 const TAPS = 24;
 
@@ -89,9 +90,11 @@ export function createLens(renderer) {
       u.maxR.value = picH * 0.03;
       const a = (n = (n + 1) % 64) * 1.7; u.turn.value.set(Math.cos(a), Math.sin(a));
       tC.value = frame.texture; tD.value = frame.depthTexture;
-      renderer.setRenderTarget(A); renderer.render(small, cam);
-      renderer.setRenderTarget(B); renderer.render(blurred, cam);
-      renderer.setRenderTarget(C); renderer.render(through, cam); renderer.setRenderTarget(null);
+      // (its three passes once they are made: until then the frame is drawn without the lens, src/core/compile.js drawMade)
+      renderer.setRenderTarget(A); const s1 = drawMade(renderer, small, cam, 'the lens, small');
+      renderer.setRenderTarget(B); const s2 = drawMade(renderer, blurred, cam, 'the lens, blurred');
+      renderer.setRenderTarget(C); const s3 = drawMade(renderer, through, cam, 'the lens'); renderer.setRenderTarget(null);
+      if (!(s1 && s2 && s3)) return null;
       return { colour: C.texture, glass: { barrel: dof.barrel ?? 0, picH: picH / h, dim: 0.16 } };
     },
   };

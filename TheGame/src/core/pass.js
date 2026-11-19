@@ -62,11 +62,11 @@ const twins = new WeakMap();
 export function twinOf(m) {
   let t = twins.get(m);
   if (!t) {
-    const of = (ctx, depth) => Object.assign(m.clone(), { contextNode: ctx }, depth);
+    const of = (ctx, pass, depth) => Object.assign(m.clone(), { contextNode: ctx, name: m.name && `${m.name} ${pass}` }, depth);   // (named for its pass: three labels a pipeline by its material's name)
     const pre = m.userData?.pre === true;
     // (the shadow twin: a material whose node code says what it cuts in the shadow pass (userData.shadow) keeps it; any
     // other casts whole, drawing nothing of its own: so none binds the atlas it is drawn into, nor writes an id there)
-    t = { pre: pre ? of(PRE, { fragmentNode: mrt({ output: m.fragmentNode, id: m.idNode ?? uvec2(0) }) }) : null, main: of(MAIN, pre ? { depthFunc: THREE.EqualDepth, depthWrite: false } : {}), shadow: of(SHADOW, m.userData?.shadow ? {} : { fragmentNode: SOLID }) };
+    t = { pre: pre ? of(PRE, 'pre', { fragmentNode: mrt({ output: m.fragmentNode, id: m.idNode ?? uvec2(0) }) }) : null, main: of(MAIN, 'main', pre ? { depthFunc: THREE.EqualDepth, depthWrite: false } : {}), shadow: of(SHADOW, 'shadow', m.userData?.shadow ? {} : { fragmentNode: SOLID }) };
     twins.set(m, t);
   }
   return t;

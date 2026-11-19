@@ -9,6 +9,7 @@ import CLOUDS from '../../../world/clouds.js';
 import { U } from '../../core/uniforms.js';
 import { uPxK } from '../../detail/measure.js';
 import { tile } from '../tile.js';
+import { drawMade } from '../../core/compile.js';
 
 const nameOf = (c) => CLOUDS.names.filter(([at]) => c >= at).at(-1)[1];
 const billows = (at) => tile('billows', at);   // the baked field they are painted from
@@ -66,7 +67,7 @@ function shadowMap(renderer) {
       const s = U.uSunDir.value, k = (CLOUD_H - groundY) / Math.max(s.y, 0.08);
       const cx = Math.round((camera.position.x + s.x * k) / TEXEL) * TEXEL, cz = Math.round((camera.position.z + s.z * k) / TEXEL) * TEXEL;
       U.uCloudMap.value.set(cx - SIZE / 2, cz - SIZE / 2, SIZE);
-      const was = renderer.getRenderTarget(); renderer.setRenderTarget(rt); renderer.render(quad, cam); renderer.setRenderTarget(was);
+      const was = renderer.getRenderTarget(); renderer.setRenderTarget(rt); drawMade(renderer, quad, cam, "the clouds' map"); renderer.setRenderTarget(was);   // (once its pass is made: src/core/compile.js drawMade)
     },
   };
 }

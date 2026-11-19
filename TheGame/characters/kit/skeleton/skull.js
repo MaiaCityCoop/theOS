@@ -182,6 +182,23 @@ const TEETH = {
   L: [[5.3, 6, 9, 0], [5.9, 6.4, 9.4, 0], [6.9, 7.6, 10.8, 1], [7, 7.8, 8.4, 2], [7.2, 8.2, 8, 2], [11, 10.3, 7.5, 3], [10.5, 10, 7, 3], [10, 9.6, 6.8, 3]],
 };
 
+/** Where each tooth of a row stands, as teeth() below sets it (left side; world, m): its neck at the gum, its edge,
+    its axis from the one to the other, the way outwards across the row and the way along it, how long along the row
+    and how thick across it its crown is, its kind. For whoever draws teeth without the skeleton: the smile
+    (../muscles/flesh.js). */
+export function teethOf(jaw = 'U') {
+  const dir = jaw === 'U' ? -1 : 1, line = spline(ARCH[jaw].map(([x, z]) => [x, 0, z]), 8), far = [0];
+  for (let i = 1; i < line.length; i++) far.push(far[i - 1] + Math.hypot(line[i][0] - line[i - 1][0], line[i][2] - line[i - 1][2]));
+  const where = (d) => { let i = 1; while (i < line.length - 1 && far[i] < d) i++; const t = (d - far[i - 1]) / (far[i] - far[i - 1]), p = lerp(line[i - 1], line[i], t), g = norm(sub(line[i], line[i - 1])); return { x: p[0], z: p[2], t: g }; };
+  let gone = 0;
+  return TEETH[jaw].map(([len, thick, tall, kind]) => {
+    const { x, z, t } = where(gone + len / 2); gone += len;
+    const o = norm([-t[2], 0, t[0]]), lean = kind < 2 ? (jaw === 'U' ? 0.36 : 0.24) : kind === 2 ? 0.08 : 0.03, ax = norm([o[0] * Math.sin(lean), dir * Math.cos(lean), o[2] * Math.sin(lean)]);
+    const edgeY = bite(z) + (kind < 2 ? (jaw === 'U' ? -1.6 : 1.2) : 0), neck = at(x, edgeY - dir * tall, z);
+    return { neck, tip: add(neck, mul(ax, tall / 1000)), ax, o, t, len: len / 1000, thick: thick / 1000, tall: tall / 1000, kind };
+  });
+}
+
 function teeth(K) {
   for (const [jaw, rig, dir] of [['U', 'head', -1], ['L', 'jaw', 1]]) {
     // the arch as a fine line, and how far along it each point is

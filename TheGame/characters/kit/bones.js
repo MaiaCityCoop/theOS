@@ -315,7 +315,7 @@ export function skeletonOf(tex, R, { eye = uniform(U.uCam.value), quick = false 
   function show() {
     const L = api.layer, fl = api.flesh;
     if (api.mesh) api.mesh.visible = wantsBones();
-    if (fl) { if (fl.skin) fl.skin.visible = L === 'skin'; if (fl.fat) fl.fat.visible = L === 'fat'; if (fl.muscles) fl.muscles.visible = !body || L === 'muscles'; for (const e of fl.eyes) e.visible = L !== 'bones'; }
+    if (fl) { if (fl.skin) fl.skin.visible = L === 'skin'; if (fl.fat) fl.fat.visible = L === 'fat'; if (fl.muscles) fl.muscles.visible = !body || L === 'muscles'; for (const e of fl.eyes) e.visible = L !== 'bones'; for (const e of fl.mouth ?? []) e.visible = L === 'skin'; }
   }
   api.setLayer = (id) => { if (!body || id === api.layer || !api.layers.some((l) => l.id === id)) return; api.layer = id; show(); if (wantsBones()) growBones(); };
   // the state of its moving (as a person's: ./human.js)

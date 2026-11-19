@@ -13,17 +13,16 @@ const ready = () => { if (!bones) { bones = prepare(skeletonBones()); union = un
 self.onmessage = ({ data }) => {
   const B = ready();
   if (data.about) return self.postMessage({ about: { n: B.length, order: B.map((_, i) => i).sort((a, b) => B[b].ops.length - B[a].ops.length) } });
-  const bufs = (S) => [S.pos.buffer, ...Object.values(S.attr).map((a) => a.buffer), S.fine.buffer, S.coarse.buffer];
+  const bufs = (S) => [S.pos.buffer, ...Object.values(S.attr).map((a) => a.buffer), S.fine.buffer, S.coarse.buffer, ...(S.far ? [S.far.buffer] : [])];
   if (data.muscles) {
     const M = musclesOf(B); delete M.inner;
     return self.postMessage({ muscles: M }, bufs(M));
   }
-  // a body: the muscles, and the fat and the skin over them (one surface, its points hung on the muscles' strands and
-  // on the bones); its rows the muscles' and the skin's together
+  // a body: the muscles, and the fat and the skin over them (one surface, its points hung on the rig's joints)
   if (data.body) {
     const M = musclesOf(B), S = skinOf(B, M, { h: data.h });
-    const body = { rows: [...M.rows, ...S.rows], muscleList: M.muscles, muscles: { pos: M.pos, attr: M.attr, fine: M.fine, coarse: M.coarse }, skin: { pos: S.pos, attr: S.attr, fine: S.fine, coarse: S.coarse, rest: S.rest }, soles: S.soles, skinThick: S.skin, counts: { ...M.counts, skin: S.counts } };
-    return self.postMessage({ body }, [...bufs(body.muscles), ...bufs(body.skin), S.rest.buffer]);
+    const body = { rows: M.rows, muscleList: M.muscles, muscles: { pos: M.pos, attr: M.attr, fine: M.fine, coarse: M.coarse }, skin: { pos: S.pos, attr: S.attr, fine: S.fine, coarse: S.coarse, far: S.far, off: S.off, joints: S.joints, maps: S.maps }, soles: S.soles, skinThick: S.skin, counts: { ...M.counts, skin: S.counts } };
+    return self.postMessage({ body }, [...bufs(body.muscles), ...bufs(body.skin), S.maps.scatter.data.buffer, S.maps.micro.data.buffer]);
   }
   const m = meshOfBone(B, data.i, { h: data.h, shade: data.shade, union });
   if (!m) return self.postMessage({ i: data.i, none: true });

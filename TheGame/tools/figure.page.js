@@ -15,26 +15,7 @@
 //   round        left on its walk's round (1.5 m from the middle); turned: left turned as its move turned it
 import * as THREE from 'three/webgpu';
 import { uniform, texture } from 'three/tsl';
-import { useTiles } from '../src/world/tile.js';
-import { U } from '../src/core/uniforms.js';
-
-// (no baked materials here: what reads one, the clouds' field, reads grey)
-{ const grey = new THREE.DataTexture(new Uint8Array([128, 128, 128, 255]), 1, 1); grey.needsUpdate = true; useTiles({ a: (m, uv) => texture(grey, uv), n: (m, uv) => texture(grey, uv), layer: () => 0 }); }
-const q = new URLSearchParams(location.search), num = (k, d) => (q.get(k) == null ? d : +q.get(k)), rad = (k, d) => THREE.MathUtils.degToRad(num(k, d));
-const renderer = new THREE.WebGPURenderer({ canvas: document.getElementById('c'), antialias: true, forceWebGL: !q.has('gpu') });
-await renderer.init();
-renderer.outputColorSpace = THREE.LinearSRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;   // (the screen's curve is the material's own: src/world/light.js toScreen)
-renderer.setPixelRatio(1); renderer.setSize(innerWidth, innerHeight, false); renderer.setClearColor(new THREE.Color(0.2, 0.2, 0.21));
-const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(num('fov', 28), innerWidth / innerHeight, 0.05, 100);
-// (no shadow is cast here, but a material reads the shadow's map all the same: through WebGPU the game's stand-in for it is
-// taken for the picture's own depth and gets no sampler, so the page keeps a small map of its own, made as
-// src/world/shadow.js makes the real one)
-{ const rt = new THREE.RenderTarget(4, 4, { count: 0, depthBuffer: true }); rt.depthTexture = new THREE.DepthTexture(4, 4); rt.depthTexture.type = THREE.UnsignedIntType; rt.depthTexture.compareFunction = THREE.LessEqualCompare; rt.depthTexture.minFilter = rt.depthTexture.magFilter = THREE.LinearFilter; U.tShadow.value = rt.depthTexture; }
-U.uCam.value = camera.position; U.uHaze.value = 0; U.uExposure.value = num('exp', 1);
-const yaw = rad('yaw', 0), pitch = rad('pitch', 0), d = num('d', 4.3), at = [num('x', 0), num('y', 0.9), num('z', 0)];
-const aim = () => { camera.position.set(at[0] + Math.sin(yaw) * Math.cos(pitch) * d, at[1] + Math.sin(pitch) * d, at[2] + Math.cos(yaw) * Math.cos(pitch) * d); camera.lookAt(...at); }; aim();
-const sa = rad('sun', 45), su = rad('suna', 40);   // (the library's key: 45° to the camera's left, 40° up)
-U.uSunDir.value.set(Math.sin(yaw - sa) * Math.cos(su), Math.sin(su), Math.cos(yaw - sa) * Math.cos(su)).normalize();
+import { q, num, renderer, scene, camera, at, aim } from './alone.page.js';
 
 const who = (q.get('who') ?? 'man').replace(/[^a-z0-9-]/g, ''), own = (await import(`../characters/${who}.js`)).default, recipe = q.get('file') ? { ...own, name: q.get('file').split('/').pop(), file: new URL(q.get('file'), location.href).href } : own;
 const T = new THREE.Texture(), tex = new Proxy({}, { get: (_, k) => (k === 'want' ? () => {} : () => texture(T)) });
