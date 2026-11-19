@@ -118,6 +118,35 @@ quick win for every cold dev start, whatever the store.
 - tools/rooms.js cold: 46 s
 - the rocks' coarse meshes in a fresh browser: about 40 s of worker time
 
+## Learned from SmartImposter (Samuel's pointer, 2026-11-19)
+https://github.com/SamG-Coder/SmartImposter: a forest and globe renderer in Rust on Vulkan, everything hardware ray
+traced, whose far plants are hemi-octahedral impostors like ours (src/detail/impostor.js). Read from its README; none of
+its numbers were measured here.
+
+**It confirms this design:**
+- Its impostors are baked on first need and kept in `assets/cache/impostors`, keyed on the asset, the bake settings and
+  **the bake shaders**. That is the key above; the maker's hash must include the bake's own code, as BUILDER does.
+- Each plant keeps a base atlas at a quarter resolution or less resident, and the full one streams in by need under a
+  budget (25 % of VRAM by default). That is the fixed pools' "coarse roots resident, the rest by priority"
+  (research_notes/0038-fixed-pools.md).
+
+**Worth trying in our far ends (each its own task, held to the motion and memory gates):**
+1. **Compressed atlases.** BC3 colour, BC5 normal and depth, about 3.25 bytes a texel against 16, compressed on the GPU
+   one 4×4 block a thread. Ours are 8-bit RGBA, uncompressed: 4 bytes a texel a picture. The largest memory lever for
+   the far ends on the phone (WebGPU has BC on Macs, `texture-compression-bc`; the phone needs ASTC or ETC2).
+2. **Cropped cells.** Each view cropped to what the plant can cover in any view: a poplar's 448² becomes 192×448. Ours
+   are square.
+3. **One view a pixel, picked at random** by the barycentric weights, with temporal accumulation averaging the pick.
+   Its README says blending three views ghosted. We blend three (three reads a picture) and already accumulate in time
+   (src/core/temporal.js); fewer reads, but it must hold the pop gate in motion.
+4. **One random number for the handover.** The mesh and the impostor dissolve on the same per-pixel number, so exactly
+   one answers each pixel and nothing doubles or gaps (compare src/detail/handover.js).
+5. **Coverage-weighted mips and the normal's spread** (the length of the averaged normal, kept a texel, scaling diffuse
+   and sun). A lead for the Todo's open item, the crowns' wood at sub-pixel sizes.
+
+**Not for us:** its fixed handover distances (44–56 m, scaled by height) are hand-set numbers the one error dial
+replaces; hardware ray tracing and DLSS have no WebGPU counterpart.
+
 ## Open, for Samuel
 - Where the shared layer lives: next's own host, or an object store (R2, S3, Neon's storage) behind it.
 - Whether a citizen's asset is made by its author's device and checked, or made only by a trusted maker. The safe
