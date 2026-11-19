@@ -112,9 +112,12 @@ async function compileAll(S) {
   return out;
 }
 
-/** The modules marked (above): `mark` written by each entry point, so the driver compiles the set anew. */
-const markedOf = (S, mark) => {
-  const m = (code) => code.replace(/(@(?:vertex|fragment|compute)\b[^{]*?\bfn\s+main\s*\([^{]*\{)/, `var<private> gate_mark: u32 = ${mark}u;\n$1\n  gate_mark += 1u;`);
+/** A module's WGSL marked (above): `n` written by its entry point, which no compiler leaves out, so the driver's source
+    is new and compiled anew. Whole in itself: a page is handed it too (tools/gate/device.js, a cold start's shaders). */
+export const mark = (code, n) => code.replace(/(@(?:vertex|fragment|compute)\b[^{]*?\bfn\s+main\s*\([^{]*\{)/, `var<private> gate_mark: u32 = ${n}u;\n$1\n  gate_mark += 1u;`);
+/** The modules marked (mark), so the driver compiles the set anew. */
+const markedOf = (S, n) => {
+  const m = (code) => mark(code, n);
   return { compute: S.compute.map((c) => ({ ...c, code: m(c.code) })), render: S.render.map((r) => ({ ...r, vertex: m(r.vertex), fragment: m(r.fragment) })) };
 };
 const hashOf = (...x) => createHash('sha1').update(x.join('\0')).digest('hex');
