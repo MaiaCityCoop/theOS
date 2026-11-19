@@ -950,10 +950,12 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       return { alive: out.alive.greaterThan(0.5), bucket: out.bucket };
     };
     // (one material for every mesh level of it, its level told by each mesh; one more for what is drawn by a level's own list)
-    // (what moves chooses its own patches, packed every frame, a room a draw till its count is read back: what is drawn
-    // large is few, four times as many a level further off, and as many more as the dial at rest reaches (measure.js
-    // restDial); then, as what stands still (resident), its buckets as large as it finds it needs: tier.js)
-    const packs = moving ? { live, cap: draws.map((d) => (d.dot ? cap : Math.min(cap, Math.ceil((16 * 4 ** Math.max(1, d.level)) / restDial() ** 2)))) } : { found, select, label: name };
+    // (what moves chooses its own patches, packed every frame, a room a draw: its bound, what is drawn large is few, four
+    // times as many a level further off, and as many more as the dial at rest reaches (measure.js restDial), laid out
+    // again only as that moves, never by what a read finds (tier.js ownOf); what stands still (resident), its buckets as
+    // large as it finds it needs: tier.js)
+    const bound = () => draws.map((d) => (d.dot ? cap : Math.min(cap, Math.ceil((16 * 4 ** Math.max(1, d.level)) / restDial() ** 2))));
+    const packs = moving ? { live, cap: bound(), bound } : { found, select, label: name };
     const mats = {}, T = new Tier(scene, draws.map((d) => (d.cut ? new THREE.InstancedBufferGeometry().setIndex([0, 1, 2]) : d.shared ? drawShaped(d.level) : drawOf(d.level))), (src, k = 0) => { const d = draws[k], key = d.dot ? 'dot' : d.shared ? 'shared' : 'plain'; return (mats[key] ||= d.dot ? dot(src) : meshOf(src, null, false, moving, false, !!d.shared, true)); }, { cell, P, near: 0, far: 1, order: 1, ...packs, gpu: true, slots: ROWS, bounds: boundsOf(GROWN + (moving ? 0.5 : 0)) });
     T.step = step;
     T.band = () => { T.near = 0; T.far = Math.min(far, farFor(THIN ? END : Math.max(END, LEVELS[last].px * (last === L - 1 ? 1 : 0.5)), sizes[1])); band.far.value = T.far; };   // (a drawer that thins its things away: packed until they are gone)
