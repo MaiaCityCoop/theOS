@@ -218,8 +218,11 @@ const eachDraw = (uK, fn) => { Loop({ start: uint(0), end: uK, type: 'uint', con
 /** Its meshes: each bucket's draw from its arguments, its material reading a thing's rows where the packing put it
     (through what the eye's culling kept, culled: C): its place (placeOf(at, slot): which of the store's things it is,
     slot a node, the bucket a mesh says), its rows there (S of them). room(k): as many as bucket k may hold. A material is
-    handed read(j), readAt(j, slot), and placeAt(slot): the thing's place (what the prepass's id says: src/core/pass.js). */
-function meshesOf(geos, material, args, C, room, data, S, placeOf) {
+    handed read(j), readAt(j, slot), and placeAt(slot): the thing's place (what the prepass's id says: src/core/pass.js);
+    and share: what its reading shares with another tier's that reads alike (a resident tier's: its kind and its arena,
+    the rest told by its meshes, tag: src/scatter/drawer.js makes one material for all of them), none where it reads
+    what is its own alone. */
+function meshesOf(geos, material, args, C, room, data, S, placeOf, { share = null, tag = null } = {}) {
   // (a row read once where a material asks for it, a variable: as an element of the store it was written out again, its
   // place's reads with it, at every use of it: 157 reads a corner in a stand's vertex where 17 are its own, 118 KB of
   // the world's WGSL. Apple's compiler merged them (measured, 2026-11-19: no GPU time); what it saves is the WGSL its
@@ -227,8 +230,8 @@ function meshesOf(geos, material, args, C, room, data, S, placeOf) {
   const at = C ? C.entry : (slot) => slot.add(instanceIndex), rowAt = (slot, j) => data.element(placeOf(at, slot).mul(S).add(uint(j))).toVar();
   return geos.map((g, k) => {
     g.setIndirect(args, k * 20); g.instanceCount = room(k);
-    const m = new THREE.Mesh(g, material({ read: (j) => rowAt(uint(k), j), readAt: (j, slot) => rowAt(slot, j), placeAt: (slot) => placeOf(at, slot) }, k));
-    m.userData.slot = k; return m;
+    const m = new THREE.Mesh(g, material({ read: (j) => rowAt(uint(k), j), readAt: (j, slot) => rowAt(slot, j), placeAt: (slot) => placeOf(at, slot), share }, k));
+    m.userData.slot = k; if (C) m.userData.cull = C.me; tag?.(m); return m;   // (cull: what its culler's entry reads, src/core/occlusion.js CULLED)
   });
 }
 
@@ -246,10 +249,11 @@ function entriesOf(T, spans) {
 }
 /** Its packing: each bucket a room of its own, one after another, as large as it has found it needs (ownOf); till its
     count is read back, what its engine reckons (cap: one for all, or a list). */
-function packedOf(T, geos, material, { live, cap = 0, slots = 0, spans = null, bounds = null }) {
+function packedOf(T, geos, material, { live, cap = 0, slots = 0, spans = null, bounds = null, family = null }) {
   const K = geos.length, S = uint(slots), { EN, nE, RN, STEPS } = entriesOf(T, spans);
   const caps = Array.isArray(cap) ? [...cap] : geos.map(() => cap), offs = caps.map(() => 0);   // (each bucket's room and where its things begin: laid out again from its count)
   const rooms = uniformArray(caps.map(() => new THREE.Vector2()), 'vec2');   // (the same, for its packing)
+  if (family) return familyPackedOf(T, familyOf(family, slots), geos, material, { live, caps, offs, rooms, S, slots, bounds, pass: { entryOf: entryOf(EN, nE, STEPS), RN } });
   // (where each bucket's things begin, as they were set: the page's copy is what they are, tier.read)
   const OFF = new THREE.StorageBufferAttribute(new Uint32Array(K), 1), OFr = storage(OFF, 'uint', K).toReadOnly();
   // (a thing's rows side by side in one buffer, `slots` of them: one buffer to bind, not one a row; what it packs lives
@@ -272,6 +276,51 @@ function packedOf(T, geos, material, { live, cap = 0, slots = 0, spans = null, b
   T.passes = [zero, patchPass({ K, S, data, count, rooms, entryOf: entryOf(EN, nE, STEPS) }, live, RN), ...(C ? [C.args, C.boxes] : [argsPass(argsNode, count, uK, rooms)])];
   return meshesOf(geos, material, args, C, (k) => caps[k], data, S, (at, slot) => at(OFr.element(slot)));
 }
+// ---- a family of its own patches' tiers ----
+// The levels of one placer that packs its own patches (a list's levels: src/scatter/placed.js) pack into one store, each
+// tier's buckets after the tiers' before it, and say where each bucket's things begin in one table, a row a bucket, each
+// tier's rows after the ones before: its meshes read their tier's (OF_ROW, as a resident kind's), so what reads them reads
+// alike, one material for all its levels drawn alike (src/scatter/drawer.js alike). A tier that lays its rooms out again
+// lays the family's out: each one's rooms where they begin now, its culler told so (from), and all of them packed again
+// (the store made again holds nothing), as a resident kind's relayout. (2026-11-19: the made things' levels were a
+// material each, seven built again in every pass with the same code)
+const FAMILIES = new WeakMap();
+let families = 0;
+/** The family of `key` (what its placer hands each of its tiers), its things `slots` rows each. */
+function familyOf(key, slots) {
+  let F = FAMILIES.get(key);
+  if (F) { if (F.slots !== slots) throw new Error(`tiers of one family with ${F.slots} and ${slots} rows a thing: a family packs alike`); return F; }
+  F = { id: families++, slots, tiers: [], rows: 0, total: 0, packed: gpuStorageLater('vec4', 'tiers: what stands, packed', 'geometry'), offs: gpuStorageLater('uint', "tiers: where each draw's things begin", 'geometry') };
+  F.lay = () => {
+    const table = new Uint32Array(Math.max(1, F.rows)); let base = 0;
+    for (const t of F.tiers) { t.lay(base, table); base += t.total; }
+    F.packed.make(base * slots); F.offs.make(table.length); F.offs.write(0, table); F.total = base;
+    for (const t of F.tiers) t.C?.resize(t.total, false);
+    for (const A of new Set(F.tiers.map((t) => t.C?.arena).filter(Boolean))) A.relayout();
+  };
+  FAMILIES.set(key, F);
+  return F;
+}
+/** A tier of a family (packedOf's, its store and its table the family's): laid out with the family as it joins, and
+    again with it as any of them lays its rooms out again. */
+function familyPackedOf(T, F, geos, material, { live, caps, offs, rooms, S, slots, bounds, pass }) {
+  const K = geos.length, row = F.rows, uRow = uniform(row, 'uint'), page = new Uint32Array(K);   // (row: its first in the table; page: where its buckets begin, as they were set, tier.read)
+  const me = { T, base: 0, total: 0, C: null,
+    lay(base, table) { let n = 0; caps.forEach((c, k) => { offs[k] = n; rooms.array[k].set(c, base + n); table[row + k] = page[k] = base + n; n += c; }); me.base = base; me.total = n; me.C?.from(base); } };
+  F.rows += K; F.tiers.push(me); F.lay();
+  for (const t of F.tiers) if (t !== me) t.T.repack();   // (what they packed was in the store made again)
+  const data = F.packed.node, count = instancedArray(K, 'uint').toAtomic(), { args, argsNode } = argsOf(geos);
+  const culled = !!bounds && hasFeature('indirect-first-instance') && cullable(me.total);   // (?truth too: what this frame's depth hides adds nothing to any pixel)
+  Object.assign(T, { slots, data, args, count, offsets: { array: page }, room: (k) => caps[k] });
+  T.offAt = (k) => F.offs.node.element(uRow.add(k));   // (where bucket k's things begin: a node, for what reads a bucket of it itself)
+  const C = (T.culler = me.C = culled ? cullOf(T, { K, caps, offs, total: me.total, S: slots, data, args, count, box: bounds }) : null);
+  C?.from(me.base);   // (its draws' things begin there in the family's store: its culler's list is its own)
+  // (laid out again at N: the family with it, every one of its tiers packed again; its room held to what the family holds)
+  T.ownRow = ownOf(T, caps, (N) => { N.forEach((n, k) => { caps[k] = n; geos[k].instanceCount = n; }); F.lay(); for (const t of F.tiers) t.T.repack(); }, () => F.total - sum(caps));
+  const uK = uniform(K, 'uint'), zero = Fn(() => { eachDraw(uK, (k) => { atomicStore(count.element(k), uint(0)); }); })().compute(1);
+  T.passes = [zero, patchPass({ K, S, data, count, rooms, entryOf: pass.entryOf }, live, pass.RN), ...(C ? [C.args, C.boxes] : [argsPass(argsNode, count, uK, rooms)])];
+  return meshesOf(geos, material, args, C, (k) => caps[k], data, S, (at, slot) => at(F.offs.node.element(OF_ROW.add(slot))), { share: `family ${F.id}|${C ? C.share : '-'}`, tag: (m) => { m.userData.ofRow = row; } });
+}
 /** A store's room for n things: a MARGIN more, in whole workgroups (a resident tier's and a bucket of its own patches'). */
 const roomFor = (n) => Math.max(WG, Math.ceil((n * MARGIN) / WG) * WG);
 const sum = (a) => a.reduce((n, x) => n + x, 0);
@@ -279,10 +328,10 @@ const sum = (a) => a.reduce((n, x) => n + x, 0);
     they grow (its own buffers still in it: what they were is let go only after what they are is made, src/core/gpu.js;
     a resident kind's: relayout), and one binding: held to that, they ask for no more till the measure changes
     (reband). A smaller room is always taken: it gives room back. */
-function holdOwn(T, row, caps, N) {
-  const each = T.slots * bytesOf('vec4') + (T.culler ? CULL_BYTES : 0), need = sum(N);
+function holdOwn(T, row, caps, N, others = 0) {
+  const each = T.slots * bytesOf('vec4') + (T.culler ? CULL_BYTES : 0), need = others + sum(N);   // (others: what else its store holds, a family's other tiers')
   const most = Math.floor(Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity) / (T.slots * bytesOf('vec4')));
-  const fit = Math.min(need > sum(caps) ? Math.max(0, roomOf('geometry')) / (need * each) : Infinity, most / need);
+  const fit = Math.min(need > others + sum(caps) ? Math.max(0, roomOf('geometry')) / (need * each) : Infinity, most / need);
   row.cap = null;
   if (fit >= 1) return;
   console.warn(`tier ${T.asset ?? T.name ?? ''}: its own patches would hold ${Math.round((need * each) / 2 ** 20)} MB, past ${fit * need < most ? 'the room geometry has left' : `one binding (${most} things)`}: held to it, the rest is the dial's (the governor's)`);
@@ -294,14 +343,14 @@ function holdOwn(T, row, caps, N) {
     out again a MARGIN larger than it found where one found more than it holds, or where all of them hold BAND times
     more than that. The world is not complete till what a packing found is read back and fits (src/core/settle.js); a
     tier whose things move, packed every frame, once its rooms are read back as large as what they find. */
-function ownOf(T, caps, lay) {
+function ownOf(T, caps, lay, others = () => 0) {
   const row = { cap: null };
   let asking = false, wrong = 0, all = 0, seen = 0, packs = 0, laid = 0, fits = -1;   // (all: its packings; seen: of them, read; packs: those that changed what stands; laid: its layouts; fits: the last one read back as large as it needs)
   source(`tiers: a store made again (${T.asset ?? 'a tier'})`, () => wrong);
   const check = (z, asked, at) => {
     const found = caps.map((_, k) => z[k] ?? 0), N = found.map((f, k) => Math.min(roomFor(f), row.cap?.[k] ?? Infinity));
     T.short = found.some((f, k) => f > caps[k]);   // (more found than it holds: said to the governor, as a resident tier's over)
-    if (N.some((n, k) => n > caps[k]) || sum(N) * BAND < sum(caps)) { holdOwn(T, row, caps, N); if (N.some((n, k) => n !== caps[k])) { lay(N); laid++; wrong = 1; return; } }
+    if (N.some((n, k) => n > caps[k]) || sum(N) * BAND < sum(caps)) { holdOwn(T, row, caps, N, others()); if (N.some((n, k) => n !== caps[k])) { lay(N); laid++; wrong = 1; return; } }
     if (at === laid) fits = laid;
     if (asked === packs) wrong = 0;   // (no change of what stands since: what it holds is what was read)
   };
@@ -404,6 +453,8 @@ let GR = null;   // (what every resident tier shares: shared(), made with the fi
 // for its draws in all; read back to size its stores: residentOf, ask)
 const ZROW = ['held', 'found', 'packed'], ZAT = Object.fromEntries(ZROW.map((n, i) => [n, i]));
 const KINDS = new Map();   // (a kind of tier, by its key: its passes, its stores, its tiers)
+/** A resident tier's row in its kind's offs as the mesh drawing it tells it (mesh.userData.ofRow: meshesOf's tag). */
+const OF_ROW = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.ofRow ?? 0);
 function shared() {
   if (GR) return GR;
   useLimits();
@@ -483,7 +534,10 @@ function kindOf(key, { K, slots, found, select, twice, label, cls }) {
     p.dispatchSize = G.DG; return p;
   };
   const gcount = gather(false), gwrite = gather(true);
-  const s = { K, slots, twice, cls, stores, leaves, packed, data, tiers: [], visit, full: [G.begin, forward, visit, G.seal, gcount, G.lay, gwrite], before: [G.begin, forward], after: [G.seal, gcount, G.lay, gwrite], only: [G.gbegin, gcount, G.lay, gwrite], dirty: true, epoch: 0, asking: new Set(), wait: null };
+  // (offs: where each of its tiers' draws' things begin, K a tier, a row each: its copy of the tier's own (residentPackedOf),
+  // which its draws' materials read by the tier their mesh says, OF_ROW: one material for all its levels)
+  const offs = lean('uint', `tiers: where each draw's things begin, ${label}`, false, cls);
+  const s = { id: KINDS.size, K, slots, twice, cls, stores, leaves, packed, data, offs, tiers: [], visit, full: [G.begin, forward, visit, G.seal, gcount, G.lay, gwrite], before: [G.begin, forward], after: [G.seal, gcount, G.lay, gwrite], only: [G.gbegin, gcount, G.lay, gwrite], dirty: true, epoch: 0, asking: new Set(), wait: null };
   KINDS.set(key, s);
   return s;
 }
@@ -494,11 +548,12 @@ function residentPackedOf(T, geos, material, { found, select, store = 0, slots =
   me.P = (s.twice ? 2 : 1) * me.N;   // (what it packs for its draws: until its own count is read back, as much as its store, twice where a thing of it may be drawn twice)
   const P = () => me.P;
   G.tiers.push(me); G.KB += K; G.KMAX = Math.max(G.KMAX, K); G.dirty = G.stale = true; s.tiers.push(me); s.dirty = true;
+  me.row = (s.tiers.length - 1) * K; me.uRow = uniform(me.row, 'uint');   // (its row in its kind's offs)
   const row = (k) => me.uKb.add(typeof k === 'number' ? uint(k) : k), count = { element: (k) => G.C.element(row(k)) }, { args, argsNode } = argsOf(geos), uSlots = uniform(slots, 'uint');   // (uSlots: its rows a thing, for its culling's boxes: one pipeline whatever its rows)
   // (where each of its draws' things begin in what its kind packed: its own copy, written with its draws' counts after
   // each packing, so its draws read it as any tier's draws read theirs)
   const OFF = new THREE.StorageBufferAttribute(new Uint32Array(K), 1), OFw = storage(OFF, 'uint', K), OFr = storage(OFF, 'uint', K).toReadOnly();
-  const offsOf = (k) => { OFw.element(k).assign(me.uBase.add(G.O.element(row(k)))); };
+  const offsOf = (k) => { const at = me.uBase.add(G.O.element(row(k))).toVar(); OFw.element(k).assign(at); s.offs.node.element(me.uRow.add(k)).assign(at); };
   const culled = !!bounds && hasFeature('indirect-first-instance') && cullable(P());   // (?truth too: what this frame's depth hides adds nothing to any pixel)
   Object.assign(T, { slots, data: s.data, args, offsets: OFF, residentRow: me, room: () => Infinity });
   T.offAt = (k) => OFr.element(k);   // (where bucket k's things begin in what its kind packed: a node, for what reads a bucket of it itself: src/scatter/cut.js)
@@ -506,7 +561,7 @@ function residentPackedOf(T, geos, material, { found, select, store = 0, slots =
   const uK = uniform(K, 'uint'), ends = C ? [C.args, C.boxes] : [Fn(() => { eachDraw(uK, (k) => { argsNode.element(k.mul(uint(5)).add(uint(1))).assign(atomicLoad(count.element(k))); offsOf(k); }); })().compute(1)];
   T.resident = residentOf(T, me, s, ends);
   T.passes = [...new Set([...s.full, ...s.only, ...ends])];
-  return meshesOf(geos, material, args, C, P, s.data, S, (at, slot) => at(OFr.element(slot)));
+  return meshesOf(geos, material, args, C, P, s.data, S, (at, slot) => at(s.offs.node.element(OF_ROW.add(slot))), { share: `${s.id}|${C ? C.share : '-'}`, tag: (m) => { m.userData.ofRow = me.row; } });
 }
 /** A kind laid out again (a tier of it made again from its own count): each tier's range from its room, its stores and
     what it packed made again as large as all of them, its culling's ranges too; every tier of it packed again. Never
@@ -532,7 +587,7 @@ function relayout(s) {
     const C = me.T.culler; if (C) { C.from(me.dbase); C.resize(P(me), false); arenas.add(C.arena); }
     if (again) { me.T.n = 0; for (const m of me.T.meshes) m.visible = false; }   // (what it packed is gone: drawn again once it is packed again)
   }
-  s.stores.make(sb * s.slots); s.leaves.make(sb); s.packed.make(db * s.slots);
+  s.stores.make(sb * s.slots); s.leaves.make(sb); s.packed.make(db * s.slots); s.offs.make(s.tiers.length * s.K);
   for (const A of arenas) A.relayout();
 }
 /** Before any resident tier packs (each run, and the scatter's compile, src/scatter/index.js): the shared rows made as

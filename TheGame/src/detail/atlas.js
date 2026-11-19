@@ -113,6 +113,8 @@ export const atlasBytes = (side, layers) => side * side * layers * TEXEL * MIPS;
 /** The smaller pictures a picture of `cell` texels a side has down to the least (its levels after the first). */
 export const levelsUnder = (cell) => floor(Math.log2(cell / LEAST) + 1e-9);
 
+/** What is kept of a view baked at `cell` texels a side: its level under where it has one (atlasesOf, below). */
+const storedOf = (cell) => (levelsUnder(cell) ? cell / 2 : cell);
 /** The plants' far ends' atlases, sized from what they are given and what every device grants:
       layers   how many far ends the stands bake, a layer of each atlas each (src/scatter/entries.js farLayers)
       bytes    the share they are given, their views and their clumps together (src/core/classes.js SHARE_MB)
@@ -129,16 +131,19 @@ export const levelsUnder = (cell) => floor(Math.log2(cell / LEAST) + 1e-9);
       side, where the impostor's error is least: its texel, 2r / CELL, and its views' spacing, at most spacingOf(VIEWS)
       times its depth (at most 2r: r its sphere's radius). A view halves to the least picture (CELL = LEAST to 2 LEAST,
       times a power of two); VIEWS is even (no view looks straight down), and a row of views, baked at SS samples a
-      texel, is no wider than every device draws. */
+      texel, is no wider than every device draws. The share holds what is kept of them, STORED texels a view (below): it
+      was planned at CELL, and kept a quarter of that (#230), three quarters of it standing empty. */
 export function atlasesOf({ layers, bytes, limits, tiles }) {
   const TILE = LEAST, TILES = tiles, CLUMPS = min(floor((TILES * TILES) / 3), floor(limits.maxUniformBufferBindingSize / 64));
-  const views = bytes / max(1, layers) - atlasBytes(TILES * TILE, 1), side = min(floor(sqrt(views / (TEXEL * MIPS))), floor(limits.maxTextureDimension2D / SS));
+  // (texels a side its kept views may take, of its share; and a row of views as baked, SS samples a texel, as wide as
+  // every device draws)
+  const views = bytes / max(1, layers) - atlasBytes(TILES * TILE, 1), kept = floor(sqrt(views / (TEXEL * MIPS))), wide = floor(limits.maxTextureDimension2D / SS);
   const cells = [];
-  for (let k = 1; LEAST * k <= side / 2; k *= 2) for (let c = LEAST; c < 2 * LEAST; c++) cells.push(c * k);
+  for (let k = 1; LEAST * k <= wide / 2; k *= 2) for (let c = LEAST; c < 2 * LEAST; c++) cells.push(c * k);
   let best = null;
   for (const CELL of cells.sort((a, b) => b - a)) {   // (fewest views first: a texel's error alone, 1 / CELL, then says where none can do better)
     if (best && 1 / CELL >= best.e) break;
-    const VIEWS = floor(side / CELL / 2) * 2; if (VIEWS < 2) continue;
+    const VIEWS = min(floor(kept / storedOf(CELL) / 2), floor(wide / CELL / 2)) * 2; if (VIEWS < 2) continue;
     const e = 1 / CELL + spacingOf(VIEWS);
     if (!best || e < best.e) best = { e, VIEWS, CELL };
   }
@@ -148,6 +153,6 @@ export function atlasesOf({ layers, bytes, limits, tiles }) {
   // (its texels' level by its size on screen), so there its views' share being about its texel's (as they are chosen
   // above, the least error for the bytes) it reads the level under the bake's: the bake's own finest is never read, and
   // is not kept (three quarters of the bytes). The bake is still CELL texels a side (its level under: a mean of four)
-  const { VIEWS, CELL } = best, STORED = levelsUnder(CELL) ? CELL / 2 : CELL;
+  const { VIEWS, CELL } = best, STORED = storedOf(CELL);
   return { VIEWS, CELL, STORED, TILE, TILES, CLUMPS, key: `${VIEWS}x${CELL}|${TILES}x${TILE}|${CLUMPS}` };
 }

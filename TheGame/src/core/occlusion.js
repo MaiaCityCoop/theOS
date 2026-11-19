@@ -188,8 +188,14 @@ const regionOf = (t) => (t.fold ? Math.ceil(t.total / 2) : t.total);
 const chunksOf = (t) => (t.caps ? t.caps.reduce((a, c) => a + Math.ceil(c / WG), 0) : Math.ceil(regionOf(t) / WG) + t.K);
 /** What the culling holds for a thing, bytes: its box and its two places in the lists (what an arena makes: build). */
 export const CULL_BYTES = bytesOf('uvec4') + 2 * bytesOf('uint');
+/** A culled tier's numbers as the mesh drawing it tells them (mesh.userData.cull: its culler's own, src/scatter/tier.js
+    meshesOf): its place in its arena, where its draws' things begin, its region. Every tier of an arena reads its list by
+    one piece of code with these, so the levels of a family drawn alike are one material (src/scatter/drawer.js). */
+const ofCull = (f) => uniform(0, 'uint').onObjectUpdate(({ object }) => { const t = object?.userData?.cull; return t ? f(t) : 0; });
+const CULLED = { base: ofCull((t) => t.base), from: ofCull((t) => t.from), half: ofCull((t) => Math.max(1, regionOf(t))), entry: ofCull((t) => (t.base - t.from) >>> 0) };
+let ARENA_IDS = 0;
 function arena() {
-  const A = { tiers: [], N: 0, G: 0, NC: 1, built: false, any: false };
+  const A = { id: ARENA_IDS++, tiers: [], N: 0, G: 0, NC: 1, built: false, any: false };
   const boxes = gpuStorageLater('uvec4', 'tiers: their things\' boxes (occlusion)', 'geometry'), lists = gpuStorageLater('uint', 'tiers: what is seen, kept (occlusion)', 'geometry'), chunks = gpuStorageLater('uint', 'tiers: the culling\'s chunks (occlusion)', 'geometry');
   const BOX = boxes.node, LIST = lists.node, CH = chunks.node;
   // (the buckets' numbers, which tiers are drawn this frame, and the eye's draw arguments: the page writes into these,
@@ -400,7 +406,7 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, off
     A.build();
     const t = wgOf().mul(uint(WG)).add(localId.x), g = lastAtMost((q) => A.at(q, PRE), uG0, uK, t, uSteps).toVar(), k = g.sub(uG0), i = t.sub(A.at(g, PRE));
     If(i.lessThan(A.at(g, PACK)), () => {
-      const s = offAt ? offAt(k).add(i) : A.at(g, BASE).sub(uBase).add(i), e = s.mul(uS), B = box(data.element(e), data.element(e.add(uint(1))), k), o = A.at(g, BASE).add(i);   // (s: where the packing put it; o: its place in the arena)
+      const s = offAt ? offAt(k).add(i) : A.at(g, BASE).sub(uBase).add(uFrom).add(i), e = s.mul(uS), B = box(data.element(e), data.element(e.add(uint(1))), k), o = A.at(g, BASE).add(i);   // (s: where the packing put it; o: its place in the arena)
       A.BOX.element(o).assign(boxOf(B));
     });
   })().compute(MANY, [WG]);
@@ -409,7 +415,10 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, off
     args: argsPass, boxes, arena: A, g0: me.g0,
     /** Where the eye's passes read a thing of a bucket whose things begin at `slot` (a uint node): through what the passes
         kept; every other pass (the shadow map's, a still's, a bake's) where the packing put it. */
-    entry: (slot) => Fn((builder) => { A.build(); const p = passOf(builder); return p === 'pre' || p === 'main' ? slot.add(A.LIST.element((fold ? uBase.add(slot.sub(uFrom).mod(uHalf)) : uEntry.add(slot)).add(instanceIndex))) : slot.add(instanceIndex); })(),
+    entry: (slot) => Fn((builder) => { A.build(); const p = passOf(builder); return p === 'pre' || p === 'main' ? slot.add(A.LIST.element((fold ? CULLED.base.add(slot.sub(CULLED.from).mod(CULLED.half)) : CULLED.entry.add(slot)).add(instanceIndex))) : slot.add(instanceIndex); })(),
+    /** What its meshes tell its entry (mesh.userData.cull: CULLED), and what a material reading through it shares with
+        every other tier's of its arena read alike (src/scatter/drawer.js). */
+    me, share: `${A.id}:${fold ? 1 : 0}`,
     /** The draws' arguments for a pass: 'eye' (V), 'late' (L), 'rest' (F, its own). */
     use(which) {
       if (which === 'rest') T.geometries.forEach((g, k) => { g.indirect = args; g.indirectOffset = k * 20; });
@@ -418,7 +427,8 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, off
     /** Its range is another now (a resident tier's store made again, src/scatter/tier.js): the arena laid out again
         (now false: by whoever changes many at once, C.arena.relayout()). */
     resize(n, now = true) { me.total = n; if (now) A.relayout(); },
-    /** Where its draws' things begin in the buffer they read (a resident tier's range of its kind's, src/scatter/tier.js):
+    /** Where its draws' things begin in the buffer they read (a resident tier's range of its kind's, a family tier's of its
+        family's store, src/scatter/tier.js):
         a slot the eye's passes are handed is of that buffer, its list of the arena's. */
     from(n) { me.from = n; me.uFrom.value = n; me.uEntry.value = (me.base - n) >>> 0; },
     /** A draw's length (its corners) changed: in all three of its sets of arguments. */

@@ -21,6 +21,7 @@
 import * as THREE from 'three/webgpu';
 import { note, mark } from './gpu.js';
 import { compileFor, compileList, made, ask, labelled } from './compile.js';
+import { shown, arriving } from './settle.js';
 import { twinOf } from './pass.js';
 import { GBUFFER, GBUFFER_BYTES, lightPass } from './gbuffer.js';
 import { U } from './uniforms.js';
@@ -38,6 +39,7 @@ export const prepassTarget = (w, h, depth) => {
 };
 
 export function createScreen(renderer, { temporal, lens = null }) {
+  let reach = Infinity;   // (how far round the eye the first view waits for what is drawn: set, reach; until then all of it)
   let OUT = outputRatio(), inside = OUT, turn = 0;   // (OUT: the canvas's pixel ratio, the output's for this window)
   renderer.setPixelRatio(OUT);
   // (the pixels drawn follow the dial: with it turned below its rest, a rung within that fraction of a pixel drawn,
@@ -75,11 +77,25 @@ export function createScreen(renderer, { temporal, lens = null }) {
   // with no colour on it would be a hole the sky shows through. A deferred material's colour is its pass of light's
   // (src/core/gbuffer.js lightPass): made for that instead)
   const lit = (L) => !L || made(L.mesh, 'main') || (ask(L.mesh, 'main', makerOf('main', L.camera, L.mesh), labelled(twin.main(L.mesh.material), L.mesh, 'main')), false);
+  // (how near an object is, as its asks say it, src/core/compile.js: what the first view waits for (0) within the near
+  // cascade's reach, the rest after it, by where its band begins (userData.near, metres: a tier's level, its family
+  // says it); one that says nothing, 0)
+  const nearOf = (object) => { const n = object.userData?.near ?? 0; return n <= reach ? 0 : n; };
+  // (what a frame left out, its pipelines not made yet: as it comes, after the first frame shown, it rises out of the
+  // ground over FADE frames, a level that is gone sunk the other way: userData.arrived, 0 … 1, which its family
+  // multiplies into its sink, src/detail/handover.js. What was made before it came into view comes as it is)
+  const left = new WeakSet(), rising = new Map();   // (left out; rising: an object -> its arrival)
+  const rise = (o) => { const a = arriving((v) => { o.userData.arrived = v; }); a.arrive(); if (o.userData.arrived < 1) rising.set(o, a); };
   const both = (object, material, camera, scene) => {
     const pre = twin.pre(material), main = twin.main(material);
-    if ((!pre || made(object, 'pre')) && (main ? made(object, 'main') : lit(lightPass()))) return true;   // (a frame's own way: two looks)
-    if (pre) ask(object, 'pre', makerOf('pre', camera, scene), labelled(pre, object, 'pre'));
-    if (main) ask(object, 'main', makerOf('main', camera, scene), labelled(main, object, 'main'));
+    if ((!pre || made(object, 'pre')) && (main ? made(object, 'main') : lit(lightPass()))) {   // (a frame's own way: two looks)
+      if (left.has(object)) { left.delete(object); if (shown()) rise(object); }
+      return true;
+    }
+    const near = nearOf(object);
+    if (pre) ask(object, 'pre', makerOf('pre', camera, scene), labelled(pre, object, 'pre'), true, near);
+    if (main) ask(object, 'main', makerOf('main', camera, scene), labelled(main, object, 'main'), true, near);
+    left.add(object);
     return false;
   };
   // (what is drawn on its own after the rest of the colour, apart: left out of the scene's draw of it)
@@ -120,8 +136,12 @@ export function createScreen(renderer, { temporal, lens = null }) {
         draws it. Those drawn apart are drawn in the order they were given: the water, whose march is held to its share
         of the frame by it (src/terrain/water.js), then what lies over it (the city's plan). name: whose its passes are. */
     apart(object, draw, name = null) { apartFrom.set(object, { draw, name }); },
+    /** How far round the eye the first view waits for what is drawn (metres: the near cascade's, src/boot.js); past it,
+        what is drawn is made after it, by how near it is (nearOf). */
+    set reach(m) { reach = m; },
     /** Draw the world as this camera sees it, onto the canvas. */
     render(scene, camera) {
+      for (const [o, a] of rising) { a.step(); if (o.userData.arrived >= 1) { rising.delete(o); delete o.userData.arrived; } }   // (risen: as one that never had to)
       const t = targetsNow(), was = T.turns[1 - turn], alpha = renderer.getClearAlpha(), clearDepth = renderer.autoClearDepth;
       U.uFrame.value = (U.uFrame.value + 1) % 4096;   // (the blue noise steps on: src/world/light/noise.js)
       temporal.begin(camera, size.x, size.y);

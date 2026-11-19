@@ -29,7 +29,7 @@ export const vnoise = Fn(([p, s]) => {
 /** the lens's distance to a point on the ground: the detail governor and the camera's height count */
 export const camDist = Fn(([p]) => { const d = p.sub(U.uCam.xz); return sqrt(d.dot(d).add(U.uDy.mul(U.uDy))).mul(U.uLodInv); });
 /** a ragged edge: -1.5..1.5, for a mask's border not to run smooth */
-export const edgeJit = Fn(([p]) => vnoise(p.mul(1 / 6), uint(44)).sub(0.5).mul(2).add(vnoise(p.mul(1 / 1.7), uint(45)).sub(0.5)));
+export const edgeJit = Fn(([p]) => vnoise(p.mul(1 / 6), uint(44)).sub(0.5).mul(2).add(vnoise(p.mul(1 / 1.7), uint(45)).sub(0.5))).setLayout({ name: 'edgeJit', type: 'float', inputs: [{ name: 'p', type: 'vec2' }] });
 
 // ---- a stand of trees (a biome's `trees`: { clumps, patches, seed }): its noises, asked by everything that must agree on
 // where its trees stand: their cells (src/scatter/trees.js), the land's far canopy, its floor's shade and litter
