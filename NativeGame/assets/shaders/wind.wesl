@@ -85,7 +85,7 @@ fn tnoise(p: vec2<f32>, cell: f32, seed: u32) -> f32 {
 
 // `terrain::height`: the large shape and the small one.
 fn land(p: vec2<f32>) -> f32 {
-    let small = 0.22 * tnoise(p, 1.6, 1u) + 0.08 * tnoise(p, 0.55, 2u) + 0.025 * tnoise(p, 0.16, 3u) + 0.008 * tnoise(p, 0.05, 11u);
+    let small = 0.10 * tnoise(p, 1.6, 1u) + 0.06 * tnoise(p, 0.55, 2u) + 0.025 * tnoise(p, 0.16, 3u) + 0.008 * tnoise(p, 0.05, 11u);
     return ground(p) + small;
 }
 
@@ -139,7 +139,8 @@ fn blade(slot: vec3<f32>, side: f32, t: f32, w: Wind, time: f32) -> Blade {
     // a grazed meadow: 12 to 45 cm. Width: 3 to 8 mm, wider on coarser levels, and never under about a pixel at its
     // distance, or a far blade would flicker away between the pixels
     let height = 0.12 + 0.22 * lush * lush + 0.11 * thash(ci, cj, seed + 5u);
-    let width = max((0.0018 + 0.0022 * thash(ci, cj, seed + 6u)) * pow(2.0, f32(level) * 0.85), 0.0007 * d);
+    // coarser levels have a quarter of the blades each: twice as wide, and never under about a pixel and a half
+    let width = max((0.0018 + 0.0022 * thash(ci, cj, seed + 6u)) * pow(2.0, f32(level)), 0.0011 * d);
     let yaw = thash(ci, cj, seed + 7u) * 6.2831853;
     let r8 = thash(ci, cj, seed + 8u);
     let lean = 0.12 + 0.55 * r8 * r8;

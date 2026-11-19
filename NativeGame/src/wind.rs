@@ -39,7 +39,7 @@ pub struct Strength(pub f32);
 pub const MAX: f32 = 2.5;
 
 pub fn plugin(app: &mut App) {
-    app.add_plugins(MaterialPlugin::<Grass>::default()).insert_resource(Strength(1.4)).add_systems(Update, blow);
+    app.add_plugins((MaterialPlugin::<Grass>::default(), MaterialPlugin::<Ground>::default())).insert_resource(Strength(1.4)).add_systems(Update, blow);
 }
 
 fn blow(
@@ -60,5 +60,20 @@ fn blow(
     for (_, m) in grass.iter_mut() {
         m.extension.params.params = Vec4::new(now, before, strength.0, 0.0);
         m.extension.params.eye = at.extend(m.extension.params.eye.w);
+    }
+}
+
+/// The ground's material: Bevy's standard one, its colour composed per pixel from the biome (`ground.wesl`).
+pub type Ground = ExtendedMaterial<StandardMaterial, GroundLook>;
+
+#[derive(Asset, TypePath, AsBindGroup, Clone, Debug)]
+pub struct GroundLook {
+    #[uniform(100)]
+    pub biome: crate::biome::BiomeUniform,
+}
+
+impl MaterialExtension for GroundLook {
+    fn fragment_shader() -> ShaderRef {
+        "shaders/ground.wesl".into()
     }
 }

@@ -98,7 +98,7 @@ struct Field {
     /// The close layer's: the same, but sinking into the ground away from the eye.
     close: Handle<crate::wind::Grass>,
     /// The land's own material: no texture, the colour is in the geometry.
-    ground: Handle<StandardMaterial>,
+    ground: Handle<crate::wind::Ground>,
     /// Each chunk shown: its grass, its ground, and the ring class it was grown for.
     shown: HashMap<(i32, i32), (Vec<Entity>, i32)>,
     growing: HashMap<(i32, i32), (Task<(Mesh, Option<Mesh>, Mesh)>, i32)>,
@@ -271,6 +271,7 @@ fn enter(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut grass: ResMut<Assets<crate::wind::Grass>>,
+    mut grounds: ResMut<Assets<crate::wind::Ground>>,
     mut images: ResMut<Assets<Image>>,
     mut plain: Query<&mut Visibility, With<Plain>>,
     mut eye: Query<(Entity, &mut Camera), With<Eye>>,
@@ -402,7 +403,13 @@ fn enter(
         },
     });
     // the land: its own material, no texture (the colour is in the geometry, from terrain.rs)
-    let ground = materials.add(StandardMaterial { base_color: Color::WHITE, perceptual_roughness: 0.95, reflectance: 0.3, cull_mode: None, ..default() });
+    let biome = crate::biome::Biome::meadow();
+    // the recipe kept beside the code, as the file future biomes will be
+    let _ = std::fs::write(concat!(env!("CARGO_MANIFEST_DIR"), "/biomes/meadow.json"), serde_json::to_string_pretty(&biome).unwrap_or_default());
+    let ground = grounds.add(crate::wind::Ground {
+        base: StandardMaterial { base_color: Color::WHITE, perceptual_roughness: 0.95, reflectance: 0.3, cull_mode: None, ..default() },
+        extension: crate::wind::GroundLook { biome: biome.uniform() },
+    });
     // the land beyond the grass, to the horizon, rebuilt around the eye as it moves (`stream`)
     let far = meshes.add(crate::terrain::far(0.0, 0.0, None));
     commands.spawn((GrassWorld, MEADOW, Mesh3d(far.clone()), MeshMaterial3d(ground.clone())));

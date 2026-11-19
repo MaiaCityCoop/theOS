@@ -214,11 +214,11 @@ fn blades(cx: i32, cz: i32, share: f32, fine: bool) -> Mesh {
         let yaw = r(5) * std::f32::consts::TAU;
         // the ordinary blades are the GPU's now (`tile`); here only what grows among them: seed heads (below),
         // thatch and low plants
-        if r(8) >= 0.018 + 0.03 * dry {
+        if r(8) >= 0.006 + 0.012 * dry {
             continue;
         }
         // about one in forty goes to seed: a flowering stem with a head, in drier spots more often
-        if !fine && r(8) < 0.018 + 0.03 * dry {
+        if !fine && r(8) < 0.006 + 0.012 * dry {
             if detail {
                 let kind = match (r(12) * 3.0) as u32 {
                     0 => Head::Spike,

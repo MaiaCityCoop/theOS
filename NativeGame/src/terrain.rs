@@ -41,7 +41,7 @@ pub fn noise(x: f32, z: f32, cell: f32, seed: u32) -> f32 {
 
 /// The small shape: tussock mounds and the crumbly unevenness of a meadow's floor, a few centimetres.
 fn small(x: f32, z: f32) -> f32 {
-    0.22 * noise(x, z, 1.6, 1) + 0.08 * noise(x, z, 0.55, 2) + 0.025 * noise(x, z, 0.16, 3) + 0.008 * noise(x, z, 0.05, 11)
+    0.10 * noise(x, z, 1.6, 1) + 0.06 * noise(x, z, 0.55, 2) + 0.025 * noise(x, z, 0.16, 3) + 0.008 * noise(x, z, 0.05, 11)
 }
 
 /// The height of the ground at (x, z), in metres.
@@ -190,6 +190,15 @@ impl Geo {
 /// One square of the land, `size` metres from (x0, z0), `n` cells a side, in the colour `colour` gives: a grid on the
 /// height function, with a short skirt hanging down its edges so neighbours of another resolution never show a gap.
 fn patch(g: &mut Geo, x0: f32, z0: f32, size: f32, n: u32, h: &dyn Fn(f32, f32) -> f32, colour: &dyn Fn(f32, f32) -> Vec3) {
+    let first = g.col.len();
+    patch_inner(g, x0, z0, size, n, h, colour);
+    // ground, not a stone: the ground shader composes its look from the biome (alpha 0.5 marks it)
+    for c in &mut g.col[first..] {
+        c[3] = 0.5;
+    }
+}
+
+fn patch_inner(g: &mut Geo, x0: f32, z0: f32, size: f32, n: u32, h: &dyn Fn(f32, f32) -> f32, colour: &dyn Fn(f32, f32) -> Vec3) {
     let step = size / n as f32;
     let start = g.pos.len() as u32;
     for j in 0..=n {
@@ -310,6 +319,9 @@ pub fn far(cx: f32, cz: f32, hole: Option<[f32; 4]>) -> Mesh {
             }
         }
         inner = Some([x0, z0, x0 + N as f32 * c, z0 + N as f32 * c]);
+    }
+    for c in &mut g.col {
+        c[3] = 0.5; // all ground
     }
     g.mesh()
 }

@@ -5,6 +5,7 @@
 //!     cargo run -- --shots <seed> <out.json>      five new shots from a seed, kept as a shot list
 //!     cargo run -- --meadow <out.png> [hour]      measure the Meadow at 1080p for ten seconds, one picture, quit
 
+mod biome;
 mod camera;
 mod film;
 mod clouds;
