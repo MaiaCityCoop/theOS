@@ -16,7 +16,7 @@ import { lit, weathered, snowLift } from '../world/light.js';
 import { byRole } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
 import { farMost } from '../detail/measure.js';
-import { source } from '../core/settle.js';
+import { source, ready } from '../core/settle.js';
 import { most } from '../../assets/kinds.js';
 import { createDrawer } from './drawer.js';
 import { cutThings } from './cut.js';
@@ -33,16 +33,23 @@ import { rocksAround, rocksDrawn } from '../world/rocksolid.js';
 // drawn by the cut; every coarser level always there. A level's room: the most any shape's level holds (rooms.json,
 // measured from each shape's own hierarchy: src/scatter/rooms.js). Level 0 has a slot a shape that can lie near at
 // once: no more than an asset's shapes, nor than its rocks that can be at level 0 at once (the cut's own bound: a rock
-// a cell within where its largest is level 0's size at the dial at rest, src/scatter/cut.js cutThings). That is their
-// need, never what the geometry's class has left: made once at the dial at rest (src/core/gpu.js byDial), which rises
-// where the class cannot hold them beside the rest, and they are reckoned at it
+// a cell within where its largest is level 0's size at the dial at rest, src/scatter/cut.js cutThings). That is its
+// need, never what the geometry's class has left, and it is laid later (`later`: last in the heap, grown in place,
+// src/scatter/heap.js grow), once the start has settled (ready): at the dial at rest the world settles at, which only
+// rises after it, so its need then is the most it will be (src/core/gpu.js byDial: where the class cannot hold it
+// beside the rest, the dial rises, and it is reckoned at that). Till then a rock near is drawn at level 1, as any level
+// not yet in is drawn by the next coarser one, and grows into level 0 as it comes. The coarser levels: their need, made
+// with the heap (byDial, once). (2026-11-19: level 0 made at the dial at 1 held 57 of an iPhone's 384 MB of geometry,
+// and the tiers' room the dial left to the plants was 39 MB)
 const levelsOf = (Z, rows, famOf) => {
   const LV = Array.from({ length: SURFACE_LEVELS }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), delta: 0, room: mostOf(Z.families.flatMap((F) => roomsOf(F.F.asset, i, STILL_PER).slice(0, F.count))) }));
   const bytes = (r) => r.tris * 3 * 4 + r.verts * 16;   // (a level's place in the heap: its corners, 4 bytes each, its elements, 16: src/scatter/heap.js)
   const near = () => Math.min(Z.count, rows.reduce((n, row) => n + Math.min(famOf(row).count, cutThings(row.size[1], row.cell, LV[0].px)), 0));
   const rest = LV.slice(1).reduce((s, l) => s + Z.count * bytes(l.room), 0);
-  byDial('rocks: meshes', 'geometry', rest + near() * bytes(LV[0].room), false);
-  Object.assign(LV[0], { cut: true, slots: Math.max(1, near()) });   // (at the dial at rest, as byDial left it)
+  byDial('rocks: meshes', 'geometry', rest, false);
+  Object.assign(LV[0], { cut: true, slots: Math.max(1, near()), later: true });   // (slots: what it asks now, what makes it a level of slots; laid at ready)
+  /** Level 0 laid, at the dial at rest now: its need said (byDial: the dial may rise), then reckoned at the dial as it is. */
+  LV.laid = (D) => { byDial('rocks: meshes: the near shapes', 'geometry', Math.max(1, near()) * bytes(LV[0].room), false); D.grow(0, Math.max(1, near())); };
   return LV;
 };
 // RELIEF: the size on screen from which a rock's relief is read (under that its texture's mipmaps have none left);
@@ -64,6 +71,7 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
     name: 'rocks', LEVELS, SHADE, SMOOTH, corners: true, thin: THIN, still: true, skins: 0, ground: true, soft: true, relief: RELIEF,
     zoo: { first: Z.first, ALL: Z.count, STAND: Z.count, MOVING: 0, lookOfKind: (k) => { const B = zooLook(Z.first + k); return { ...B, material: B.material ?? byRole('rock').uid }; }, fingerprint: () => fingerprint('rocks') },
   });
+  ready.then(() => LEVELS.laid(D));   // (level 0, once the start has settled: above)
   const { lookOf } = D, tiers = [], firstOf = new Map(); let sizeMost = 0;
   for (const row of rows) {
     const F = famOf(row), big = !!row.outcrops, shapes = F.count;
@@ -128,6 +136,8 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
   // for looking at it (window.__rocks): what each tier packs now, what the heap holds
   window.__rocks = {
     drawer: D, tiers, levels: LEVELS, smooth: SMOOTH,
+    /** Level 0 laid now, as the start's settle lays it (a census's, which never settles: tools/census.js). */
+    laid: () => LEVELS.laid(D),
     /** How many rocks each asset draws at each level now, and what the heap holds. */
     async counts() { const out = {}; for (const T of tiers) { const B = await T.read(renderer), by = new Array(L).fill(0); B.forEach((b, k) => (by[T.draws[k].level] += b.count)); out[T.asset] = by.join(','); } return { ...out, held: D.H.held().join(','), ...D.stats, pending: D.pending.size }; },
   };
