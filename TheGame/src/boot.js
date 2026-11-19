@@ -339,7 +339,7 @@ export async function boot({ profile = 'world' } = {}) {
   // (the veil says what the start waits on: what is being compiled, n of m; once nothing is, what is still out)
   const tell = () => {
     const M = making(), out = M.done < M.asked ? '' : Object.entries(waiting()).map(([k, n]) => `${k} ${n}`).join(', ');
-    loadingSay(`Lighting the world: ${M.done} of ${M.asked}${M.now ? ` (${M.now})` : out ? `; waiting on ${out}` : ''}`, 0.55 + 0.4 * (M.asked ? M.done / M.asked : 0));
+    loadingSay('Lighting the world', 0.55 + 0.4 * (M.asked ? M.done / M.asked : 0), { count: `${M.done} / ${M.asked}`, detail: M.now || (out ? `waiting on ${out}` : '') });   // (its phase, how many are made, and which now: three lines, brand.css)
   };
   const makeAhead = () => {   // (a material at a time: what draws with it, for every pass; and each tier's packing)
     const groups = grown?.scatter ? grown.scatter.ahead() : [], by = new Map();

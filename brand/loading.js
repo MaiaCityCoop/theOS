@@ -42,7 +42,7 @@
     line.children[1].textContent = d.hint ?? '';
   });
   // the page cannot go on: the veil back over it, the step and the line saying what happened
-  const stop = (step, d) => { lost = true; now(() => { root.classList.remove('os-loaded'); root.classList.add('os-loading', 'os-lost'); document.body.dataset.step = step; }); show(d); };
+  const stop = (step, d) => { lost = true; now(() => { root.classList.remove('os-loaded'); root.classList.add('os-loading', 'os-lost'); document.body.dataset.step = step; delete document.body.dataset.count; document.getElementById('os-detail')?.remove(); }); show(d); };   // (the step alone: how many were made, and which, no longer say anything)
   const nameOf = (what) => { try { return /[/:]/.test(what) ? decodeURIComponent(new URL(what, location.href).pathname.split('/').pop()) || what : what; } catch { return what; } };   // (a file by its own name)
   const lose = async (what) => {
     console.error(`[lost] ${what}`);
