@@ -162,6 +162,11 @@ function askHeap(n) {
     clear() { for (let i = 0; i < size; i++) at[ids[i]] = -1; size = 0; },
   };
 }
+// (every drawer made, as it was made: its name, its counts (stats: what it asked of the workers and put in), what it has
+// out (waiting); what a tool asks of each, tools/smoke.js the start view's: one that asked or put nothing is named)
+const MADE = [];
+/** Every drawer made: [{ name, stats, waiting }]. */
+export const drawersMade = () => MADE;
 export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHADE, SMOOTH, ghost: GHOST = GHOSTING, corners: CORNERS = false, skins: SKINSMAX = 1024, skinShare: SKINSHARE, ground: GROUND = false, soft: SOFT = false, relief: RELIEF = 90, full: FULLMOST = 0, make: MAKE = null, state: STATE = false, thin: THIN = null, still: STILL = false, bands: BANDSOF, table: TABLE, zoo: { first = 0, kinds: KINDS = null, ALL, STAND = ALL, MOVING = 0, lookOfKind, fingerprint } }) {
   // MAKE: another make of vertex than the solids' ({ per: elements a vertex, flat: its meshes' corners are their
   // vertices in order (none shared: drawn by class, no corner is looked up), material(src, level, shadow, at): its
@@ -477,7 +482,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // start, the fine ones as the camera comes near ----
   const ask = pool(), done = []; let busy = 0;   // (a worker knows a kind by the zoo's number: this drawer's k-th is first + k)
   if (MAKE?.tell) ask.all(MAKE.tell);   // (before anything of it is asked)
-  const stats = { coarseMs: 0, built: 0, put: 0, full: 0, skins: 0, kept: false }, t0 = performance.now();
+  const stats = { coarseMs: 0, asked: 0, built: 0, put: 0, full: 0, skins: 0, kept: false }, t0 = performance.now();
   // every kind's dot is there from the start (the same three corners for all). Its two coarse meshes are read back from
   // the browser where an earlier start kept them (src/core/kept.js: one piece, under the recipes' fingerprint); else
   // they are built in the workers once the first frames are drawn (a start that builds eleven thousand kinds beside
@@ -524,7 +529,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   const fill = (recs = null) => {
     coarse = 0; let kept = 0;
     const came = (blocks, k, n, read) => {
-      blocks.forEach((b, j) => blockIn(b, k, n, OWN[j][1], OWN[j][2]));
+      blocks.forEach((b, j) => blockIn(b, k, n, OWN[j][1], OWN[j][2])); stats.put += n * blocks.length;
       if (read) kept += n; else keptPut(FP, keptKey(k), blocks);
       coarse += n; if (coarse >= ALL) { stats.coarseMs = Math.round(performance.now() - t0); stats.kept = kept >= ALL; }
     };
@@ -532,7 +537,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     keptChunks.forEach(([k, n], c) => {
       if (recs?.[c]) came(recs[c], k, n, true);
       else if (MAKE?.here) came(MAKE.here(OWN), k, n, false);
-      else ask([['own', KINDS ? KINDS.slice(k, k + n) : first + k, n, OWN]]).then(([blocks]) => came(blocks, k, n, false));
+      else { stats.asked += n * OWN.length; ask([['own', KINDS ? KINDS.slice(k, k + n) : first + k, n, OWN]]).then(([blocks]) => came(blocks, k, n, false)); }
     });
   };
   const putAt = new Float64Array(ALL * L).fill(-1e9);   // when a kind's level was put in (the page's clock, ms)
@@ -558,7 +563,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       while (queue.size && batch.length < (batch.length && batch[0].l >= 3 ? 12 : 1)) {
         const id = queue.top(), k = Math.floor(id / L), l = id - k * L; if (batch.length && (l < 3 || BANDS)) break;
         queue.pop(); if (pending.has(id) || H.has(k, l) || roomOf(l) <= asked[l]) continue;
-        pending.add(id); asked[l]++; batch.push({ k, l });
+        pending.add(id); asked[l]++; stats.asked++; batch.push({ k, l });
       }
       if (!batch.length) continue;
       busy++;
@@ -578,7 +583,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     const l = L - 1, p = H.pools[l];
     for (let tries = 0; BANDS && laterBusy < 1 && busy === 0 && !queue.size && p.n - p.held - asked[l] > 0 && tries < ALL; tries++, laterAt = (laterAt + 1) % ALL) {
       const id = laterAt * L + l; if (H.has(laterAt, l) || pending.has(id)) continue;
-      later.add(id); pending.add(id); asked[l]++; laterBusy++; askBands({ k: laterAt, l, later: true }); return;
+      later.add(id); pending.add(id); asked[l]++; stats.asked++; laterBusy++; askBands({ k: laterAt, l, later: true }); return;
     }
   };
   // a kind's own texture: asked of the workers like a mesh; when it has come, written into a layer of the array (a free
@@ -1029,7 +1034,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     if (SOLID && U.uTime.value - grewAt < GROW) { if (held) { H.ripen(U.uTime.value - GROW); grewAt = -1e9; } else n++; }
     return n;
   };
-  source(`drawer: ${name}`, waiting);
+  source(`drawer: ${name}`, waiting); MADE.push({ name, stats, waiting });
   /** A make's own numbers of kind k, row j (four), changed: into the one table and to the GPU (the plants' far ends, as
       they are baked: src/scatter/trees.js). */
   const setNum = (k, j, v) => { const o = k * STRIDE + (LR + j) * 4; look.set(v, o); lookRows.addUpdateRange(o, 4); lookRows.needsUpdate = true; };

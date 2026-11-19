@@ -16,6 +16,10 @@ const open = () => (opening ||= new Promise((res) => {
 export const keptGet = (version, key) => open().then((db) => (db ? new Promise((res) => {
   try { const r = db.transaction(STORE).objectStore(STORE).get(key); r.onsuccess = () => res(r.result?.version === version ? r.result.value : null); r.onerror = () => res(null); } catch { res(null); }
 }) : null));
+/** Let go of what was kept under `key` (whatever made it): what is named so no more. */
+export const keptDrop = (key) => open().then((db) => (db ? new Promise((res) => {
+  try { const t = db.transaction(STORE, 'readwrite'); t.objectStore(STORE).delete(key); t.oncomplete = () => res(true); t.onerror = t.onabort = () => res(false); } catch { res(false); }
+}) : false));
 /** Keep `value` (what a structured clone carries: typed arrays, plain objects) under `key`, as made by `version`. */
 export const keptPut = (version, key, value) => open().then((db) => (db ? new Promise((res) => {
   try { const t = db.transaction(STORE, 'readwrite'); t.objectStore(STORE).put({ version, value }, key); t.oncomplete = () => res(true); t.onerror = t.onabort = () => res(false); } catch { res(false); }

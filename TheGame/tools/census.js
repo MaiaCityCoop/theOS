@@ -15,7 +15,12 @@
 //                                what the first view holds there, by class against the device's budget, its largest
 //                                pools, and the dial at rest (memory: …). The tiers' own stores are not in it: they are
 //                                sized by what their packings find, read back from the GPU, and the stand-in finds none
-import { mock } from './gpu-mock.js';
+//   --settle                     and then the start's view drawn on, frame after frame as src/boot.js draws them, till
+//                                the world is complete for it (src/core/settle.js ready) or its limit (SETTLE_MS): in
+//                                how long, what is still out, and what each drawer asked of the recipes' workers and put
+//                                in (settle: … in the JSON). The smoke holds it: every drawer asked and put something,
+//                                and the world came complete (tools/smoke.js the start's view)
+import { mock, pageFrames } from './gpu-mock.js';
 
 const ARG = Object.fromEntries(process.argv.slice(2).map((a) => a.replace(/^--/, '').split('=')));
 const [WW, WH, WD] = ARG.window ? ARG.window.split(/[x@]/).map(Number) : [1920, 1080, 1];
@@ -92,15 +97,20 @@ const { heightAt, HMIN } = await import('../src/world/land.js'), { WALKER } = aw
 const { setPlanes } = await import('../src/core/frustum.js'), { farthest } = await import('../src/detail/extent.js');
 const tent = PLACES.tent, dx = -Math.sin(tent.yaw), dz = -Math.cos(tent.yaw), cx = tent.x + dx * 14, cz = tent.z + dz * 14;
 camera.rotation.order = 'YXZ'; camera.position.set(cx, heightAt(cx, cz) + WALKER.eye, cz); camera.rotation.set(0, Math.atan2(dx, dz), 0);
-tex.flush?.();   // (a frame's first: the materials asked for painted, src/boot.js step)
-sky.update(1 / 60); weather.update(1 / 60);
-const p = camera.position, gy = heightAt(p.x, p.z), dy = (U.uDy.value = Math.max(0, p.y - gy - 2, HMIN - p.y));
-U.uAirH.value = Math.max(0, p.y - gy); camera.updateMatrixWorld();
-setPlanes(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
-U.uLodInv.value = 1; measureNow();
-camera.far = farthest(); camera.updateProjectionMatrix();
-ground.update(p.x, p.z, dy, 1); terrain.update(camera, dy, 1); scatter.select(p.x, p.z, gy, 1, dy);
-weather.before(camera, gy); shadows.render(scene, camera, gy); screen.render(scene, camera);
+const p = camera.position;
+/** A frame at the start's view, as src/boot.js step, choose and draw make it, the governor at rest: t its clock (s). */
+const frame = (t) => {
+  U.uTime.value = t; tex.flush?.();   // (a frame's first: the materials asked for painted, src/boot.js step)
+  sky.update(1 / 60); weather.update(1 / 60);
+  const gy = heightAt(p.x, p.z), dy = (U.uDy.value = Math.max(0, p.y - gy - 2, HMIN - p.y));
+  U.uAirH.value = Math.max(0, p.y - gy); camera.updateMatrixWorld();
+  setPlanes(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+  U.uLodInv.value = 1; measureNow();
+  camera.far = farthest(); camera.updateProjectionMatrix();
+  ground.update(p.x, p.z, dy, 1); terrain.update(camera, dy, 1); scatter.select(p.x, p.z, gy, 1, dy);
+  weather.before(camera, gy); shadows.render(scene, camera, gy); screen.render(scene, camera);
+};
+frame(0);
 const OPEN = compiles().open;   // (read at once: the asks a frame makes are made in turns from the next microtask on)
 
 // ---- what the frame asked, before any of it is made ----
@@ -167,6 +177,7 @@ const result = {
   after: { asks: after.length, byPass: count(after, (e) => e.pass), byFamily: count(after, (e) => `${familyOf(e)} · ${e.pass}`) },
   camera: [p.x, p.y, p.z].map((v) => +v.toFixed(1)), reach: +cascades().half[0].toFixed(1), memory,
 };
+if ('settle' in ARG) result.settle = await settleStart();
 {
   console.log(`census: the first view waits for ${result.first.asks} asks, ${result.first.programs} programs, ${result.first.pipelines} pipelines; ${result.after.asks} more come after it (camera at ${result.camera}, the near cascade's reach ${result.reach} m)`);
   console.log(`  made before its first frame, as the device counts (asked, drawn alone, handed): ${made.programs} programs (${made.render} render, ${made.compute} compute), ${made.kb} KB; outside the first view's asks:`); for (const [k, n] of [...Object.entries(made.outside.render), ...Object.entries(made.outside.compute)]) console.log(`    ${String(n).padStart(4)}  ${k}`);
@@ -182,5 +193,28 @@ if (memory) {
   for (const [c, v] of Object.entries(memory.classes)) console.log(`  ${c.padEnd(13)} ${String(v.held).padStart(7)} MB of ${v.budget}`);
   for (const [n, mb, , c] of memory.rows) console.log(`    ${String(mb).padStart(7)} MB  ${c}: ${n}`);
 }
+if (result.settle) {
+  const S = result.settle;
+  console.log(`settle: the start's view ${S.ready ? 'came complete' : `did not come complete within its ${S.limit} s`} after ${S.frames} frames, ${S.secs} s${S.ready ? '' : `; still out: ${JSON.stringify(S.out)}`}${S.threw.length ? `; ${S.threw.length} thrown: ${S.threw.join(' · ')}` : ''}`);
+  for (const D of S.drawers) console.log(`  ${String(D.asked).padStart(5)} asked, ${String(D.put).padStart(5)} put  ${D.name}${D.out ? `, ${D.out} out` : ''}`);
+}
 console.log(`census-json: ${JSON.stringify(result)}`);
 process.exit(0);
+
+/** The start's view drawn on, frame after frame as src/boot.js draws them (the page's frames given: what they pace, the
+    far ends' bakes), until the world is complete for it (src/core/settle.js ready), its limit, or something thrown
+    (a worker's error: what it was asked never comes): whether it came, in how many frames and seconds, what is still
+    out, and what each drawer asked of the recipes' workers and put in (src/scatter/drawer.js drawersMade). */
+async function settleStart() {
+  pageFrames();
+  const { watch, tick, waiting, ready, SETTLE_MS } = await import('../src/core/settle.js'), { changed, taken } = await import('../src/core/work.js'), { drawersMade } = await import('../src/scatter/drawer.js');
+  const threw = [], said = (e) => threw.push(String(e?.message ?? e).split('\n')[0].slice(0, 300));
+  process.on('uncaughtException', said); process.on('unhandledRejection', said);
+  renderer.domElement ??= { width: WW * WD, height: WH * WD };   // (what a frame's view is compared by besides the camera: the canvas's pixels)
+  watch({ camera, renderer, screen, temporal, U });
+  let came = null; ready.then((r) => (came = r));
+  const t0 = performance.now(); let f = 0;
+  while (!came && !threw.length && performance.now() - t0 < SETTLE_MS) { frame(++f / 60); tick(changed()); taken(); await new Promise((r) => setTimeout(r)); }   // (each frame a turn of its own: the workers' answers come in between)
+  return { ready: !!came, frames: f, secs: +((performance.now() - t0) / 1000).toFixed(1), limit: SETTLE_MS / 1000, out: waiting(), threw,
+    drawers: drawersMade().map((D) => ({ name: D.name, asked: D.stats.asked, put: D.stats.put, out: D.waiting() })) };
+}
