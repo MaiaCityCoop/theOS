@@ -509,7 +509,7 @@ const BAKED = 5;   // the bake's own version, in what the browser keeps of it (f
 function farOf(renderer, tex, G, D) {
   const A = atlases(), n = G.meshes, views = createAtlas(renderer, { name: `plants, ${G.name}: impostors`, side: A.VIEWS * A.CELL, layers: n, cell: A.CELL, views: A.VIEWS });
   let clumps = null; const clumpsOf = () => (clumps ||= createAtlas(renderer, { name: `plants, ${G.name}: clumps`, side: G.tiles * A.TILE, layers: G.clumpy, cell: A.TILE }));   // (a stand none of whose shapes has clumps: one tile, which nothing reads)
-  const queue = [], queued = new Uint8Array(n), waiting = new Map(); let version = 0, any = false, M = null, out = 0, swept = false;
+  const queue = [], queued = new Uint8Array(n), waiting = new Map(); let version = 0, any = false, M = null, out = 0, sweep = 0, reading = false;
   // the levels a shape's pictures are drawn from (far: its far data, assets/kit/crowd.js): the measure's at each
   // picture's own size, the plant's size in it in dial pixels (a view: CELL texels over its sphere; a chunk's plane:
   // TILE texels over its chunk's longest side, the shortest of its chunks), never a level wholly under where its
@@ -690,13 +690,16 @@ function farOf(renderer, tex, G, D) {
         were known: its pictures drawn from its finest, which is there, never waited for.) */
     pump() {
       if (!shown()) return;   // (after the first frame, in the background: src/core/settle.js shown)
-      if (!swept) {   // (once: every shape the browser kept, read back, its far data with it: a start that kept them bakes none)
-        swept = true;
-        for (let k = 0; k < n; k++) if (!queued[k]) keptGet(keptAs(), keyOf(k)).then((rec) => {
+      // (every shape the browser kept, read back with its far data, a shape a frame: its pictures are megabytes put on
+      // the GPU, not all in one frame; a start that kept them bakes none)
+      while (sweep < n && queued[sweep]) sweep++;
+      if (sweep < n && !reading) {
+        const k = sweep++; reading = true;
+        keptGet(keptAs(), keyOf(k)).then((rec) => {
           if (!rec?.far || queued[k]) return;
           queued[k] = 1; views.put(k, rec.views); if (rec.clumps && G.clumpLayer[k] >= 0) clumpsOf().put(G.clumpLayer[k], rec.clumps);
           numbers(k, Float32Array.from(rec.far)); seenIn(k, rec.views);
-        }, () => {});
+        }, () => {}).finally(() => { reading = false; });
       }
       if (BAKING || !queue.length) return;
       const H = D().H, ready = (J) => {
