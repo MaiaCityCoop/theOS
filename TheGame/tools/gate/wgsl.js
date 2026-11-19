@@ -28,8 +28,9 @@ import { join } from 'node:path';
 import { chromium, webkit } from 'playwright-core';
 import { webkitAt } from '../browsers.js';
 import { watched } from './machine.js';
+import { SIZED } from '../../src/core/gpu.js';
 
-const KEPT = new URL('../../.gate/wgsl/', import.meta.url).pathname, CEILINGS = new URL('./shaders.json', import.meta.url).pathname;
+const KEPT = new URL('../../.gate/wgsl/', import.meta.url).pathname, CEILINGS = new URL('./shaders.json', import.meta.url).pathname, LIMITS = new URL('./limits.json', import.meta.url).pathname;
 const ENGINES = { chrome: () => chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-webgpu'] }), webkit: () => webkit.launch({ headless: true, ...webkitAt() }) };
 
 /** Every module the smoke builds, by running it (its own process: the world made on the stand-in): { render: [{ label,
@@ -43,14 +44,17 @@ function built() {
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
-/** In the page: every module compiled on the adapter's device (all its features and limits asked, as the game asks
-    them), its errors said with where; every pipeline made. { adapter, modules, pipelines, errors }. */
+/** In the page: every module compiled on a device asked for what the game's is asked for (src/boot.js: every feature;
+    the limits it sizes against, S.limits, src/core/gpu.js SIZED, each as the adapter has it, every other at WebGPU's own:
+    2026-11-19, asked for every limit the adapter has, the gate passed a pipeline of 17 textures a stage that WebKit's
+    device, at 16, refused the game), its errors said with where; every pipeline made, or, S.pipelines false, every
+    pipeline's layout. { adapter, modules, pipelines, layouts, errors }. */
 async function compileAll(S) {
   const adapter = (await navigator.gpu?.requestAdapter()) ?? (await navigator.gpu?.requestAdapter({ forceFallbackAdapter: true }));   // (a CPU's where there is no GPU: CI's, SwiftShader)
   if (!adapter) return { error: 'no WebGPU adapter' };
-  const requiredLimits = {}; for (const k in adapter.limits) requiredLimits[k] = adapter.limits[k];
+  const requiredLimits = Object.fromEntries((S.limits ?? []).filter((k) => adapter.limits[k] != null).map((k) => [k, adapter.limits[k]]));
   const device = await adapter.requestDevice({ requiredFeatures: [...adapter.features], requiredLimits });
-  const errors = [], info = adapter.info ?? {}, out = { adapter: [...new Set([info.vendor, info.architecture, info.device].filter(Boolean))].join(' ') || 'an adapter', modules: 0, pipelines: 0, errors, ms: [] };
+  const errors = [], info = adapter.info ?? {}, out = { adapter: [...new Set([info.vendor, info.architecture, info.device].filter(Boolean))].join(' ') || 'an adapter', modules: 0, pipelines: 0, layouts: 0, errors, ms: [] };
   const said = (label, what, m) => errors.push(`${label}, ${what}: ${m.replace(/\s*\n\s*/g, ' ').slice(0, 400)}`);
   let took = 0;   // (the module compiles of the pipeline being made, ms)
   const mod = async (code, label, what) => {
@@ -97,7 +101,8 @@ async function compileAll(S) {
     }
     return device.createPipelineLayout({ bindGroupLayouts: Array.from(groups, (G) => device.createBindGroupLayout({ entries: [...(G ?? new Map()).values()] })) });
   };
-  const pipes = S.pipelines !== false;   // (pipelines: false, the modules only: a CPU adapter's limits are not the game's devices')
+  const pipes = S.pipelines !== false;   // (pipelines: false, the modules and the layouts only: a CPU adapter's pipelines are not the game's devices'; its layouts, the game's limits asked, are: a 17th texture a stage is refused there too)
+  const laid = async (label, stages) => { device.pushErrorScope('validation'); try { layoutOf(stages); out.layouts++; } catch (e) { said(label, 'layout', String(e?.message ?? e)); } const v = await device.popErrorScope(); if (v) said(label, 'layout, validation', v.message); };
   // (a render pipeline: its vertex buffers, one an input its vertex stage declares, and its colour targets, one an output
   // its fragment stage declares, made with its modules)
   const renderPipeline = (s, vm, fm) => {
@@ -109,8 +114,8 @@ async function compileAll(S) {
     return made(s.label, 'render pipeline', () => device.createRenderPipelineAsync({ layout: layoutOf([[s.vertex, 'vertex'], [s.fragment, 'fragment']]), vertex: { module: vm, entryPoint: 'main', buffers },
       fragment: { module: fm, entryPoint: 'main', targets: Array.from(outs, (t) => (t ? { format: target(t) } : null)) }, depthStencil: { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'less' } }));
   };
-  for (const s of S.compute) { const m = await mod(s.code, s.label, 'compute'); if (pipes) cost(m ? await made(s.label, 'compute pipeline', () => device.createComputePipelineAsync({ layout: layoutOf([[s.code, 'compute']]), compute: { module: m, entryPoint: 'main' } })) : null); }
-  for (const s of S.render) { const vm = await mod(s.vertex, s.label, 'vertex'), fm = await mod(s.fragment, s.label, 'fragment'); if (pipes) cost(vm && fm ? await renderPipeline(s, vm, fm) : null); }
+  for (const s of S.compute) { const m = await mod(s.code, s.label, 'compute'); if (!pipes) await laid(s.label, [[s.code, 'compute']]); else cost(m ? await made(s.label, 'compute pipeline', () => device.createComputePipelineAsync({ layout: layoutOf([[s.code, 'compute']]), compute: { module: m, entryPoint: 'main' } })) : null); }
+  for (const s of S.render) { const vm = await mod(s.vertex, s.label, 'vertex'), fm = await mod(s.fragment, s.label, 'fragment'); if (!pipes) await laid(s.label, [[s.vertex, 'vertex'], [s.fragment, 'fragment']]); else cost(vm && fm ? await renderPipeline(s, vm, fm) : null); }
   device.destroy();
   return out;
 }
@@ -121,13 +126,13 @@ export const mark = (code, n) => code.replace(/(@(?:vertex|fragment|compute)\b[^
 /** The modules marked (mark), so the driver compiles the set anew. */
 const markedOf = (S, n) => {
   const m = (code) => mark(code, n);
-  return { compute: S.compute.map((c) => ({ ...c, code: m(c.code) })), render: S.render.map((r) => ({ ...r, vertex: m(r.vertex), fragment: m(r.fragment) })) };
+  return { compute: S.compute.map((c) => ({ ...c, code: m(c.code) })), render: S.render.map((r) => ({ ...r, vertex: m(r.vertex), fragment: m(r.fragment) })), limits: SIZED };
 };
 const hashOf = (...x) => createHash('sha1').update(x.join('\0')).digest('hex');
 /** One engine's run on a CPU adapter (--cpu: CI's, SwiftShader): the modules compiled, nothing timed nor kept. */
 async function plain(name, launch, S) {
   let b = null;
-  try { b = await launch(); const page = await opened(b); return await page.evaluate(compileAll, { ...S, pipelines: false }); }
+  try { b = await launch(); const page = await opened(b); return await page.evaluate(compileAll, { ...S, pipelines: false, limits: SIZED }); }
   catch (e) { return { error: String(e?.message ?? e).split('\n')[0] }; }
   finally { await b?.close(); }
 }
@@ -162,6 +167,7 @@ export async function wgsl(opt = {}) {
   const out = { modules: { render: S.render.length, compute: S.compute.length }, engines: {}, list: rowsOf(S) }, set = hashOf(...codesOf(S));
   for (const [name, launch] of Object.entries(W.engines)) out.engines[name] = await W.run(name, launch, S, set);
   out.errors = Object.entries(out.engines).flatMap(([n, e]) => (e.errors ?? []).map((x) => `${n}: ${x}`));   // (what the shaders got wrong: it fails)
+  known(out);
   out.unchecked = Object.entries(out.engines).filter(([, e]) => e.error).map(([n, e]) => `${n}: ${e.error}`);   // (an engine that did not come to them, no adapter, say: said, it fails nothing)
   out.pass = !out.errors.length;
   out.cost = W.cost(out, opt);
@@ -191,6 +197,15 @@ export async function firstView(P, W, opt = {}) {
   out.cost = held('firstView', costs(out.list, out.engines), (c) => c.total, opt.ratchet);
   console.log(`  ${firstLine(out).replace(/\*\*/g, '')}`);
   return out;
+}
+/** Of out's errors, the layouts over the game's limits that tools/gate/limits.json knows (by place, file and function, as
+    many as it names an engine's run finds there): said (out.known), not failed on; and the places it names where fewer
+    were found now (out.within: to be taken out of it, the list only shrinking). */
+function known(out) {
+  const K = existsSync(LIMITS) ? JSON.parse(readFileSync(LIMITS, 'utf8')).known ?? {} : {}, seen = {};
+  const placeOf = (e) => e.match(/ at (\S+?):\d+ (\S+?), layout/)?.slice(1).join(' ');
+  out.known = []; out.errors = out.errors.filter((e) => { const p = placeOf(e), k = `${e.split(':')[0]} ${p}`; if (p && (seen[k] = (seen[k] ?? 0) + 1) <= (K[p] ?? 0)) { out.known.push(e); return false; } return true; });
+  out.within = Object.keys(K).filter((p) => Object.keys(out.engines).some((n) => !out.engines[n].error && (seen[`${n} ${p}`] ?? 0) < K[p]));
 }
 /** Each pipeline's cost by engine (its modules' compile and its making, ms, kept on its row), and each engine's worst
     and total. */
@@ -233,5 +248,5 @@ export const costTable = (T, n = 20) => (!T?.cost || !Object.keys(T.cost).length
   ...T.list.filter((x) => x.ms).sort((a, b) => Math.max(...Object.values(b.ms).map((v) => v ?? 0)) - Math.max(...Object.values(a.ms).map((v) => v ?? 0))).slice(0, n).map((x) => `| ${x.label} | ${(x.bytes / 1024).toFixed(0)} | ${Object.keys(T.cost).map((e) => x.ms[e] ?? '–').join(' | ')} |`)]);
 /** The check's line, as the hour's board has it after Ready. */
 export const wgslLine = (W) => (!W ? 'WGSL: not checked.' : W.error ? `**WGSL: not checked**: ${W.error}.`
-  : `${W.pass ? 'WGSL: every module compiles' : `**WGSL: ${W.errors.length} error${W.errors.length === 1 ? '' : 's'}**`}${W.unchecked?.length ? ` (**not checked** in ${W.unchecked.join('; ')})` : ''} on the device (${W.modules.render} render and ${W.modules.compute} compute pipelines the smoke builds; ${Object.entries(W.engines).map(([n, e]) => (e.error ? `${n}: ${e.error}` : `${n} on ${e.adapter}: ${e.modules} modules, ${e.pipelines} pipelines`)).join('; ')})${W.pass ? '.' : `: ${W.errors.slice(0, 3).join(' | ')}${W.errors.length > 3 ? ` (and ${W.errors.length - 3} more)` : ''}`}`);
+  : `${W.pass ? 'WGSL: every module compiles' : `**WGSL: ${W.errors.length} error${W.errors.length === 1 ? '' : 's'}**`}${W.unchecked?.length ? ` (**not checked** in ${W.unchecked.join('; ')})` : ''}${W.known?.length ? ` (${W.known.length} layout${W.known.length === 1 ? '' : 's'} over the game's limits as tools/gate/limits.json knows)` : ''}${W.within?.length ? ` (**now within, take out of tools/gate/limits.json**: ${W.within.join('; ')})` : ''} on the device (${W.modules.render} render and ${W.modules.compute} compute pipelines the smoke builds; ${Object.entries(W.engines).map(([n, e]) => (e.error ? `${n}: ${e.error}` : `${n} on ${e.adapter}: ${e.modules} modules, ${e.pipelines ? `${e.pipelines} pipelines` : `${e.layouts} layouts`}`)).join('; ')})${W.pass ? '.' : `: ${W.errors.slice(0, 3).join(' | ')}${W.errors.length > 3 ? ` (and ${W.errors.length - 3} more)` : ''}`}`);
 const say = (W) => { console.log(`wgsl: ${wgslLine(W).replace(/\*\*/g, '')}`); for (const e of (W.errors ?? []).slice(3, 40)) console.log(`  ${e}`); console.log(`  ${costLine(W).replace(/\*\*/g, '')}`); for (const l of costTable(W, 10)) console.log(`  ${l}`); };
