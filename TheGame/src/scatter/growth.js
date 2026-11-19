@@ -26,7 +26,7 @@
 // took to it. Where a layer's window does not reach, nothing of that layer has left anything.
 import * as THREE from 'three/webgpu';
 import { Fn, If, float, int, uint, vec2, ivec2, uniform, globalId, floor, clamp, round } from 'three/tsl';
-import { gpuStorage, byDial } from '../core/gpu.js';
+import { gpuStorage, byDial, roomOf, limitOf } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { ownGpuMs, pace, frameShare } from '../core/pace.js';
 import { source } from '../core/settle.js';
@@ -51,7 +51,10 @@ export function createGrowth(renderer, fields) {
   // (each word's texel, side and first texel as uniforms besides (uT, uN, uBase): every layer's passes and readers are
   // code alike, the words differing only in them)
   const W = Math.max(1, Math.min(WORDS, fields.length)), words = fields.slice(0, W).map(({ band, far }) => ({ T: band, far, N: 4 * SNAP, base: 0, origin: uniform(new THREE.Vector2(0, 0)), window: null, uT: uniform(band), uN: uniform(4 * SNAP, 'int'), uBase: uniform(0, 'uint') }));
-  for (const Wd of words) while ((Wd.N / 2 - SNAP) * Wd.T < Wd.far) Wd.N *= 2;   // (the fewest texels that reach its `far` from where its snap leaves it)
+  // (the fewest texels that reach its `far` from where its snap leaves it: no more than its share of what geometry has
+  // left and of one binding, four bytes a texel, at a dial of 0 its `far` Infinity: the rest is the dial's)
+  const most = Math.min(Math.max(0, roomOf('geometry')), limitOf('maxStorageBufferBindingSize') || Infinity) / W;
+  for (const Wd of words) while ((Wd.N / 2 - SNAP) * Wd.T < Wd.far && 4 * (2 * Wd.N) ** 2 <= most) Wd.N *= 2;
   let B = null, writers = [], passes = [], fills = [], uRect = uniform(new THREE.Vector4()), uCells = uniform(new THREE.Vector4()), version = 0, key = '';
   const slot = (ix, iz, w) => { const Wd = words[w], n = Wd.uN; return uint(ix.bitAnd(n.sub(1)).add(iz.bitAnd(n.sub(1)).mul(n))).add(Wd.uBase); };
   const inside = (ix, iz, w) => { const o = words[w].origin, n = words[w].uN; return ix.greaterThanEqual(int(o.x)).and(ix.lessThan(int(o.x).add(n))).and(iz.greaterThanEqual(int(o.y))).and(iz.lessThan(int(o.y).add(n))); };

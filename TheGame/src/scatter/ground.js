@@ -43,8 +43,10 @@ const reachAt = (N) => (N * 0.5) / 2 - 32 * 0.5;
     by them is gone (src/scatter/rocks.js: every rock to where it is, by the one rule); never less than level 0's. */
 const reachOf = (level0) => Math.max(level0, ...recipes('asset').filter((a) => a.placement?.engine === 'grass').map((a) => bandsOf(ringsOf(a), a.height, pxKMost()).end),
   ...recipes('asset').filter((a) => a.placement?.engine === 'rocks' && !a.placement.outcrops).map((a) => farMost(GONE, most(a.size.length))));
-/** How many levels reach as far as the maps must with N texels a side (each twice the one before's). */
-const levelsAt = (N) => Math.max(1, Math.ceil(Math.log2(reachOf(reachAt(N)) / reachAt(N)) - 1e-9) + 1);
+/** How many levels reach as far as the maps must with N texels a side (each twice the one before's): no more than the
+    ground's class holds in all (its budget: bytesAt's two sets and a staging window, 8 bytes a texel), at a dial of 0
+    as many as that, the rest the dial's. */
+const levelsAt = (N) => Math.min(Math.max(1, Math.ceil(Math.log2(reachOf(reachAt(N)) / reachAt(N)) - 1e-9) + 1), Math.max(1, Math.floor(((budgetOf('ground') * 2 ** 20) / (2 * N * N * 8) - 1) / 2)));
 /** What the maps hold with N texels a side, bytes: two sets of their levels and a staging window, two maps each, 8
     bytes a texel. */
 const bytesAt = (N) => (2 * levelsAt(N) + 1) * 2 * N * N * 8;
@@ -70,7 +72,7 @@ export function createGround(renderer, tex) {
   // (MRT): the ground (height, grass, its height, stones) and the grass's colour (and its dryness), the levels side by
   // side in one target (what reads them binds two textures a set, whatever the levels: a stage binds 16 at most). Two
   // sets of them: the one read, and the one before it while what is read passes from it to the new one
-  const N = sideOf(), REACH = reachAt(N), LV = levelsAt(N);
+  const N = sideOf(), REACH = reachAt(N), LV = Math.min(levelsAt(N), Math.max(1, Math.floor((renderer.backend?.device?.limits?.maxTextureDimension2D ?? Infinity) / N)));   // (the levels side by side in one target: no wider than the device's widest)
   const rts = [0, 1].map(() => new THREE.RenderTarget(N * LV, N, { ...opts, type: THREE.HalfFloatType, count: 2 }));
   // (and a staging window: a level drawn in it a piece at a time, then copied into its place whole)
   const stage = new THREE.RenderTarget(N, N, { ...opts, type: THREE.HalfFloatType, count: 2 });

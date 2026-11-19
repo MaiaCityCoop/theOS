@@ -62,8 +62,11 @@ export const cutThings = (size, cell, px) => Math.ceil(Math.PI * ((size * pxKMos
 export function createCut({ T, k = 0, H, room, name, things }) {
   // (MAXC: the most clusters a kind's level holds, each tested by a thread of its own; MOST: the list's room, an entry 16
   // bytes: as many as its things can ask for at once, every packed thing every cluster of its level; no more than one
-  // buffer the GPU binds, nor than the geometry's class has room for: src/core/classes.js)
-  const S = T.slots, cap = things, MAXC = Math.max(1, room.clusters), MOST = Math.max(1, Math.min(cap * MAXC, Math.floor(Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity, roomOf('geometry')) / 16)));
+  // buffer the GPU binds, nor than the geometry's class has room for: src/core/classes.js. cap: the things it tests, as
+  // many as stand within its reach (things: at a dial of 0 every one, Infinity), held to what its list holds an entry
+  // each and to one dispatch's workgroups down (a thing a row of them): the rest is the dial's)
+  const S = T.slots, MAXC = Math.max(1, room.clusters), MOST = Math.max(1, Math.min(things * MAXC, Math.floor(Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity, roomOf('geometry')) / 16)));
+  const cap = Math.min(things, MOST, limitOf('maxComputeWorkgroupsPerDimension') || Infinity);
   // (the list the GPU's alone: it writes it and reads it)
   const list = gpuStorage('uvec4', MOST, `${name}: the cut's list`, 'geometry').node, count = instancedArray(1, 'uint').toAtomic(), packed = storage(T.args, 'uint', T.args.array.length).toReadOnly();
   const drawArgs = new THREE.IndirectStorageBufferAttribute(new Uint32Array([MAXT * 3, 0, 0, 0, 0]), 5), DA = storage(drawArgs, 'uint', 5);
