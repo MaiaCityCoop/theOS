@@ -1,18 +1,24 @@
 // The GPU's lock and its queue (intent 0038: one place for it, on every machine, no script of its own on any): one run
-// a hold, in the order asked. Both stand where the repository does, shared by all its worktrees (GPU_LOCK_DIR, else the
-// folder that holds the repository):
+// a hold, in the order asked, the hour's first. Both stand where the repository does, shared by all its worktrees
+// (GPU_LOCK_DIR, else the folder that holds the repository):
 //   - `.gate-lock/`, the lock: made by the one who takes it (making a directory is atomic: one maker wins), with
 //     `holder.json` in it: who, what, since when, and the processes whose life holds it;
-//   - `.gate-queue.d/`, the queue: a ticket a waiting run, named by when it asked, so the oldest goes first.
+//   - `.gate-queue.d/`, the queue: a ticket a waiting run, named by when it asked, so the oldest goes first; a ticket
+//     taken first (--first: the hour, the one measure that judges main) named to come before every other, so it goes
+//     ahead of all that wait (the oldest of such first), never of the one that holds (2026-11-19: the hour waited its
+//     3000 s behind the sessions' looks two hours running, and main went unmeasured). Its name orders it, as every
+//     waiter reads the line, so a waiter of a tool from before it lets it by too.
 // A holder whose processes are all gone (a run killed outright) holds nothing: the first in line takes the lock back.
 // A lock made by a run from before this tool (an `owner` file, no `holder.json`) is waited for, never taken back.
 //
-//   bun tools/gpu/lock.js take <owner> -- <command…>   waits its turn, holds the lock while the command runs, lets it
-//                                                      go however the command ends, and ends with the command's code
+//   bun tools/gpu/lock.js take [--first] <owner> -- <command…>
+//                                                      waits its turn (--first: ahead of every other that waits), holds
+//                                                      the lock while the command runs, lets it go however the command
+//                                                      ends, and ends with the command's code
 //   bun tools/gpu/lock.js status [--json]               who holds it, since when, and who waits, in order
 //
-// In code: locked(what, fn), fn run holding the lock (tools/gate.js: every part of a run that draws; its owner is
-// GPU_OWNER). A command run by `take` holds the lock for every part it draws, so it never waits for itself
+// In code: locked(what, fn, { first }), fn run holding the lock (tools/gate.js: every part of a run that draws, the
+// hour's whole, first; its owner is GPU_OWNER). A command run by `take` holds the lock for every part it draws, so it never waits for itself
 // (GPU_LOCK_TOKEN, given to the command).
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -62,11 +68,15 @@ function grab(record) {
 }
 
 let ticket = null, token = null, depth = 0;
-/** Waits its turn and takes the lock: in line until no one living asked before it and the lock is free. Its token. */
-async function take(owner, what) {
+/** What a ticket taken first is named from: a character every name of when it asked comes after (they begin with a
+    digit), so the line, read in the order of its names, holds it before them. */
+const FIRST = '!';
+/** Waits its turn and takes the lock: in line until no one living is before it (asked before it; or, taken first,
+    before every other) and the lock is free. Its token. */
+async function take(owner, what, first = false) {
   mkdirSync(QUEUE, { recursive: true });
-  ticket = join(QUEUE, `${String(Date.now()).padStart(14, '0')}-${process.pid}.json`);
-  writeFileSync(ticket, JSON.stringify({ owner, what, since: new Date().toISOString(), ...ME }), { flag: 'wx' });
+  ticket = join(QUEUE, `${first ? FIRST : ''}${String(Date.now()).padStart(14, '0')}-${process.pid}.json`);
+  writeFileSync(ticket, JSON.stringify({ owner, what, since: new Date().toISOString(), first, ...ME }), { flag: 'wx' });
   const record = { owner, what, since: null, token: `${process.pid}-${Date.now()}`, by: [ME] };
   try {
     for (let told = ''; ; await sleep(500)) {   // (two looks a second: a turn is waited for in seconds or minutes)
@@ -85,12 +95,12 @@ function release() {
 }
 process.on('exit', () => { release(); if (ticket) rmSync(ticket, { force: true }); });   // (however the run ends, short of being killed outright)
 
-/** fn() run holding the GPU lock, taken in turn and let go after; at once where this run (or the `take` it runs under)
-    holds it already. */
-export async function locked(what, fn) {
+/** fn() run holding the GPU lock, taken in turn (first: ahead of every other that waits) and let go after; at once where
+    this run (or the `take` it runs under) holds it already. */
+export async function locked(what, fn, { first = false } = {}) {
   const under = process.env.GPU_LOCK_TOKEN;
   if (depth || (under && holder()?.token === under)) return fn();
-  await take(process.env.GPU_OWNER || 'tools/gate.js', what);
+  await take(process.env.GPU_OWNER || 'tools/gate.js', what, first);
   depth++;
   try { return await fn(); } finally { depth--; if (!depth) release(); }
 }
@@ -98,8 +108,8 @@ export async function locked(what, fn) {
 export function unlock() { depth = 0; release(); }
 
 /** `take`: the command run holding the lock, its own life holding it too; the command's exit code (128 + a signal's). */
-async function run(owner, command) {
-  await take(owner, command.join(' '));
+async function run(owner, command, first) {
+  await take(owner, command.join(' '), first);
   const child = spawn(command[0], command.slice(1), { stdio: 'inherit', env: { ...process.env, GPU_LOCK_TOKEN: token } });
   const h = holder();
   if (child.pid && h?.token === token) writeFileSync(HOLDER, JSON.stringify({ ...h, by: [ME, { pid: child.pid, start: startOf(child.pid) }] }));
@@ -113,12 +123,12 @@ function status(json) {
   const h = holder(), q = line(), on = h && (h.old ? null : h.by.some(alive));
   if (json) return console.log(JSON.stringify({ lock: LOCK, holder: h && { ...h, alive: on }, queue: q.map((t) => ({ ...t, alive: alive(t) })) }));
   console.log(`${LOCK}: ${h ? `held by ${h.owner}${h.what ? ` (${h.what})` : ''}${h.since ? ` since ${h.since}` : ''}` : 'free'}${h && on === false ? '; its processes are gone, so the first in line takes it back' : ''}${h?.old ? '; made by a run from before tools/gpu/lock.js: waited for, never taken back' : ''}`);
-  for (const [i, t] of q.entries()) console.log(`  ${i + 1}. ${t.owner} (${t.what}), waiting since ${t.since}${alive(t) ? '' : ': gone'}`);
+  for (const [i, t] of q.entries()) console.log(`  ${i + 1}. ${t.first ? '(first) ' : ''}${t.owner} (${t.what}), waiting since ${t.since}${alive(t) ? '' : ': gone'}`);
 }
 
 if (import.meta.main) {
-  const [cmd, ...rest] = process.argv.slice(2), dash = rest.indexOf('--');
-  if (cmd === 'take' && dash > 0 && dash < rest.length - 1) await run(rest.slice(0, dash).join(' '), rest.slice(dash + 1));
+  const [cmd, ...args] = process.argv.slice(2), first = cmd === 'take' && args[0] === '--first', rest = first ? args.slice(1) : args, dash = rest.indexOf('--');
+  if (cmd === 'take' && dash > 0 && dash < rest.length - 1) await run(rest.slice(0, dash).join(' '), rest.slice(dash + 1), first);
   else if (cmd === 'status') status(rest.includes('--json'));
-  else { console.log('bun tools/gpu/lock.js take <owner> -- <command…> | status [--json]: see the top of tools/gpu/lock.js'); process.exitCode = cmd ? 1 : 0; }
+  else { console.log('bun tools/gpu/lock.js take [--first] <owner> -- <command…> | status [--json]: see the top of tools/gpu/lock.js'); process.exitCode = cmd ? 1 : 0; }
 }

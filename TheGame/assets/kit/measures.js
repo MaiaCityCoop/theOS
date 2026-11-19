@@ -10,6 +10,10 @@
 //   packMeasures(entries)   [[key, measure], …] -> Uint8Array
 //   unpackMeasures(buffer)  an ArrayBuffer -> Map(key -> measure), its arrays views of the buffer's; null where the
 //                           buffer is not such a file (another file answered for it: a server's page, an older form)
+/** What a shape's measure is kept under, one key for the build that writes it (tools/outlines.js) and the workers that
+    read it (src/core/crowds.js): plant a's shape i at its recipe's version, for the far ends' atlases A (one of a class
+    of devices: src/detail/impostor.js ATLAS_SHARES). */
+export const measureKey = (a, version, i, A) => `${a.uid}:${a.placement?.seed ?? 1}@${version}#${i}|${A?.key ?? ''}`;
 const MAGIC = new TextEncoder().encode('MSR1');   // (what such a file begins with, and nothing else does: a page's '<!do' is not)
 const KINDS = { order: Uint32Array, own: Float64Array, go: Float32Array, at: Float32Array, parts: Uint32Array, starts: Uint32Array, cells: Float64Array, boxes: Float64Array, errs: Float64Array, solids: Float64Array };
 

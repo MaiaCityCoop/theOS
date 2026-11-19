@@ -42,14 +42,23 @@ export function importsOf(root, file, seen = new Set()) {
     its file and every module it reads, with `painter`, the painter's own (src/materials/bake.js, and the kit it paints
     with, src/materials/paint.js, and what that reads) and three's version (what writes its programs). A change to any
     of it is another hash: nothing painted before it is laid out again. PAINTS: every file the last hashes read, which
-    the dev server watches (vite.config.js), so that a change to any of them is another hash at once. */
+    the dev server watches (vite.config.js), so that a change to any of them is another hash at once (the far ends'
+    `baker`'s too, below). */
 export const PAINTS = new Set();
 function paintOf(root) {
   PAINTS.clear();
   const read = (p) => (PAINTS.add(p), readFileSync(p, 'utf8')), three = JSON.parse(read(resolve(root, 'node_modules/three/package.json'))).version ?? '';
   const own = [resolve(root, 'src/materials/bake.js'), ...new Set([resolve(root, 'src/materials/paint.js'), ...importsOf(root, resolve(root, 'src/materials/paint.js'))])];
   const painter = bytesToHex(blake3(utf8ToBytes(`${own.map(read).join('\n')}\nthree ${three}`)));
-  return { painter, of: (file) => bytesToHex(blake3(utf8ToBytes(`${[file, ...importsOf(root, file)].map(read).join('\n')}\n${painter}`))) };
+  // (and what bakes a plant's far end, as one hash: src/scatter/far.js, where its pictures are drawn and kept, and the
+  // inputs it names, each file itself: the impostors' baker and their pictures' frames (src/detail/impostor.js), its
+  // worker that mips them, the atlases' numbers (src/detail/atlas.js), a plant's vertex as the heap holds it
+  // (src/scatter/plantvert.js, unpack.js); and three's version. What else a shape's pictures are made of has its own
+  // hash, which far.js keys each shape by beside this one: its recipe's version (its kits with it) and its paintings'
+  // `paint`, the world's textures as they are read among them (the painter's code))
+  const bakes = ['src/scatter/far.js', 'src/detail/impostor.js', 'src/detail/impostor.worker.js', 'src/detail/atlas.js', 'src/scatter/plantvert.js', 'src/scatter/unpack.js'];
+  const baker = bytesToHex(blake3(utf8ToBytes(`${bakes.map((f) => read(resolve(root, f))).join('\n')}\nthree ${three}`)));
+  return { painter, baker, of: (file) => bytesToHex(blake3(utf8ToBytes(`${[file, ...importsOf(root, file)].map(read).join('\n')}\n${painter}`))) };
 }
 
 /** Read every recipe under root, version it, and write registry.json if anything changed. Returns the manifest. */
@@ -78,7 +87,7 @@ export function buildRegistry(root) {
   };
   const out = {}, P = paintOf(root);
   for (const uid of Object.keys(found).sort((a, b) => (found[a].type + found[a].name).localeCompare(found[b].type + found[b].name))) {
-    const { type, name, file, uses } = found[uid]; out[uid] = { type, name, file, version: version(uid), uses, ...(type === 'material' ? { paint: P.of(join(root, file)), painter: P.painter } : {}) };
+    const { type, name, file, uses } = found[uid]; out[uid] = { type, name, file, version: version(uid), uses, ...(type === 'material' ? { paint: P.of(join(root, file)), painter: P.painter } : {}), ...(type === 'asset' ? { baker: P.baker } : {}) };
   }
   const path = resolve(root, 'registry.json'), text = JSON.stringify(out, null, 2) + '\n';
   writeIfChanged(path, text);

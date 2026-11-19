@@ -123,8 +123,9 @@ async function resident(per, { frames, visit, means, first, cells }) {
   const gather = () => { drawn = { n: sealed, whole: done >= cells }; H.gathered(1); };   // (what its draws read: its store's things now)
   // (a read come back: laid out again where roomsFor says, else it fits)
   const answer = (z, read) => {
-    const room = roomsFor([z[1], z[2]], [N, P], read.whole && read.at === S.at());
+    const room = read.whole && read.at === S.at() ? roomsFor([z[1], z[2]], [N, P], true) : null;   // (laid out again only from a read of its whole fill, as residentOf)
     if (room && (room[0] !== N || room[1] !== P)) { if (room[0] > N && !(z[1] > N) && !(z[2] > P)) out.past++; N = room[0]; P = room[1]; out.least = Math.min(out.least, N); dirty = true; return; }
+    if (z[1] > N || z[2] > P) return;   // (more found than it holds: not known to fit till then)
     S.fit(read.at);
   };
   // (its visits, the nearest first, within the frame's cells; a packing whole where nothing waits after it; gathered
@@ -243,6 +244,52 @@ function knobs() {
   }
   if (!(restDial() > 1)) fail('the knob: the dial at rest never rose');
 }
+/** The plan (src/core/gpu.js planDial): what 'other' plans, its need at dial d one over d squared of what it needs at
+    1 (four times its class at the dial now), beside a fixed need of a page; solved, said and failed on where the dial it
+    raised is not the finest that holds it, a BAND to spare. */
+function planned(PAGE) {
+  const MB = 2 ** 20;
+  const was = restDial(), V1 = gpuM.budgetOf('other') * MB * 4 * was ** 2, fixed = PAGE;
+  gpuM.plan('check: what streams', 'other', (d) => V1 / d ** 2, 'rows'); gpuM.plan('check: what is fixed', 'other', fixed);
+  const sizes = gpuM.planDial(), d = restDial(), B = gpuM.budgetOf('other') * MB, at = (x) => BAND * (V1 / x ** 2 + fixed);
+  console.log(`  planned: ${(V1 / was ** 2 / MB).toFixed(0)} MB at the dial at rest (${was.toFixed(3)}) beside ${fixed / 1024} KB fixed, of other's ${B / MB} MB: the dial at rest raised to ${d.toFixed(3)} (a BAND to spare: ${(at(d) / MB).toFixed(1)} MB), the pool ${((sizes.get('other|rows') ?? 0) / MB).toFixed(1)} MB`);
+  if (!(at(d) <= B * 1.0001 && at(d / 1.001) > B)) fail(`the plan: at the dial it solved, ${d}, what is planned (a BAND of it) holds ${(at(d) / MB).toFixed(1)} MB, of ${B / MB}: not the finest that holds it`);
+}
+/** The fixed pools (src/core/pool.js, research_notes/0038-fixed-pools.md stage 1) and their plan (src/core/gpu.js
+    planDial), on the stand-in: the plan solved for what does not fit at the dial now (the finest dial that holds it, a
+    BAND to spare), a pool of sixteen pages made at it; owners filling it, one more important asking (the least
+    important let go for it, told, its pages cooling two frames before they are free), one less important by under a
+    BAND refused, a write across a page's edge, and what the class holds the same through a thousand asks. */
+async function pools() {
+  const { makePools, poolOf, PAGE, NONE } = await import('../src/core/pool.js');
+  console.log("the fixed pools (src/core/pool.js) and their plan (src/core/gpu.js planDial):");
+  planned(PAGE);
+  // (a pool of sixteen pages, made apart from the plan's)
+  makePools(new Map([['ground|rows', 16 * PAGE]])); const P = poolOf('ground', 'rows'), held = () => gpuM.ledger().classes.ground.noted;
+  const told = [], owner = (name) => ({ name, onEvict: (v) => told.push([name, ...v]) }), A = owner('A'), Bo = owner('B'), C = owner('C');
+  const a = P.reserve(A, 8), b = P.reserve(Bo, 8), c = P.reserve(C, 8), range = (v0, k) => Array.from({ length: k }, (_, i) => v0 + i), before = held();
+  const filled = P.alloc(A, range(a, 8), 1) && P.alloc(Bo, range(b, 8), 2);
+  const low = P.alloc(C, range(c, 2), 1.2), lowLet = told.length, first = P.alloc(C, range(c, 4), 10), stats0 = P.stats();
+  P.flush(); const cooled1 = P.alloc(C, range(c, 4), 10); P.flush(); P.flush(); await new Promise((r) => setTimeout(r, 0));
+  const then = P.alloc(C, range(c, 4), 10);
+  console.log(`  sixteen pages: filled by two owners ${filled}; one less important by under a BAND refused (${!low}), none let go (${lowLet === 0}); one more important asking four: refused now (${!first}), four of the least important let go and told (${told.length}, all A's: ${told.every((t) => t[0] === 'A')}), cooling ${stats0.cooling}; asked again a frame on: ${cooled1 ? 'given' : 'refused'}; two frames and the GPU's done on: ${then ? 'given' : 'refused'}`);
+  if (!filled) fail('the pool: two owners could not fill it');
+  if (low || lowLet) fail('the pool: one less important by under a BAND was given room, or something let go for it');
+  if (told.length !== 4 || told.some((t) => t[0] !== 'A')) fail(`the pool: what was let go: ${JSON.stringify(told)}`);
+  if (first || cooled1) fail('the pool: a page let go was given out before it had cooled');
+  if (!then) fail('the pool: a page let go was never free again');
+  const outs = told.map((t) => P.table.value.array[t[1]]);   // (what the table says of each page let go, flushed)
+  if (outs.some((x) => x !== NONE)) fail(`the pool: a page let go still mapped in its table: ${outs.join()}`);
+  // (a write across a page's edge: its two halves where the table says)
+  P.write(c * PAGE + PAGE - 8, new Uint32Array([1, 2, 3, 4])); P.flush();
+  const T = P.table.value.array, S = P.store.attr.array, w = PAGE / 4, split = [S[T[c] * w + w - 2], S[T[c] * w + w - 1], S[T[c + 1] * w], S[T[c + 1] * w + 1]].join();
+  console.log(`  a write of four numbers across a page's edge, read where the table says: ${split}`);
+  if (split !== '1,2,3,4') fail(`the pool: a write across a page's edge read back as ${split}`);
+  // (a write across a page's edge: its two halves where the table says)
+  for (let i = 0; i < 400; i++) { const o = [A, Bo, C][i % 3], v0 = [a, b, c][i % 3], k = 1 + (i % 4); if (i % 2) P.alloc(o, range(v0, k), 1 + (i % 7)); else P.free(range(v0, k)); if (i % 5 === 0) { P.flush(); await new Promise((r) => setTimeout(r, 0)); } }
+  console.log(`  four hundred asks and lets go after: the class holds ${(held() - before).toFixed(3)} MB more than before them (its pool and table made once); ${JSON.stringify(P.stats())}`);
+  if (held() !== before) fail(`the pool: what its class holds changed by ${(held() - before).toFixed(3)} MB through its asks: not made once`);
+}
 // (a phone's stores of a class at the dial's rest, MB, more than it holds: geometry's the plants' levels and the rocks',
 // ground's the meadow's rings, src/scatter/grass.js; beside what of it follows no dial, as the census holds it at an
 // iPhone, `bun tools/census.js --buffer=1073741824 --window=390x844@3`, 2026-11-19: geometry 345.3 MB, ground 118.6 MB)
@@ -267,7 +314,7 @@ async function check() {
     });
     console.log(`  the page: ${RES_TIERS} resident tiers filling, a packing ${cost} ms of it: ${cells.join('; ')} (every tier every frame: ${main.most.toFixed(1)} ms, ${main.frames} frames)`);
   }
-  for (const [how, R] of [['the camera jumping', MOVED], ['the camera still', { ...MOVED, visit: Infinity }]]) {
+  for (const [how, R] of [['the camera jumping', MOVED], ['the camera still', { ...MOVED, visit: Infinity }], ['the meadow at a Mac\'s share, thirty times its first room', { ...MOVED, visit: Infinity, means: [MOVED.first * 30] }]]) {
     const places = Number.isFinite(R.visit) ? Math.ceil(R.frames / R.visit) : 1;
     for (const per of [1, 3, 8, 16]) {
       const r = await resident(per, R);
@@ -275,12 +322,14 @@ async function check() {
       if (r.past) fail(`resident over ${per}, ${how}: laid out ${r.past} times for no more found than it held`);
       if (r.short) fail(`resident over ${per}, ${how}: ${r.short} frames its draws showed part of what they had shown, or none`);
       if (r.wrong > 4 * places) fail(`resident over ${per}, ${how}: filled and not known to fit ${r.wrong} frames`);
-      if (r.laid > places) fail(`resident over ${per}, ${how}: laid out ${r.laid} times, at ${places} place${places > 1 ? 's' : ''}`);
+      const grows = R.means.some((m) => m * MARGIN > R.first) ? 1 : 0;   // (a first room smaller than it finds: once more, from the read of its whole fill)
+      if (r.laid > places + grows) fail(`resident over ${per}, ${how}: laid out ${r.laid} times, at ${places} place${places > 1 ? 's' : ''}`);
       const rest = Math.floor(R.cells / per), fill = Math.ceil(R.cells / rest), ramp = Math.ceil(Math.log2(rest / WG)) + 1;   // (a fill at the pace's rest, frames; and its first, from a workgroup's cells a frame, twice as many a frame)
       if (r.waiting > (places + r.laid - 1) * fill + ramp) fail(`resident over ${per}, ${how}: its regions waited ${r.waiting} frames, past a fill a place and one a layout`);   // (a layout empties it: filled anew)
     }
   }
   knobs();   // (last: what the dial at rest rose to holds for every store made after)
+  await pools();   // (and the pools after it, their plan solved from where the knob left the dial)
 }
 await check();
 console.log(failed ? `storecheck: ${failed} failed` : 'storecheck: every store at rest once read, laid out only where it found more than it held or BAND times less');
