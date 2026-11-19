@@ -1,6 +1,6 @@
-// What a thing's far ends show, on the whole (intent 0038): the albedo its impostor's pictures show (their mean,
-// src/detail/impostor.worker.js seenOf), each of its shapes alike, its leaves tinted as its plants are drawn, on the
-// whole (src/scatter/trees.js). The colour the land wears where a stand of it is no longer drawn (src/terrain/layers.js
+// What a thing's far ends show, on the whole (intent 0038): the albedo its impostor's pictures show, their mean as the
+// bake gives them (their least level: src/scatter/trees.js farOf seenIn), each of its shapes alike, its leaves tinted as
+// its plants are drawn, on the whole. The colour the land wears where a stand of it is no longer drawn (src/terrain/layers.js
 // standColours): measured from the pictures as they are baked, or as the browser kept them.
 // A shape's pictures are baked once its finest level has come (a plant of it near: src/scatter/trees.js farOf), or read
 // back as the browser kept them; so an asset shows what its first shape in shows, then, once all are, their mean (its

@@ -74,7 +74,9 @@ export const unstand = (id) => LIST?.unstand(id) ?? false;
     compute pass). */
 function madeMaterial(D, src, lv, Lv, fade, sink, at) {
   const slot = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.slot ?? 0), level = uniform(lv, 'uint'), LU = levelOf(Lv, fade);
-  const from = surfaceBand(Math.min(lv + 1, SURFACE_LEVELS - 1))[0], CUT = lv === 0, PXC = pxCut();
+  // (its level's numbers uniforms: every level but the first, whose cut reads each cluster's own distance, one shader,
+  // one pipeline a pass: seven levels were seven, differing only in these two numbers, 2026-11-19)
+  const from = uniform(surfaceBand(Math.min(lv + 1, SURFACE_LEVELS - 1))[0]), CUT = lv === 0, PXC = pxCut();
   const vW = varyingProperty('vec3', 'mW'), vN = varyingProperty('vec3', 'mN'), vC = varyingProperty('vec3', 'mC'), vY = varyingProperty('float', 'mY'), vK = varyingProperty('vec3', 'mK');   // (vK: its kind, the material its face wears, how worn it is)
   const m = new THREE.NodeMaterial(); m.side = THREE.DoubleSide;
   m.vertexNode = Fn(() => {
@@ -128,7 +130,7 @@ function madeMaterial(D, src, lv, Lv, fade, sink, at) {
     return out;
   })();
   m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)
-  if (src?.placeAt) m.idNode = drawnId(idClass({ family: 'made', level: lv }), src.placeAt(slot));   // (what its pixels' id says: src/core/pass.js)
+  if (src?.placeAt) m.idNode = drawnId(uniform(idClass({ family: 'made', level: lv }), 'uint'), src.placeAt(slot));   // (what its pixels' id says: src/core/pass.js)
   return m;
 }
 

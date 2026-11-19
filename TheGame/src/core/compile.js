@@ -53,7 +53,7 @@ export function shareComputeCompiles(renderer) {
 
 /** The world's source `compiling`: what it waits for to be compiled (src/core/settle.js): the turns it waits for, and
     what a frame asked to be made and is not yet (asked in the frame just drawn, its turn comes after it). */
-export const countCompiles = () => source('compiling', () => turns + asked - done);
+export const countCompiles = () => source('compiling', () => turns + asked - done, { first: true });   // (the first frame shown waits for what it draws to be made)
 
 // ---- made by need ----
 const STATE = new WeakMap(), SAME = new WeakMap();   // what -> Map(pass -> 'asked' | 'made' | 'failed'); a copy -> what it is drawn as
