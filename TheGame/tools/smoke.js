@@ -21,7 +21,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { mock } from './gpu-mock.js';
-import { framesHere, sitesIn, placeAt, placesAt } from './sites.js';
+import { sitesIn, GAME } from './sites.js';
 
 const t0 = performance.now(), failed = [], made = [], bakers = [];
 // (every pipeline built, by its WGSL text, not by object: a render one is a vertex and a fragment stage)
@@ -53,14 +53,15 @@ const SITE = new WeakMap(), ROOT = new URL('..', import.meta.url).pathname;
 // (and every one of them, and every mesh, kept as it is made: what the start makes is built here whether its one frame
 // drew it or not, the lens's blur, say, made with the lens and drawn only out of focus)
 const MADE = { isMaterial: [], isComputeNode: [], isMesh: [] };
-for (const [C, flag] of [[THREE.Material, 'isMaterial'], [THREE.ComputeNode, 'isComputeNode'], [THREE.Mesh, 'isMesh']]) Object.defineProperty(C.prototype, flag, { configurable: true, set(v) { Object.defineProperty(this, flag, { value: v, writable: true, enumerable: true, configurable: true }); SITE.set(this, framesHere(ROOT)); MADE[flag].push(this); } });
+for (const [C, flag] of [[THREE.Material, 'isMaterial'], [THREE.ComputeNode, 'isComputeNode'], [THREE.Mesh, 'isMesh']]) Object.defineProperty(C.prototype, flag, { configurable: true, set(v) { Object.defineProperty(this, flag, { value: v, writable: true, enumerable: true, configurable: true }); MADE[flag].push(this); } });
+// (where each was made, by the place's own name the loader hands it with, tools/glob.js, tools/sites.js: never a stack's)
+globalThis.__made = (id, x) => { if (x && typeof x === 'object' && !SITE.has(x)) SITE.set(x, id); return x; };
 // (the game's own files and every place in them that makes shaders, read once: a frame named by its place's own line;
 // git asked as from here, whatever a hook running it set: inside one, GIT_DIR made it list the repository's from its top)
 const GIT = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^GIT_(DIR|WORK_TREE|INDEX_FILE)$/.test(k)));   // (set empty, git finds no repository at all: the census saw nothing, and said nothing)
-const FILES = spawnSync('git', ['ls-files', '*.js'], { cwd: ROOT, encoding: 'utf8', env: GIT }).stdout.split('\n').filter((f) => f && !/^(tools|node_modules)\//.test(f) && !/worker/i.test(f)), SITES = sitesIn(ROOT, FILES);
-const placeOf = (f) => { const s = placeAt(SITES, f); return s ? `${f.file}:${s.line} ${f.fn}` : `${f.file} ${f.fn}`; };   // (where it is made: its own line, where it is sure)
-const at = (x) => { const F = SITE.get(x) ?? []; return F.length ? ` at ${[placeOf(F[0]), ...F.slice(1, 2).map((f) => `${f.file} ${f.fn}`)].join(' < ')}` : ''; };
-const BUILT = [], built_ = (x) => { const f = SITE.get(x)?.[0]; if (f) BUILT.push(f); };   // (the game's places whose materials and passes were built here: unmade below)
+const FILES = spawnSync('git', ['ls-files', '*.js'], { cwd: ROOT, encoding: 'utf8', env: GIT }).stdout.split('\n').filter((f) => GAME.test(f)), SITES = sitesIn(ROOT, FILES), PLACE = new Map(SITES.map((p) => [p.id, p]));
+const at = (x) => { const id = SITE.get(x); return id ? ` at ${id} ${PLACE.get(id)?.fn ?? ''}`.trimEnd() : ''; };   // (where it is made: its place's own name, and the function it is made in)
+const BUILT = new Set(), built_ = (x) => { const id = SITE.get(x); if (id) BUILT.add(id); };   // (the game's places whose materials and passes were built here: unmade below)
 // (what three says is wrong as it builds, it says by console.error: a failure here, said with the part it was in)
 let part = 'loading';
 const said = console.error;
@@ -208,11 +209,7 @@ if (!SITES.length) failed.push(`the game's code gave no place that makes shaders
 // (known: the gaps of every run, `sites`; and, but with --full, what only --full builds, `full`: --full must build it)
 const KNOWN = new URL('./unbuilt.json', import.meta.url), J = existsSync(KNOWN) ? JSON.parse(readFileSync(KNOWN, 'utf8')) : {}, unmade = unbuilt(), known = MODE.known(J), count = {};
 for (const u of unmade) count[u.at] = (count[u.at] ?? 0) + 1;
-// (judged only on the Bun the repository pins, package.json packageManager, as CI runs it: the places are read from a
-// stack's frames, and another version gives other frames, 2026-11-19: bun 1.4.2 found 13 places never built that 1.4.4
-// built. On another it is said, not judged)
-const PINNED = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).packageManager?.replace(/^bun@/, ''), judged = Bun.version === PINNED, verdict = judged ? failed : { push: (w) => console.log(`smoke: not judged on Bun ${Bun.version} (the repository pins ${PINNED}: package.json packageManager, as CI): ${w}`) };
-for (const [at, n] of Object.entries(count)) if (n > (known[at] ?? 0)) verdict.push(`what the game makes at ${at} the smoke never builds (${n} place${n > 1 ? 's' : ''}: ${unmade.filter((u) => u.at === at).map((u) => `line ${u.line}`).join(', ')}), so the gate never compiles it: make it here, or name it in tools/unbuilt.json with why`);
+for (const [at, n] of Object.entries(count)) if (n > (known[at] ?? 0)) failed.push(`what the game makes at ${at} the smoke never builds (${n} place${n > 1 ? 's' : ''}: ${unmade.filter((u) => u.at === at).map((u) => `line ${u.line}`).join(', ')}), so the gate never compiles it: make it here, or name it in tools/unbuilt.json with why`);
 const closed = Object.entries(known).filter(([at, n]) => (count[at] ?? 0) < n).map(([at]) => at), fullOnly = Object.keys(count).filter((at) => J.full?.[at]);
 const secs = ((performance.now() - t0) / 1000).toFixed(1), P = world.pipelines, summary = { world, library: libraryMade, stress: built.size - before - libraryMade, glsl, secs: +secs, unbuilt: unmade.map((u) => `${u.at} (line ${u.line})`), failed: [...new Set(failed)] };
 keep(summary);
@@ -244,6 +241,5 @@ function keep(s) {
     compile (2026-11-19: the canopy's two passes, src/world/light/canopy.js, never made here, so never built, nor
     compiled by tools/gate/wgsl.js). Each { at: 'file function', line }. */
 function unbuilt() {
-  const built = placesAt(SITES, BUILT);
-  return SITES.filter((x) => !built.has(x)).map((x) => ({ at: `${x.file} ${x.fn}`, line: x.line }));
+  return SITES.filter((x) => !BUILT.has(x.id)).map((x) => ({ at: `${x.file} ${x.fn}`, line: x.line }));
 }
