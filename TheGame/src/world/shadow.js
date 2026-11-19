@@ -167,17 +167,21 @@ export function createShadows(renderer) {
   // depth as the backend keeps it (WebGPU 0..1; WebGL -1..1)
   const webgpu = renderer.coordinateSystem === THREE.WebGPUCoordinateSystem;
   const toMap = new THREE.Matrix4().set(0.5, 0, 0, 0.5, 0, -0.5, 0, 0.5, 0, 0, webgpu ? 1 : 0.5, webgpu ? 0 : 0.5, 0, 0, 0, 1);
-  const up = new THREE.Vector3(), target = new THREE.Vector3(), snap = new THREE.Vector3(), off = new THREE.Vector3(), ahead = new THREE.Vector3();
+  const up = new THREE.Vector3(), target = new THREE.Vector3(), snap = new THREE.Vector3(), off = new THREE.Vector3(), ahead = new THREE.Vector3(), turned = new THREE.Quaternion();
   // a cascade's camera: its box round the eye (the near one a third of its side ahead, where the eye looks), held to
-  // whole texels in the light's view so its edges do not crawl
+  // whole texels in the light's view so its edges do not crawl: its middle taken in the light's own frame about the
+  // world's origin (its turn alone), which stays put as the eye moves and turns, and moved there to the nearest whole
+  // texels. (Till 2026-11-19 it was taken in the cascade's own view, which looks at it: always 0, never moved, and the
+  // grid slid under the world by up to a texel as the eye turned and walked; shadows' edges crawled, on a phone's
+  // coarser texels the more)
   const aim = (k, camera, groundY) => {
     const cam = cams[k], L = U.uSunDir.value, h = half[k], texel = (2 * h) / S, span = spanOf(h);
     cam.left = -h; cam.right = h; cam.top = h; cam.bottom = -h; cam.near = span.near; cam.far = span.far; cam.updateProjectionMatrix();
     camera.getWorldDirection(ahead); ahead.y = 0; if (ahead.lengthSq() > 1e-6) ahead.normalize().multiplyScalar(k === 0 ? h / 3 : 0);
     up.set(Math.abs(L.y) > 0.99 ? 1 : 0, Math.abs(L.y) > 0.99 ? 0 : 1, 0); target.set(camera.position.x + ahead.x, groundY, camera.position.z + ahead.z);
     cam.position.copy(target).addScaledVector(L, span.back); cam.up.copy(up); cam.lookAt(target); cam.updateMatrixWorld();
-    snap.copy(target).applyMatrix4(cam.matrixWorldInverse);
-    off.set(-(snap.x - Math.round(snap.x / texel) * texel), -(snap.y - Math.round(snap.y / texel) * texel), 0).applyQuaternion(cam.quaternion);
+    snap.copy(target).applyQuaternion(turned.copy(cam.quaternion).invert());
+    off.set(Math.round(snap.x / texel) * texel - snap.x, Math.round(snap.y / texel) * texel - snap.y, 0).applyQuaternion(cam.quaternion);
     cam.position.add(off); cam.updateMatrixWorld();
     return cam;
   };

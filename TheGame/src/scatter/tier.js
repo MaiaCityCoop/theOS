@@ -30,6 +30,8 @@ import { onMeasure, dialK, restDial } from '../detail/measure.js';
 import { Resident, WG, BLOCK, MARGIN } from './regions.js';
 import { BAND } from '../detail/error.js';
 import { ownGpuMs, pace, frameShare } from '../core/pace.js';
+import { aboutTo } from '../core/journal.js';
+import { MiB } from '../core/physics.js';
 
 /** The patches a placer that chooses its own may hand a tier at most (the stress stand's plots, the herds, a list's
     runs; and the WebGL 2 fallback's square patches): each tier looks at the nearest of them first. */
@@ -295,6 +297,7 @@ function familyOf(key, slots) {
   F.lay = () => {
     const table = new Uint32Array(Math.max(1, F.rows)); let base = 0;
     for (const t of F.tiers) { t.lay(base, table); base += t.total; }
+    aboutTo(`a family's store laid out again: ${F.tiers.length} tiers, ${base} things`, (base * slots * 16) / MiB);   // (src/core/journal.js; what stands, packed: four numbers of four bytes a row)
     F.packed.make(base * slots); F.offs.make(table.length); F.offs.write(0, table); F.total = base;
     for (const t of F.tiers) { t.C?.resize(t.total, false); t.T.ownRow?.relaid(); }   // (each one's store made again: what it held is gone)
     for (const A of new Set(F.tiers.map((t) => t.C?.arena).filter(Boolean))) A.relayout();

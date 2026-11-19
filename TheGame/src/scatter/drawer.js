@@ -74,6 +74,7 @@ import { byRole } from '../core/registry.js';
 import { bandOf, padOf, sinkInto } from '../detail/handover.js';
 import { dialK, pxKMost, pxOn, farFor, farMost, spanAt, pxAt, dialPxAt, restDial } from '../detail/measure.js';
 import { source } from '../core/settle.js';
+import { pace, ownGpuMs, frameShare } from '../core/pace.js';
 import { workerPool } from '../core/workers.js';
 import { note, makeOwned, gpuIndex, short } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
@@ -118,7 +119,7 @@ let POOL = null;
 /** The recipes' workers (see above): ask(jobs) -> what they made; shared by every drawer, and by the start's outlines
     (src/scatter/trees.js outlinesAhead). */
 export const pool = () => (POOL ||= (() => {
-  const P = workerPool("the recipes' worker", () => new Worker(new URL('./recipes.worker.js', import.meta.url), { type: 'module' }));
+  const P = workerPool("the recipes' worker", () => new Worker(new URL('./recipes.worker.js', import.meta.url), { type: 'module' }), undefined, ({ jobs }) => `${jobs.length > 1 ? `${jobs.length} jobs, ` : ''}${jobs[0]?.[0]} ${Array.isArray(jobs[0]?.[1]) ? `${jobs[0][1].length} kinds` : jobs[0][1] ?? ''}`.trim());
   const ask = (jobs) => P.ask({ jobs }).then(({ out }) => out);
   ask.to = (key, jobs) => P.to(key, { jobs }).then(({ out }) => out);   // (one worker for what is asked of a key: a kind's bands where its hierarchy is kept)
   ask.all = (jobs) => P.all({ id: -1, jobs });
@@ -142,6 +143,9 @@ const skinsOf = (renderer, solid, most, share = 1) => Math.round(Math.min(solid 
     there are, its share (several drawers drawing one zoo: src/scatter/stress.js);
     zoo: its kinds ({ first (the zoo's number
     of its first kind), ALL, STAND, MOVING, lookOfKind (of its k-th kind), fingerprint }: assets/zoo). */
+/** A mesh's bytes in the heap at a room's most (corners 4 bytes, vertices 16: heap.js), never under one: what a frame
+    puts in at the least (arrive, below). */
+const bytesAt = (r) => Math.max(1, (r?.tris ?? 0) * 3 * 4 + (r?.verts ?? 0) * 16);
 export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHADE, SMOOTH, ghost: GHOST = GHOSTING, corners: CORNERS = false, skins: SKINSMAX = 1024, skinShare: SKINSHARE, ground: GROUND = false, soft: SOFT = false, relief: RELIEF = 90, full: FULLMOST = 0, make: MAKE = null, state: STATE = false, thin: THIN = null, still: STILL = false, bands: BANDSOF, table: TABLE, zoo: { first = 0, kinds: KINDS = null, ALL, STAND = ALL, MOVING = 0, lookOfKind, fingerprint } }) {
   // MAKE: another make of vertex than the solids' ({ per: elements a vertex, flat: its meshes' corners are their
   // vertices in order (none shared: drawn by class, no corner is looked up), material(src, level, shadow, at): its
@@ -581,24 +585,37 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   };
   // what the workers have built, put in: before the frame's tiers pack (the first tier's run: below), not after. Put in
   // after, a frame packed by the old table would be drawn by the new one, and every thing of that kind was gone for
-  // that frame: a flicker each time a mesh came or went. A frame sends the GPU one full mesh at most, or a dozen
-  // small ones (under a megabyte); and a level waits until the next coarser one has come and grown: each grows out of the one before it
+  // that frame: a flicker each time a mesh came or went. A frame puts in what the GPU takes of them in its share of the
+  // frame, by their own time on it, as the land's pages are laid (src/core/pace.js: bytes a frame): never less than one
+  // kind's mesh (the unit: its full mesh's room, the most one put is; a mesh goes in whole, and the first of a frame
+  // always), and no more at once than one submission holds (SUBMIT_MS at what a byte took last). A phone's full mesh
+  // of 4 MB went in beside a dozen small ones in one frame, a staging spike where it died. And a level waits until the
+  // next coarser one has come and grown: each grows out of the one before it
   const fulls = [], made = [], all0 = uniform(0);   // its tiers; and those of the full meshes, a draw a slot of the heap
   let grewAt = -1e9;   // (the clock's seconds when a level was last put in: a solid make's grows out of the coarser one for GROW seconds from then)
+  const UNIT = bytesAt(room(0)), UP = pace(UNIT), bytesOf = (m) => m.index.byteLength + m.verts.byteLength;
+  const putIn = (d, now) => {
+    const id = d.k * L + d.l;
+    if (d.mesh.box) kindBox(d.k, boxIn(d.k, d.mesh.box));   // (before it is drawn: its box as large as it)
+    if (H.put(d.k, d.l, d.mesh, round, d.later ? 0 : round, U.uTime.value)) {
+      stats.put++; putAt[id] = now; if (!d.later) grewAt = U.uTime.value; did('meshes'); did('kB', Math.round(bytesOf(d.mesh) / 1024));
+      if (BANDS) { SHORT[id] = d.mesh.short ? 1 : 0; tellShort(); }
+      if (!d.l) for (const T0 of fulls) { for (const at of T0.slotArgs(H.pools[0].slot[d.k])) T0.setLength(at / 5, d.mesh.draw ?? d.mesh.index.length); if (MAKE) { const g = T0.geometries[H.pools[0].slot[d.k]]; g.setIndex(gpuIndex(d.mesh.index, g.index)); } }   // (another make's: its corners are the slot's draw's own list)   // (its slot's draw: as long as it)
+    }
+  };
   const arrive = () => {
-    const now = performance.now();
-    for (let sent = 0, puts = 0, n = done.length; n > 0 && sent < 220000 && puts < 12; n--) {
+    UP.tick();
+    const now = performance.now(), most = Math.min(UP.left, UP.most(UNIT)), puts = [];
+    let bytes = 0;
+    for (let n = done.length; n > 0; n--) {
       const d = done.shift(), id = d.k * L + d.l;
       if (d.l < 2 && wantAt[id] >= round - 1 && (pending.has(id + 1) || now - putAt[id + 1] < GROW * 1000)) { done.push(d); continue; }
+      if (puts.length && bytes + bytesOf(d.mesh) > most) { done.unshift(d); break; }   // (the frame's share taken: the rest at the next)
       pending.delete(id); later.delete(id); asked[d.l]--; if (!d.later && wantAt[id] < round - 1) continue;   // (one asked in the background: put in whenever it comes)
-      sent += d.mesh.draw ?? d.mesh.index.length; puts++;
-      if (d.mesh.box) kindBox(d.k, boxIn(d.k, d.mesh.box));   // (before it is drawn: its box as large as it)
-      if (H.put(d.k, d.l, d.mesh, round, d.later ? 0 : round, U.uTime.value)) {
-        stats.put++; putAt[id] = now; if (!d.later) grewAt = U.uTime.value; did('meshes'); did('kB', Math.round((d.mesh.index.byteLength + d.mesh.verts.byteLength) / 1024));
-        if (BANDS) { SHORT[id] = d.mesh.short ? 1 : 0; tellShort(); }
-        if (!d.l) for (const T0 of fulls) { for (const at of T0.slotArgs(H.pools[0].slot[d.k])) T0.setLength(at / 5, d.mesh.draw ?? d.mesh.index.length); if (MAKE) { const g = T0.geometries[H.pools[0].slot[d.k]]; g.setIndex(gpuIndex(d.mesh.index, g.index)); } }   // (another make's: its corners are the slot's draw's own list)   // (its slot's draw: as long as it)
-      }
+      puts.push(d); bytes += bytesOf(d.mesh);
     }
+    if (!puts.length) return;
+    ownGpuMs(renderer, () => { for (const d of puts) putIn(d, now); })?.then((ms) => UP.measured(bytes, ms, frameShare('geometry'))).catch(() => {});
   };
   // each frame until every kind's coarse levels are in
   const start = () => {

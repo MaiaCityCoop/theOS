@@ -25,6 +25,7 @@ import { BUDGET_MB, GPU_MB, MAC_BUFFER, PHONE_BUFFER, PHONE_SHARE } from './budg
 import { MiB } from './physics.js';
 import { passBegins, timesOn } from './pace.js';
 import { pass as framePass } from './frames.js';
+import { aboutToTake } from './journal.js';
 import { restDial, raiseRest } from '../detail/measure.js';
 
 // ---- a compute pass called by its maker ----
@@ -194,6 +195,13 @@ const MADE = Object.fromEntries(CLASS_NAMES.map((c) => [c, 0])), MADE_PEAK = { .
 /** Whether the game holds less on the GPU than all it may (wholeBudget): what the device made, where it is counted
     (the ledger's gpu); else what the pools note. */
 export const underBudget = () => (R ? made : [...HELD.values()].reduce((n, h) => n + h.gpu, 0)) < wholeBudget() * MB;
+/** Whether `bytes` more of class cls's would keep it and the whole within their budgets (roomOf; the whole's: what the
+    device made, as the ledger counts it, under wholeBudget). */
+export const fits = (cls, bytes) => roomOf(cls) >= bytes && wholeBudget() * MB - (R ? made : [...HELD.values()].reduce((n, h) => n + h.gpu, 0)) >= bytes;
+/** A buffer of `bytes` to read the GPU's work back into (MAP_READ), named `name` and made as class cls's (its bytes its
+    from the first); null where it would take the class or the whole past its budget (fits), or there is no device:
+    what reads back waits for a frame with room. Let it go (destroy) as soon as it is read. */
+export const readBuffer = (cls, bytes, name) => (R && fits(cls, bytes) ? asClass(cls, () => R.backend.device.createBuffer({ label: name, size: bytes, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ })) : null);
 const asClass = (cls, make) => { const was = NOW; NOW = cls in MADE ? cls : 'other'; try { return make(); } finally { NOW = was; } };
 const counted = (o, bytes, kind) => {
   const cls = NOW, key = `${cls}: ${kind}`, K = KINDS.get(key) ?? { cls, kind, bytes: 0, n: 0 };
@@ -227,9 +235,13 @@ let OWNER = null;   // (the part of the frame running: mark's name)
 const labelOf = (d, kind) => (d.label && CLASSED.test(d.label) ? d.label : `${NOW}: ${d.label || (OWNER ? `${OWNER}, ${kind}` : kind)}`);
 const countMade = (dev) => {
   if (dev.__counted) return; dev.__counted = true;
-  const B = dev.createBuffer, T = dev.createTexture;
-  dev.createBuffer = function (d) { const kind = bufferKind(d); return counted(B.call(this, { ...d, label: labelOf(d, kind) }), d.size ?? 0, kind); };
-  dev.createTexture = function (d) { const kind = textureKind(d); return counted(T.call(this, { ...d, label: labelOf(d, kind) }), texBytes(d), kind); };
+  const B = dev.createBuffer, T = dev.createTexture, Q = dev.queue, WB = Q.writeBuffer, WT = Q.writeTexture;
+  // (each, where it is large, written in the journal as it begins: src/core/journal.js; and so is each large upload, a
+  // buffer's (its bytes from dataOffset, or size of them: elements of a typed array, else bytes) and a texture's)
+  dev.createBuffer = function (d) { const kind = bufferKind(d), label = labelOf(d, kind); aboutToTake(d.size ?? 0, () => `a buffer: ${label}`); return counted(B.call(this, { ...d, label }), d.size ?? 0, kind); };
+  dev.createTexture = function (d) { const kind = textureKind(d), label = labelOf(d, kind), bytes = texBytes(d); aboutToTake(bytes, () => `a texture: ${label}`); return counted(T.call(this, { ...d, label }), bytes, kind); };
+  if (WB) Q.writeBuffer = function (buffer, offset, data, at, size) { const per = data?.BYTES_PER_ELEMENT ?? 1; aboutToTake(size != null ? size * per : (data?.byteLength ?? 0) - (at ?? 0) * per, () => `an upload: ${buffer?.label}`); return WB.apply(this, arguments); };
+  if (WT) Q.writeTexture = function (dest, data, layout) { aboutToTake((data?.byteLength ?? 0) - (layout?.offset ?? 0), () => `an upload: ${dest?.texture?.label}`); return WT.apply(this, arguments); };
 };
 /** What a pool is (note, more: owns), named by it: three's textures, a target's (each of its pictures by its own name,
     and its depth) as `class: name`; what of them the device has made called so, and counted under that class and name

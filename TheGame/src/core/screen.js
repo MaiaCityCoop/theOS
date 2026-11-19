@@ -106,6 +106,9 @@ export function createScreen(renderer, { temporal, lens = null }) {
   return {
     get out() { return OUT; }, size: sizeOf,
     get inside() { return ratio(); },
+    /** The inside's pixel ratio as the governor draws it, no more than the canvas's (without the dial's supersampling,
+        ?truth's): the rows the one measure counts (src/detail/measure.js). */
+    get drawn() { return Math.min(OUT, inside); },
     /** The colour's target the world is drawn into. */
     get target() { return T?.turns[turn].main ?? null; },
     /** The inside's pixel ratio: no more than the canvas's. */
