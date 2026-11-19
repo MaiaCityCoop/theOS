@@ -23,6 +23,7 @@ import { storage } from 'three/tsl';
 import { CLASS_NAMES, classOf } from './classes.js';
 import { BUDGET_MB, GPU_MB } from './budget.js';
 import { MiB } from './physics.js';
+import { passBegins, timesOn } from './pace.js';
 
 const HELD = new Map(), MB = MiB, PEAK = Object.fromEntries(CLASS_NAMES.map((c) => [c, 0])), OVER = new Map(), WHOLE = 'the whole GPU';
 let peakAll = 0;
@@ -149,14 +150,14 @@ const countMade = (dev) => {
 let tap = null;
 /** The passes from here on are `name`'s (null: no one's in particular), until the next mark; what the device makes
     meanwhile is the class's they are in. */
-export const mark = (name) => { NOW = name ? classOf(name) : 'other'; if (tap) tap(name); };
+export const mark = (name) => { NOW = name ? classOf(name) : 'other'; passBegins(name); if (tap) tap(name); };   // (and its own time on the GPU taken: src/core/pace.js)
 /** A tool listens to the marks: fn(name), or null to stop. */
 export const listen = (fn) => { tap = fn; };
 
 let R = null;
 /** The renderer whose GPU the lean buffers are made on (src/boot.js, once it has started). Without it (WebGL, a page that
     did not ask): gpuStorage makes an ordinary buffer, kept twice. */
-export const useGPU = (renderer) => { R = renderer?.backend?.device ? renderer : null; if (R) countMade(R.backend.device); };
+export const useGPU = (renderer) => { R = renderer?.backend?.device ? renderer : null; if (R) countMade(R.backend.device); timesOn(R?.backend.device); };
 export const lean = () => !!R;
 /** Whether the renderer's GPU has a WebGPU feature (none without WebGPU). */
 export const hasFeature = (name) => !!R?.backend?.device?.features?.has(name);

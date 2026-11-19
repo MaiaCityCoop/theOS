@@ -84,7 +84,8 @@ export function createScreen(renderer, { temporal, lens = null }) {
   };
   // (what is drawn on its own after the rest of the colour, apart: left out of the scene's draw of it)
   const apartFrom = new Map();
-  const drawn = (pass) => (object, scene, camera, geometry, material, ...rest) => { if (scene !== object && apartFrom.has(object)) return; const m = twin[pass](material); if (m && both(object, material, camera, scene)) drawObject.call(renderer, object, scene, camera, geometry, m, ...rest); };
+  const apartOf = (o) => { for (let p = o; p; p = p.parent) if (apartFrom.has(p)) return p; return null; };   // (the object drawn apart it lies under, or none)
+  const drawn = (pass) => (object, scene, camera, geometry, material, ...rest) => { if (apartFrom.size) { const a = apartOf(object); if (a && a !== scene) return; } const m = twin[pass](material); if (m && both(object, material, camera, scene)) drawObject.call(renderer, object, scene, camera, geometry, m, ...rest); };
   const pre = drawn('pre'), main = drawn('main');
   const clear = new THREE.Color(), sky = new THREE.Color(), prepassed = [];
   return {
@@ -114,9 +115,10 @@ export function createScreen(renderer, { temporal, lens = null }) {
         what they show (src/terrain/pages.js); the water takes what it reflects of the world from the frame before
         (src/terrain/water.js). name: whose its passes are, for a tool's timing (src/core/gpu.js mark). */
     afterPrepass(fn, name = null) { prepassed.push([fn, name]); },
-    /** An object of the scene drawn on its own, after the rest of the colour (into its target and depth), so its own time
-        on the GPU can be taken (src/core/pace.js ownGpuMs): draw(render) calls render(), which draws it. The water,
-        whose march is held to its share of the frame by it (src/terrain/water.js). name: whose its passes are. */
+    /** An object of the scene, and all under it, drawn on its own after the rest of the colour (into its target and
+        depth), so its own time on the GPU can be taken (src/core/pace.js ownGpuMs): draw(render) calls render(), which
+        draws it. Those drawn apart are drawn in the order they were given: the water, whose march is held to its share
+        of the frame by it (src/terrain/water.js), then what lies over it (the city's plan). name: whose its passes are. */
     apart(object, draw, name = null) { apartFrom.set(object, { draw, name }); },
     /** Draw the world as this camera sees it, onto the canvas. */
     render(scene, camera) {
