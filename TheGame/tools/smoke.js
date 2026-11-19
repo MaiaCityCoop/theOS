@@ -21,7 +21,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { mock } from './gpu-mock.js';
-import { sitesIn, GAME } from './sites.js';
+import { sitesIn, gameFiles } from './sites.js';
 
 const t0 = performance.now(), failed = [], made = [], bakers = [];
 // (every pipeline built, by its WGSL text, not by object: a render one is a vertex and a fragment stage)
@@ -58,8 +58,7 @@ for (const [C, flag] of [[THREE.Material, 'isMaterial'], [THREE.ComputeNode, 'is
 globalThis.__made = (id, x) => { if (x && typeof x === 'object' && !SITE.has(x)) SITE.set(x, id); return x; };
 // (the game's own files and every place in them that makes shaders, read once: a frame named by its place's own line;
 // git asked as from here, whatever a hook running it set: inside one, GIT_DIR made it list the repository's from its top)
-const GIT = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^GIT_(DIR|WORK_TREE|INDEX_FILE)$/.test(k)));   // (set empty, git finds no repository at all: the census saw nothing, and said nothing)
-const FILES = spawnSync('git', ['ls-files', '*.js'], { cwd: ROOT, encoding: 'utf8', env: GIT }).stdout.split('\n').filter((f) => GAME.test(f)), SITES = sitesIn(ROOT, FILES), PLACE = new Map(SITES.map((p) => [p.id, p]));
+const FILES = gameFiles(ROOT), SITES = sitesIn(ROOT, FILES), PLACE = new Map(SITES.map((p) => [p.id, p]));
 const at = (x) => { const id = SITE.get(x); return id ? ` at ${id} ${PLACE.get(id)?.fn ?? ''}`.trimEnd() : ''; };   // (where it is made: its place's own name, and the function it is made in)
 const BUILT = new Set(), built_ = (x) => { const id = SITE.get(x); if (id) BUILT.add(id); };   // (the game's places whose materials and passes were built here: unmade below)
 // (what three says is wrong as it builds, it says by console.error: a failure here, said with the part it was in)
