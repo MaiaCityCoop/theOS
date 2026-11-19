@@ -59,6 +59,7 @@ fn enter(
     mut media: ResMut<Assets<ScatteringMedium>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut grass: ResMut<Assets<crate::wind::Grass>>,
     mut images: ResMut<Assets<Image>>,
     mut plain: Query<&mut Visibility, With<Plain>>,
     mut eye: Query<(Entity, &mut Camera), With<Eye>>,
@@ -93,7 +94,9 @@ fn enter(
         SunDisk::EARTH,
         Transform::default(),
     ));
-    commands.spawn((
+    // the parts that cost time, each switchable for measuring: MEADOW_NO_<PART>=1
+    let off = |part: &str| std::env::var_os(format!("MEADOW_NO_{part}")).is_some();
+    let mut cam = commands.spawn((
         GrassWorld,
         MEADOW,
         Camera3d::default(),
@@ -101,27 +104,37 @@ fn enter(
         IsDefaultUiCamera,
         Projection::Perspective(PerspectiveProjection { near: 0.05, far: 20_000.0, ..default() }),
         Transform::from_xyz(0.0, 1.6, 0.0),
-        AtmosphereSettings::default(),
-        AtmosphereEnvironmentMapLight::default(),
         Exposure { ev100: 13.0 },
-        Tonemapping::AcesFitted,
-        Bloom::NATURAL,
+        // AgX keeps greens green and a bright evening sky soft; ACES pushed the grass toward yellow
+        Tonemapping::AgX,
         Msaa::Off,
-        TemporalAntiAliasing::default(),
-        // soft shading where blades crowd and meet the ground
-        ScreenSpaceAmbientOcclusion::default(),
     ));
+    if !off("SKY") {
+        cam.insert((AtmosphereSettings::default(), AtmosphereEnvironmentMapLight::default()));
+    }
+    if !off("BLOOM") {
+        cam.insert(Bloom::NATURAL);
+    }
+    if !off("TAA") {
+        cam.insert(TemporalAntiAliasing::default());
+    }
+    if !off("AO") {
+        cam.insert(ScreenSpaceAmbientOcclusion::default()); // soft shading where blades crowd and meet the ground
+    }
     // the grass: one mesh a chunk, so the view culls it a chunk at a time
-    let blades = materials.add(StandardMaterial {
+    let blades = grass.add(crate::wind::Grass {
+        extension: crate::wind::Wind { params: Vec4::ZERO },
+        base: StandardMaterial {
         base_color: Color::WHITE,
         perceptual_roughness: 0.55,
         reflectance: 0.35,
         // light through the blades: against the sun, grass glows
-        diffuse_transmission: 0.45,
+        diffuse_transmission: if off("GLOW") { 0.0 } else { 0.45 },
         thickness: 0.0,
         double_sided: true,
         cull_mode: None,
         ..default()
+        },
     });
     for (x, z) in crate::grass::chunks().filter(|_| std::env::var_os("MEADOW_NO_GRASS").is_none()) {
         commands.spawn((GrassWorld, MEADOW, Mesh3d(meshes.add(crate::grass::chunk(x, z))), MeshMaterial3d(blades.clone())));

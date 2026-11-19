@@ -10,6 +10,7 @@ mod film;
 mod grass;
 mod meadow;
 mod ui;
+mod wind;
 mod world;
 
 use bevy::prelude::*;
@@ -63,7 +64,7 @@ fn main() {
         ..default()
     }))
     .init_state::<View>()
-    .add_plugins((world::plugin, film::plugin, meadow::plugin));
+    .add_plugins((world::plugin, film::plugin, meadow::plugin, wind::plugin));
     if let Some((m, hour)) = measure {
         app.insert_resource(m).insert_resource(hour).insert_state(View::Meadow).add_systems(Update, meadow::measure);
         app.run();

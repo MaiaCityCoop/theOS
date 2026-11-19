@@ -43,6 +43,14 @@ pictures looked at by Samuel; the navigation self-test, `cargo run -- --navtest`
   dry and seed-headed stems; light through the blades (diffuse transmission 0.45); ambient occlusion; a grass carpet
   texture and a large-scale patchiness on the ground beyond the blades.
 - **The Studio films over the grass world.**
+- **True colour:** AgX tone mapping in place of ACES (which pushed greens to yellow), and the blades' colours set to
+  the linear reflectance of real grass (about 5 to 20 % in green).
+- **Wind:** a material extension on the standard material with its own vertex shaders for the main pass and the
+  prepass (Bevy 0.20's shaders are WESL), so blades, shadows and motion vectors move together. A blade bends by the
+  square of its height; long gusts roll across the field with ripples on them and a flutter per blade. `-` and `=`
+  change the strength. The first strength laid the field flat; it was cut to about a third.
+- **Measuring paused at Samuel's word:** realism first. Each part (sky, shadows, grass, AO, TAA, bloom, glow) can be
+  switched off for a later measurement with `MEADOW_NO_<PART>=1`.
 - **Too slow so far:** 82 to 94 ms (11 to 12 fps) at 1080p with grass, measured while Samuel's own instance ran too.
   Clean numbers and the cost of each part are next.
 
@@ -58,7 +66,8 @@ pictures looked at by Samuel; the navigation self-test, `cargo run -- --navtest`
 
 - [ ] Measure each part's cost alone (sky, shadows, grass, ambient occlusion, TAA, bloom) with no other instance
 - [ ] Bring the Meadow to 30 fps at 1080p, or say what it costs
-- [ ] Wind, then clouds
+- [x] Wind
+- [ ] Clouds
 
 ## Changelog
 

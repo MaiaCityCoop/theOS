@@ -74,8 +74,9 @@ pub fn chunk(cx: i32, cz: i32) -> Mesh {
         let stiff = if seed { 1.0 } else { 0.4 + 0.6 * r(3) };
         // colour: each blade its own green, from deep to light yellow-green; drier where the field is dry
         let t1 = r(7);
-        let green = Vec3::new(0.08, 0.26, 0.04).lerp(Vec3::new(0.24, 0.50, 0.09), t1);
-        let straw = Vec3::new(0.55, 0.47, 0.24);
+        // linear reflectance of real grass: about 5 to 20 % in green, little red and blue
+        let green = Vec3::new(0.030, 0.085, 0.012).lerp(Vec3::new(0.085, 0.200, 0.030), t1);
+        let straw = Vec3::new(0.30, 0.24, 0.10);
         let tip = if seed { straw } else { green.lerp(straw, (dry * dry * 0.9 * r(9)).min(0.5)) * (0.9 + 0.3 * r(10)) };
         let tip_light = tip * Vec3::new(1.15, 1.12, 0.95); // tips catch more light and yellow a little
         let root = tip * 0.28; // the root sits in the shade of its neighbours
@@ -83,7 +84,7 @@ pub fn chunk(cx: i32, cz: i32) -> Mesh {
         for s in 0..=segs {
             let t = s as f32 / segs as f32;
             let p = Vec3::new(x, 0.0, z) + dir * (lean * height * t * t) + Vec3::Y * (height * (t - 0.35 * lean * t * t));
-            let w = if seed && s == segs - 1 { width * 3.5 } else { width * (1.0 - t).powf(0.7) };
+            let w = if seed && s == segs - 1 { width * 1.6 } else { width * (1.0 - t).powf(0.7) };
             let n = (side + Vec3::Y * 1.5).normalize(); // bent toward the sky, so a field is lit evenly
             let c = if t < 0.5 { root.lerp(tip, (t / 0.5).powf(0.8)) } else { tip.lerp(tip_light, (t - 0.5) / 0.5) };
             for k in [-1.0, 1.0] {
@@ -137,9 +138,10 @@ pub fn carpet() -> Image {
         let b = c(0, 1) + (c(1, 1) - c(0, 1)) * sx;
         a + (b - a) * sy
     };
-    let deep = Vec3::new(0.10, 0.24, 0.04);
-    let light = Vec3::new(0.30, 0.46, 0.11);
-    let straw = Vec3::new(0.50, 0.44, 0.22);
+    // the carpet in the blades' own linear colours, a little darker for the shade between them
+    let deep = Vec3::new(0.022, 0.060, 0.010);
+    let light = Vec3::new(0.070, 0.165, 0.025);
+    let straw = Vec3::new(0.26, 0.21, 0.09);
     let mut level: Vec<Vec3> = (0..N * N)
         .map(|i| {
             let (u, v) = ((i % N) as f32 / N as f32, (i / N) as f32 / N as f32);
