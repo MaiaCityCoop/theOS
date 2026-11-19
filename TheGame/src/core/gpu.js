@@ -166,6 +166,13 @@ const MADE = Object.fromEntries(CLASS_NAMES.map((c) => [c, 0])), MADE_PEAK = { .
 /** Whether the game holds less on the GPU than all it may (wholeBudget): what the device made, where it is counted
     (the ledger's gpu); else what the pools note. */
 export const underBudget = () => (R ? made : [...HELD.values()].reduce((n, h) => n + h.gpu, 0)) < wholeBudget() * MB;
+/** Whether `bytes` more of class cls's would keep it and the whole within their budgets (roomOf; the whole's: what the
+    device made, as the ledger counts it, under wholeBudget). */
+export const fits = (cls, bytes) => roomOf(cls) >= bytes && wholeBudget() * MB - (R ? made : [...HELD.values()].reduce((n, h) => n + h.gpu, 0)) >= bytes;
+/** A buffer of `bytes` to read the GPU's work back into (MAP_READ), named `name` and made as class cls's (its bytes its
+    from the first); null where it would take the class or the whole past its budget (fits), or there is no device:
+    what reads back waits for a frame with room. Let it go (destroy) as soon as it is read. */
+export const readBuffer = (cls, bytes, name) => (R && fits(cls, bytes) ? asClass(cls, () => R.backend.device.createBuffer({ label: name, size: bytes, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ })) : null);
 const asClass = (cls, make) => { const was = NOW; NOW = cls in MADE ? cls : 'other'; try { return make(); } finally { NOW = was; } };
 const counted = (o, bytes, kind) => {
   const cls = NOW, key = `${cls}: ${kind}`, K = KINDS.get(key) ?? { cls, kind, bytes: 0, n: 0 };
