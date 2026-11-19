@@ -29,6 +29,7 @@ import { onMeasure, dialK } from '../detail/measure.js';
 import { Resident, WG, BLOCK, MARGIN } from './regions.js';
 import { BAND } from '../detail/error.js';
 import { FRAME_MS_BY_CLASS } from '../core/budget.js';
+import { ownGpuMs, pace } from '../core/pace.js';
 
 /** The patches a placer that chooses its own may hand a tier at most (the stress stand's plots, the herds, a list's
     runs; and the WebGL 2 fallback's square patches): each tier looks at the nearest of them first. */
@@ -482,30 +483,21 @@ export function ready() {
 // last frame), over as many frames as it takes. What it takes the place of (what it held before, the regions it is
 // joined from or split out of) is kept till it is all visited: nothing packed is let go before what replaces it is
 // there. The world is not complete till every tier has visited all it waits on (src/core/settle.js).
-// The GPU's pace is measured, not reckoned (it differs a device to the next): each packing's own time on the GPU (from
-// when it is handed over, or when the GPU has done all handed before it, whichever is later, to when it is done), and
-// the frame's cells follow it to geometry's share (shared by the tiers that pack in a frame): fewer where it took
-// longer, at most twice as many a frame where it took less. Where a packing lets nothing go (a region filled in, a
-// piece at a time) it only adds to the store it holds: nothing is copied forward.
+// The GPU's pace is measured, not reckoned (src/core/pace.js, as the land's pages are laid): each packing's own time on
+// the GPU, and the frame's cells follow it to geometry's share (shared by the tiers that pack in a frame): fewer where
+// it took longer, at most twice as many a frame where it took less. Where a packing lets nothing go (a region filled
+// in, a piece at a time) it only adds to the store it holds: nothing is copied forward.
 // From one piece a tier, a workgroup's cells, at the start.
-const FRAME = { cells: WG, left: WG };   // (and, each frame: how many tiers asked for cells the frame before, how many ask in this one, the frame's number)
+const CELLS = pace(WG), FRAME = { asked: 1, asking: 0 };   // (the frame's cells; and how many tiers asked for cells the frame before, how many ask in this one)
 /** Each frame, before any tier packs (src/scatter/index.js select): the frame's cells to share out. */
-export const tick = () => { FRAME.left = FRAME.cells; FRAME.asked = Math.max(1, FRAME.asking ?? 0); FRAME.asking = 0; FRAME.frame = (FRAME.frame ?? 0) + 1; };
+export const tick = () => { CELLS.tick(); FRAME.asked = Math.max(1, FRAME.asking); FRAME.asking = 0; };
 /** A tier's share of this frame's cells. */
-const shareOf = () => FRAME.cells / FRAME.asked;
-/** A packing handed to the GPU (submit()), its own time measured: the frame's cells follow it (above). Without a queue
-    to ask (the CPU's stand-in, tools/gpu-mock.js), handed over and not measured. */
+const shareOf = () => CELLS.n / FRAME.asked;
+/** A packing of `cells` handed to the GPU (submit()), its own time measured: the frame's cells follow it (above).
+    Without a queue to ask (the CPU's stand-in, tools/gpu-mock.js), handed over and not measured. */
 const timed = (renderer, cells, submit) => {
-  const q = renderer.backend?.device?.queue;
-  if (!q?.onSubmittedWorkDone || !cells) { submit(); return; }
-  const before = q.onSubmittedWorkDone().then(() => performance.now()), t0 = performance.now();
-  submit();
-  const after = q.onSubmittedWorkDone().then(() => performance.now());
-  Promise.all([before, after]).then(([d0, d1]) => {
-    const own = Math.max(1e-3, d1 - Math.max(t0, d0)), k = FRAME_MS_BY_CLASS.geometry / FRAME.asked / own;   // (geometry's share, shared by the tiers packing in a frame)
-    if (k < 1) FRAME.cells = Math.max(WG, Math.round(FRAME.cells * k));
-    else if (FRAME.grew !== FRAME.frame) { FRAME.cells = Math.round(FRAME.cells * Math.min(2, k)); FRAME.grew = FRAME.frame; }   // (more at most once a frame, twice as many at most)
-  }).catch(() => {});
+  if (!cells) { submit(); return; }
+  ownGpuMs(renderer, submit)?.then((ms) => CELLS.measured(cells, ms, FRAME_MS_BY_CLASS.geometry)).catch(() => {});
 };
 /** Whether two regions (squares of cells) overlap. */
 const overlaps = (A, B) => A.bi * BLOCK < B.bi * BLOCK + B.w && B.bi * BLOCK < A.bi * BLOCK + A.w && A.bj * BLOCK < B.bj * BLOCK + B.w && B.bj * BLOCK < A.bj * BLOCK + A.w;
@@ -578,7 +570,7 @@ function residentOf(T, me, s, ends) {
   // (this frame's visits: the nearest regions first, a piece at a time, within its share of the frame's cells (a piece
   // at least, where it has any)), into the entries; sc: the lens's distances' scale
   const visits = (sc) => {
-    const E = G.E.array, X = G.X.array, most = Math.min(FRAME.left, shareOf()); let n = 0, cells = 0;
+    const E = G.E.array, X = G.X.array, most = Math.min(CELLS.left, shareOf()); let n = 0, cells = 0;
     if (waits.size) FRAME.asking++;
     for (const w of [...waits.values()].sort((a, b) => a.L.dn - b.L.dn)) {
       if (!w.next) { w.side = w.L.w; while (w.side > BLOCK && w.side * w.side > shareOf()) w.side /= 2; }   // (not begun: in pieces as large as its share lets now)
@@ -592,7 +584,7 @@ function residentOf(T, me, s, ends) {
       }
       if (w.next === per * per) { waits.delete(L.key); release(w); }   // (all of it visited: what it takes the place of let go)
     }
-    FRAME.left -= cells;
+    CELLS.left -= cells;
     return { n, cells };
   };
   // (a packing: its regions' pieces visited, what is let go dropped, then the gather; g: what the gather was keyed on)
