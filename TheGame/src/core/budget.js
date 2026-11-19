@@ -9,11 +9,6 @@ export const FRAME_MS = 12;
 /** The frame rate the game holds at all times: 1000 / FPS ms a frame in all, FRAME_MS of it the GPU's (tools/gate.js:
     no frame longer in motion). unit: frames a second. source: Intents/0038, Define, gate 5 (60 fps at all times) */
 export const FPS = 60;
-/** The rows the world is drawn at where FRAME_MS holds, laid on the output by the temporal pass: where the gate draws
-    its stills and its bench (tools/gate.js INSIDE: 4/3 of the output's 1080), and what the measure's pixels are counted
-    at (tools/gate/pop.js). unit: pixels (rows). source: Intents/0038, Define, the budget (12 ms of GPU at a 4K output
-    from about 1440p; the output 1080 since 2026-11-18, drawn from the same rows) */
-export const DRAWN_ROWS = 1440;
 /** The hard gate on memory: the whole browser, every process of it (the page, the GPU's, the browser's own; tools/gate.js
     paths measures it so). unit: bytes. source: Intents/0038, Define (the hard gates) */
 export const MEMORY = 8e9;
