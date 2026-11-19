@@ -12,8 +12,9 @@
 // One tab of a browser on a fresh profile, closed after; at most 1920 × 1080 at scale 1: a light check, under the GPU's
 // lock (tools/gpu/lock.js take). The dev server must be running (bun run dev; GATE_URL or --url).
 import { chromium, webkit } from 'playwright-core';
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { webkitAt } from './browsers.js';
+import { OUTPUT } from '../src/core/budget.js';
 import { CHECK_SIZE } from './gate/views.js';
 import { VIEWS } from './bench.js';
 import RIG from '../camera/rig.js';
@@ -22,7 +23,7 @@ import { WALKER } from '../world/scale.js';
 const arg = (name, dflt) => { const i = process.argv.indexOf(`--${name}`); return i > 0 && process.argv[i + 1] ? process.argv[i + 1] : dflt; };
 const BASE = arg('url', process.env.GATE_URL || 'http://localhost:5180/game/'), kind = arg('browser', 'webkit');
 const [W, H] = arg('size', CHECK_SIZE).split('x').map(Number);
-if (!(W > 0 && H > 0 && W * H <= 1920 * 1080)) throw new Error(`--size ${W}x${H}: at most 1920x1080 (a light check)`);
+if (!(W > 0 && H > 0 && W * H <= OUTPUT.width * OUTPUT.height)) throw new Error(`--size ${W}x${H}: at most the output, ${OUTPUT.width}x${OUTPUT.height} (a light check)`);
 const F = VIEWS.find((v) => v.name === 'pine forest, eye level'), yaw = +arg('yaw', F.yaw);
 const ahead = [-Math.sin(yaw), -Math.cos(yaw)];   // (the rig looks along (−sin, −cos) of its yaw)
 const [tx, tz] = arg('at', `${F.x + ahead[0] * 12},${F.z + ahead[1] * 12}`).split(',').map(Number);
@@ -73,9 +74,7 @@ async function look({ d, up, metres, side }) {
 }
 
 // ---- the run ----
-// (WebKit: the newest one installed, as the cut's check takes it, tools/gate/cut.js)
-const CACHE = `${homedir()}/Library/Caches/ms-playwright`, WK = existsSync(CACHE) ? readdirSync(CACHE).filter((d) => d.startsWith('webkit-')).sort().map((d) => `${CACHE}/${d}/pw_run.sh`).filter(existsSync).pop() : null;
-const browser = kind === 'webkit' ? await webkit.launch(WK ? { executablePath: WK } : {}) : await chromium.launch({ channel: 'chrome', args: ['--enable-unsafe-webgpu'] });
+const browser = kind === 'webkit' ? await webkit.launch(webkitAt()) : await chromium.launch({ channel: 'chrome', args: ['--enable-unsafe-webgpu'] });
 const said = [];
 try {
   const page = await (await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 })).newPage();

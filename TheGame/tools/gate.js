@@ -69,6 +69,10 @@
 // names the run), and lets it go after; meanwhile the page is held on the gate's clock (tools/gate/clock.js) and draws
 // nothing. A gate run under `bun tools/gpu/lock.js take <owner> -- …` holds the lock whole.
 //
+// A measure (device, walks, bench, compile, paths, all, the hour) is taken only on a machine with the memory for it
+// (tools/gate/machine.js onMachine): where its turn starts with less free than the game's GPU budget, or the swap grows
+// while it runs, it says "not measured" and why, keeps nothing, and ends with 75 (EX_TEMPFAIL: run it again later).
+//
 // It never waits on a timer for the picture: once the camera has moved it waits for window.__game.settle() (src/core/
 // settle.js), which resolves when nothing streams or builds for that camera and the picture built over time has come to
 // rest. A page without it is an error, and says so. The screen is the output (src/core/budget.js OUTPUT, 1920×1080 since
@@ -86,11 +90,12 @@ import { join } from 'node:path';
 import { VIEWS, PATHS, HOURLY } from './gate/views.js';
 import RIG from '../camera/rig.js';
 import { FIRST_FRAME } from '../src/core/marks.js';
-import { CLASSES, classOf, CLASS_NAMES } from './bench.js';
+import { CLASSES, classOf, CLASS_NAMES, memoryNow } from './bench.js';
 import { FRAME_MS as BUDGET, MEMORY, GPU_MB, BUDGET_MB, FRAME_MS_BY_CLASS, OUTPUT } from '../src/core/budget.js';
 import { flip, tiles, heat, readPNG, writePNG, PPD } from './gate/flip.js';
 import { stepper } from './gate/clock.js';
 import { locked, unlock } from './gpu/lock.js';
+import { onMachine, machineLine, head } from './gate/machine.js';
 import { tiled } from './gate/tiles.js';
 import { sideBySide } from './gate/sheet.js';
 import { guard, closeHard } from './gate/guard.js';
@@ -154,14 +159,14 @@ async function settled({ wait, at, keep = false }) {
   // from before the world's ready until it has settled)
   let done = false, said;
   if (C?.on) (async () => { while (!done) { await C.step(C.last); await new Promise((r) => setTimeout(r, 0)); } })();
-  // (what held it, and till when: every 2 s, what each source still had out, src/core/settle.js waiting(); a source's
-  // `until` is the last second it had anything out, its `most` the most it had at once)
-  const held = {}, R = performance.getEntriesByType('resource').map((e) => e.name), path = R.filter((n) => n.includes('src/core/settle.js')).at(-1);
-  const look = path ? import(path).then(({ waiting }) => setInterval(() => { const t = Math.round((Date.now() - t0) / 1000); for (const [k, n] of Object.entries(waiting())) { const h = (held[k] ||= { from: t, until: t, most: 0 }); h.until = t; h.most = Math.max(h.most, n); } }, 2000)) : null;
+  // (what held it, and till when: every 2 s, what each source still had out, src/core/settle.js waiting() as the game
+  // gives it, window.__game.waiting; a source's `until` is the last second it had anything out, its `most` the most it
+  // had at once)
+  const held = {}, look = setInterval(() => { const t = Math.round((Date.now() - t0) / 1000); let w = {}; try { w = window.__game?.waiting?.() ?? {}; } catch (e) { w = { [`waiting() threw: ${e.message}`]: 1 }; } for (const [k, n] of Object.entries(w)) { const h = (held[k] ||= { from: t, until: t, most: 0 }); h.until = t; h.most = Math.max(h.most, n); } }, 2000);
   let ok = true;
   try { said = await Promise.race([Promise.resolve(s.ready).then(() => s.settle({ timeout: wait })), late]); }
   catch (e) { if (!keep) throw e; ok = false; said = String(e?.message ?? e); }   // (keep: what ran out of its wait is said and measured, not the end)
-  finally { done = true; if (look) clearInterval(await look); }
+  finally { done = true; clearInterval(look); }
   let kept = null; try { kept = JSON.parse(JSON.stringify(said ?? null)); } catch {}
   return { ms: Date.now() - t0, said: kept, now: Math.round(performance.now()), held, settled: ok };
 }
@@ -330,10 +335,6 @@ async function noise(chrome, tag, opt) {
   return await diff(a, b, opt);
 }
 
-/** The GPU's memory by class at its most (the game's one ledger, window.__game.memory(): src/core/gpu.js; the budgets:
-    src/core/budget.js), MB, a column a view or path (`by`: { name: memoryNow() }): each class beside its budget (what
-    the device made for its code), all of it beside the whole's (GPU_MB), what the pools note and what none does. A class
-    or the whole over its budget is said, and every make that took one past it (the ledger's over). */
 /** The GPU's memory from the game's one ledger (window.__game.memory(), src/core/gpu.js), in a line: at its most against
     the whole's budget, and every make that took a class or the whole past its budget (the hour fails on any). */
 const pastBudget = (M) => {
@@ -346,6 +347,10 @@ const memoryOn = (smoked) => {
   const M = smoked?.memory, fails = (M?.over ?? []).map((o) => `${o.who} with ${o.by}`);
   return { fails, line: fails.length ? `**The GPU's memory went past its budget, so the hour fails:** ${pastBudget(M)}` : `The GPU's memory: ${pastBudget(M)}` };
 };
+/** The GPU's memory by class at its most (the game's one ledger, window.__game.memory(): src/core/gpu.js; the budgets:
+    src/core/budget.js), MB, a column a view or path (`by`: { name: memoryNow() }): each class beside its budget (what
+    the device made for its code), all of it beside the whole's (GPU_MB), what the pools note and what none does. A class
+    or the whole over its budget is said, and every make that took one past it (the ledger's over). */
 function memoryTable(by) {
   const V = Object.keys(by).filter((k) => by[k]); if (!V.length) return;
   const W = 13, head = (i) => V.map((v) => (v.split(', ')[i] ?? '').padStart(W)).join(''), over = [], most = (x) => x?.peak ?? x?.gpu;
@@ -575,7 +580,7 @@ async function travel(ctx, list, mem) {
       const g = await page.evaluate(settled, { wait: WAIT, at: `the start of ${p.name}`, keep: KEEP.on });
       if (g.settled === false) { out.paths[p.name] = { notSettled: g.said }; continue; }
       mem.phase = p.name;
-      out.paths[p.name] = { secs: c.secs, ...told(await page.evaluate(ride, { fly: !!p.flyby })), memory: await page.evaluate(() => { const L = window.__game?.memory?.(); return L ? { classes: L.classes, gpu: L.gpu, peak: L.peak, budget: L.budget, noted: L.noted, unnoted: L.unnoted, over: L.over } : null; }) };   // (the GPU's memory by class as the path ends: the game's one ledger, as tools/bench.js memoryNow reads it)
+      out.paths[p.name] = { secs: c.secs, ...told(await page.evaluate(ride, { fly: !!p.flyby })), memory: await page.evaluate(memoryNow) };   // (the GPU's memory by class as the path ends: the game's one ledger, as tools/bench.js memoryNow reads it)
     }
     out.first = await page.evaluate(firstFrame, { name: FIRST_FRAME });   // (by now long set: read once the paths are ridden)
   } finally { out.errors = errors; said(errors); await close(); }
@@ -663,9 +668,7 @@ const walkLines = (W) => Object.entries(W ?? {}).map(([w, r]) => (r.notSettled ?
 async function hourly(opt) {
   const tag = commit(), views = opt.views ?? HOURLY.join(','), at = `${OUT}hourly/`;
   KEEP.on = true;   // (a start or a view that does not settle is said on the board, and what settles is measured all the same)
-  const M = await import('./gate/machine.js'), before = M.machine(), short = M.unfit(before);   // (a machine short of memory measures its disk: the hour is not measured)
-  if (short) { save(`${at}${tag}/summary.json`, { tag, when: new Date().toISOString(), notMeasured: short, host: { before } }); return board(tag, at); }
-  const run = await locked('the hour', async () => {
+  const run = await locked('the hour', () => onMachine(async () => {   // (a machine short of memory measures its disk: the hour is not measured)
     const dev = await (await import('./gate/device.js')).device(BASE);   // (first: the device on the machine the 8 GB gate is for)
     const chrome = await launch({ ...opt, fresh: true });
     let s, a, t, b, c, w;
@@ -676,8 +679,7 @@ async function hourly(opt) {
     } finally { await closeHard(chrome, chrome.gateDir); }
     const unsettled = (set) => Object.entries(JSON.parse(readFileSync(`${OUT}${set}/gate.json`, 'utf8')).views ?? {}).filter(([, r]) => r.notSettled).map(([k]) => k);
     return { tag, when: new Date().toISOString(), out: OUTPUT, device: dev, walks: w, start: s.start, smoke: s, stills: { lod: unsettled(a), truth: unsettled(t) }, flip: await diff(a, t, { ...opt, views }).catch((e) => ({ none: e.message })), bench: b, compile: c, paths: await paths({ ...opt, paths: opt.paths ?? 'walk,zoom' }) };
-  });
-  run.host = { before, after: M.machine() }; run.notMeasured = M.unfit(before, run.host.after);
+  }, (o) => ({ tag, when: new Date().toISOString(), ...o })));
   save(`${at}${tag}/summary.json`, run);
   if (run.device?.pass === false) process.exitCode = 1;   // (a lost device fails the hour)
   return board(tag, at);
@@ -692,7 +694,7 @@ async function board(tag, at) {
   const out = [...(R.stills?.lod ?? []).map((v) => `${v} (stills)`), ...(R.stills?.truth ?? []).map((v) => `${v} (?truth)`), ...Object.keys(R.bench?.unsettled ?? {}).map((v) => `${v} (bench)`), ...['cold', 'warm'].flatMap((c) => Object.entries(R.paths?.[c]?.paths ?? {}).filter(([, r]) => r.notSettled).map(([k]) => `${k} (paths, ${c})`))];
   const mem = memoryOn(R.smoke);
   const md = [`# The hour on main, ${tag} (${OUTPUT.width} × ${OUTPUT.height}), ${new Date().toISOString().slice(0, 16)}`, '',
-    ...(await import('./gate/machine.js')).head(R, (await import('./gate/device.js')).readyLine),   // (first: was it measured, did the game come at all, the machine)
+    ...head(R, (await import('./gate/device.js')).readyLine),   // (first: was it measured, did the game come at all, the machine)
     mem.line,
     ...(await import('./gate/device.js')).lines(R.device), '',
     S?.settled === false ? `**The start did not settle** in ${(S.ms / 1000).toFixed(0)} s: ${String(S.said).slice(0, 300)}` : `The start settled in ${((S?.ms ?? 0) / 1000).toFixed(1)} s.`,
@@ -732,20 +734,24 @@ for (let i = 0; i < args.length; i++) {
   else if (FLAGS.has(a.slice(2))) opt[a.slice(2)] = true;
   else opt[a.slice(2)] = args[++i];
 }
-const WITH = { walks: (c) => locked('walks', () => walks(c)), smoke: (c) => locked('smoke', () => smoke(c, { views: opt.views ?? HOURLY.join(',') })), stills: (c) => stills(c, opt), noise: (c) => noise(c, pos[0], opt), bench: (c) => import('./gate/ceilings.js').then((C) => C.rule(() => locked('bench', () => bench(c, opt)), opt, commit())), compile: (c) => locked('compile', () => compile(c, opt)) };
+/** fn, a measure, run in its turn on the GPU and on the machine (onMachine: not run where the machine is short of memory). */
+const measured = (what, fn) => locked(what, () => onMachine(fn));
+const WITH = { walks: (c) => measured('walks', () => walks(c)), smoke: (c) => locked('smoke', () => smoke(c, { views: opt.views ?? HOURLY.join(',') })), stills: (c) => stills(c, opt), noise: (c) => noise(c, pos[0], opt), bench: (c) => import('./gate/ceilings.js').then((C) => C.rule(() => measured('bench', () => bench(c, opt)), opt, commit())), compile: (c) => measured('compile', () => compile(c, opt)) };
 try {
   let r;
   if (cmd === 'diff') await diff(pos[0], pos[1], opt);
-  else if (cmd === 'paths') r = await locked('paths', () => paths(opt));   // (timed: held whole)
+  else if (cmd === 'paths') r = await measured('paths', () => paths(opt));   // (timed: held whole)
   else if (cmd === 'motion') r = await (await import('./gate/motion.js')).motion(opt, { OUT, BASE, SCREEN, INSIDE, WAIT, open, prepare, course, launch, pick, commit, save, rank, said, f });
   else if (cmd === 'real') { const real = async () => (await import('./gate/real.js')).real(pos[0], opt); r = await ((opt.device ?? 'cpu') === 'cpu' ? real() : locked('real', real)); }   // (on a GPU, mps: in its turn)
-  else if (cmd === 'all') await all(opt);
+  else if (cmd === 'all') r = await onMachine(() => all(opt));   // (its parts take their turns one by one: the machine read over the whole)
   else if (cmd === 'hourly') { r = await hourly(opt); if (r?.fails?.length) process.exitCode = 1; }   // (the hour fails where the GPU's memory went past a budget)
-  else if (cmd === 'device') r = await locked('device', async () => (await import('./gate/device.js')).device(BASE, opt.secs ? { secs: +opt.secs } : {}));
+  else if (cmd === 'device') r = await measured('device', async () => (await import('./gate/device.js')).device(BASE, opt.secs ? { secs: +opt.secs } : {}));
   else if (WITH[cmd]) { const chrome = await launch(opt); try { r = await WITH[cmd](chrome); } finally { await closeHard(chrome, chrome.gateDir); } }
   else { console.log('bun tools/gate.js device | walks | smoke | stills | diff | noise | bench | compile | paths | motion | real | all | hourly: see the top of tools/gate.js'); process.exitCode = cmd ? 1 : 0; }
   if (cmd === 'smoke' && r?.memory?.over?.length) process.exitCode = 1;   // (the GPU smoke too)
-  if (cmd === 'device' && !r.pass) process.exitCode = 1;
-  if (['bench', 'compile', 'paths', 'device'].includes(cmd)) { mkdirSync(OUT, { recursive: true }); save(`${OUT}${cmd}.json`, r); }   // (the numbers kept: .gate/bench.json and so on)
+  if (cmd === 'device' && r.pass === false) process.exitCode = 1;
+  if (['bench', 'compile', 'paths', 'device'].includes(cmd) && r.host?.after) { mkdirSync(OUT, { recursive: true }); save(`${OUT}${cmd}.json`, r); }   // (the numbers kept, where it ran: .gate/bench.json and so on)
+  if (r?.host) console.log(`  ${machineLine(r.host.before, r.host.after)}`);
+  if (r?.notMeasured) { console.log(`gate: not measured: ${r.notMeasured}.`); process.exitCode = 75; }   // (75, EX_TEMPFAIL: run it again once the machine has the memory)
 } catch (e) { console.error(`gate: ${e.message}`); process.exitCode = 1; }
 finally { for (const d of FRESH) rmSync(d, { recursive: true, force: true }); }

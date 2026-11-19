@@ -7,11 +7,12 @@
 //
 //   gA  rgba16f    its colour as its light multiplies it (rgb), and how far it lies from the eye (metres: its point is
 //                  that far back along the pixel's ray)
-//   gB  rg32uint   its way (octahedral, 16 bits each way); wrap (7 bits), shines (7), ao (8), clumps (6), its part (2:
-//                  what of its family it is) and its family (2: whose light it takes; 0, none)
+//   gB  rg32uint   its way (octahedral, 12 bits each way) and its highlight's own share (8 bits, its root: light.js
+//                  glintOf, worked out where its gloss is read); wrap (7 bits), shines (7), ao (8), clumps (6), its
+//                  part (2: what of its family it is) and its family (2: whose light it takes; 0, none)
 // A family says its light once (lightFamily), and the pass lights each of its pixels by it.
 import * as THREE from 'three/webgpu';
-import { Fn, If, Discard, float, uint, vec2, vec3, vec4, uvec2, ivec2, abs, sign, clamp, normalize, length, uniform, texture, property, screenCoordinate } from 'three/tsl';
+import { Fn, If, Discard, float, uint, vec2, vec3, vec4, uvec2, ivec2, abs, sign, clamp, normalize, length, uniform, texture, property, screenCoordinate, sqrt } from 'three/tsl';
 import { U } from './uniforms.js';
 import { octDir } from '../scatter/unpack.js';
 
@@ -34,17 +35,18 @@ const octOf = (n) => { const a = n.div(abs(n.x).add(abs(n.y)).add(abs(n.z)).max(
 const unorm = (v, bits, at) => uint(clamp(v, 0, 1).mul(2 ** bits - 1).add(0.5)).shiftLeft(uint(at));
 const field = (x, at, bits) => float(x.shiftRight(uint(at)).bitAnd(uint(2 ** bits - 1))).div(2 ** bits - 1);
 /** What a pixel of `family` (FAMILY's) writes in its prepass: part (0 … 3: what of its family it is), colour (vec3: its
-    colour as its light multiplies it), n (its way), w (where it is, the world), ao, wrap, shines, clumps (0 … 1). */
-export const gWrite = ({ family, part, colour, n, w, ao, wrap, shines, clumps }) => {
+    colour as its light multiplies it), n (its way), w (where it is, the world), ao, wrap, shines, clumps (0 … 1), glint
+    (its highlight's own share, 0 … 1: light.js glintOf; none, 0). */
+export const gWrite = ({ family, part, colour, n, w, ao, wrap, shines, clumps, glint = 0 }) => {
   const o = octOf(normalize(n)).mul(0.5).add(0.5);
   GA.assign(vec4(colour, length(U.uCam.sub(w))));
-  GB.assign(uvec2(unorm(o.x, 16, 0).bitOr(unorm(o.y, 16, 16)), unorm(wrap, 7, 0).bitOr(unorm(shines, 7, 7)).bitOr(unorm(ao, 8, 14)).bitOr(unorm(clumps, 6, 22)).bitOr(uint(part).shiftLeft(uint(28))).bitOr(uint(family).shiftLeft(uint(30)))));
+  GB.assign(uvec2(unorm(o.x, 12, 0).bitOr(unorm(o.y, 12, 12)).bitOr(unorm(sqrt(float(glint)), 8, 24)), unorm(wrap, 7, 0).bitOr(unorm(shines, 7, 7)).bitOr(unorm(ao, 8, 14)).bitOr(unorm(clumps, 6, 22)).bitOr(uint(part).shiftLeft(uint(28))).bitOr(uint(family).shiftLeft(uint(30)))));
 };
 
 const FAMILIES = new Map();
 let PASS = null;
-/** Family `code` (FAMILY's) lit by light(f): f { colour, w (where it is), Ve (the way to the eye), n, ao, wrap, shines,
-    clumps, part (a uint node) } -> vec4, its colour for the screen (light.js toScreen). Said once; one said after the
+/** Family `code` (FAMILY's) lit by light(f): f { colour, w (where it is), Ve (the way to the eye), n, glint, ao, wrap,
+    shines, clumps, part (a uint node) } -> vec4, its colour for the screen (light.js toScreen). Said once; one said after the
     pass was made has it made again, with it. */
 export const lightFamily = (code, light) => {
   FAMILIES.set(code, light);
@@ -65,7 +67,7 @@ export const lightPass = () => {
     const dir = normalize(eyeWorld.mul(vec4(r.xyz.div(r.w), 0)).xyz).toVar();
     const f = {
       colour: a.rgb, w: U.uCam.add(dir.mul(a.w)).toVar(), Ve: dir.negate(),
-      n: normalize(octDir(field(b.x, 0, 16).mul(2).sub(1), field(b.x, 16, 16).mul(2).sub(1))).toVar(),
+      n: normalize(octDir(field(b.x, 0, 12).mul(2).sub(1), field(b.x, 12, 12).mul(2).sub(1))).toVar(), glint: field(b.x, 24, 8).pow(2),
       wrap: field(b.y, 0, 7), shines: field(b.y, 7, 7), ao: field(b.y, 14, 8), clumps: field(b.y, 22, 6), part: b.y.shiftRight(uint(28)).bitAnd(uint(3)),
     };
     const out = vec4(0, 0, 0, 1).toVar();

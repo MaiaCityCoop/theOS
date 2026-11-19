@@ -8,13 +8,14 @@
 // its picture's own (src/detail/impostor.js facingOf: facing the picture, in its frame, every texel of a picture in the
 // one frame), so the mean of a few is a mean of ways.
 // Plain JS: { id, colour, data, leaf, side, cell, least } is answered { id, levels: [{ colour, data, leaf, n }] }.
-import { facingCode as enc, facingWay as dec } from './atlas.js';   // (a texel's way and its two numbers: impostor.js facingEnc's twins)
+import { facingCode as enc, facingWay as dec, PICTURES } from './atlas.js';   // (a texel's way and its two numbers: impostor.js facingEnc's twins)
+const [CS, DS, LS] = PICTURES.map((P) => P.channels.length);   // (each picture's numbers a texel: its colour's, its data's, its leaf's)
 const N3 = [0, 0, 0], E2 = [0, 0];
 /** A level as floats a texel: a (cover), c (rgb), m (its way), d (depth), w (light), f (how much of it is leaf). */
 const level = (n) => ({ n, a: new Float32Array(n * n), c: new Float32Array(n * n * 3), m: new Float32Array(n * n * 3), d: new Float32Array(n * n), w: new Float32Array(n * n), f: new Float32Array(n * n) });
 function floatsOf(colour, data, leaf, n) {
   const L = level(n);
-  for (let i = 0; i < n * n; i++) { L.a[i] = colour[i * 4 + 3] / 255; for (let k = 0; k < 3; k++) L.c[i * 3 + k] = colour[i * 4 + k] / 255; dec(data[i * 4] / 255, data[i * 4 + 1] / 255, N3); L.m.set(N3, i * 3); L.d[i] = data[i * 4 + 2] / 255; L.w[i] = data[i * 4 + 3] / 255; L.f[i] = leaf[i] / 255; }
+  for (let i = 0; i < n * n; i++) { L.a[i] = colour[i * CS + 3] / 255; for (let k = 0; k < 3; k++) L.c[i * 3 + k] = colour[i * CS + k] / 255; dec(data[i * DS] / 255, data[i * DS + 1] / 255, N3); L.m.set(N3, i * 3); L.d[i] = data[i * DS + 2] / 255; L.w[i] = data[i * DS + 3] / 255; L.f[i] = leaf[i * LS] / 255; }
   return L;
 }
 function halve(L) {
@@ -49,15 +50,15 @@ function dilate(L, cell, rings) {
 /** The level as the GPU takes it, its alpha scaled picture by picture (Castaño): the threshold under which (1 - cover)
     of the picture's texels lie, scaled onto the cut. cover: each picture's own (its finest level's mean alpha). */
 function bytesOf(L, cell, cover) {
-  const n = L.n, cells = n / cell, colour = new Uint8Array(n * n * 4), data = new Uint8Array(n * n * 4), leaf = new Uint8Array(n * n), hist = new Uint32Array(256), b = (v) => Math.round(Math.min(1, Math.max(0, v)) * 255);
+  const n = L.n, cells = n / cell, colour = new Uint8Array(n * n * CS), data = new Uint8Array(n * n * DS), leaf = new Uint8Array(n * n * LS), hist = new Uint32Array(256), b = (v) => Math.round(Math.min(1, Math.max(0, v)) * 255);
   for (let cy = 0; cy < cells; cy++) for (let cx = 0; cx < cells; cx++) {
     hist.fill(0); for (let y = 0; y < cell; y++) for (let x = 0; x < cell; x++) hist[b(L.a[(cy * cell + y) * n + cx * cell + x])]++;
     const want = Math.round(cover[cy * cells + cx] * cell * cell); let s = 1 / 16;   // (a picture nothing covers: nothing over the cut)
     if (want > 0) { let over = 0, t = 255; while (t > 0 && over + hist[t] <= want) over += hist[t--]; s = Math.min(16, Math.max(1 / 16, 127.5 / Math.max(t + 0.5, 0.5))); }
     for (let y = 0; y < cell; y++) for (let x = 0; x < cell; x++) {
       const o = (cy * cell + y) * n + cx * cell + x;
-      for (let c = 0; c < 3; c++) colour[o * 4 + c] = b(L.c[o * 3 + c]);
-      colour[o * 4 + 3] = b(L.a[o] * s); enc(L.m[o * 3], L.m[o * 3 + 1], L.m[o * 3 + 2], E2); data[o * 4] = b(E2[0]); data[o * 4 + 1] = b(E2[1]); data[o * 4 + 2] = b(L.d[o]); data[o * 4 + 3] = b(L.w[o]); leaf[o] = b(L.f[o]);
+      for (let c = 0; c < 3; c++) colour[o * CS + c] = b(L.c[o * 3 + c]);
+      colour[o * CS + 3] = b(L.a[o] * s); enc(L.m[o * 3], L.m[o * 3 + 1], L.m[o * 3 + 2], E2); data[o * DS] = b(E2[0]); data[o * DS + 1] = b(E2[1]); data[o * DS + 2] = b(L.d[o]); data[o * DS + 3] = b(L.w[o]); leaf[o * LS] = b(L.f[o]);
     }
   }
   return { colour, data, leaf, n };
