@@ -4,10 +4,15 @@
 // seen from where it stands, is within the dial (only the stress world's zoo still keeps its ladder,
 // assets/kit/ladder.js, until 8b); this says what such a pixel is, and keeps the dial.
 //
-// One definition of a pixel: the output's, the canvas's rows (src/core/output.js), however many the governor draws
-// inside (src/core/screen.js: the picture built over time lays them out to the output's), through the walker's 68° lens
-// (the lens every level is set for; a longer one is the detail governor's factor, U.uLodInv: src/core/governor.js,
-// folded into every distance: src/world/noise.nodes.js camDist). It moves only once it lies a BAND off (keep).
+// One definition of a pixel: one drawn, the rows the governor draws inside (src/core/screen.js drawn: the canvas's,
+// src/core/output.js, at the most), through the walker's 68° lens (the lens every level is set for; a longer one is the
+// detail governor's factor, U.uLodInv: src/core/governor.js, folded into every distance: src/world/noise.nodes.js
+// camDist). It moves only once it lies a BAND off (keep), and what it moves fades over FADE (src/detail/error.js). (Till
+// 2026-11-19 it was the canvas's rows, however many were drawn, so a step of the governor moved no switch; but detail
+// finer than a drawn pixel cannot be drawn, only aliased, and the picture built over time cannot recover it for what
+// sways in the wind: a phone drawing its inside low showed its far grass shimmering. Since the governor steps only on
+// a real overload and never back and forth, a switch moves only on a large, rare step.) What a capacity is sized for is
+// still the most the canvas can draw (pxKMost).
 //
 //   pxK()                pixels drawn a metre covers one metre from the eye (error.js: kept here, live)
 //   ERROR_PX()           the dial: the most pixels drawn a rung may differ from the thing at full detail (error.js;
@@ -54,11 +59,10 @@ export const pxThrough = (camera, h) => camera.projectionMatrix.elements[5] * h 
 export const lensOf = (camera) => camera.projectionMatrix.elements[5] / LENS;
 
 // ---- the live pixel and the dial, kept ----
-let output = () => 1, most = () => 1;   // the canvas's ratio, the output's (keepMeasure: src/core/output.js, as it is now), and the most the inside may be drawn at (no fewer than the window's own points)
+let output = () => 1, most = () => 1;   // the drawn rows' ratio (keepMeasure: src/core/screen.js drawn, as it is now), and the most the inside may be drawn at, the canvas's (no fewer than the window's own points)
 const listeners = new Set(); let version = 0;
-/** The output's height, its pixels (the window's CSS height at the canvas's ratio): what the picture shows, however many
-    the governor draws inside (src/core/screen.js), the picture built over time laying them out to it
-    (src/core/temporal.js). So a step of the governor's ratio moves no switch: a pop the dial never asked for. */
+/** The rows drawn (the window's CSS height at the drawn ratio): what can be drawn of a thing, the picture built over time
+    laying them out to the canvas's (src/core/temporal.js). A step of the governor's within a BAND moves no switch. */
 const outputHeight = () => (globalThis.innerHeight || 1080) * output();
 /** Both numbers to error.js, the uniforms and whoever listens, where either changed: the live pixel only once it lies a
     BAND off the one kept (a window drawn a little larger or smaller moves no switch, and none goes back and forth: every
@@ -72,13 +76,14 @@ function keep(dial = ERROR_PX(), fresh = false) {
   return true;
 }
 keep();   // (from the start, before the screen says its ratio: the window's own pixels)
-/** Keep the measure current: out, the canvas's ratio (src/core/output.js: read as it is now, a resize changes it); the
-    window's size is followed, and each frame asks again (measureNow). The canvas's rows are taken outright the first
-    time: held to the window's own points by the BAND, as they were till 2026-11-19, a start's detail hung on its order
+/** Keep the measure current: drawn, the drawn rows' ratio (src/core/screen.js drawn: read as it is now, the governor
+    and a resize change it); full, the most it may be, the canvas's (src/core/output.js), what a capacity is sized for.
+    The window's size is followed, and each frame asks again (measureNow). The rows are taken outright the first time:
+    held to the window's own points by the BAND, as they were till 2026-11-19, a start's detail hung on its order
     (WebKit at 1512 × 945 at 2 kept 945 rows of a canvas of 1138; a window opened at another size kept that one's). */
-export function keepMeasure(out = () => 1) {
-  output = out;
-  most = () => Math.max(1, out());
+export function keepMeasure(drawn = () => 1, full = drawn) {
+  output = drawn;
+  most = () => Math.max(1, full());
   keep(ERROR_PX(), true); addEventListener('resize', () => keep());
 }
 /** The live pixel in the dial's pixels: dial pixels a metre covers one metre from the eye (error.js). */
