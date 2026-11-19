@@ -113,12 +113,40 @@ const dimsOf = (asset, i) => { const H = most(asset.size.height), h = asset.heig
 export const FOOT = 0.15;
 /** Whether a plant has a far end (its impostor, after its clumps where the crowd kit finds them): its own, else its kind's. */
 export const hasFar = (a) => !!(a.far ?? kindRule(a, 'far'));
-/** Where a plant is gone (src/detail/error.js goneAt): the land under it wears its stand's colour or its floor, so leaving
-    it out differs by how far it stands over the ground, of its size on screen's measure, the most of its shapes'. */
-export const goneOf = (a) => {
-  let e = 0; for (let i = 0; i < (a.shapeCount ?? 1); i++) e = Math.max(e, Math.max(0, (a.heights?.[i] ?? most(a.size.height)) - FOOT) / shapeSize(a, i));
-  return goneAt(e || 1);
+/** How far a plant left out lies off what the land wears in its stead, a share of its size on screen's measure (what
+    src/detail/error.js goneAt takes). Where its stand's crowns cover c of the ground the land wears their relief, c × T
+    over the ground (T: the stand's relief top where its cover is whole: src/terrain/layers.js), and the plant differs
+    from it by the most of: what of it stands over the relief (top − c·T); its height where the ground shows between the
+    crowns, (1 − c) of it (under the relief it is seen only through their gaps); and its crown's own round, which no
+    smooth relief holds, c × depth / 3 (a crown a half ellipsoid of its depth over its round: it lies a third of its depth
+    off the relief through its middle, at the most). Where nothing covers (c = 0): its whole height over the ground, as a
+    lone plant always was. top, depth, size: its crown's top over the ground, its crown's depth, its size on screen's
+    measure (metres, alike scaled). Plain numbers: what reads it on the GPU works it out the same way. */
+export const goneShare = (top, depth, size, c = 0, T = 0) => Math.min(1, goneDev(top, depth, c, T) / Math.max(size, 1e-9));
+/** goneShare's metres, before they are a share of its size: max(top − c·T, (1 − c)·top, c·depth/3), the same as
+    max(top − c·min(T, top), c·depth/3) (what the GPU reads: goneLines). */
+export const goneDev = (top, depth, c = 0, T = 0) => Math.max(top - c * Math.min(T, top), (c * depth) / 3);
+/** How deep shape i's crown is (metres at scale 1): from where it begins (its kit's growth base, at its stage's age, to
+    the shape's own height) to its top; a plant without growth is crown all through. top: the shape's top over the ground. */
+const crownDepth = (a, i, top) => { const G = a.growth, S = G?.stages?.find((x) => i >= x.offset && i < x.offset + x.variants); return S && G.base && S.h > 0 ? Math.max(0, Math.min(top, (top + FOOT) * (1 - G.base(S.year) / S.h))) : top; };
+/** goneShare for plant a, the most of its shapes', where its stand covers c of the ground and its relief top is T. */
+export const goneShareAt = (a, c = 0, T = 0) => {
+  let e = 0;
+  for (let i = 0; i < (a.shapeCount ?? 1); i++) { const top = Math.max(0, (a.heights?.[i] ?? most(a.size.height)) - FOOT); e = Math.max(e, goneShare(top, crownDepth(a, i, top), shapeSize(a, i), c, T)); }
+  return e;
 };
+/** Plant a's goneDev at scale s, the most of its shapes', as two lines in the cover c: max(a − b·c, d·c) metres, [a, b, d]:
+    a its tallest crown top over the ground, b what of it a relief T (metres) stands for, d a third of its deepest crown.
+    What the land reads where its stands hand over to it (src/terrain/layers.js standFade), and the plants packed. */
+export const goneLines = (a, T, s = 1) => {
+  let top = 0, depth = 0;
+  for (let i = 0; i < (a.shapeCount ?? 1); i++) { const t = Math.max(0, (a.heights?.[i] ?? most(a.size.height)) - FOOT); top = Math.max(top, t); depth = Math.max(depth, crownDepth(a, i, t)); }
+  return [s * top, Math.min(T, s * top), (s * depth) / 3];
+};
+/** Where a plant is gone (src/detail/error.js goneAt) where nothing of its stand covers the ground round it: its whole
+    height over the ground (goneShareAt at c = 0); its levels reach down to here, and a plant where its stand is thick
+    goes sooner, by its own cover (goneShareAt). */
+export const goneOf = (a) => goneAt(goneShareAt(a) || 1);
 /** The sizes on screen each level of a plant is drawn between, finest first: [lo, hi]: everything's (rungPx), down to the
     one its end falls in, the last to where it has sunk away, the BAND under its end (src/detail/handover.js: it is
     whole down to where leaving it out fits). A stand cuts its kinds' as one (src/scatter/trees.js groupsOf). */

@@ -144,7 +144,7 @@ export function laid(tex, p, s, D, X) {
   // shadows are drawn: SHADE_REACH)
   const shade = float(0).toVar();
   for (const T of X.stands) If(T.id.notEqual(NO_STAND).and(T.c.greaterThan(0.003)), () => {
-    const S = standOf(T.id), fade = standFade(S, D);
+    const S = standOf(T.id), fade = standFade(S, D, T.c);   // (by its cover here: a thick stand hands over sooner)
     If(fade.greaterThan(0.003).or(S.reach.greaterThan(0)), () => {
       const under2 = smoothstep(float(1.08).sub(T.c.mul(0.75)), float(1.22).sub(T.c.mul(0.75)), T.n.add(T.c.mul(0.45)));   // where a plant is, as many as cover says
       // (darker than a crown's own colour: seen from afar it is mostly its own shade; where the texel can no longer hold
