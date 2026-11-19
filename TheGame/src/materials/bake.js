@@ -62,7 +62,7 @@ function program(m) {
     return vec4(sqrt(clamp(M.col, 0, 1)), clamp(M.h, 0, 1));
   });
   const mat = new THREE.NodeMaterial(); mat.vertexNode = vec4(uv().mul(2).sub(1), 0, 1); mat.fragmentNode = outputStruct(frag(), raw); mat.depthTest = mat.depthWrite = false;
-  mat.name = `painted: ${m.name}`;   // (what it is, where pipelines are told apart: the compile log, the gate, the census)
+  mat.name = `painted: ${m.name}`; mat.userData.own = true;   // (what it is, where pipelines are told apart: the compile log, the gate, the census; own: drawn as itself, straight into the painter's tile, by no pass: src/core/pass.js drawnAs)
   return mat;
 }
 /** Material m's painting program: its tile (8 bits) and its heights and roughness (floats), drawn over a quad (a tool

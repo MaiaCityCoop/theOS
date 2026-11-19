@@ -8,7 +8,7 @@ import { Fn, mrt, float, int, uint, vec4, uniform, uniformArray, varyingProperty
 import { U } from '../core/uniforms.js';
 import { manifest, recipe, versionOf } from '../core/registry.js';
 import { source, shown } from '../core/settle.js';
-import { gpuStorage, gpuStorageLater } from '../core/gpu.js';
+import { gpuStorageLater } from '../core/gpu.js';
 import { made, pending } from '../core/compile.js';
 import { keptGet, keptPut, keptDrop } from '../core/kept.js';
 import { createAtlas, bakers, viewClip, tileClip, facingOf, facingEnc, planeFrame, litIn, atlases, pictureOf } from '../detail/impostor.js';
@@ -62,19 +62,23 @@ export function farOf(renderer, tex, G, D, green) {
   let clumps = null; const clumpsOf = () => (clumps ||= createAtlas(renderer, { name: `plants, ${G.name}: clumps`, side: G.tiles * A.TILE, layers: G.clumpy, cell: A.TILE }));   // (a stand none of whose shapes has clumps: one tile, which nothing reads)
   const queue = [], queued = new Uint8Array(n), waiting = new Map(), left = new Set(); let version = 0, any = false, M = null, swept = false;   // (left: the shapes queued and not in yet, kept or baked)
   // Which shapes' far ends the view wants (2026-11-19, the master: the start waited for every shape's bake, 29 of them
-  // over some 45 s on a phone's one worker): where its tiers would show a shape's impostor and it is not baked yet (its
-  // mesh stands in meanwhile, never nothing), their packing says so (want, from far.wants: T0, each shape's impostor's
-  // error from its far data as it is queued), and it is read back here, one read at a time (look). Only those are baked,
-  // and only those the world waits for; the rest as the view comes to want them. Where nothing packs on the GPU (WebGL),
-  // every shape, as before.
-  const gpu = !!renderer.backend?.isWebGPUBackend, T0 = gpuStorage('float', n, `plants, ${G.name}: far ends' error`, 'geometry'), WANT = gpuStorage('uint', n, `plants, ${G.name}: far ends wanted`, 'geometry'), asked = new Uint8Array(n);
+  // over some 45 s on a phone's one worker): those of which its far tiers found things in their band (their draws a
+  // kind each; a shape not baked yet stands there as its mesh, never nothing), as their packing's counts say it, read
+  // back here, one read at a time (look: the counts alone, a few hundred bytes; no pass binds anything more for it, a
+  // compute stage holding no more than 8 storage buffers). Only those are baked, and only those the world waits for; the
+  // rest as the view comes to want them. Where nothing packs on the GPU (WebGL), every shape, as before.
+  const gpu = !!renderer.backend?.isWebGPUBackend, asked = new Uint8Array(n);
   let reading = null, readN = -1;   // (readN: how many of its tiers were made when the last read that came back was asked)
   const madeN = () => (G.drawn ?? []).filter((t) => t.passes && made(t.passes, 'run')).length;
-  const look = () => { if (!gpu || reading) return; const m = madeN(); reading = renderer.getArrayBufferAsync(WANT.attr).then((b) => { const w = new Uint32Array(b); for (let k = 0; k < n; k++) if (w[k]) asked[k] = 1; readN = m; }, () => {}).finally(() => { reading = null; }); };
+  const look = () => {
+    if (!gpu || reading) return;
+    const m = madeN(), far = (G.drawn ?? []).filter((t) => t.farEnd && t.passes && made(t.passes, 'run'));
+    reading = Promise.all(far.map((t) => t.found(renderer))).then((all) => { for (const f of all) for (let k = 0; k < Math.min(n, f.length); k++) if (f[k]) asked[k] = 1; readN = m; }, () => {}).finally(() => { reading = null; });
+  };
   // (unsure: a tier of it still being made, or one made since the last read was asked: what it wants not known yet)
   const unsure = () => gpu && ((G.drawn ?? []).some((t) => t.passes && pending(t.passes, 'run')) || madeN() !== readN);
   const due = (k) => !gpu || asked[k];
-  const queuedAs = (k, far) => { queued[k] = 1; left.add(k); T0.write(k, Float32Array.of(far[6])); };
+  const queuedAs = (k) => { queued[k] = 1; left.add(k); };
   // the levels a shape's pictures are drawn from (far: its far data, assets/kit/crowd.js): the measure's at each
   // picture's own size, the plant's size in it in dial pixels (a view: CELL texels over its sphere; a chunk's plane:
   // TILE texels over its chunk's longest side, the shortest of its chunks), never a level wholly under where its
@@ -209,7 +213,7 @@ export function farOf(renderer, tex, G, D, green) {
   const OF = (k) => (outlineFar[k] ? Float32Array.from(outlineFar[k]) : null);
   // (a shape's job from its outline's far data at whichever of its levels comes first (the workers reckon it:
   // outlinesAhead), so a shape no plant has come near is baked too; else from its finest level's, as it comes: onBlock)
-  const fromOutline = (k) => { const far = OF(k); if (queued[k] || !far) return; const J = { k, far, c0: null, t0: null, of: null, at: levelsOf(far), corners: { views: null }, tiles: null }; queuedAs(k, far); waiting.set(k, J); kept(J); };
+  const fromOutline = (k) => { const far = OF(k); if (queued[k] || !far) return; const J = { k, far, c0: null, t0: null, of: null, at: levelsOf(far), corners: { views: null }, tiles: null }; queuedAs(k); waiting.set(k, J); kept(J); };
   // (what a block of one of its levels brings a shape's job: the corners its pictures are drawn from, its cards in their
   // chunks, found from the block itself: a coarser level's cards are a first share of the finest's, the same chunks)
   const capture = (J, b, j, idx, elems, cornersOf) => {
@@ -241,9 +245,6 @@ export function farOf(renderer, tex, G, D, green) {
   };
   return {
     views, clumps: () => clumpsOf(), version: () => version, ready: () => any,
-    /** In a far tier's packing (far.wants): a shape of `kind` whose impostor would show here at px (its Ks, and T, its
-        impostor's error as its numbers say it: none till it is baked), and it is not baked: wanted (look). */
-    want(kind, px, Ks, T) { const t0 = T0.node.element(kind); If(T.lessThanEqual(0).and(t0.greaterThan(0)).and(ratioOf(t0, px, Ks).lessThan(1.25)), () => { WANT.node.element(kind).assign(uint(1)); }); },
     /** What bakes its pictures: the view's and the tile's meshes, each with its two materials (userData.materials), as
         the start compiles them (tools/smoke.js builds them; a bake makes none other) */
     meshes: () => { const B = materials(); return [B.view, B.tile]; },
@@ -259,7 +260,7 @@ export function farOf(renderer, tex, G, D, green) {
         const o = j * elems * 4, at = unhalf(b.verts[o + 7] & 0xffff) * 1024 + unhalf(b.verts[o + 7] >>> 16); if (!(at > 0)) continue;
         const head = new Float32Array(b.verts.buffer, b.verts.byteOffset + (o + at * 8) * 4, 8), far = new Float32Array(b.verts.buffer, b.verts.byteOffset + (o + at * 8) * 4, 8 + head[0] * 12).slice();
         const c0 = cornersOf(), L = levelsOf(far), of = far[0] > 0 ? chunksOfCards(b, j, idx, elems, far) : null, t0 = of && chunkOrder(b, j, idx, elems, of, far[0]);
-        const J0 = { k, far, c0, t0, of, at: L, corners: { views: L.views ? null : c0 }, tiles: of && !L.tiles ? t0 : null }; queuedAs(k, far); waiting.set(k, J0); kept(J0);
+        const J0 = { k, far, c0, t0, of, at: L, corners: { views: L.views ? null : c0 }, tiles: of && !L.tiles ? t0 : null }; queuedAs(k); waiting.set(k, J0); kept(J0);
       }
     },
     /** Each frame: the next shape baked, once the levels its pictures are drawn from are in the heap and no other stand's

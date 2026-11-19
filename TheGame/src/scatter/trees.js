@@ -53,7 +53,8 @@ import { recipe, recipes, versionOf } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
 import { kindOf, sizeOf, most } from '../../assets/kinds.js';
 import { levelOf, levelOfMesh, handOver, sinkInto } from '../detail/handover.js';
-import { impostorRead, clumpRead, atlases } from '../detail/impostor.js';
+import { impostorRead, clumpRead, atlases, atlasesAt, ATLAS_SHARES } from '../detail/impostor.js';
+import { shippedRooms } from '../core/outlines.js';
 import { levelsUnder } from '../detail/atlas.js';
 import { offScreen, clipOf, Tier } from './tier.js';
 import { createDrawer, pool } from './drawer.js';
@@ -608,6 +609,10 @@ const patchOf = (cell, reach) => Math.min(256, Math.max(4, 2 ** Math.ceil(Math.l
 export function outlinesAhead(world = true) {
   const A = world ? atlases() : null, kinds = world ? recipes('asset').filter((a) => a.outlineFor && !a.roomsKnown(A)) : [];
   if (!kinds.length) return Promise.resolve();
+  // (the build reckons every tree kind's rooms for each class's atlases, tools/outlines.js: one it has not is a recipe
+  // changed since the build, or atlases no class of device has, and its start reckons them in the workers, 0.4 GB a
+  // worker: said loudly, never measured in silence. Safari reloaded the page for it, 2026-11-19)
+  (import.meta.env?.PROD ? console.error : console.warn)(`plants: the build's outlines.json has no rooms of ${kinds.length} tree kind${kinds.length > 1 ? 's' : ''} for this device's atlases (${A.key}): ${kinds.map((a) => `${a.name} (${shippedRooms(a, atlasesAt(ATLAS_SHARES.at(-1))) ? 'baked for other atlases' : 'not baked: changed since the build'})`).join(', ')}: reckoned now in the recipes' workers`);
   const ask = pool(), plain = { ...A };
   return Promise.all(kinds.map((a) => ask([['outline', a.uid, plain]]).then(([o]) => a.takeOutline(A, o), (e) => console.warn(`plants: the workers could not reckon '${a.name}': reckoned here`, e))));
 }
@@ -687,7 +692,7 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     const far = G.far && {
       // (its mesh from where its impostor's error would be seen down to where every plant has handed over, the BAND
       // under; its impostor from where it may come; each a fifth wider either way while the camera moves between packings)
-      wants: (kind, rows) => { const R3 = D.numOf(kind, 3), T = R3.z, r = ratioOf(T, pxOf(rows[0].w, rows[0].xy), R3.y); G.far.want(kind, pxOf(rows[0].w, rows[0].xy), R3.y, T); return { mesh: T.lessThanEqual(0).or(r.greaterThan(0.8 / BAND)), far: T.greaterThan(0).and(r.lessThan(1.25)) }; },
+      wants: (kind, rows) => { const R3 = D.numOf(kind, 3), T = R3.z, r = ratioOf(T, pxOf(rows[0].w, rows[0].xy), R3.y); return { mesh: T.lessThanEqual(0).or(r.greaterThan(0.8 / BAND)), far: T.greaterThan(0).and(r.lessThan(1.25)) }; },
       material: (src) => impostorMaterial(G, () => D, { mesh: true }, src),   // (its level as each mesh tells it: make.levelOf)
       version: () => `${G.far.version()}|${measureVersion()}`, ready: G.far.ready,   // (packed again when one comes, or the measure changes: wants reads it)
     };
