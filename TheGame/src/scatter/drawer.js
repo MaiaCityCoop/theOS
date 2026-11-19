@@ -74,7 +74,7 @@ import { byRole } from '../core/registry.js';
 import { bandOf, padOf, sinkInto } from '../detail/handover.js';
 import { dialK, pxKMost, pxOn, farFor, farMost, spanAt, pxAt, dialPxAt, restDial } from '../detail/measure.js';
 import { source } from '../core/settle.js';
-import { asking } from '../core/workers.js';
+import { workerPool } from '../core/workers.js';
 import { note, makeOwned, gpuIndex, short } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
 import { ready, computeMaker } from '../core/compile.js';
@@ -111,16 +111,17 @@ const keptChunksOf = (all, make) => {
 };
 const classOf = (n) => { const t = Math.ceil(n / 3); return t <= 1 ? 0 : 32 - Math.clz32(t - 1); }, classN = (n) => uint(32).sub(countLeadingZeros(n.add(uint(2)).div(uint(3)).sub(uint(1))));
 const CLASSIX = []; const classIndex = (c) => (CLASSIX[c] ||= new THREE.BufferAttribute(Uint32Array.from({ length: 3 * 2 ** c }, (_, j) => j), 1));
-// the recipes' workers (recipes.worker.js, watched: src/core/workers.js): one set for every drawer, made when the first
-// asks; all(jobs) tells every one of them, before anything asked after it
+// the recipes' workers (recipes.worker.js, watched: src/core/workers.js): one pool for every drawer, as large as the
+// device (workerPool: made by need, let go once the world has settled); all(jobs) tells every one of them, and every
+// one made later, before anything asked after it
 let POOL = null;
 /** The recipes' workers (see above): ask(jobs) -> what they made; shared by every drawer, and by the start's outlines
     (src/scatter/trees.js outlinesAhead). */
 export const pool = () => (POOL ||= (() => {
-  const workers = Array.from({ length: 3 }, () => asking(new Worker(new URL('./recipes.worker.js', import.meta.url), { type: 'module' }), "the recipes' worker")); let turn = 0;
-  const ask = (jobs) => workers[turn++ % workers.length]({ jobs }).then(({ out }) => out);
-  ask.to = (key, jobs) => workers[key % workers.length]({ jobs }).then(({ out }) => out);   // (one worker for what is asked of a key: a kind's bands where its hierarchy is kept)
-  ask.all = (jobs) => { for (const w of workers) w.worker.postMessage({ id: -1, jobs }); };
+  const P = workerPool("the recipes' worker", () => new Worker(new URL('./recipes.worker.js', import.meta.url), { type: 'module' }));
+  const ask = (jobs) => P.ask({ jobs }).then(({ out }) => out);
+  ask.to = (key, jobs) => P.to(key, { jobs }).then(({ out }) => out);   // (one worker for what is asked of a key: a kind's bands where its hierarchy is kept)
+  ask.all = (jobs) => P.all({ id: -1, jobs });
   return ask;
 })());
 

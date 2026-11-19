@@ -36,7 +36,7 @@ import { shown } from '../core/settle.js';
 import { compileFor } from '../core/compile.js';
 import { SHARE_MB } from '../core/classes.js';
 import { FNV, fnv } from '../core/hash.js';
-import { asking } from '../core/workers.js';
+import { workerPool } from '../core/workers.js';
 import { pxAt } from './measure.js';
 import { atlasesOf, atlasBytes, levelsUnder, SS, LEAST, PICTURES } from './atlas.js';
 import { farLayers } from '../scatter/entries.js';
@@ -134,10 +134,10 @@ export function createAtlas(renderer, { name, side, layers, cell = side, views =
 
 // ---- the bake: a row of pictures at a time, SS x SS samples a texel, reduced on the GPU, read back, mipped in a worker ----
 let WORKERS = null;
-const workers = () => (WORKERS ||= Array.from({ length: Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 2)) }, () => asking(new Worker(new URL('./impostor.worker.js', import.meta.url), { type: 'module' }), "the impostors' worker")));
-/** The pictures' smaller ones, as a worker makes them (impostor.worker.js, the least busy of a few, watched:
-    src/core/workers.js): { levels: [{ colour, data, leaf, n }] }. */
-const mipsOf = (colour, data, leaf, side, cell, least) => workers().reduce((a, b) => (b.out() < a.out() ? b : a))({ colour, data, leaf, side, cell, least }, [colour.buffer, data.buffer, leaf.buffer]);
+const workers = () => (WORKERS ||= workerPool("the impostors' worker", () => new Worker(new URL('./impostor.worker.js', import.meta.url), { type: 'module' })));
+/** The pictures' smaller ones, as a worker makes them (impostor.worker.js, one of a pool as large as the device, watched:
+    src/core/workers.js workerPool): { levels: [{ colour, data, leaf, n }] }. */
+const mipsOf = (colour, data, leaf, side, cell, least) => workers().ask({ colour, data, leaf, side, cell, least }, [colour.buffer, data.buffer, leaf.buffer]);
 
 /** What bakes a family's pictures: rows of `per` pictures `px` texels a side, drawn by draw(row) (a mesh whose
     instances are the row's pictures, from PIECE's on: pictureOf; its one material's two outputs, mrt's `output` its
