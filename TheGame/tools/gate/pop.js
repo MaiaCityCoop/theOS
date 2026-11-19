@@ -13,11 +13,12 @@ import { ERROR_PX, BAND, PX_CUT, SURFACE_LEVELS, surfaceBand, surfacePx, dialPx 
 import { rockFull } from '../../assets/kit/rock.js';
 import { spanOf } from '../../assets/kinds.js';
 import { pxKAt } from '../../src/detail/measure.js';
-import { DRAWN_ROWS } from '../../src/core/budget.js';
+import { OUTPUT } from '../../src/core/budget.js';
+import { outputRatio } from '../../src/core/output.js';
 
 await ready; useBuilder(build);
 const STEP = +(process.env.STEP || 1.01), SAMPLE = +(process.env.SAMPLE || 1);   // (a step a frame: 1 % nearer; SAMPLE: every so many triangles' corners measured, for a large surface)
-const KH = pxKAt(DRAWN_ROWS);   // the measure's: pixels drawn a metre covers at a metre through the walker's lens, at the rows the budget holds at (src/detail/measure.js, src/core/budget.js)
+const KH = pxKAt(OUTPUT.height * outputRatio(OUTPUT.width, OUTPUT.height));   // the measure's: pixels drawn a metre covers at a metre through the walker's lens, at the most rows the game draws on the output (src/detail/measure.js, src/core/output.js: 1080)
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 /** M of a thing: rocks by their kit, made things welded as assets/kit/made.js does it (place, normal, colour alike). */
