@@ -67,20 +67,23 @@ pub struct Eye2;
 #[derive(Resource)]
 struct Field {
     material: Handle<crate::wind::Grass>,
+    /// The close layer's: the same, but sinking into the ground away from the eye.
+    close: Handle<crate::wind::Grass>,
     /// The land's own material: no texture, the colour is in the geometry.
     ground: Handle<StandardMaterial>,
     /// Each chunk shown: its grass, its ground, and the ring class it was grown for.
-    shown: HashMap<(i32, i32), (Entity, Entity, i32)>,
-    growing: HashMap<(i32, i32), (Task<(Mesh, Mesh)>, i32)>,
+    shown: HashMap<(i32, i32), (Vec<Entity>, i32)>,
+    growing: HashMap<(i32, i32), (Task<(Mesh, Option<Mesh>, Mesh)>, i32)>,
     /// The land beyond the grass, out to the horizon, and where the eye was when it was last built.
     far: Handle<Mesh>,
-    far_at: Vec2,
+    far_at: (i32, i32),
+    far_task: Option<Task<Mesh>>,
     /// Whether the eye was high (above `HIGH`) when the far land was last built.
     far_high: bool,
 }
 
 /// Above this height over the land, the near grass and ground are not drawn: the far land reaches right under the eye.
-const HIGH: f32 = 150.0;
+const HIGH: f32 = 60.0;
 
 /// The ring class of a chunk `ring` chunks from the camera's: rings 0 and 1 are one class (full detail), rings 7 and out
 /// another.
@@ -105,20 +108,30 @@ fn stream(
     let high = at.y - crate::terrain::height(at.x, at.z) > HIGH;
     // the land beyond the grass: rebuilt around the eye whenever it has moved 40 m, or crossed the height where the
     // near detail hands over to it
-    let here = Vec2::new(at.x, at.z);
-    if here.distance(field.far_at) > 40.0 || high != field.far_high {
-        field.far_at = here;
+    // built in the background: the near ground's square is left out of it, two chunks smaller than the near rings so
+    // the two always overlap a little (the far land lies lower) and never leave a gap while one catches up
+    if ((cx, cz) != field.far_at || high != field.far_high) && field.far_task.is_none() {
+        field.far_at = (cx, cz);
         field.far_high = high;
-        let inner = if high { 1.0 } else { CHUNK * (RINGS as f32 - 0.5) };
+        let k = RINGS - 2;
+        let hole = (!high).then(|| [((cx - k) as f32) * CHUNK, ((cz - k) as f32) * CHUNK, ((cx + k + 1) as f32) * CHUNK, ((cz + k + 1) as f32) * CHUNK]);
+        let (x, z) = (at.x, at.z);
+        field.far_task = Some(AsyncComputeTaskPool::get().spawn(async move { crate::terrain::far(x, z, hole) }));
+    }
+    if let Some(task) = field.far_task.as_mut()
+        && let Some(mesh) = check_ready(task)
+    {
+        field.far_task = None;
         if let Some(mut m) = meshes.get_mut(&field.far) {
-            *m = crate::terrain::far(here.x, here.y, inner);
+            *m = mesh;
         }
     }
     if high {
         // high above: no near grass or ground at all, only the far land
-        for (_, (grass, ground, _)) in field.shown.drain() {
-            commands.entity(grass).despawn();
-            commands.entity(ground).despawn();
+        for (_, (parts, _)) in field.shown.drain() {
+            for e in parts {
+                commands.entity(e).despawn();
+            }
         }
         field.growing.clear();
         return;
@@ -137,12 +150,15 @@ fn stream(
     let pool = AsyncComputeTaskPool::get();
     let mut started = 0;
     for &(key, c) in &wanted {
-        let ok_shown = field.shown.get(&key).is_some_and(|s| s.2 == c);
+        let ok_shown = field.shown.get(&key).is_some_and(|s| s.1 == c);
         let ok_growing = field.growing.get(&key).is_some_and(|g| g.1 == c);
         if !ok_shown && !ok_growing && started < 6 {
             let (x, z) = key;
             let s = share(c);
-            field.growing.insert(key, (pool.spawn(async move { (chunk(x, z, s), crate::terrain::chunk(x, z, CHUNK, s)) }), c));
+            field.growing.insert(
+                key,
+                (pool.spawn(async move { (chunk(x, z, s), (s >= 1.0 && std::env::var_os("MEADOW_NO_CLOSE").is_none()).then(|| crate::grass::close(x, z)), crate::terrain::chunk(x, z, CHUNK, s)) }), c),
+            );
             started += 1;
         }
     }
@@ -150,9 +166,10 @@ fn stream(
     let keep: HashMap<(i32, i32), i32> = wanted.into_iter().collect();
     let gone: Vec<_> = field.shown.keys().filter(|k| !keep.contains_key(*k)).copied().collect();
     for k in gone {
-        if let Some((grass, ground, _)) = field.shown.remove(&k) {
-            commands.entity(grass).despawn();
-            commands.entity(ground).despawn();
+        if let Some((parts, _)) = field.shown.remove(&k) {
+            for e in parts {
+                commands.entity(e).despawn();
+            }
         }
     }
     field.growing.retain(|k, _| keep.contains_key(k));
@@ -162,13 +179,24 @@ fn stream(
         .iter_mut()
         .filter_map(|(k, (task, c))| check_ready(task).map(|meshes| (*k, *c, meshes)))
         .collect();
-    for (k, c, (grass, ground)) in ready {
+    for (k, c, (grass, close, ground)) in ready {
         field.growing.remove(&k);
-        let g = commands.spawn((GrassWorld, MEADOW, Mesh3d(meshes.add(grass)), MeshMaterial3d(field.material.clone()))).id();
-        let l = commands.spawn((GrassWorld, MEADOW, Mesh3d(meshes.add(ground)), MeshMaterial3d(field.ground.clone()))).id();
-        if let Some((old_grass, old_ground, _)) = field.shown.insert(k, (g, l, c)) {
-            commands.entity(old_grass).despawn();
-            commands.entity(old_ground).despawn();
+        let mut parts = vec![
+            commands.spawn((GrassWorld, MEADOW, Mesh3d(meshes.add(grass)), MeshMaterial3d(field.material.clone()))).id(),
+            commands.spawn((GrassWorld, MEADOW, Mesh3d(meshes.add(ground)), MeshMaterial3d(field.ground.clone()))).id(),
+        ];
+        if let Some(close) = close {
+            // fine blades cast no shadow of their own: too small to see in the sun's shadow maps, and it saves them
+            parts.push(
+                commands
+                    .spawn((GrassWorld, MEADOW, Mesh3d(meshes.add(close)), MeshMaterial3d(field.close.clone()), bevy::light::NotShadowCaster))
+                    .id(),
+            );
+        }
+        if let Some((old, _)) = field.shown.insert(k, (parts, c)) {
+            for e in old {
+                commands.entity(e).despawn();
+            }
         }
     }
 }
@@ -302,7 +330,21 @@ fn enter(
         Msaa::Off,
     ));
     if !off("SKY") {
-        cam.insert((AtmosphereSettings::default(), AtmosphereEnvironmentMapLight::default()));
+        // the sky cost 24 ms a frame at its defaults on this Mac; smaller tables and fewer samples look the same here
+        cam.insert((
+            AtmosphereSettings {
+                sky_view_lut_size: UVec2::new(256, 128),
+                sky_view_lut_samples: 10,
+                multiscattering_lut_dirs: 32,
+                aerial_view_lut_size: UVec3::new(32, 32, 16),
+                aerial_view_lut_samples: 6,
+                sky_max_samples: 8,
+                ..default()
+            },
+        ));
+        if !off("ENV") {
+            cam.insert(AtmosphereEnvironmentMapLight { size: UVec2::splat(64), ..default() });
+        }
     }
     if !off("BLOOM") {
         cam.insert(Bloom::NATURAL);
@@ -315,7 +357,7 @@ fn enter(
     }
     // the grass: one mesh a chunk, so the view culls it a chunk at a time
     let blades = grass.add(crate::wind::Grass {
-        extension: crate::wind::Wind { params: Vec4::ZERO },
+        extension: crate::wind::Wind { params: default() },
         base: StandardMaterial {
         base_color: Color::WHITE,
         perceptual_roughness: 0.55,
@@ -331,10 +373,15 @@ fn enter(
     // the land: its own material, no texture (the colour is in the geometry, from terrain.rs)
     let ground = materials.add(StandardMaterial { base_color: Color::WHITE, perceptual_roughness: 0.95, reflectance: 0.3, cull_mode: None, ..default() });
     // the land beyond the grass, to the horizon, rebuilt around the eye as it moves (`stream`)
-    let far = meshes.add(crate::terrain::far(0.0, 0.0, crate::grass::CHUNK * (crate::grass::RINGS as f32 - 0.5)));
+    let far = meshes.add(crate::terrain::far(0.0, 0.0, None));
     commands.spawn((GrassWorld, MEADOW, Mesh3d(far.clone()), MeshMaterial3d(ground.clone())));
     // the grass and the near land are grown around the camera as it moves (`stream`)
-    commands.insert_resource(Field { material: blades, ground, shown: default(), growing: default(), far, far_at: Vec2::ZERO, far_high: false });
+    let close = {
+        let mut m = grass.get(&blades).cloned().expect("the grass material was just added");
+        m.extension.params.eye.w = 1.0;
+        grass.add(m)
+    };
+    commands.insert_resource(Field { material: blades, close, ground, shown: default(), growing: default(), far, far_at: (i32::MIN, 0), far_task: None, far_high: false });
 }
 
 fn leave(
@@ -374,7 +421,7 @@ fn sun(
     hour: Res<Hour>,
     mut sun: Query<&mut Transform, (With<Sun>, Without<Moon>, Without<Stars>, Without<Eye2>)>,
     mut moon: Query<(&mut Transform, &mut DirectionalLight, &mut SunDisk), (With<Moon>, Without<Sun>, Without<Stars>, Without<Eye2>)>,
-    mut stars: Query<(&mut Transform, &MeshMaterial3d<StandardMaterial>), (With<Stars>, Without<Sun>, Without<Moon>, Without<Eye2>)>,
+    mut stars: Query<(&mut Transform, &mut Visibility, &MeshMaterial3d<StandardMaterial>), (With<Stars>, Without<Sun>, Without<Moon>, Without<Eye2>)>,
     mut eye: Query<(&GlobalTransform, &mut Exposure), With<Eye2>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -400,8 +447,10 @@ fn sun(
         e.ev100 = ev;
         at = g.translation();
     }
-    for (mut t, m) in &mut stars {
-        t.translation = Vec3::new(at.x, 0.0, at.z); // the stars stay infinitely far: they move with the eye
+    for (mut t, mut v, m) in &mut stars {
+        t.translation = at; // the stars stay infinitely far: they move with the eye, its height too
+        // by day there are none to draw (their black would show against the clouds below a high eye)
+        *v = if night > 0.0 { Visibility::Inherited } else { Visibility::Hidden };
         if let Some(mut mat) = materials.get_mut(&m.0) {
             // bright enough to read against the exposure of the night (an unlit colour is divided by 1.2 × 2^ev on the
             // way to the screen), gone by day; each star's own brightness is its vertex colour
@@ -425,7 +474,7 @@ fn star_dome(n: u32, radius: f32) -> Mesh {
     let (mut pos, mut col, mut idx) = (vec![], vec![], vec![]);
     for i in 0..n {
         // even over the upper sphere, a little below the horizon too
-        let y = h(i, 1) * 1.05 - 0.05;
+        let y = 0.03 + h(i, 1) * 0.97; // above the horizon only: seen from high up, none lie below the eye
         let a = h(i, 2) * std::f32::consts::TAU;
         let r = (1.0 - y * y).max(0.0).sqrt();
         let dir = Vec3::new(r * a.cos(), y, r * a.sin());

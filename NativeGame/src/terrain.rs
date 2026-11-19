@@ -75,6 +75,20 @@ fn sward(x: f32, z: f32) -> Vec3 {
     Vec3::new(0.026, 0.062, 0.012).lerp(Vec3::new(0.055, 0.10, 0.020), lush).lerp(Vec3::new(0.12, 0.10, 0.05), dry * dry * 0.8) * fine
 }
 
+/// How bare the ground is at (x, z), 0 under a full sward to 1 in a bare patch: irregular patches of earth and gravel,
+/// a few metres across, as a grazed or trodden meadow has them. The grass leaves them out.
+pub fn bare(x: f32, z: f32) -> f32 {
+    let n = noise(x, z, 16.0, 20) * 0.65 + noise(x, z, 5.0, 21) * 0.25 + noise(x, z, 1.5, 22) * 0.10;
+    let t = ((n - 0.66) / 0.08).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+/// The colour of the land at (x, z), the one rule for the near ground and the far land alike, so where they meet
+/// nothing changes: the sward's green, and the soil where it is bare.
+pub fn colour(x: f32, z: f32) -> Vec3 {
+    sward(x, z).lerp(soil(x, z), bare(x, z))
+}
+
 /// Geometry being built.
 #[derive(Default)]
 struct Geo {
@@ -209,22 +223,19 @@ fn patch(g: &mut Geo, x0: f32, z0: f32, size: f32, n: u32, h: &dyn Fn(f32, f32) 
 /// `grass::share`): centimetre cells and stones near the eye, coarser further out.
 pub fn chunk(cx: i32, cz: i32, size: f32, share: f32) -> Mesh {
     let mut g = Geo::default();
-    let n = if share >= 1.0 { 96 } else if share >= 0.35 { 40 } else if share >= 0.09 { 16 } else { 8 };
-    // near the eye the floor under the blades; further out more and more the sward's colour, the far land's own
-    let blend = ((0.35 - share) / 0.3).clamp(0.0, 1.0);
-    let colour = |x: f32, z: f32| soil(x, z).lerp(sward(x, z), blend);
+    let n = if share >= 1.0 { 64 } else if share >= 0.35 { 32 } else if share >= 0.09 { 16 } else { 8 };
     patch(&mut g, cx as f32 * size, cz as f32 * size, size, n, &height, &colour);
-    if share >= 0.35 {
-        // per square metre at full detail: 35 clods of earth (2 to 6 cm), 18 pebbles (1 to 5 cm), and a stone (6 to
-        // 25 cm) in every few square metres; fewer one ring out
-        let count = (54.0 * size * size * share) as u32;
+    if share >= 1.0 {
+        // per square metre, near the eye only (where a few centimetres show): 9 clods of earth (2 to 6 cm), 5
+        // pebbles (1 to 5 cm), and a stone (6 to 25 cm) in every few square metres
+        let count = (14.0 * size * size) as u32;
         for k in 0..count {
             let seed = (cx.wrapping_mul(92837) ^ cz.wrapping_mul(689287)) as u32 ^ k.wrapping_mul(2654435761);
             let (x, z) = (cx as f32 * size + hash(seed as i32, 1, 5) * size, cz as f32 * size + hash(seed as i32, 2, 5) * size);
             let pick = hash(seed as i32, 3, 5);
-            if pick < 0.65 {
+            if pick < 0.64 {
                 g.clod(x, z, 0.02 + 0.04 * hash(seed as i32, 4, 5), seed);
-            } else if pick < 0.995 {
+            } else if pick < 0.98 {
                 g.stone(x, z, 0.01 + 0.04 * hash(seed as i32, 4, 5).powi(2), seed);
             } else {
                 g.stone(x, z, 0.06 + 0.19 * hash(seed as i32, 4, 5), seed);
@@ -236,24 +247,50 @@ pub fn chunk(cx: i32, cz: i32, size: f32, share: f32) -> Mesh {
 
 /// The land from beyond the grass to the horizon: rings around (cx, cz) from `inner` metres out to 200 km, wider the
 /// further out, on the large shape only, in the sward's colour. Rebuilt as the eye moves.
-pub fn far(cx: f32, cz: f32, inner: f32) -> Mesh {
+/// The land beyond the near ground, out to 260 km: nested square grids of 64 × 64 cells, each level twice as coarse
+/// as the one inside it, so every triangle is square-ish wherever the eye looks (no long thin wedges to smear the
+/// colour). Each level's outer border follows the coarser level's straight edges, so they meet without cracks. Cells
+/// wholly inside `hole` (the near ground, in world x0, z0, x1, z1) are left out.
+pub fn far(cx: f32, cz: f32, hole: Option<[f32; 4]>) -> Mesh {
     let mut g = Geo::default();
-    let (rings, segs) = (90u32, 192u32);
-    for r in 0..=rings {
-        let radius = inner * (200_000.0f32 / inner).powf(r as f32 / rings as f32);
-        for s in 0..segs {
-            let a = s as f32 / segs as f32 * std::f32::consts::TAU;
-            let (x, z) = (cx + a.cos() * radius, cz + a.sin() * radius);
-            // sunk a little under the near ground where they meet, so the near one always shows
-            let y = big(x, z) - if r == 0 { 0.3 } else { 0.05 };
-            g.vert(Vec3::new(x, y, z), normal_of(&big, x, z, radius * 0.02 + 0.5), sward(x, z));
+    const N: i32 = 64;
+    let mut inner: Option<[f32; 4]> = None;
+    for level in 0..13 {
+        let c = 2.0 * 2f32.powi(level);
+        let (ox, oz) = ((cx / (2.0 * c)).round() * 2.0 * c, (cz / (2.0 * c)).round() * 2.0 * c);
+        let (x0, z0) = (ox - 32.0 * c, oz - 32.0 * c);
+        let start = g.pos.len() as u32;
+        for j in 0..=N {
+            for i in 0..=N {
+                let (x, z) = (x0 + i as f32 * c, z0 + j as f32 * c);
+                let border = i == 0 || i == N || j == 0 || j == N;
+                // an odd vertex on the border lies on the coarser level's straight edge: take the middle of its two
+                // neighbours there, so no crack opens between the levels
+                let (y, col) = if border && (i % 2 == 1 || j % 2 == 1) {
+                    let (dx, dz) = if i % 2 == 1 { (c, 0.0) } else { (0.0, c) };
+                    ((big(x - dx, z - dz) + big(x + dx, z + dz)) / 2.0, (colour(x - dx, z - dz) + colour(x + dx, z + dz)) / 2.0)
+                } else {
+                    (big(x, z), colour(x, z))
+                };
+                // a little under the near ground, which carries the small bumps the far land leaves out
+                g.vert(Vec3::new(x, y - 0.12, z), normal_of(&big, x, z, c * 0.5), col);
+            }
         }
-    }
-    let at = |r: u32, s: u32| r * segs + s % segs;
-    for r in 0..rings {
-        for s in 0..segs {
-            g.idx.extend_from_slice(&[at(r, s), at(r, s + 1), at(r + 1, s), at(r, s + 1), at(r + 1, s + 1), at(r + 1, s)]);
+        let at = |i: i32, j: i32| start + (j * (N + 1) + i) as u32;
+        let inside = |r: Option<[f32; 4]>, ax: f32, az: f32, bx: f32, bz: f32| {
+            r.is_some_and(|r| ax >= r[0] - 0.01 && az >= r[1] - 0.01 && bx <= r[2] + 0.01 && bz <= r[3] + 0.01)
+        };
+        for j in 0..N {
+            for i in 0..N {
+                let (ax, az) = (x0 + i as f32 * c, z0 + j as f32 * c);
+                let (bx, bz) = (ax + c, az + c);
+                if inside(inner, ax, az, bx, bz) || inside(hole, ax, az, bx, bz) {
+                    continue;
+                }
+                g.idx.extend_from_slice(&[at(i, j), at(i, j + 1), at(i + 1, j), at(i + 1, j), at(i, j + 1), at(i + 1, j + 1)]);
+            }
         }
+        inner = Some([x0, z0, x0 + N as f32 * c, z0 + N as f32 * c]);
     }
     g.mesh()
 }

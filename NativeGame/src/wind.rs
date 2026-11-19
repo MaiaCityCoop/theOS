@@ -3,7 +3,7 @@
 
 use bevy::pbr::{ExtendedMaterial, MaterialExtension};
 use bevy::prelude::*;
-use bevy::render::render_resource::AsBindGroup;
+use bevy::render::render_resource::{AsBindGroup, ShaderType};
 use bevy::shader::ShaderRef;
 
 /// The grass's material: Bevy's standard one, with the wind.
@@ -11,9 +11,16 @@ pub type Grass = ExtendedMaterial<StandardMaterial, Wind>;
 
 #[derive(Asset, TypePath, AsBindGroup, Clone, Debug)]
 pub struct Wind {
-    /// x: the time, y: the time a frame ago, z: the strength (0 calm to about 1.5 a storm), w: unused.
     #[uniform(100)]
+    pub params: WindParams,
+}
+
+#[derive(ShaderType, Clone, Copy, Debug, Default)]
+pub struct WindParams {
+    /// x: the time, y: the time a frame ago, z: the strength (0 calm to about 1.5 a storm), w: unused.
     pub params: Vec4,
+    /// xyz: the eye; w: 1 for the close layer (fine blades that sink into the ground away from the eye).
+    pub eye: Vec4,
 }
 
 impl MaterialExtension for Wind {
@@ -35,7 +42,14 @@ pub fn plugin(app: &mut App) {
     app.add_plugins(MaterialPlugin::<Grass>::default()).insert_resource(Strength(1.4)).add_systems(Update, blow);
 }
 
-fn blow(time: Res<Time>, keys: Res<ButtonInput<KeyCode>>, mut strength: ResMut<Strength>, mut grass: ResMut<Assets<Grass>>) {
+fn blow(
+    time: Res<Time>,
+    keys: Res<ButtonInput<KeyCode>>,
+    mut strength: ResMut<Strength>,
+    mut grass: ResMut<Assets<Grass>>,
+    eye: Query<&GlobalTransform, With<crate::meadow::Eye2>>,
+) {
+    let at = eye.single().map(|g| g.translation()).unwrap_or_default();
     if keys.pressed(KeyCode::Equal) {
         strength.0 = (strength.0 + time.delta_secs()).min(MAX);
     }
@@ -44,6 +58,7 @@ fn blow(time: Res<Time>, keys: Res<ButtonInput<KeyCode>>, mut strength: ResMut<S
     }
     let (now, before) = (time.elapsed_secs(), time.elapsed_secs() - time.delta_secs());
     for (_, m) in grass.iter_mut() {
-        m.extension.params = Vec4::new(now, before, strength.0, 0.0);
+        m.extension.params.params = Vec4::new(now, before, strength.0, 0.0);
+        m.extension.params.eye = at.extend(m.extension.params.eye.w);
     }
 }

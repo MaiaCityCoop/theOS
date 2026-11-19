@@ -4,7 +4,7 @@ import bevy_pbr::render::{
     forward_io::{Vertex, VertexOutput, decompress_vertex},
     view_transformations::position_world_to_clip,
 };
-import super::wind::{Wind, sway};
+import super::wind::{Wind, sway, sink};
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(100) var<uniform> wind: Wind;
 
@@ -14,7 +14,8 @@ fn vertex(v: Vertex) -> VertexOutput {
     let vertex = decompress_vertex(v, v.instance_index);
     let world_from_local = mesh_functions::get_world_from_local(v.instance_index);
     var world = mesh_functions::mesh_position_local_to_world(world_from_local, vec4<f32>(vertex.position, 1.0));
-    world = vec4<f32>(world.xyz + sway(world.xyz, wind.params.x, wind.params.z), 1.0);
+    let sunk = sink(world.xyz, wind);
+    world = vec4<f32>(sunk + sway(sunk, wind.params.x, wind.params.z), 1.0);
     out.world_position = world;
     out.position = position_world_to_clip(world.xyz);
 @if(VERTEX_NORMALS)

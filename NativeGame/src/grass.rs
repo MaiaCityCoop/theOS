@@ -187,26 +187,38 @@ fn flowering_stem(g: &mut Geo, root: Vec3, height: f32, yaw: f32, kind: Head, rn
 /// One chunk of grass as one mesh, drawing a `share` of its blades (see [`share`]). Each vertex carries in its UV how
 /// far up its blade it is (v, 0 at the root, 1 at the tip).
 pub fn chunk(cx: i32, cz: i32, share: f32) -> Mesh {
+    blades(cx, cz, share, false)
+}
+
+/// The close layer of a near chunk: as many again of fine blades (2 to 4 mm wide), folded at the midrib, drawn with
+/// the close material that sinks them into the ground beyond a few metres from the eye.
+pub fn close(cx: i32, cz: i32) -> Mesh {
+    blades(cx, cz, 1.0, true)
+}
+
+fn blades(cx: i32, cz: i32, share: f32, fine: bool) -> Mesh {
     let widen = (1.0 / share).sqrt().min(3.5); // fewer blades are wider, to keep the cover
     let full = (DENSITY * CHUNK * CHUNK) as u32;
     let count = (full as f32 * share) as u32;
     let segs = if share >= 1.0 { SEGS } else if share >= 0.35 { SEGS - 1 } else { SEGS - 2 };
-    let detail = share >= 0.35; // seed heads only where they can be seen
+    let detail = share >= 0.35 && !fine; // seed heads only where they can be seen
+    let fold = fine; // the close blades fold along the midrib, as real ones do (only near the eye, where it shows)
+    let count = if fine { count * 6 / 10 } else { count };
 
     let mut g = Geo::default();
-    let (sx, sz) = (cx as u32, cz as u32);
+    let (sx, sz) = if fine { (cx as u32 ^ 0x5151_5151, cz as u32 ^ 0xA7A7_A7A7) } else { (cx as u32, cz as u32) };
     for i in 0..count {
         let r = |k: u32| h(sx, sz, i * 31 + k);
         let x = (cx as f32 + r(0)) * CHUNK;
         let z = (cz as f32 + r(1)) * CHUNK;
         let lush = field(x, z, 7.0, 1);
         let dry = field(x, z, 19.0, 2);
-        if r(2) > 0.55 + 0.45 * lush {
-            continue; // a little thinner between the clumps
+        if r(2) > 0.55 + 0.45 * lush || r(9) < terrain::bare(x, z) {
+            continue; // a little thinner between the clumps, and none in the bare patches
         }
         let yaw = r(5) * std::f32::consts::TAU;
         // about one in forty goes to seed: a flowering stem with a head, in drier spots more often
-        if r(8) < 0.018 + 0.03 * dry {
+        if !fine && r(8) < 0.018 + 0.03 * dry {
             if detail {
                 let kind = match (r(12) * 3.0) as u32 {
                     0 => Head::Spike,
@@ -219,15 +231,19 @@ pub fn chunk(cx: i32, cz: i32, share: f32) -> Mesh {
         }
         // the outermost rings shrink toward the carpet, so the field melts into it instead of ending at an edge
         let fade = (share * 8.0).clamp(0.35, 1.0); // smoothly lower ring by ring, out to a short sward at the edge
-        let height = (0.22 + 0.45 * lush * lush + 0.15 * r(3)) * fade;
-        let width = (0.006 + 0.006 * r(4)) * widen;
+        // a grazed meadow: mostly ankle to shin high, 12 to 45 cm
+        let height = (0.12 + 0.22 * lush * lush + 0.11 * r(3)) * fade;
+        // half the width: real meadow blades are 3 to 8 mm wide; the fine ones 2 to 4 mm
+        let width = if fine { 0.001 + 0.001 * r(4) } else { (0.0018 + 0.0022 * r(4)) * widen };
+        let height = if fine { height * (0.6 + 0.3 * r(11)) } else { height };
         let lean = 0.12 + 0.55 * r(6) * r(6);
         let (dir, side) = (Vec3::new(yaw.cos(), 0.0, yaw.sin()), Vec3::new(-yaw.sin(), 0.0, yaw.cos()));
         // colour: each blade its own green, from deep to light yellow-green; drier where the field is dry.
         // Linear reflectance of real grass: about 5 to 20 % in green, little red and blue.
         let green = Vec3::new(0.030, 0.085, 0.012).lerp(Vec3::new(0.085, 0.200, 0.030), r(7));
         let straw = Vec3::new(0.30, 0.24, 0.10);
-        let tip = green.lerp(straw, (dry * dry * 0.9 * r(9)).min(0.5)) * (0.9 + 0.3 * r(10));
+        // fresh green, with only a little straw where the field is dry
+        let tip = green.lerp(straw, (dry * dry * 0.35 * r(9)).min(0.2)) * (0.95 + 0.3 * r(10));
         let tip_light = tip * Vec3::new(1.15, 1.12, 0.95); // tips catch more light and yellow a little
         let root = tip * 0.28; // the root sits in the shade of its neighbours
         let start = g.pos.len() as u32;
@@ -239,20 +255,35 @@ pub fn chunk(cx: i32, cz: i32, share: f32) -> Mesh {
             let w = width * (1.0 - ((t - 0.45) / 0.55).clamp(0.0, 1.0)).powf(1.2);
             let n = (side + Vec3::Y * 1.5).normalize(); // bent toward the sky, so a field is lit evenly
             let c = if t < 0.5 { root.lerp(tip, (t / 0.5).powf(0.8)) } else { tip.lerp(tip_light, (t - 0.5) / 0.5) };
-            for k in [-1.0, 1.0] {
-                if s == segs && k > 0.0 {
-                    break; // one vertex at the tip
-                }
-                let p = if s == segs { p } else { p + side * w * k };
-                g.vert(p, n, t, c);
+            if s == segs {
+                g.vert(p, n, t, c); // one vertex at the tip
+            } else if fold {
+                // a V across the blade: the midrib stands a little out of the plane, each half facing its own way,
+                // so one half catches the light and the other is in shade, as on a real blade
+                let tilt = dir * 0.6;
+                g.vert(p - side * w, (n - tilt).normalize(), t, c * 0.92);
+                g.vert(p + dir * (w * 0.35), n, t, c * 1.05);
+                g.vert(p + side * w, (n + tilt).normalize(), t, c);
+            } else {
+                g.vert(p - side * w, n, t, c);
+                g.vert(p + side * w, n, t, c);
             }
         }
+        let per = if fold { 3 } else { 2 };
         for s in 0..segs as u32 {
-            let a = start + s * 2;
+            let a = start + s * per;
+            let next = a + per;
             if s + 1 == segs as u32 {
-                g.idx.extend_from_slice(&[a, a + 1, a + 2]);
+                // the last segment closes to the tip
+                if fold {
+                    g.idx.extend_from_slice(&[a, a + 1, next, a + 1, a + 2, next]);
+                } else {
+                    g.idx.extend_from_slice(&[a, a + 1, next]);
+                }
+            } else if fold {
+                g.idx.extend_from_slice(&[a, a + 1, next, a + 1, next + 1, next, a + 1, a + 2, next + 1, a + 2, next + 2, next + 1]);
             } else {
-                g.idx.extend_from_slice(&[a, a + 1, a + 2, a + 1, a + 3, a + 2]);
+                g.idx.extend_from_slice(&[a, a + 1, next, a + 1, next + 1, next]);
             }
         }
     }

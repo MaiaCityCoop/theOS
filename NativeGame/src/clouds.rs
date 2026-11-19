@@ -56,6 +56,9 @@ pub fn drift(
             // the pattern stays fixed to the air, not to the eye: offset by where the eye is and how far the air moved
             let shift = (Vec2::new(at.x, at.z) - *travelled) / TILE;
             mat.uv_transform = bevy::math::Affine2::from_scale_angle_translation(Vec2::splat(WIDE / TILE), 0.0, shift);
+            // a flat layer only reads as cloud from below: it fades as the eye climbs toward it and is gone above
+            let f = ((at.y - 500.0) / 900.0).clamp(0.0, 1.0);
+            mat.base_color = Color::linear_rgba(1.0, 1.0, 1.0, 1.0 - f * f * (3.0 - 2.0 * f));
         }
     }
 }

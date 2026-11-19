@@ -5,7 +5,21 @@
 struct Wind {
     // x: the time, y: the time a frame ago (for motion vectors), z: the strength, w: unused
     params: vec4<f32>,
+    // xyz: the eye; w: 1 for the close layer of fine blades, which sinks into the ground away from the eye
+    eye: vec4<f32>,
 };
+
+// The close layer: fine blades drawn only around the eye. From 4 to 9 m away they sink smoothly into the ground (each
+// point by its height above it and 5 cm more), so the layer has no edge.
+fn sink(world: vec3<f32>, w: Wind) -> vec3<f32> {
+    if (w.eye.w < 0.5) {
+        return world;
+    }
+    let d = distance(world.xz, w.eye.xz);
+    let f = smoothstep(4.0, 9.0, d);
+    let s = max(world.y - ground(world.xz), 0.0);
+    return world - vec3<f32>(0.0, f * (s + 0.05), 0.0);
+}
 
 // The large shape of the land, as `terrain::big` in Rust: keep the two the same.
 fn ground(p: vec2<f32>) -> f32 {
@@ -26,7 +40,9 @@ fn sway(world: vec3<f32>, time: f32, strength: f32) -> vec3<f32> {
     // a blade's own character, smooth across the few centimetres of one blade or one spikelet, so all its corners move
     // together
     let own = 0.5 + 0.5 * sin(world.x * 3.1 + world.z * 2.3) * cos(world.x * 1.7 - world.z * 2.9);
-    let flutter = sin(time * (5.0 + 3.0 * own) + own * 6.28) * 0.25;
+    // one frequency for all: a frequency that varies across the field, multiplied by the running clock, decorrelates
+    // neighbouring points ever more as the app runs, and tore blades into triangles in strong wind
+    let flutter = sin(time * 6.0 + own * 6.28) * 0.25;
     // the blade bends as an arc of constant curvature from its root, so it keeps its length: a point s up the blade
     // moves out by (1 - cos ks) / k and down to sin(ks) / k. The curvature, in radians per metre, grows with the wind.
     let k = max((0.15 + 1.1 * gust + 0.35 * ripple + flutter * own) * strength * (0.8 + 0.4 * own), 0.0) + 1e-4;

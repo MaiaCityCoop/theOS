@@ -7,7 +7,7 @@ import bevy_pbr::{
         view_transformations::position_world_to_clip,
     },
 };
-import super::wind::{Wind, sway};
+import super::wind::{Wind, sway, sink};
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(100) var<uniform> wind: Wind;
 
@@ -17,7 +17,8 @@ fn vertex(v: Vertex) -> VertexOutput {
     let vertex = decompress_vertex(v, v.instance_index);
     let world_from_local = mesh_functions::get_world_from_local(v.instance_index);
     let rest = mesh_functions::mesh_position_local_to_world(world_from_local, vec4<f32>(vertex.position, 1.0));
-    out.world_position = vec4<f32>(rest.xyz + sway(rest.xyz, wind.params.x, wind.params.z), 1.0);
+    let sunk = sink(rest.xyz, wind);
+    out.world_position = vec4<f32>(sunk + sway(sunk, wind.params.x, wind.params.z), 1.0);
     out.position = position_world_to_clip(out.world_position.xyz);
 @if(UNCLIPPED_DEPTH_ORTHO_EMULATION) {
     out.unclipped_depth = out.position.z;
@@ -38,7 +39,8 @@ fn vertex(v: Vertex) -> VertexOutput {
 @if(MOTION_VECTOR_PREPASS) {
     let prev_model = mesh_functions::get_previous_world_from_local(v.instance_index);
     let prev = mesh_functions::mesh_position_local_to_world(prev_model, vec4<f32>(vertex.position, 1.0));
-    out.previous_world_position = vec4<f32>(prev.xyz + sway(prev.xyz, wind.params.y, wind.params.z), 1.0);
+    let prev_sunk = sink(prev.xyz, wind);
+    out.previous_world_position = vec4<f32>(prev_sunk + sway(prev_sunk, wind.params.y, wind.params.z), 1.0);
 }
 @if(VERTEX_OUTPUT_INSTANCE_INDEX)
     out.instance_index = v.instance_index;
