@@ -23,23 +23,22 @@ import { build, tailFrom, ready } from '../assets/kit/clusters.js';
 import { useBuilder, levelSizes } from '../assets/kit/surface.js';
 import { rockHierarchy } from '../assets/kit/rock.js';
 import { isMade, madeHierarchy } from '../assets/kit/made.js';
-import { blobBandSizes, fullOf } from '../assets/kit/blob.js';
+import { blobBandSizes } from '../assets/kit/blob.js';
 import BLOBS from '../assets/zoo/blobs.js';
 
 const BUILDER = ['assets/kit/clusters.js', 'assets/kit/surface.js', 'assets/kit/rock.js', 'assets/kit/made.js'];
 
 // The zoo's blobs (assets/zoo/blobs.js: a family whose kinds are surfaces, assets/zoo/index.js bandOf), made by these
-// files: too many kinds to build every one's hierarchy at every change, so their room is the most of a sample of them,
-// and of what stands in for the largest (the ladder's full mesh, its most squares an edge: fullOf). A kind outside the
-// sample that holds more is cut down to fit (assets/kit/surface.js trimmed), and its drawer counts it short.
+// files: too many kinds to build every one's hierarchy at every change, so their room is the most of a sample of them.
+// A kind outside the sample that holds more is cut down to fit (assets/kit/surface.js trimmed), and its drawer counts
+// it short.
 const ZOO = ['assets/kit/blob.js', 'assets/kit/diamonds.js', 'assets/kit/clusters.js', 'assets/kit/surface.js', 'assets/zoo/blobs.js'];
 function zooRooms(root, was) {
   const files = [...new Set(ZOO.flatMap((f) => [resolve(root, f), ...kitsOf(root, resolve(root, f))]))].sort(), builder = bytesToHex(blake3(utf8ToBytes(files.map((f) => readFileSync(f, 'utf8')).join('\n'))));
   if (was?.builder === builder) return was;
   const t0 = performance.now(), every = Math.ceil(BLOBS.count / 64), sample = Array.from({ length: Math.ceil(BLOBS.count / every) }, (_, i) => i * every);
-  const largest = Array.from({ length: BLOBS.count }, (_, k) => k).reduce((a, k) => (fullOf(k) > fullOf(a) ? k : a), 0);
-  const most = blobBandSizes(largest, false);
-  for (const k of sample) blobBandSizes(k, true).forEach((s, l) => { most[l] = most[l].map((x, i) => Math.max(x, s[i])); });
+  const most = blobBandSizes(sample[0]);
+  for (const k of sample.slice(1)) blobBandSizes(k).forEach((s, l) => { most[l] = most[l].map((x, i) => Math.max(x, s[i])); });
   console.log(`[rooms] the zoo's blobs: ${sample.length} kinds sampled, ${Math.round(performance.now() - t0)} ms`);
   return { name: "the zoo's blobs", builder, print: BLOBS.print(), sampled: sample.length, shapes: [most] };
 }

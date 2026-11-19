@@ -343,11 +343,13 @@ async function noise(chrome, tag, opt) {
 }
 
 /** The GPU's memory from the game's one ledger (window.__game.memory(), src/core/gpu.js), in a line: at its most against
-    the whole's budget, and every make that took a class or the whole past its budget (the hour fails on any). */
+    the whole's budget, and every make that took a class or the whole past its budget (the hour fails on any); and how
+    many kinds each drawer draws coarser than a pixel (the ledger's short: the zoo's bands not come yet). */
 const pastBudget = (M) => {
   if (!M) return 'not read (the page gave no ledger)';
   const over = M.over ?? [], most = `at its most ${M.peak} MB of ${M.budget}`;
-  return over.length ? `${most}; past a budget: ${over.map((o) => `${o.who} with ${o.by} (${o.mb} MB of ${o.budget}, ${o.times}×)`).join('; ')}` : `${most}, every class within its budget`;
+  const short = Object.entries(M.short ?? {}).filter(([, n]) => n > 0), drawn = short.length ? `; drawn coarser than a pixel: ${short.map(([d, n]) => `${n} kinds (${d})`).join(', ')}` : '';   // (the zoo's kinds whose bands have not come: src/scatter/drawer.js)
+  return (over.length ? `${most}; past a budget: ${over.map((o) => `${o.who} with ${o.by} (${o.mb} MB of ${o.budget}, ${o.times}×)`).join('; ')}` : `${most}, every class within its budget`) + drawn;
 };
 /** The board's line on the GPU's memory (the GPU smoke's ledger), and what fails the hour: each make past a budget. */
 const memoryOn = (smoked) => {
