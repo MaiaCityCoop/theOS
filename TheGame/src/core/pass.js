@@ -21,10 +21,10 @@
 // says none writes 0. Its prepass twin writes both, by name (three applies a renderer's MRT only to a material with no
 // fragment of its own). What reads the id comes in the steps after (a shading pass that reads each family's things as data).
 //
-// A family lit where its pixels are, after the prepass (deferred: userData.deferred; the stands', src/scatter/trees.js),
-// writes in its prepass what its light needs (the G-buffer: src/core/gbuffer.js), and is drawn in no colour pass: the
-// one pass of light lights its pixels before the colour pass draws the rest. Its geometry is drawn once, not twice. Any
-// other material writes nothing there (0).
+// A family lit where its pixels are, after the prepass (deferred: userData.deferred; the stands', src/scatter/trees.js,
+// and the grass', grass.js), writes in its prepass what its light needs (the G-buffer: src/core/gbuffer.js), and is
+// drawn in no colour pass: the one pass of light lights its pixels before the colour pass draws the rest. Its geometry
+// is drawn once, not twice. Any other material writes nothing there (0).
 import * as THREE from 'three/webgpu';
 import { context, float, vec2, vec4, uint, uvec2, varying, varyingProperty, screenCoordinate, vertexIndex, Discard, mrt } from 'three/tsl';
 import { U } from './uniforms.js';
