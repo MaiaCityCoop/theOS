@@ -21,9 +21,11 @@ export function loadingStep(text, share) {
   loadingSay(text, share);
   return new Promise((r) => { requestAnimationFrame(() => setTimeout(r, 0)); setTimeout(r, 60); });   // a hidden page has no frames: on regardless
 }
+/** What the last start reached, where it was killed (src/core/lastrun.js): a quiet line on the veil, under its own. */
+export function loadingLast(text) { if (lost() || !text) return; const el = document.createElement('div'); el.id = 'os-last'; el.textContent = text; document.body.append(el); }
 /** The world is drawn: the veil fades away. */
 export function loadingDone() {
   if (lost()) return;
   root.style.setProperty('--os-load', '100%'); root.classList.add('os-loaded');
-  setTimeout(() => { if (lost()) return; root.classList.remove('os-loading', 'os-loaded'); delete document.body.dataset.step; delete document.body.dataset.count; detailLine?.remove(); detailLine = null; }, 950);
+  setTimeout(() => { if (lost()) return; root.classList.remove('os-loading', 'os-loaded'); delete document.body.dataset.step; delete document.body.dataset.count; detailLine?.remove(); detailLine = null; document.getElementById('os-last')?.remove(); }, 950);
 }
