@@ -73,7 +73,7 @@ import { lo16, hi16 } from './unpack.js';
 import { farMost, pxKMost, measureVersion, dialPxAt } from '../detail/measure.js';
 import { BAND, FADE } from '../detail/error.js';
 import { source, shown } from '../core/settle.js';
-import { gpuStorage } from '../core/gpu.js';
+import { gpuStorageLater } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
 import { shows } from '../detail/seen.js';
 
@@ -250,8 +250,9 @@ const sayLight = () => {
   lightSaid = true;
   lightFamily(FAMILY.stands, (f) => {
     const share = sunAt(f.w, 'vertex').toVar();
-    const S = standLight({ w: f.w, n0: f.n, Ve: f.Ve, part: float(f.part), ao: f.ao, wrap: f.wrap, shines: f.shines, clumps: f.clumps, tint: vec3(1), share, glint: f.glint });
-    const P = lightOn({ n: f.n, w: f.w, V: f.Ve, sun: share, ndl: f.n.dot(U.uSunDir).add(f.wrap).div(f.wrap.add(1)).max(0), through: f.shines, ao: f.ao });
+    const [wrap, shines, ao, clumps] = f.own;   // (as gWrite took them, below)
+    const S = standLight({ w: f.w, n0: f.n, Ve: f.Ve, part: float(f.part), ao, wrap, shines, clumps, tint: vec3(1), share, glint: f.glint });
+    const P = lightOn({ n: f.n, w: f.w, V: f.Ve, sun: share, ndl: f.n.dot(U.uSunDir).add(wrap).div(wrap.add(1)).max(0), through: shines, ao });
     const col = f.part.equal(uint(PART.plane)).select(f.colour.mul(P.sky.add(P.sun)).mul(S.sky), f.colour.mul(S.sky.add(S.sun.mul(contactShade()))));
     return vec4(toScreen(col.add(S.add).add(S.spec)).rgb, 1);   // (and a card's leaves' highlight: leafGlint, from its prepass)
   });
@@ -418,7 +419,7 @@ function plantMaterial(tex, D) {
           // frame, sitting on the plane as a leaf does), and as much as is still its mesh's (handing); cut in the prepass
           const C = clumpRead(FAR.clumps(), vClump.x, vUv, vClump.y), t = floor(vUv.mul(atlases().TILE)), keep = hash(uint(t.x).add(uint(t.y).mul(uint(4099))).add(uint(vClump.x).mul(uint(1000003))));
           cut(builder, C.cover.lessThan(0.5).or(keep.greaterThanEqual(vClump.z)).or(handing(vFade).not()));
-          if (pass === 'pre' && DEFER) gWrite({ family: FAMILY.stands, part: PART.plane, colour: C.colour.mul(C.colour).mul(vTint), n: turnOf(vLit.w).turn(C.normal).add(vEye.mul(0.35)), w: vW, ao: C.light, wrap: vK.y, shines: vK.z, clumps: vK.w });   // (deferred: what its light needs)
+          if (pass === 'pre' && DEFER) gWrite({ family: FAMILY.stands, part: PART.plane, colour: C.colour.mul(C.colour).mul(vTint), n: turnOf(vLit.w).turn(C.normal).add(vEye.mul(0.35)), w: vW, own: [vK.y, vK.z, C.light, vK.w] });   // (deferred: what its light needs)
           if (pass === 'pre' || pass === 'shadow') return;
           If(shadow.not(), () => {
             // lit as its leaves are, pixel by pixel, their way there turned with the plant and pulled a little towards
@@ -437,7 +438,7 @@ function plantMaterial(tex, D) {
       if (pass === 'pre' && DEFER) If(vPart.lessThan(1.5), () => {
         const glint = float(0).toVar();
         If(leaf.not(), () => { const W = tex.a(floor(vLay.y.add(0.5)), vUv); T.assign(vec4(W.rgb.mul(mix(0.74, 1, W.a)), 1)); }).Else(() => { glint.assign(leafGlint({ rough: tex.r(floor(vLay.x.add(0.5)), vUv), ns: vCn, Ve: normalize(U.uCam.sub(vW)) })); });
-        gWrite({ family: FAMILY.stands, part: leaf.select(uint(PART.card), uint(PART.wood)), colour: T.rgb.mul(T.rgb).mul(vTint), n: vN, w: vW, ao: vK.x, wrap: vK.y, shines: vK.z, clumps: vK.w, glint });
+        gWrite({ family: FAMILY.stands, part: leaf.select(uint(PART.card), uint(PART.wood)), colour: T.rgb.mul(T.rgb).mul(vTint), n: vN, w: vW, glint, own: [vK.y, vK.z, vK.x, vK.w] });   // (own: wrap, shines, ao, clumps, as its light reads them: sayLight)
       });
       if (pass === 'pre') return motion(vWas, leaf.select(float(1), float(0)));   // (where it was a frame ago; a leaf's card is thin)
       if (pass === 'shadow') return vec4(0);   // (into a shadow map: its depth and its cut-out, no light)
@@ -490,7 +491,7 @@ function impostorMaterial(G, D, Lv, src) {
       // one to a pixel drawn: CELL of them over its sphere's width, 2 r4.w of its Ks at scale 1), its turn, its sphere's
       // radius in the world
       vP.assign(unturn(w.sub(c)).div(Rw)); vE.assign(unturn(U.uCam.sub(c)).div(Rw)); vS.assign(share);
-      const CELL = atlases().CELL;
+      const CELL = atlases().STORED;   // (its atlas's texels a view: a texel a drawn pixel)
       vK.assign(vec4(B.y, clamp(log2(r3.y.mul(CELL).div(r4.w.mul(2).mul(own).max(1e-3))), 0, levelsUnder(CELL)), B.x, Rw));
       // what it is lit by, as its mesh is (standLight): the sun as it reaches its middle, once for the plant (a few
       // pixels), and its kind's numbers its mesh's corners carry (its leaves' wrap and how much the sun shines through
@@ -530,7 +531,7 @@ function impostorMaterial(G, D, Lv, src) {
 // ---- the far ends baked: each shape's impostor and its clumps, each picture from the level of the heap the measure picks
 // at its own size ----
 let BAKING = false;   // (one shape at a time, of every stand: the bakers' targets are one set)
-const BAKED = 5;   // the bake's own version, in what the browser keeps of it (farOf): one more whenever how a far end is baked changes
+const BAKED = 6;   // the bake's own version, in what the browser keeps of it (farOf): one more whenever how a far end is baked changes
 /** A stand's far ends (G: its group; D(): its drawer, once made): its two atlases (the impostors' views, a layer a shape,
     VIEWS x VIEWS views of CELL texels a side; its chunks' planes, a layer a shape that has clumps, G.clumpLayer, G.tiles
     tiles of TILE texels a row: the atlases' numbers, src/detail/impostor.js atlases), and what bakes them. Each shape
@@ -539,7 +540,7 @@ const BAKED = 5;   // the bake's own version, in what the browser keeps of it (f
     is drawn from the level the measure picks at its own size (levelAt): a view CELL texels over the plant's sphere, a
     chunk's plane TILE texels over the longest side of its chunk; never from more than a picture so small shows. */
 function farOf(renderer, tex, G, D) {
-  const A = atlases(), n = G.meshes, views = createAtlas(renderer, { name: `plants, ${G.name}: impostors`, side: A.VIEWS * A.CELL, layers: n, cell: A.CELL, views: A.VIEWS });
+  const A = atlases(), n = G.meshes, views = createAtlas(renderer, { name: `plants, ${G.name}: impostors`, side: A.VIEWS * A.STORED, layers: n, cell: A.STORED, views: A.VIEWS });   // (from the level read where an impostor comes in: atlasesOf STORED)
   let clumps = null; const clumpsOf = () => (clumps ||= createAtlas(renderer, { name: `plants, ${G.name}: clumps`, side: G.tiles * A.TILE, layers: G.clumpy, cell: A.TILE }));   // (a stand none of whose shapes has clumps: one tile, which nothing reads)
   const queue = [], queued = new Uint8Array(n), waiting = new Map(); let version = 0, any = false, M = null, out = 0, swept = false;
   // the levels a shape's pictures are drawn from (far: its far data, assets/kit/crowd.js): the measure's at each
@@ -594,9 +595,10 @@ function farOf(renderer, tex, G, D) {
     const H = D().H, kindU = uniform(0, 'uint'), levelU = uniform(0, 'uint'), rowU = uniform(0, 'int'), sphereU = uniform(new THREE.Vector4(0, 0, 0, 1)), nU = uniform(0, 'int');
     const cells = Array.from({ length: A.CLUMPS * 4 }, () => new THREE.Vector4()), cellsU = uniformArray(cells, 'vec4');
     // (the tile level's card corners, a chunk's after another (chunkOrder): a chunk's planes draw their own range of
-    // them, its start and count in its cell's first two rows, never the rest of the level: as many as the level's
-    // largest room a kind has, any level)
-    const cap = Math.max(4, ...H.pools.map((p) => (p.io ? Math.max(...Array.from({ length: p.n }, (_, k) => p.io[k + 1] - p.io[k])) : p.idx))), CL = gpuStorage('uint', cap, `plants, ${G.name}: the clumps' corners`, 'geometry');
+    // them, its start and count in its cell's first two rows, never the rest of the level. As large as what is written
+    // into it, made larger before a list that would not fit (job: corners), never sized from the heap's pools as they
+    // stand when the bake is first made, which may hold nothing yet)
+    const CL = gpuStorageLater('uint', `plants, ${G.name}: the clumps' corners`, 'geometry'); CL.made = CL.make(1) / 4;
     const vUv = varyingProperty('vec2', 'bUv'), vPart = varyingProperty('float', 'bPart'), vTwig = varyingProperty('float', 'bTwig'), vN = varyingProperty('vec3', 'bN'), vZ = varyingProperty('float', 'bZ'), vAo = varyingProperty('float', 'bAo');
     const vertexAt = (id) => { const R = heapRow(H, kindU, levelU), e = R.y.add(id.mul(uint(2))), e0 = H.elems.element(e).toVar(), e1 = H.elems.element(e.add(uint(1))).toVar(); return { ...plantOf(e0, e1), tip: crowdOfElems(e0, e1, null).tip }; }, vertex = () => vertexAt(vertexIndex);
     // (its way as its picture keeps it: facing the picture, in the picture's own frame, F: src/detail/impostor.js facingOf)
@@ -662,6 +664,9 @@ function farOf(renderer, tex, G, D) {
   const keyOf = (k) => `far: ${G.name}: ${k}`;
   // (a promise of { done }: its pictures drawn and read back, the bakers free for the next shape; done, once they are
   // in the atlases and its numbers say so)
+  // (a chunks' corner list into the bake's buffer, made larger first where it would not fit: to the next power of two,
+  // so a stand's lists grow it a few times at the most, not at every bake)
+  const cornersInto = (CL, list) => { if (list.length > CL.made) CL.made = CL.make(2 ** Math.ceil(Math.log2(list.length))) / 4; CL.write(0, list); };
   // (each shape's far data from its outline, where its workers reckoned it: assets/kit/tree.js farOf)
   const outlineFar = G.kinds.flatMap((Kd) => Array.from({ length: Kd.shapes }, (_, v) => Kd.asset.farOf?.(A)?.[v]?.data ?? null));
   const OF = (k) => (outlineFar[k] ? Float32Array.from(outlineFar[k]) : null);
@@ -691,7 +696,7 @@ function farOf(renderer, tex, G, D) {
       const T = tiles;   // (its tile level's corners in its chunks' order: chunkOrder)
       for (let c = 0; c < nc; c++) for (let q = 0; q < 4; q++) B.cells[c * 4 + q].set(far[8 + c * 12 + q * 3], far[8 + c * 12 + q * 3 + 1], far[8 + c * 12 + q * 3 + 2], q === 0 ? T.start[c] : q === 1 ? T.count[c] : 0);
       B.nU.value = nc;
-      B.levelU.value = at.tiles; B.CL.write(0, T.list);
+      B.levelU.value = at.tiles; cornersInto(B.CL, T.list);
       const per = G.tiles, rows = Math.ceil((nc * 3) / per), most = Uint32Array.from({ length: rows }, (_, r) => { let m = 0; for (let t = r * per; t < Math.min((r + 1) * per, nc * 3); t++) m = Math.max(m, T.count[Math.floor(t / 3)]); return m; });
       b = await bakers(renderer).tiles(per).bake(clumpsOf(), G.clumpLayer[k], rows, (r) => { B.rowU.value = r; B.tgeo.instanceCount = per; B.tgeo.setDrawRange(0, most[r]); return B.tile; });
     }
@@ -996,7 +1001,7 @@ export function treeSample(tex, row, x = 0, y = 0, z = 0, s = 1, form = 0, px = 
   g.setIndex(new THREE.BufferAttribute(M.index, 1));
   const B = bandsOf(a), lo = B.at(-1)[0];
   const { m, shape } = plantMaterial(tex, row.detail)({ lo, hi: Infinity, first: true, last: true }, null, px);
-  m.vertexNode = Fn(() => shape(vec4(x, z, y, s * sizeAtOne(a, form)), vec4(0.4, 0, 1.3, Math.PI)))();
+  m.vertexNode = Fn((builder) => shape(vec4(x, z, y, s * sizeAtOne(a, form)), vec4(0.4, 0, 1.3, Math.PI), passOf(builder)))();   // (its pass: the prepass and the shadow map work out no light at its corners)
   const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.renderOrder = 1; mesh.layers.enable(1);
   for (let j = 0; j < 4; j++) mesh.userData[`rule${j}`] = new THREE.Vector4(...M.rule.subarray(j * 4, j * 4 + 4));
   return wear(mesh, tex, row, form);

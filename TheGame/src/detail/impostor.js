@@ -197,7 +197,9 @@ export function createBaker(renderer, { per, px }) {
           do { const at = r++; ownGpuMs(renderer, () => rowOf(at, draw))?.then((ms) => ROWS.measured(1, ms, FRAME_MS_BY_CLASS.geometry)).catch(() => {}); } while (r < count && --ROWS.left > 0);
         }
         const [c, d, l] = await Promise.all(out.map((o) => renderer.readRenderTargetPixelsAsync(o, 0, 0, W, W)));
-        return { done: mipsOf(new Uint8Array(c), new Uint8Array(d), new Uint8Array(l), W, px, least).then(({ levels }) => { atlas.put(layer, levels); return levels; }) };
+        // (of its pictures' levels, what the atlas keeps: from its own cell's on, a view's never-read finest not: atlasesOf STORED)
+        const from = Math.round(Math.log2(px / atlas.cell));
+        return { done: mipsOf(new Uint8Array(c), new Uint8Array(d), new Uint8Array(l), W, px, least).then(({ levels }) => { const kept = levels.slice(from); atlas.put(layer, kept); return kept; }) };
       });
       last = job.catch(() => {});
       return job;
@@ -265,7 +267,7 @@ const hashOf = (geo) => { let h = FNV; const a = geo.attributes.position.array, 
 /** A made thing's views (geo: its nearest level, its colours a vertex; c, r: its sphere) baked into an atlas of its own:
     { A, ready (1 once they are in) }. */
 function viewsOf(geo, c, r, name) {
-  const { VIEWS, CELL } = atlases(), A = createAtlas(renderer, { name: `a made thing's impostor ${name}`, side: VIEWS * CELL, layers: 2, cell: CELL, views: VIEWS }), ready = uniform(0), row = uniform(0, 'int'), g = new THREE.InstancedBufferGeometry();
+  const { VIEWS, STORED } = atlases(), A = createAtlas(renderer, { name: `a made thing's impostor ${name}`, side: VIEWS * STORED, layers: 2, cell: STORED, views: VIEWS }), ready = uniform(0), row = uniform(0, 'int'), g = new THREE.InstancedBufferGeometry();
   g.index = geo.index; for (const k of ['position', 'normal', 'color']) if (geo.attributes[k]) g.setAttribute(k, geo.attributes[k]);
   const vC = varyingProperty('vec3', 'mC'), vN = varyingProperty('vec3', 'mN'), vZ = varyingProperty('float', 'mZ');
   const vert = Fn(() => { const P = viewClip(positionGeometry.sub(c).div(r), row, VIEWS); vC.assign(attribute('color', 'vec3')); vN.assign(facingOf(attribute('normal', 'vec3'), P.F)); vZ.assign(P.z); return P.clip; })();

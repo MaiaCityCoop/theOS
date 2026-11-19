@@ -422,7 +422,7 @@ function kindOf(key, { K, slots, found, select, twice, label, cls }) {
     p.dispatchSize = G.DG; return p;
   };
   const gcount = gather(false), gwrite = gather(true);
-  const s = { K, slots, twice, cls, stores, leaves, packed, data, tiers: [], visit, full: [G.begin, forward, visit, G.seal, gcount, G.lay, gwrite], only: [G.gbegin, gcount, G.lay, gwrite], dirty: true, epoch: 0, asking: new Set(), wait: null };
+  const s = { K, slots, twice, cls, stores, leaves, packed, data, tiers: [], visit, full: [G.begin, forward, visit, G.seal, gcount, G.lay, gwrite], before: [G.begin, forward], after: [G.seal, gcount, G.lay, gwrite], only: [G.gbegin, gcount, G.lay, gwrite], dirty: true, epoch: 0, asking: new Set(), wait: null };
   KINDS.set(key, s);
   return s;
 }
@@ -499,11 +499,19 @@ const CELLS = pace(WG), FRAME = {};   // (the frame's cells; and, each frame: ho
 export const tick = () => { CELLS.tick(); FRAME.asked = Math.max(1, FRAME.asking ?? 0); FRAME.asking = 0; };
 /** A tier's share of this frame's cells. */
 const shareOf = () => CELLS.n / FRAME.asked;
-/** A packing of `cells` handed to the GPU (submit()), its own time measured: the frame's cells follow it (above).
-    Without a queue to ask (the CPU's stand-in, tools/gpu-mock.js), handed over and not measured. */
-const timed = (renderer, cells, submit) => {
-  if (!cells) { submit(); return; }
-  ownGpuMs(renderer, submit)?.then((ms) => CELLS.measured(cells, ms, FRAME_MS_BY_CLASS.geometry)).catch(() => {});
+/** A packing of `cells` handed to the GPU in turn: what goes before its visit (copying forward), the visit, what comes
+    after (the gather), each its own submission, and the visit's own time measured: the frame's cells follow what its
+    cells cost, not what copying forward and gathering cost beside them (those cost as much whatever it visits: timed
+    with them, a tier that holds much held every tier's cells to the fewest a frame, and what waited never drained:
+    hundreds of regions a tier, main never complete, 2026-11-19). Without a queue to ask (the CPU's stand-in,
+    tools/gpu-mock.js) nothing can be measured: as if its cells cost nothing. */
+const timed = (renderer, cells, before, visit, after) => {
+  renderer.compute(before);
+  const ms = ownGpuMs(renderer, () => renderer.compute(visit));
+  renderer.compute(after);
+  if (!cells) return;
+  if (ms) ms.then((t) => CELLS.measured(cells, t, FRAME_MS_BY_CLASS.geometry)).catch(() => {});
+  else CELLS.measured(cells, 0, FRAME_MS_BY_CLASS.geometry);
 };
 /** Whether two regions (squares of cells) overlap. */
 const overlaps = (A, B) => A.bi * BLOCK < B.bi * BLOCK + B.w && B.bi * BLOCK < A.bi * BLOCK + A.w && A.bj * BLOCK < B.bj * BLOCK + B.w && B.bj * BLOCK < A.bj * BLOCK + A.w;
@@ -600,7 +608,7 @@ function residentOf(T, me, s, ends) {
     const adds = !freed.length;   // (nothing let go: only adding, into the store it holds)
     if (adds) table(at, at, at, n, 1); else table(at, 1 - at, 1 - at, n);
     s.visit.dispatchSize = Math.max(WG, cells);
-    timed(renderer, cells, () => renderer.compute([...s.full, ...ends])); if (!adds) at = 1 - at; gkey = g; packs++; wrong = 1; fresh = 0;
+    timed(renderer, cells, s.before, [s.visit], [...s.after, ...ends]); if (!adds) at = 1 - at; gkey = g; packs++; wrong = 1; fresh = 0;
     did('packs'); did('kcells', Math.round(cells / 1000));
   };
   return {
