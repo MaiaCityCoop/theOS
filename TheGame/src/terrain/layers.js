@@ -119,9 +119,10 @@ for (const bio of LAID) for (const { key, P, kinds, CV, L, entries } of standsOf
   // times as large there)
   const grain = key === 'tree' ? 1 : footprintOf(kinds) / CROWNS;
   // its relief's top where its cover is whole (what the land is raised by, cover times it, where its plants are gone):
-  // each kind's crown top over the ground, the mean of its shapes (its ages and variants, as goneOf has them), each kind
-  // by how much of the ground it covers where the stand is thick (as its colour: seenColour)
-  const topOf = (a) => { let t = 0; const n = a.shapeCount ?? 1; for (let i = 0; i < n; i++) t += Math.max(0, (a.heights?.[i] ?? most(a.size.height)) - FOOT); return t / n; };
+  // each kind's crown top over the ground, its tallest shape's (as goneOf has them; the young stand under the canopy, they
+  // do not make its surface) at the kind's middle scale, each kind by how much of the ground it covers where the stand is
+  // thick (as its colour: seenColour)
+  const topOf = (a) => { let t = 0; for (let i = 0; i < (a.shapeCount ?? 1); i++) t = Math.max(t, (a.heights?.[i] ?? most(a.size.height)) - FOOT); const sc = a.placement?.scale; return t * (sc ? (sc[0] + sc[1]) / 2 : 1); };
   const tw = entries.map((e) => (e.from ? 0 : e.most * e.reach * e.reach)), tws = tw.reduce((s, w) => s + w, 0);
   const reliefTop = tws > 0 ? entries.reduce((s, e, i) => s + tw[i] * topOf(e.asset), 0) / tws : 0;
   STANDS.push({ bio, P, grain, L, entries, seen, reliefTop, colour: CV.colour ?? null, span, fade: span ? [Math.min(...spans) / (span * BAND), 1] : [0, 0], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1, crown, radius, top });
