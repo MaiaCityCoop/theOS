@@ -165,7 +165,7 @@ export const hasFeature = (name) => !!R?.backend?.device?.features?.has(name);
     drawers' skins (src/terrain/pages.js, src/scatter/drawer.js). The device is asked for each as its adapter has it
     (src/boot.js limitsFrom), so what is sized from them is sized from what this GPU gives, never from WebGPU's defaults
     unasked; one not in the list is not read. */
-const SIZED = ['maxBufferSize', 'maxStorageBufferBindingSize', 'maxUniformBufferBindingSize', 'maxComputeWorkgroupsPerDimension', 'maxTextureArrayLayers'];
+export const SIZED = ['maxBufferSize', 'maxStorageBufferBindingSize', 'maxUniformBufferBindingSize', 'maxComputeWorkgroupsPerDimension', 'maxTextureArrayLayers'];
 /** What to ask a device for, of its adapter's limits A: each of SIZED as A has it. */
 const limitsFrom = (A) => Object.fromEntries(SIZED.filter((k) => A?.[k] != null).map((k) => [k, A[k]]));
 /** What the device is asked for (src/boot.js): each of SIZED as this machine's adapter has it (none without WebGPU). */
