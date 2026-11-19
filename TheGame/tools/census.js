@@ -206,7 +206,7 @@ process.exit(0);
     out, and what each drawer asked of the recipes' workers and put in (src/scatter/drawer.js drawersMade). */
 async function settleStart() {
   pageFrames();
-  const { watch, tick, waiting, ready, SETTLE_MS } = await import('../src/core/settle.js'), { changed, taken } = await import('../src/core/work.js'), { drawersMade } = await import('../src/scatter/drawer.js');
+  const { watch, tick, waiting, ready } = await import('../src/core/settle.js'), { SETTLE_MS } = await import('../src/core/budget.js'), { changed, taken } = await import('../src/core/work.js'), { drawersMade } = await import('../src/scatter/drawer.js');
   const threw = [], said = (e) => threw.push(String(e?.message ?? e).split('\n')[0].slice(0, 300));
   process.on('uncaughtException', said); process.on('unhandledRejection', said);
   renderer.domElement ??= { width: WW * WD, height: WH * WD };   // (what a frame's view is compared by besides the camera: the canvas's pixels)

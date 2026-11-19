@@ -10,7 +10,7 @@
 // by the gate, tools/gate/wgsl.js). And beside it all, in a process of its own, the start's view (tools/census.js
 // --settle): the world made as the start makes it, its workers building, drawn on at the start's view till it is
 // complete. Every drawer must have asked the recipes' workers for its meshes and put them in, and the world come
-// complete within its limit (src/core/settle.js SETTLE_MS); a drawer that did not is named. An empty world built every
+// complete within its limit (src/core/budget.js SETTLE_MS); a drawer that did not is named. An empty world built every
 // material here and passed (2026-11-19: the phone's sky and grey ground, 14 draws): its workers could not load.
 //
 //   bun tools/smoke.js        a line a part (what it made, what it built), every failure with where it was thrown;

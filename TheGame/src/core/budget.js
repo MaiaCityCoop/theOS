@@ -29,6 +29,10 @@ export const WATCHDOG_MS = 1000;
     master, 2026-11-19 (smooth walks: every frame over 50 ms, with its parts); the web's own long task (W3C Long Tasks
     API: a task of over 50 ms) */
 export const TASK_MS = 50;
+/** How long the world may take to come complete, or to settle again, before what waits for it calls it broken:
+    src/core/settle.js settle's own timeout, and the start's view's in the tools (tools/census.js --settle, the smoke's).
+    unit: ms. source: settle()'s timeout since stage 2a (Intents/0038, Build: "settle() did not resolve in 300 s") */
+export const SETTLE_MS = 300000;
 /** The hard gate on memory: the whole browser, every process of it (the page, the GPU's, the browser's own; tools/gate.js
     paths measures it so). unit: bytes. source: Intents/0038, Define (the hard gates) */
 export const MEMORY = 8e9;
