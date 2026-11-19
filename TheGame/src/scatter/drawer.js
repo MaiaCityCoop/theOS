@@ -523,6 +523,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   const skinAt = new Int32Array(ALL);   // the round a kind's own texture was last wanted in
   const wantAt = new Int32Array(ALL * L);   // wantAt: the round a kind's level was last wanted in; speed: the camera's, metres a second
   const pending = new Set(); let round = 1;   // round: each look at what stands near; a level wanted in the last one is not put out
+  const askedAt = new Int32Array(ALL * L), askOf = new Int32Array(ALL * L), skinAskedAt = new Int32Array(ALL), skinOf = new Int32Array(ALL);   // (a look's ask of a kind's level, and of its texture: one each, at the largest it is asked at)
   // (of a drawer of bands: which of a kind's bands are short, coarser than a pixel (not in yet, or cut down to its room);
   // the kinds a look found short (what draws them now is not the band they ask, or is short); what is asked in the
   // background, the farthest band of every kind (later: not what the world complete waits on))
@@ -651,12 +652,16 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     const wants = (k, s, d, own) => {
       // (its texture by the pixels drawn, as its shader reads it; its levels by the dial's pixels: src/detail/error.js)
       const drawn = pxOn(s * 1.2, Math.max(1e-3, d * inv)), drawnThen = pxOn(s * 1.2, (d + ahead + own) * inv), px = dialPx(drawn), then = dialPx(drawnThen);
-      if (SKINS && drawn > SKINPX) { skinAt[k] = round; if (skins.slot[k] >= 0) skins.used[skins.slot[k]] = round; else if (drawnThen > SKINPX && !skinPending.has(k)) want.push([drawn, k]); }
+      if (SKINS && drawn > SKINPX) { skinAt[k] = round; if (skins.slot[k] >= 0) skins.used[skins.slot[k]] = round; else if (drawnThen > SKINPX && !skinPending.has(k)) { if (skinAskedAt[k] !== round) { skinAskedAt[k] = round; skinOf[k] = want.length; want.push([drawn, k]); } else if (drawn > want[skinOf[k]][0]) want[skinOf[k]][0] = drawn; } }
       let w = STREAMED;
       for (let l = STREAMED - 1; l >= 0 && px > LEVELS[l].px; l--) {
         w = l;
         if (H.has(k, l)) { H.touch(k, l, round); wantAt[k * L + l] = round; }
-        else if (then > LEVELS[l].px) { wantAt[k * L + l] = round; if (!pending.has(k * L + l)) asks.push({ k, l, px }); }
+        else if (then > LEVELS[l].px) {
+          const id = k * L + l; wantAt[id] = round;
+          if (pending.has(id)) continue;
+          if (askedAt[id] !== round) { askedAt[id] = round; askOf[id] = asks.length; asks.push({ k, l, px }); } else if (px > asks[askOf[id]].px) asks[askOf[id]].px = px;   // (each kind's level asked once a look, as large as the nearest of it)
+        }
       }
       if (!BANDS) return;
       looked.add(k);
