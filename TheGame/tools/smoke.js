@@ -15,6 +15,9 @@
 //                             pipelines, by their WGSL text: tools/health.js holds them to the base), what failed
 //   bun tools/smoke.js --wgsl f  and every shader module built (the world's and the library's), each with the part it was
 //                             built for, kept in f as JSON: what tools/gate/wgsl.js compiles on a device
+//   bun tools/smoke.js --full    and what grows after it is made, waited for (the characters' figures, flesh and skin:
+//                             a worker grows the bones; Bun given a page's frames and workers that import the game's
+//                             modules): a minute, so the hour and gate.js wgsl run it, CI's smoke does not
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { mock } from './gpu-mock.js';
@@ -31,6 +34,17 @@ const pipelinesOf = ({ render, compute }) => {
   const modules = new Set([...[...render].flatMap((p) => p.split('\0')), ...compute]);
   return { render: render.size, compute: compute.size, modules: modules.size, bytes: [...modules].reduce((s, m) => s + Buffer.byteLength(m), 0) };
 };
+// (the run's mode, decided once: the quick one CI runs, or --full, which waits for what grows after it is made, the
+// characters' figures, flesh and skin, and gives Bun what a page has and it has not for it: its frames, and its workers
+// able to import the game's modules, given tools/glob.js first. Each mode says what it waits for of a thing made, and
+// which unbuilt places it knows, tools/unbuilt.json)
+const MODE = process.argv.includes('--full') ? fullMode() : { grown: () => null, known: (J) => ({ ...J.sites, ...J.full }) };
+function fullMode() {
+  globalThis.requestAnimationFrame ??= (f) => setTimeout(() => f(performance.now())); globalThis.cancelAnimationFrame ??= (id) => clearTimeout(id);
+  const Real = globalThis.Worker, GLOB = new URL('./glob.js', import.meta.url).pathname;
+  globalThis.Worker = class extends Real { constructor(url, o = {}) { super(url, { ...o, preload: [...[o.preload ?? []].flat(), GLOB] }); } };
+  return { grown: (made) => made.grown, known: (J) => ({ ...J.sites }) };
+}
 const M = await mock({ lean: true }), { THREE, renderer } = M;
 // (where each material and compute pass is made: the game's own frames on the stack as three's constructor sets its
 // flag, by function, tools/sites.js; what a shader is called where it is kept, with its step and name below:
@@ -160,8 +174,10 @@ await tryTo('the library', async () => {
   const { materialPreview } = await import('../src/materials/preview.js'), { humanOf } = await import('../characters/kit/human.js'), { personOf, randomAvatar } = await import('../characters/kit/avatar.js');
   for (const m of recipes('material')) { part = `the library: ${m.name}, its ball`; library.add(new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), materialPreview(tex, m.uid, 2))); }
   const people = recipes('character'), settler = people.find((c) => c.uid === '944dc52a-5094-480c-9396-5ceedbbf03b1');
-  for (const c of people) { part = `the library: ${c.name}`; library.add(c.make(tex).object); }   // (each as its own recipe makes it: a figure, a skeleton, a person; what grows of it after, not waited for: tools/unbuilt.json)
-  if (settler) { part = 'the library: a person of one\'s own'; library.add(humanOf(tex, personOf(randomAvatar(() => 0.5), settler)).object); }
+  const grown = [], stand = (made) => { library.add(made.object); const g = MODE.grown(made); if (g) grown.push(g.catch((e) => failed.push(`${part}, grown: ${String(e?.message ?? e).slice(0, 300)}`))); };
+  for (const c of people) { part = `the library: ${c.name}`; stand(c.make(tex)); }   // (each as its own recipe makes it: a figure, a skeleton, a person; what grows of it after, waited for with --full)
+  if (settler) { part = 'the library: a person of one\'s own'; stand(humanOf(tex, personOf(randomAvatar(() => 0.5), settler))); }
+  await Promise.all(grown);
 });
 const before = built.size;
 library.traverse((o) => { for (const m of [o.material].flat()) take(o, m); });
@@ -189,10 +205,11 @@ console.error = said;
 // (a place that makes shaders the smoke does not build, and tools/unbuilt.json does not know: a new gap, a failure;
 // one it knows, said; one it knows now built, said, to be taken out of it)
 if (!SITES.length) failed.push(`the game's code gave no place that makes shaders (git ls-files in ${ROOT}: ${FILES.length} files): nothing was held against what was built`);   // (a census that sees nothing must not pass)
-const KNOWN = new URL('./unbuilt.json', import.meta.url), unmade = unbuilt(), known = existsSync(KNOWN) ? JSON.parse(readFileSync(KNOWN, 'utf8')).sites : {}, count = {};
+// (known: the gaps of every run, `sites`; and, but with --full, what only --full builds, `full`: --full must build it)
+const KNOWN = new URL('./unbuilt.json', import.meta.url), J = existsSync(KNOWN) ? JSON.parse(readFileSync(KNOWN, 'utf8')) : {}, unmade = unbuilt(), known = MODE.known(J), count = {};
 for (const u of unmade) count[u.at] = (count[u.at] ?? 0) + 1;
 for (const [at, n] of Object.entries(count)) if (n > (known[at] ?? 0)) failed.push(`what the game makes at ${at} the smoke never builds (${n} place${n > 1 ? 's' : ''}: ${unmade.filter((u) => u.at === at).map((u) => `line ${u.line}`).join(', ')}), so the gate never compiles it: make it here, or name it in tools/unbuilt.json with why`);
-const closed = Object.entries(known).filter(([at, n]) => (count[at] ?? 0) < n).map(([at]) => at);
+const closed = Object.entries(known).filter(([at, n]) => (count[at] ?? 0) < n).map(([at]) => at), fullOnly = Object.keys(count).filter((at) => J.full?.[at]);
 const secs = ((performance.now() - t0) / 1000).toFixed(1), P = world.pipelines, summary = { world, library: libraryMade, stress: built.size - before - libraryMade, glsl, secs: +secs, unbuilt: unmade.map((u) => `${u.at} (line ${u.line})`), failed: [...new Set(failed)] };
 keep(summary);
 const wgslAt = process.argv.indexOf('--wgsl');
@@ -200,7 +217,9 @@ if (wgslAt > 0) writeFileSync(process.argv[wgslAt + 1], JSON.stringify({ render:
 if (process.argv.includes('--json')) { console.log(JSON.stringify(summary)); process.exit(failed.length ? 1 : 0); }
 console.log(`smoke: the world ${world.materials} materials (${world.builds} builds by pass), ${world.passes} compute passes, ${P.render} render and ${P.compute} compute pipelines, ${P.modules} shader modules, ${(P.bytes / 1024).toFixed(1)} KB of WGSL; the library ${libraryMade} materials more, the stress stand ${built.size - before - libraryMade}, the WebGL 2 fallback ${glsl} (GLSL); ${secs} s`);
 if (failed.length) { console.log(`\n${failed.length} failed:\n  ${[...new Set(failed)].join('\n  ')}`); process.exit(1); }
-if (unmade.length) console.log(`smoke: ${unmade.length} places in the game's code make shaders the smoke does not build, as tools/unbuilt.json says: ${Object.keys(count).join('; ')}`);
+if (fullOnly.length) console.log(`smoke: ${fullOnly.length} places built only with --full, what grows after it is made (tools/unbuilt.json full; the hour and gate.js wgsl run it): ${fullOnly.join('; ')}`);
+const gaps = Object.keys(count).filter((at) => !J.full?.[at]);
+if (gaps.length) console.log(`smoke: ${gaps.length} places in the game's code make shaders the smoke does not build, as tools/unbuilt.json says: ${gaps.join('; ')}`);
 if (closed.length) console.log(`smoke: now built, take out of tools/unbuilt.json: ${closed.join('; ')}`);
 console.log('smoke: every material and pass built');
 process.exit(0);   // (the game's own timers and loops would keep it running)
