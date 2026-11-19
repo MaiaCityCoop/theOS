@@ -67,6 +67,9 @@ const OVER = LAID.filter((b) => !b.grass).map((b) => { if (slopes < 0 && BASE.sl
 if (slopes < 0 && BASE.slopes) slopes = lay({ ground: BASE.slopes });
 /** The base's rock on what is too steep (-1: none): not in the map, laid by the texel from its own slope. */
 export const SLOPES = slopes;
+/** Where the base's rock comes in on the land (SLOPES): from where the ground's normal's y falls under the first to
+    the second (37° to 47°), its share as the page keeps it (tools/slopecheck.js) */
+export const STEEP = [0.8, 0.68];
 /** The library's stage: its ground is the uniform's (uStageGround: a material's number and its tile; -1 the base's patches). */
 export const STAGE = lay({ ground: null });
 if (LAYERS.length > EMPTY) throw new Error(`the land lays ${LAYERS.length} layers: a byte names at most ${EMPTY}`);
@@ -346,7 +349,7 @@ export function layersFrom(load, f, ny) {
     });
   });
   // the base's rock where the land is too steep: the point's own slope
-  const slope = { id: int(SLOPES >= 0 ? SLOPES : 999).toVar(), w: float(SLOPES >= 0 ? smoothstep(0.8, 0.68, ny) : 0).toVar() };
+  const slope = { id: int(SLOPES >= 0 ? SLOPES : 999).toVar(), w: float(SLOPES >= 0 ? smoothstep(STEEP[0], STEEP[1], ny) : 0).toVar() };
   const slots = [...ids.map((id, m) => ({ id, w: ws[m] })), slope];
   for (const s of slots.slice(0, 4)) If(s.id.lessThan(0), () => { s.id.assign(999); });   // (an empty slot: after every layer)
   for (const [a, b] of [[0, 1], [3, 4], [2, 4], [2, 3], [1, 4], [0, 3], [0, 2], [1, 3], [1, 2]]) {   // (sorted by id: a network of nine)

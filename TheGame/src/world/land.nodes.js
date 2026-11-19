@@ -2,7 +2,7 @@
 // draw is the ground the walker stands on. Every material that needs the land (terrain, water, grass, rocks, the ground
 // pass) builds from these. The biomes (biomes/*.js) bring their own rules; the library's sandbox lays one biome over
 // all the land round its stage.
-import { Fn, float, int, uint, vec2, vec3, vec4, abs, max, clamp, mix, smoothstep, length, atan, sin, cos, If, Loop, uniformArray, uniform, renderGroup } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, abs, max, clamp, mix, smoothstep, length, atan, sin, cos, If, Loop, uniformArray, uniform, renderGroup, array } from 'three/tsl';
 import { Vector4 } from 'three/webgpu';
 import { U } from '../core/uniforms.js';
 import { hashI, rnd, noised, vnoise, camDist, edgeJit, groveAt, leadAt, bent, turned, second } from './noise.nodes.js';
@@ -109,31 +109,61 @@ export const riverBank = Fn(([d, w, b]) => {
   const cut = max(b, 0), bar = max(b.negate(), 0);
   return smoothstep(w, w.add(5).add(bar.mul(8)), d).mul(0.3).add(cut.mul(1.3).mul(smoothstep(w, w.add(1.2), d)).mul(float(1).sub(smoothstep(w.add(6), w.add(30), d).mul(0.6))));
 }).setLayout({ name: 'riverBank', type: 'float', inputs: [{ name: 'd', type: 'float' }, { name: 'w', type: 'float' }, { name: 'b', type: 'float' }] });
+/** the valley's floor at p and its slope: vec3(h, ∂h/∂x, ∂h/∂z) */
+const floorOf = Fn(([p]) => {
+  const n1 = noised(p.mul(1 / 2600), uint(11)), n2 = noised(p.mul(1 / 900).add(3.7), uint(12));
+  return vec3(n1.x.sub(0.5).mul(40).add(n2.x.sub(0.5).mul(14)), n1.yz.mul(40 / 2600).add(n2.yz.mul(14 / 900)));
+}).setLayout({ name: 'floorOf', type: 'vec3', inputs: [{ name: 'p', type: 'vec2' }] });
 /** the valley's floor */
-export const baseB = Fn(([p]) => vnoise(p.mul(1 / 2600), uint(11)).sub(0.5).mul(40).add(vnoise(p.mul(1 / 900).add(3.7), uint(12)).sub(0.5).mul(14))).setLayout({ name: 'baseB', type: 'float', inputs: [{ name: 'p', type: 'vec2' }] });
+export const baseB = (p) => floorOf(p).x;
 export const WATER_DROP_N = float(WATER_DROP);
 
-/** The ground's height at p (pe: the dial's pixels a metre of height covers there, src/detail/measure.js): the land's
-    octaves, each kept as long as its height shows (its amplitude over a dial pixel on screen, handed over within BAND: the
-    land's mesh is fine enough to carry every octave that shows, src/terrain/terrain.js), the river, and the pads under
-    what stands */
-const heightOf = Fn(([p, dist, d, w, b, pe]) => {
-  const m = smoothstep(w, w.add(80), d), mm = mix(0.35, 1, m), h = float(0).toVar(), q = vec2(p).toVar();
-  for (let i = 0; i < OCT_LAM.length; i++) {
+// (the octaves' numbers as arrays a loop reads, made where a shader is built: their wavelengths and amplitudes)
+const octaves = () => ({ lam: array(OCT_LAM.map((v) => float(v))).toVar(), amp: array(OCT_AMP.map((v) => float(v))).toVar() });
+// (a smoothstep's slope at x: 0 outside a … b)
+const stepSlope = (a, b, x) => { const t = clamp(x.sub(a).div(b.sub(a)), 0, 1); return t.mul(float(1).sub(t)).mul(6).div(b.sub(a)); };
+/** The ground's height at p and its slope, worked out together (src/world/land.js heightSlopeAt, its twin, proven on the
+    CPU against the land's own finite difference). pe: the dial's pixels a metre of height covers there
+    (src/detail/measure.js). The land's octaves, each kept as long as its height shows (its amplitude over a dial pixel
+    on screen, handed over within BAND: the land's mesh is fine enough to carry every octave that shows,
+    src/terrain/terrain.js), each with its own slope (noised); the river, its part of the slope over e ahead in x and in
+    z (dX, dZ: its distance there, read with its width and bend kept: riverNear); the pads under what stands.
+    vec4(h, ∂h/∂x, ∂h/∂z, the valley's floor). One evaluation of the land where its slope took three; and the land's one
+    function: its height alone is this one's first number (heightAt), so the prepass and the colour pass, one asking the
+    height and one the slope too, put the ground at the same depth to the last bit (src/core/pass.js: the equal test). */
+const heightSlopeOf = Fn(([p, d, w, b, pe, dX, dZ, e]) => {
+  const mF = (v) => smoothstep(w, w.add(80), v), rvF = (v) => mF(v).mul(3).add(riverBank(v, w, b)).sub(riverCarve(v, w, b));
+  const m = mF(d).toVar(), dmx = mF(dX).sub(m).div(e).toVar(), dmz = mF(dZ).sub(m).div(e).toVar(), rv = rvF(d).toVar();
+  const rx = rvF(dX).sub(rv).div(e), rz = rvF(dZ).sub(rv).div(e);
+  // (T: the turn the octave reads the point through, the rows of the matrix q = T·p: its slope turned back by T's transpose)
+  const h = float(0).toVar(), hx = float(0).toVar(), hz = float(0).toVar(), q = vec2(p).toVar(), T = vec4(1, 0, 0, 1).toVar(), O = octaves();
+  Loop(OCT_LAM.length, ({ i }) => {   // (the octaves in a loop: written once in a shader, not once an octave)
     q.assign(vec2(q.x.mul(0.8).sub(q.y.mul(0.6)), q.x.mul(0.6).add(q.y.mul(0.8))));
-    const lam = OCT_LAM[i], e = pe.mul(OCT_AMP[i]);
-    If(e.greaterThan(1), () => {
-      h.addAssign(vnoise(q.div(lam).add(i * 7.31), uint(20 + i)).sub(0.5).mul(OCT_AMP[i]).mul(smoothstep(1, BAND, e)).mul(i >= 6 ? mm : m));
+    T.assign(vec4(T.x.mul(0.8).sub(T.z.mul(0.6)), T.y.mul(0.8).sub(T.w.mul(0.6)), T.x.mul(0.6).add(T.z.mul(0.8)), T.y.mul(0.6).add(T.w.mul(0.8))));
+    const lam = O.lam.element(i), A = O.amp.element(i), e1 = pe.mul(A);
+    If(e1.greaterThan(1), () => {
+      const n = noised(q.div(lam).add(float(i).mul(7.31)), uint(i).add(uint(20))), k = smoothstep(1, BAND, e1).mul(A), v = n.x.sub(0.5);
+      // (the last two octaves keep 0.35 of themselves on the river's banks: mix(0.35, 1, m))
+      const s = i.greaterThanEqual(6).select(float(0.65), float(1)), f = m.sub(1).mul(s).add(1), fx = dmx.mul(s), fz = dmz.mul(s);
+      const px = n.y.mul(T.x).add(n.z.mul(T.z)).div(lam), pz = n.y.mul(T.y).add(n.z.mul(T.w)).div(lam);
+      h.addAssign(v.mul(f).mul(k)); hx.addAssign(px.mul(f).add(v.mul(fx)).mul(k)); hz.addAssign(pz.mul(f).add(v.mul(fz)).mul(k));
     });
+  });
+  const F = floorOf(p).toVar(), H = F.x.add(h).add(rv).toVar(), HX = F.y.add(hx).add(rx).toVar(), HZ = F.z.add(hz).add(rz).toVar();
+  for (const P of PADS) {
+    const dv = p.sub(vec2(P.x, P.z)), len = length(dv), sP = smoothstep(P.r, P.r + PAD_FALL, len), dsP = stepSlope(float(P.r), float(P.r + PAD_FALL), len).div(max(len, 1e-4)), over = H.sub(P.h);
+    HX.assign(HX.mul(sP).add(over.mul(dsP).mul(dv.x))); HZ.assign(HZ.mul(sP).add(over.mul(dsP).mul(dv.y))); H.assign(over.mul(sP).add(P.h));
   }
-  const H = baseB(p).add(h).add(m.mul(3)).add(riverBank(d, w, b)).sub(riverCarve(d, w, b)).toVar();
-  for (const P of PADS) H.assign(mix(float(P.h), H, smoothstep(P.r, P.r + PAD_FALL, length(p.sub(vec2(P.x, P.z))))));
-  return H;
-}).setLayout({ name: 'heightAt', type: 'float', inputs: [{ name: 'p', type: 'vec2' }, { name: 'dist', type: 'float' }, { name: 'd', type: 'float' }, { name: 'w', type: 'float' }, { name: 'b', type: 'float' }, { name: 'pe', type: 'float' }] });
-/** The ground's height at p, seen dist metres off (d, w, b: the river there, riverInfo). (The measure is read here,
+  return vec4(H, HX, HZ, F.x);
+}).setLayout({ name: 'heightSlopeAt', type: 'vec4', inputs: [{ name: 'p', type: 'vec2' }, { name: 'd', type: 'float' }, { name: 'w', type: 'float' }, { name: 'b', type: 'float' }, { name: 'pe', type: 'float' }, { name: 'dX', type: 'float' }, { name: 'dZ', type: 'float' }, { name: 'e', type: 'float' }] });
+/** The ground's height at p seen dist metres off, and its slope (d, w, b: the river there, riverInfo; dX, dZ: its
+    distance e ahead in x and in z, riverNear's): vec4(h, ∂h/∂x, ∂h/∂z, the valley's floor). (The measure is read here,
     outside the land's function: a uniform named inside one does not compile; through the lens, as its mesh is made:
     src/terrain/terrain.js) */
-export const heightAt = (p, dist, d, w, b) => heightOf(p, dist, d, w, b, dialPxAt(uPxK.div(max(dist, 1e-3))));
+export const heightSlopeAt = (p, dist, d, w, b, dX, dZ, e) => heightSlopeOf(p, d, w, b, dialPxAt(uPxK.div(max(dist, 1e-3))), dX, dZ, e);
+/** The ground's height at p, seen dist metres off (d, w, b: the river there, riverInfo): the land's function's height
+    (its slope asked of nothing: a shader's compiler drops what of it is not used). */
+export const heightAt = (p, dist, d, w, b) => heightSlopeAt(p, dist, d, w, b, d, d, float(1)).x;
 /** the height at p, the river worked out here */
 export const groundAt = (p, dist) => { const I = riverInfo(p); return heightAt(p, dist, abs(I.x), I.y, I.z); };
 

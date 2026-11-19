@@ -9,7 +9,7 @@ import { Fn, float, int, uint, vec2, vec3, vec4, array, attribute, positionGeome
 import { U } from '../core/uniforms.js';
 import { TRUTH, pxAt, dialPxAt } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
-import { camDist, riverInfo, riverNear, heightAt, baseB, roofAt, hashI, BASE } from '../world/land.nodes.js';
+import { camDist, riverInfo, riverNear, heightAt, heightSlopeAt, roofAt, hashI, BASE } from '../world/land.nodes.js';
 import { OCT_LAM, OCT_AMP } from '../world/land.js';
 import { layerOf, standOf, standFade, CARPET, SLOPES, NO_STAND, SHADE_REACH, CROWNS } from './layers.js';
 import { lit, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
@@ -78,9 +78,9 @@ export function groundRead(tex, m, p, s, tile) {
 /** How steep the land is at p, its normal's y, as the ground's mesh has it seen from D metres off (its vertex stage:
     the height's steps e metres either way). */
 export function slopeAt(p, D) {
-  const e = normalStep(D).toVar(), I = riverInfo(p).toVar(), h = heightAt(p, D, abs(I.x), I.y, I.z).toVar();
-  const at = (q) => { const J = riverNear(q, I).toVar(); return heightAt(q, D, abs(J.x), J.y, J.z); };
-  return normalize(vec3(h.sub(at(p.add(vec2(e, 0)))), e, h.sub(at(p.add(vec2(0, e)))))).y;
+  const e = normalStep(D).toVar(), I = riverInfo(p).toVar(), dn = (q) => abs(riverNear(q, I).x);
+  const S = heightSlopeAt(p, D, abs(I.x), I.y, I.z, dn(p.add(vec2(e, 0))), dn(p.add(vec2(0, e))), e);   // (its height and slope at once: src/world/land.nodes.js)
+  return normalize(vec3(S.y.negate(), 1, S.z.negate())).y;
 }
 
 const rot = (q) => vec2(q.x.mul(0.6).sub(q.y.mul(0.8)), q.x.mul(0.8).add(q.y.mul(0.6)));
@@ -170,12 +170,12 @@ export const cavityOf = (h, cv) => mix(1, smoothstep(0.08, 0.5, h).mul(0.62).add
     `full` its normal N (the height's steps e metres either way, e by how far off it is seen) and how far it stands over
     the valley's floor (hill). The land's vertex stage. */
 function landPoint(wp, full) {
-  const dist = camDist(wp).toVar(), e = normalStep(dist).toVar();
-  const at = (q, near) => { const I = (near ? riverNear(q, near) : riverInfo(q)).toVar(), d = abs(I.x).toVar(); return { I, d, h: heightAt(q, dist, d, I.y, I.z).toVar() }; };
-  const C = at(wp), h = C.h;
-  if (!full) return { h, I: C.I, d: C.d };
-  const X = at(wp.add(vec2(e, 0)), C.I), Z = at(wp.add(vec2(0, e)), C.I);
-  return { h, I: C.I, d: C.d, N: normalize(vec3(h.sub(X.h), e, h.sub(Z.h))).toVar(), hill: h.sub(baseB(wp)) };   // (hill: how far this ground stands over the valley's floor)
+  const dist = camDist(wp).toVar(), e = normalStep(dist).toVar(), I = riverInfo(wp).toVar(), d = abs(I.x).toVar();
+  if (!full) return { h: heightAt(wp, dist, d, I.y, I.z).toVar(), I, d };
+  // (its height and its normal from its slope, worked out together: src/world/land.nodes.js heightSlopeAt; the river's
+  // distance e ahead read as its neighbours were, its width and bend kept)
+  const dn = (q) => abs(riverNear(q, I).x), S = heightSlopeAt(wp, dist, d, I.y, I.z, dn(wp.add(vec2(e, 0))), dn(wp.add(vec2(0, e))), e).toVar();
+  return { h: S.x, I, d, N: normalize(vec3(S.y.negate(), 1, S.z.negate())).toVar(), hill: S.x.sub(S.w) };   // (hill: how far this ground stands over the valley's floor)
 }
 /** How far the snow lifts the ground at wp (the river there I, d its distance off): not in the river's channel, not
     under a roof. What stands on the land sinks into it as deep. */
