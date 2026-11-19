@@ -40,7 +40,7 @@
 //   - where it has sunk, the land wears its stand's colour (the stand's `cover`: src/terrain/material.js), as thick as
 //     the stand grows there: a forest, and its undergrowth, to the horizon.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, attribute, positionGeometry, vertexIndex, instanceIndex, screenCoordinate, If, Discard, abs, max, min, mix, smoothstep, pow, normalize, length, floor, cos, sin, cross, clamp, log, log2, exp2, step, fract, unpackHalf2x16, hash, sqrt } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, attribute, positionGeometry, vertexIndex, instanceIndex, screenCoordinate, If, Discard, abs, max, min, mix, smoothstep, exp, pow, normalize, length, floor, cos, sin, cross, clamp, log, log2, exp2, step, fract, unpackHalf2x16, hash, sqrt } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, camDist, heightAt } from '../world/land.nodes.js';
 import { layersOf, posIn, placeIn, grownIn, grovesOf, writersOf } from './rule.js';
@@ -66,7 +66,7 @@ import { addBodies, bodyGrid, topOf, wanted } from '../world/bodies.js';
 import { idOf } from '../world/things.js';
 import { wayAt, waysVersion } from '../world/ways.js';
 import { pxOf, turnOf, seedOf } from './row.js';
-import { levelOf as crowdLevelOf } from '../../assets/kit/crowd.js';
+import { levelOf as crowdLevelOf, RULE } from '../../assets/kit/crowd.js';
 import { crowdOf, bandsOf, baseShare, goneOf, canopyNumbersOf, GRID, GOQ, GO0, FOOT } from '../../assets/kit/plant.js';
 import { ringsOf, bandsOf as ringBands } from './grass.js';
 import { lo16, hi16 } from './unpack.js';
@@ -112,10 +112,24 @@ const meshShare = (T, px, Ks, seed) => T.greaterThan(0).select(clamp(log(ratioOf
 const handing = (share) => fract(ign(screenCoordinate.xy).add(unlit().select(float(0), U.uDither))).lessThan(share);   // (the shadow map's still: it is built over no time)
 /** The one rule (assets/kit/crowd.js, the same in JS there): where a crowd level's vertex lies at px pixels, and whether
     it shows. V: the vertex (position, root, part, Ks: its shape's size at scale 1) with C, what the rule moves it by
-    (crowdOfElems: go in metres). Every part keeps its true size: one that goes shrinks to its root over the FADE below
-    where it may go; a chunk's planes grow out of its middle over the FADE below where it may come, while its own sprigs
-    go (crowd.js clumpsOf: each where its own parts were). Each part's own error is its go: it changes at its own place,
-    plant by plant as their sizes differ. */
+    (crowdOfElems: go in metres). A part that goes shrinks to its root over the FADE below where it may go, and the kept
+    cards grow to stand for what has gone (grownBy); a chunk's planes grow out of its middle over the FADE below where it
+    may come, while its own sprigs go (crowd.js clumpsOf: each where its own parts were). Each part's own error is its
+    go: it changes at its own place, plant by plant as their sizes differ. */
+/** How many times its size a kept sprig is drawn at px: what stays stands for what goes, grown so the crown covers as much
+    of its round as it did (assets/kit/crowd.js growthOf; Cook, Halstead, Planck and Ryu 2007, "Stochastic
+    Simplification of Aggregate Detail"), from its shape's numbers (rule, crowd.js RULE: the log of its most growth, and
+    where, in the log of the error, it reaches each of its knots' growths, evenly in its log), at the error the dial
+    allows here (metres at scale 1: its size there over its pixels, at the dial: what ratioOf holds a rung's error
+    against), read between the two knots it lies between. 1 where nothing has gone. */
+const COMP = ['x', 'y', 'z', 'w'], numOf = (rule, n) => rule[n >> 2][COMP[n & 3]];
+function grownBy(px, V, rule) {
+  if (!rule) return float(1);
+  const KN = RULE.AT - RULE.GROW, x = log(V.Ks.mul(U.uErrorPx).div(px.max(1e-9))).toVar();
+  let y = float(0), was = numOf(rule, RULE.E + 1);
+  for (let j = 0; j < KN; j++) { const at = numOf(rule, RULE.GROW + j); y = y.add(clamp(x.sub(was).div(at.sub(was).max(1e-6)), 0, 1)); was = at; }
+  return exp(y.mul(numOf(rule, RULE.E).div(KN)));
+}
 function crowdRule(px, V, C) {
   const r = (e) => ratioOf(e, px, V.Ks);
   // (how far under where it may go or come a part is, on the FADE: 0 at its switch, 1 a FADE under it)
@@ -124,8 +138,9 @@ function crowdRule(px, V, C) {
   If(V.part.greaterThan(1.5), () => {   // (a chunk's plane: under where it may come, grown out of its chunk's middle over the FADE)
     const c = smooth01(under);
     pos.assign(mix(C.tip, V.position, c)); shown.assign(c.greaterThan(0));
-  }).Else(() => {   // (a card, a piece of wood: shrinking to its root as it goes; what never goes by itself stays till the impostor takes it)
-    pos.assign(mix(V.root, V.position, g)); shown.assign(g.greaterThan(0));
+  }).Else(() => {   // (a card, a piece of wood: shrinking to its root as it goes; what never goes by itself stays till the impostor takes it; a card grown about its root as the kept stand for what has gone: grownBy)
+    const k = V.part.greaterThan(0.5).select(grownBy(px, V, C.rule), float(1));
+    pos.assign(V.root.add(V.position.sub(V.root).mul(g.mul(k)))); shown.assign(g.greaterThan(0));
   });
   return { pos, shown };
 }

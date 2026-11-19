@@ -43,7 +43,7 @@ export async function mock({ webgl = false, dpr = 1, record = false, lean = fals
   const Builder = webgl ? THREE.GLSLNodeBuilder : THREE.WGSLNodeBuilder, features = new Set(['indirect-first-instance', 'timestamp-query', 'texture-compression-bc']);   // (every feature the game asks of a device: a Mac's, BC's packed paint among them, src/materials/bake.js)
   const ids = new Map(), id = (o) => (o == null ? null : (ids.has(o) || ids.set(o, `#${ids.size}`), ids.get(o)));
   const calls = [], drawn = new Set(), computed = new Set(), done = () => ({ destroy() {} });
-  const device = { features, limits: { maxStorageBufferBindingSize: 2 ** 30, maxBufferSize: 2 ** 30, maxComputeWorkgroupsPerDimension: 65535, maxTextureArrayLayers: 2048, maxUniformBufferBindingSize: 65536, maxTextureDimension2D: 8192 },
+  const device = { features, limits: { maxStorageBufferBindingSize: 2 ** 30, maxBufferSize: 2 ** 30, maxComputeWorkgroupsPerDimension: 65535, maxTextureArrayLayers: 2048, maxUniformBufferBindingSize: 65536, maxTextureDimension2D: 8192, maxSampledTexturesPerShaderStage: 16 },   // (16: WebGPU's default, what WebKit and Chrome give a page that asks no more)
     createBuffer: done, createTexture: done, queue: { writeBuffer() {}, writeTexture() {}, submit() {} },
     createCommandEncoder: () => ({ copyBufferToTexture() {}, copyBufferToBuffer() {}, copyTextureToTexture() {}, finish: () => ({}) }) };   // (an encoder of copies: what the game copies on the GPU itself, src/materials/bake.js's packed blocks into their layers)
   const backend = { isWebGPUBackend: !webgl, isWebGLBackend: webgl, compatibilityMode: false, parameters: {}, get: () => ({}), device: webgl ? null : device,

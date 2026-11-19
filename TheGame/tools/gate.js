@@ -57,12 +57,14 @@
 //                                                                stress world (src/scatter/stress.js)
 //   bun tools/gate.js all [--tag t] [--views a,b]                stills of this code and of ?truth, their diff, the
 //                                                                bench, the compile and the paths, in one table
-//   bun tools/gate.js wgsl [--ratchet]                           every shader module the smoke builds, compiled on this
+//   bun tools/gate.js wgsl [--ratchet] [--cpu --from f]           every shader module the smoke builds, compiled on this
 //                                                                machine's GPU in a blank page of Chrome and of WebKit,
 //                                                                no game loaded: each module's errors and every
 //                                                                pipeline made of them, exit 1 on any; and what each
 //                                                                costs, cold, the worst and the world's total against
-//                                                                tools/gate/shaders.json (--ratchet: lowered to them)
+//                                                                tools/gate/shaders.json (--ratchet: lowered to them);
+//                                                                --cpu --from f: the modules in f (smoke --wgsl f) in
+//                                                                Chrome on its CPU adapter, compiled only (CI's)
 //   bun tools/gate.js device [--secs s]                          the device on the machine the 8 GB gate is for
 //                                                                (budget.js MACHINE, in WebKit): GPU memory by the
 //                                                                game's ledger, its peak and where it settles, the
@@ -105,7 +107,8 @@ import { VIEWS, PATHS, HOURLY } from './gate/views.js';
 import RIG from '../camera/rig.js';
 import { FIRST_FRAME } from '../src/core/marks.js';
 import { CLASSES, classOf, CLASS_NAMES, memoryNow } from './bench.js';
-import { FRAME_MS as BUDGET, MEMORY, GPU_MB, BUDGET_MB, FRAME_MS_BY_CLASS, OUTPUT, FPS, DRAWN_ROWS } from '../src/core/budget.js';
+import { FRAME_MS as BUDGET, MEMORY, GPU_MB, BUDGET_MB, FRAME_MS_BY_CLASS, OUTPUT, FPS } from '../src/core/budget.js';
+import { outputRatio } from '../src/core/output.js';
 import { flip, tiles, heat, readPNG, writePNG, PPD } from './gate/flip.js';
 import { stepper } from './gate/clock.js';
 import { locked, unlock } from './gpu/lock.js';
@@ -118,7 +121,7 @@ const URL_AT = process.argv.indexOf('--url'), BASE = (URL_AT > 0 && process.argv
 const Q_AT = process.argv.indexOf('--query'), EXTRA = Q_AT > 0 ? process.argv[Q_AT + 1] : '';   // (more of the address for every page the gate opens: --query stress, the stress world)
 const OUT = new URL('../.gate/', import.meta.url).pathname;   // TheGame/.gate/: made again by every run, not kept in git
 // (the output the gate draws: OUTPUT (src/core/budget.js), at one pixel a point: the canvas is the output's own pixels)
-const SCREEN = { ...OUTPUT, dpr: 1 }, INSIDE = DRAWN_ROWS / OUTPUT.height, TIME = 100;   // (INSIDE: the world drawn at the rows the budget holds at, a share of the output's: 4/3 of 1080)   // (TIME: the seconds the world's clock stands at for stills)
+const SCREEN = { ...OUTPUT, dpr: 1 }, INSIDE = outputRatio(SCREEN.width, SCREEN.height), TIME = 100;   // (INSIDE: the most the game draws on the gate's screen, by its own rule, src/core/output.js: no more pixels than the output has, 1 here; src/core/screen.js holds the inside to it)   // (TIME: the seconds the world's clock stands at for stills)
 const FRAME = 1000 / FPS, JITTER = 1;   // the hard gates in motion: no frame longer than 1/FPS s (the frame clock's own jitter allowed), the GPU within BUDGET ms in every frame, the whole browser within 8 GB
 const WAIT = 300e3;   // ms the world may take to come, or to settle, before the gate calls it broken (an error; never a wait for readiness)
 const ARGS = ['--enable-unsafe-webgpu', '--enable-webgpu-developer-features'];   // (the second: the GPU's timestamps to the nanosecond, not rounded to a tenth of a millisecond: the bench times passes of a few hundredths)
@@ -750,7 +753,7 @@ async function all(opt) {
 }
 
 // ---- the command line ----
-const FLAGS = new Set(['truth', 'headed', 'fresh', 'verbose', 'no-clip', 'jpeg', 'floor', 'twice', 'ratchet', 'swaps', 'stress']);   // (options without a value)
+const FLAGS = new Set(['truth', 'headed', 'fresh', 'verbose', 'no-clip', 'jpeg', 'floor', 'twice', 'ratchet', 'swaps', 'stress', 'cpu']);   // (options without a value)
 const [cmd, ...args] = process.argv.slice(2), pos = [], opt = {};
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -769,7 +772,7 @@ try {
   else if (cmd === 'real') { const real = async () => (await import('./gate/real.js')).real(pos[0], opt); r = await ((opt.device ?? 'cpu') === 'cpu' ? real() : locked('real', real)); }   // (on a GPU, mps: in its turn)
   else if (cmd === 'all') r = await onMachine(() => all(opt));   // (its parts take their turns one by one: the machine read over the whole)
   else if (cmd === 'hourly') { r = await hourly(opt); if (r?.fails?.length) process.exitCode = 1; }   // (the hour fails where the GPU's memory went past a budget)
-  else if (cmd === 'wgsl') { r = await locked('wgsl', async () => (await import('./gate/wgsl.js')).wgsl(opt)); if (!r.pass) process.exitCode = 1; }   // (no game, no measure: on any machine)
+  else if (cmd === 'wgsl') { const run = async () => (await import('./gate/wgsl.js')).wgsl(opt); r = await (opt.cpu ? run() : locked('wgsl', run)); if (!r.pass) process.exitCode = 1; }   // (no game, no measure: on any machine; --cpu, no GPU at all: no turn to take)
   else if (cmd === 'device') r = await measured('device', async () => (await import('./gate/device.js')).device(BASE, opt.secs ? { secs: +opt.secs } : {}));
   else if (WITH[cmd]) { const chrome = await launch(opt); try { r = await WITH[cmd](chrome); } finally { await closeHard(chrome, chrome.gateDir); } }
   else { console.log('bun tools/gate.js wgsl | device | walks | smoke | stills | diff | noise | bench | compile | paths | motion | real | all | hourly: see the top of tools/gate.js'); process.exitCode = cmd ? 1 : 0; }
