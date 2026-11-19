@@ -80,7 +80,8 @@ const sum = (L, f) => L.reduce((s, x) => s + f(x), 0);
       pipelines   how many, render and compute; sync: made as a frame first drew it; waiting: not made yet; the shader
                   modules (distinct code) and their size
       inFlight    a turn's pipelines' times summed over its wait for them: about 1, they were compiled one at a time
-      turns       each turn of made-by-need: { name, asks, inView, pipes, cpu, ms, slowest }
+      turns       each turn of made-by-need: { name, asks, inView, pipes, cpu, ms, slowest, failed (its compile threw:
+                  each of its asks made alone after it) }
       slowest     the slowest pipelines; byName: the pipelines of each material or pass, each one's time */
 export function compiles() {
   const ms = (t) => t.ms ?? performance.now() - t.at, wait = (t) => Math.max(0, ms(t) - t.cpu), own = (t) => sum(t.pipes, (p) => p.ms ?? performance.now() - p.at);
@@ -90,7 +91,7 @@ export function compiles() {
     firstView: { asks: view?.size ?? null, turns: first.length, pipes: sum(first, (t) => t.pipes.length), cpu: Math.round(sum(first, (t) => t.cpu)), ms: first.length ? Math.round(Math.max(...first.map((t) => t.at + ms(t))) - first[0].at) : 0 },
     pipelines: { render: PIPES.filter((p) => p.kind === 'render').length, compute: PIPES.filter((p) => p.kind === 'compute').length, sync: PIPES.filter((p) => p.sync).length, waiting: PIPES.filter((p) => p.ms == null).length, modules, kb: Math.round(moduleBytes / 1024) },
     inFlight: sum(busy, wait) ? +(sum(busy, own) / sum(busy, wait)).toFixed(2) : null,
-    turns: TURNS.map((t) => ({ name: t.name, asks: t.asks, inView: t.inView, pipes: t.pipes.length, cpu: Math.round(t.cpu), ms: Math.round(ms(t)), slowest: Math.round(Math.max(0, ...t.pipes.map((p) => p.ms ?? 0))) })),
+    turns: TURNS.map((t) => ({ name: t.name, asks: t.asks, inView: t.inView, pipes: t.pipes.length, cpu: Math.round(t.cpu), ms: Math.round(ms(t)), slowest: Math.round(Math.max(0, ...t.pipes.map((p) => p.ms ?? 0))), ...(t.failed ? { failed: true } : {}) })),
     slowest: PIPES.filter((p) => p.ms != null).sort((a, b) => b.ms - a.ms).slice(0, 20).map((p) => ({ name: familyOf(p), kind: p.kind, ms: Math.round(p.ms) })),
     byName,
   };
@@ -152,6 +153,7 @@ function made1(maker, list) {
     .finally(() => { t.ms = performance.now() - t.at; t.inView = view ? list.filter((e) => view.has(e)).length : 0; })
     .then((got) => { for (const e of list) { const S = stateOf(own(e.what)); if (!got || got.has(e.what)) S.set(e.pass, 'made'); else S.delete(e.pass); } over(list); },
       (err) => {
+        t.failed = true;
         if (list.length > 1) { console.warn(`compile: one of ${list.length} (${names[0]}, …) could not be compiled: each made alone`); for (const e of list) inTurn(() => made1(maker, [e]), e.counted); return; }
         stateOf(own(list[0].what)).set(list[0].pass, 'failed'); console.warn(`compile: ${names[0]} could not be compiled, and is not drawn`, err); over(list);
       })
