@@ -79,7 +79,7 @@ import { ready, computeMaker } from '../core/compile.js';
 import { did } from '../core/work.js';
 import { stateAt, keyN, nameKey } from '../world/things.js';
 import { pxOf, turnOf, seedOf } from './row.js';
-import { createCut, clusterOf, levelHead, allowedAt, eased, ruleOf } from './cut.js';
+import { createCut, cutThings, clusterOf, levelHead, allowedAt, eased, ruleOf } from './cut.js';
 import { MARGIN } from './regions.js';
 import { camDist } from '../world/land.nodes.js';
 import { surfaceBand, BAND, GONE, dialPx } from '../detail/error.js';
@@ -836,7 +836,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     // level 0's cut: every frame, after the packing, what of the things it holds is drawn, cluster by cluster
     // (the most of it that can be at level 0 at once: what stands within where its largest is that large, a thing a cell,
     // at the most pixels the screen can draw)
-    const near0 = (sizes[1] * pxKMost()) / LEVELS[0].px, things = Math.ceil(Math.PI * (near0 / cell + 1) ** 2);
+    const things = cutThings(sizes[1], cell, LEVELS[0].px);
     const C = CUT0 ? createCut({ T, k: 0, H, room: room(0), name, things }) : null, cm = C ? new THREE.Mesh(C.geometry, meshOf(null, 0, false, moving, false, false, true, C)) : null;
     if (cm) { Object.assign(cm, { name: `${name}: the cut`, frustumCulled: false, renderOrder: 1, visible: false }); cm.userData.level = 0; if (casts) cm.layers.enable(1); scene.add(cm); T.cutMesh = cm; }
     const lead = !made.length, run = T.run.bind(T); let frame = 0;
