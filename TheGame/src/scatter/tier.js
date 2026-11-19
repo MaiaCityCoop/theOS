@@ -47,7 +47,7 @@ export const clipOf = Fn(([w, was], builder) => { if (passOf(builder) === 'pre')
 // tier that reckons its band by them (its band(): the drawer's tiers, src/scatter/drawer.js) reckons it again. One
 // handler for every tier of every placer.
 const ALL = new Set();
-const reband = () => { for (const T of ALL) T.band?.(); };
+const reband = () => { for (const T of ALL) { T.band?.(); if (T.residentRow) T.residentRow.cap = null; } };   // (and a tier held to its class's room may ask again: what it finds has changed)
 addEventListener('resize', reband); onMeasure(reband);
 const FOUND = [];   // (the patches a frame finds, before the nearest are taken)
 const bitsOf = (x) => new Uint32Array(new Float32Array([x]).buffer)[0];
@@ -450,6 +450,9 @@ function relayout(s) {
     console.warn(`tiers ${s.tiers.map((me) => `${me.T.asset ?? ''} ${me.T.level ?? ''}`.trim()).join(', ')}: they would hold ${Math.round(need / 2 ** 20)} MB, past ${room / need < most / things ? `the ${Math.round(room / 2 ** 20)} MB their class has left (geometry)` : `one binding (${most} things)`}: held to it, the rest is the dial's (the governor's)`);
     for (const me of s.tiers) { me.N = Math.max(WG, Math.floor((me.N * fit) / WG) * WG); me.P = Math.max(WG, Math.floor((me.P * fit) / WG) * WG); }
   }
+  // (held to it, a tier is complete for what it holds: what it finds past that it asks no room for, till the measure
+  // changes (onMeasure, below) or its kind is laid out again for another of it)
+  for (const me of s.tiers) me.cap = fit < 1 ? { N: me.N, P: me.P } : null;
   let sb = 0, db = 0; const arenas = new Set();
   for (const me of s.tiers) {
     me.base = sb; sb += 2 * me.N; me.dbase = db; me.uBase.value = db; db += P(me);
@@ -550,9 +553,10 @@ function residentOf(T, me, s, ends) {
     if (asking) return;
     asking = true; s.asking.add(me); const asked = packs, seen = gathers;
     renderer.getArrayBufferAsync(G.Zs.attr).then((b) => {
-      const z = new Uint32Array(b), f = z[me.zi + 1], p = z[me.zi + 2], N = roomFor(f), P = roomFor(p);
+      // (held to its class's room: no more than it was held to: a decision, not a wait)
+      const z = new Uint32Array(b), f = z[me.zi + 1], p = z[me.zi + 2], N = Math.min(roomFor(f), me.cap?.N ?? Infinity), P = Math.min(roomFor(p), me.cap?.P ?? Infinity);
       T.over = f > me.N || p > me.P;
-      if (f > me.N || N * BAND < me.N || p > me.P || P * BAND < me.P) { me.N = N; me.P = P; if (!s.dirty) s.wait = new Set(s.asking); s.dirty = G.stale = true; wrong = 1; return; }
+      if (N > me.N || N * BAND < me.N || P > me.P || P * BAND < me.P) { me.N = N; me.P = P; if (!s.dirty) s.wait = new Set(s.asking); s.dirty = G.stale = true; wrong = 1; return; }
       if (asked === packs) wrong = 0;   // (no packing since: what it holds is what was read)
       if (seen === gathers) gathered = 0;
     }).catch(() => {}).finally(() => { asking = false; s.asking.delete(me); s.wait?.delete(me); });
