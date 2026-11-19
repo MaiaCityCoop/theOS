@@ -437,8 +437,10 @@ let MAKE = null;
 const passesOfPyramid = () => {
   if (MAKE) return MAKE;
   const P = pyramidNode(), tD = texture(new THREE.DepthTexture(1, 1)), dims = uniformArray(Array.from({ length: LEVELS + 1 }, () => new THREE.Vector4()), 'vec4');   // (each level's: where it begins, its width, its height; the depth's first)
+  // (a level's number a uniform of its pass: every level after the first, which reads the depth itself, one shader:
+  // fifteen were fifteen, differing only in it, 2026-11-19)
   const passes = Array.from({ length: LEVELS }, (_, l) => Fn(() => {
-    const was = dims.element(uint(l)), is = dims.element(uint(l + 1)), w = uint(is.y), i = instanceIndex;
+    const lv = uniform(l, 'uint'), was = dims.element(lv), is = dims.element(lv.add(uint(1))), w = uint(is.y), i = instanceIndex;
     If(i.lessThan(w.mul(uint(is.z))), () => {
       const x = i.mod(w), y = i.div(w), wm = uint(was.y).sub(uint(1)), hm = uint(was.z).sub(uint(1));
       const x0 = x.mul(uint(2)).min(wm), x1 = x.mul(uint(2)).add(uint(1)).min(wm), y0 = y.mul(uint(2)).min(hm), y1 = y.mul(uint(2)).add(uint(1)).min(hm);
