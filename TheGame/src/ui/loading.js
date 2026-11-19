@@ -1,6 +1,8 @@
 // The world, loading: the veil every page that draws the world shows from its first paint (brand.css, html.os-loading),
 // told what is being made and how far along; gone, faded into the sky, once the first frame is drawn. A page that lost a
 // file of its build keeps it, saying so (html.os-lost: brand/loading.js).
+import { aboutTo } from '../core/journal.js';
+
 const root = document.documentElement;
 if (!root.classList.contains('os-loading')) root.classList.add('os-loading');
 const lost = () => root.classList.contains('os-lost');
@@ -13,6 +15,7 @@ const detailOf = () => { if (!detailLine) { detailLine = document.createElement(
     of how far), said at once (not on a page that lost a file: it says that). */
 export function loadingSay(text, share, { count = '', detail = '' } = {}) {
   if (lost()) return;
+  if (document.body.dataset.step !== text) aboutTo(`the start: ${text}`);   // (each phase begun, in the journal: src/core/journal.js)
   document.body.dataset.step = text; document.body.dataset.count = count; root.style.setProperty('--os-load', `${Math.round(share * 100)}%`);
   if (detail || detailLine) detailOf().textContent = detail;
 }

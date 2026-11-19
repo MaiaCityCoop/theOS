@@ -50,6 +50,10 @@ export const MACHINE_CORES = 8;
     the impostors' pool as it was (cores less 2, src/detail/impostor.js); the master, 2026-11-19 ("the Mac stays at its 3
     and 3; a 0.375 device gets 1 each") */
 export const BUSY_CORES = 2;
+/** The least a make or an upload takes to be written in the journal as it begins (src/core/journal.js): what is
+    smaller is too many to write down one by one. unit: MB (MiB). source: the master, 2026-11-19 ("a make or upload of
+    4 MB or more") */
+export const JOURNAL_MB = 4;
 /** The 12 ms a frame shared out by the frame's classes: what a class's passes may take, the gate's ceilings start from
     it (tools/gate/ceilings.js). The upscale's is its floor: its bytes alone at a 4K output took about 1.9 ms (#86).
     'other', a pass no class names, is the slack. unit: ms. source: Intents/0038, Build (the bench pass by pass; the

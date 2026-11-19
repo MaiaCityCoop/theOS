@@ -27,6 +27,8 @@ import { note, makeOwned, budgetOf, budgetShare } from '../core/gpu.js';
 import { BUDGET_MB } from '../core/budget.js';
 import { compileFor, inTurn } from '../core/compile.js';
 import { source, ready as settled } from '../core/settle.js';
+import { aboutTo } from '../core/journal.js';
+import { MiB } from '../core/physics.js';
 
 // (a tile's side, texels, and what follows from it, set once: its levels; its blocks level by level, where each lies in
 // the buffers they are written to (rows of 32 blocks at the least: a row of a copy from a buffer is a multiple of 256
@@ -210,7 +212,7 @@ function storeOf(renderer, textures, packed, keepWhen, pool) {
   const keepAll = async () => {
     const c = await cache;
     try {
-      while (c && toKeep.length) { const [m, i, data] = toKeep.shift(), key = keyOf(m); if (key && pool.there(m, i, data)) await c.put(key, new Response(await read(i, data))); }   // (nothing to key it by, or its layer since given to another: not kept)
+      while (c && toKeep.length) { const [m, i, data] = toKeep.shift(), key = keyOf(m); if (key && pool.there(m, i, data)) { aboutTo("the world's textures: a layer kept", levelsOf(renderer, textures, i, data).bytes / MiB); await c.put(key, new Response(await read(i, data))); }; }   // (nothing to key it by, or its layer since given to another: not kept)
       if (c) { const names = new Set([{ uid: 'stand-in' }, ...recipes('material')].map(keyOf)); for (const r of await c.keys()) if (r.url.includes('/__painted/') && !names.has(r.url)) await c.delete(r); }
     } catch (e) { toKeep.length = 0; console.warn('[textures] what was painted is not kept (Cache Storage refused it): painted again next time', e); }
     keeping = null;

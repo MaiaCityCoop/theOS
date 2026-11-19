@@ -21,6 +21,8 @@ import { waitsOn, answered } from './waits.js';
 import { onSettled } from './settle.js';
 import { budgetShare } from './gpu.js';
 import { MACHINE_CORES, BUSY_CORES } from './budget.js';
+import { aboutTo } from './journal.js';
+import { MiB } from './physics.js';
 
 /** `worker`, watched: fail(error) on its error; one that could not start, told to the page as `name` lost. */
 export function watched(worker, name, fail) {
@@ -57,12 +59,14 @@ const poolSize = () => Math.max(1, Math.floor(((Math.min(navigator.hardwareConcu
     worker keeps between the asks of one key: a kind's hierarchy, for its bands); all(message): told to every worker, and
     to every one made later, before anything asked of it; out(): what is asked and not answered }. A worker with nothing
     to do is let go each time the world has settled (src/core/settle.js onSettled), and one past size() as soon as it
-    has nothing to do; the next ask makes one again. */
-export function workerPool(name, make, size = poolSize) {
+    has nothing to do; the next ask makes one again. Each worker made and each ask, as it begins, is written in the
+    journal (src/core/journal.js): about(message) says what it is asked, with what is handed over (MB). */
+export function workerPool(name, make, size = poolSize, about = () => 'a job') {
   const slots = [], told = [];
-  const spawn = (i) => { const a = asking(make(), name); for (const m of told) a.worker.postMessage(m); return (slots[i] = a); };
+  const spawn = (i) => { aboutTo(`${name}: one more made`); const a = asking(make(), name); for (const m of told) a.worker.postMessage(m); return (slots[i] = a); };
   const letGo = (i) => { slots[i].worker.terminate(); slots[i] = null; };
-  const run = (i, message, transfer) => slots[i](message, transfer).finally(() => { if (slots[i] && !slots[i].out() && i >= size()) letGo(i); });
+  const said = (message) => { try { return about(message); } catch { return 'a job'; } };   // (the journal never stops an ask)
+  const run = (i, message, transfer) => { aboutTo(`${name}: ${said(message)}`, transfer.length ? transfer.reduce((n, b) => n + b.byteLength, 0) / MiB : null); return slots[i](message, transfer).finally(() => { if (slots[i] && !slots[i].out() && i >= size()) letGo(i); }); };
   const pick = () => {
     const n = size(); let free = -1, least = -1;
     for (let i = 0; i < Math.max(n, slots.length); i++) {
