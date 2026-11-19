@@ -37,7 +37,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, bool, uniformArray, vec4, abs, max, cameraProjectionMatrix, cameraViewMatrix } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { compileFor, compileList, made, ask, pending, labelled } from '../core/compile.js';
+import { compileFor, compileList, made, ask, pending, labelled, nearFrom } from '../core/compile.js';
 import { shown, arriving } from '../core/settle.js';
 import { twinOf, passOf } from '../core/pass.js';
 import { note, mark } from '../core/gpu.js';
@@ -101,8 +101,8 @@ export const cascades = () => {
 /** What a caster is drawn as into a shadow cascade or the canopy map (src/world/light/canopy.js): its shadow twin, one
     pipeline for both. Drawn once it is made for them (made by need, src/core/compile.js): until then it is made aside,
     for target() as camera() sees it, left out, and missed(object) told of it (a map that keeps what it drew is made
-    again once what it left out has come: pending). near(): how near what it asks for now is (src/core/compile.js ask:
-    0, what the first view waits for). route.twin: any caster drawn as its twin, made or not (what a compile draws);
+    again once what it left out has come: pending). near(object): how near what it asks for now is (src/core/compile.js
+    ask: 0, what the first view waits for). route.twin: any caster drawn as its twin, made or not (what a compile draws);
     route.ahead(object, scene): it asked to be made, not counted (src/core/compile.js ahead). */
 export const castRoute = (renderer, target, camera, missed = null, near = () => 0) => {
   const draw = renderer.renderObject, makers = new Map();
@@ -110,7 +110,7 @@ export const castRoute = (renderer, target, camera, missed = null, near = () => 
   const makerOf = (scene) => { if (!makers.has(scene.id)) makers.set(scene.id, (list) => compileList(renderer, target, list, camera(), scene, twin)); return makers.get(scene.id); };
   const route = (object, scene, cam, geometry, material, ...rest) => {
     if (made(object, 'cast')) return twin(object, scene, cam, geometry, material, ...rest);
-    ask(object, 'cast', makerOf(scene), `${labelled(material, object)} (cast)`, true, near());
+    ask(object, 'cast', makerOf(scene), `${labelled(material, object)} (cast)`, true, near(object));
     if (pending(object, 'cast')) missed?.(object);
   };
   const ahead = (object, scene) => { const m = [object.material].flat()[0]; if (m && object.layers.test(camera().layers)) ask(object, 'cast', makerOf(scene), `${labelled(m, object)} (cast)`, false); };
@@ -145,7 +145,8 @@ export function createShadows(renderer) {
   // (src/core/compile.js)
   // (what the near cascade draws, the first view waits for: a missing near shadow is the most seen thing on the screen;
   // what only a far one draws is made after it, the nearer cascades' first: src/core/compile.js ask)
-  const route = castRoute(renderer, rt, () => cams[n - 1], (o) => at[drawing].missing.add(o), () => (drawing ? half[drawing - 1] : 0));
+  // (and what only stands in near, a level whose own band begins farther, is made after it too: nearFrom its band)
+  const route = castRoute(renderer, rt, () => cams[n - 1], (o) => at[drawing].missing.add(o), (o) => Math.max(drawing ? half[drawing - 1] : 0, nearFrom(o.userData?.near ?? 0)));
   // (and a far cascade's shadow comes in as it is first drawn with nothing left out: at once behind the veil, else faded
   // in, src/core/settle.js arriving; what comes later, as the eye moves, comes as it always did)
   const fades = half.map((_, k) => (k ? arriving((v) => { C.on.array[k] = v; }) : null));
