@@ -94,8 +94,10 @@ export function twinOf(m) {
     casts), by its twins, never as itself; 'own', what is drawn straight into a target by no pass (src/core/compile.js
     drawMade's quads, a baker's samples, the painter's tiles, the ground's maps), as itself only; 'both', what is drawn
     either way (the library's subjects: on its stage, and in its pictures as themselves, src/materials/preview.js
-    sceneThumb). eye, casts: whether a routed mesh is seen (layer 0), and casts (layer 1). */
+    sceneThumb). eye, casts: whether a routed mesh is seen (layer 0), and casts (layer 1). A material the game draws only
+    as itself says so (userData.own: the painter's programs, src/materials/bake.js): wherever it is found, it is own. */
 export function drawnAs(m, how, { eye = true, casts = false } = {}) {
+  if (m.userData?.own) how = 'own';
   const t = how === 'own' ? null : twinOf(m);
   return [['own', how === 'routed' ? null : m], ['pre', eye ? t?.pre : null], ['main', eye ? t?.main : null], ['shadow', casts ? t?.shadow : null]].filter(([, x]) => x);
 }

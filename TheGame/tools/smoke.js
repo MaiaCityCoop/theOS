@@ -157,7 +157,7 @@ const buildAll = (where) => {
   }
 };
 /** Every material made so far and not yet taken: on the mesh it was given to, else on a quad, as a pass draws it. */
-const TWINS = new WeakSet(), takeMade = (meshes = 'own') => { for (const o of MADE.isMesh) for (const m of [o.material, ...(o.userData?.materials ?? [])].flat()) take(o, m, meshes); for (const m of MADE.isMaterial) if (!TWINS.has(m)) take({ isMesh: true, geometry: new THREE.PlaneGeometry(), material: m }, m); };   // (meshes: how a mesh made and in no scene yet is drawn, the world's straight by its owner, the library's as its subjects are; a material on no mesh, as itself, by its owner: a painter's)   // (a mesh's own, and those it draws by turns: a baker's, userData.materials)
+const TWINS = new WeakSet(), takeMade = (meshes = 'own') => { for (const o of MADE.isMesh) for (const m of [o.material, ...(o.userData?.materials ?? [])].flat()) take(o, m, meshes); for (const m of MADE.isMaterial) if (!TWINS.has(m)) take({ isMesh: true, geometry: new THREE.PlaneGeometry(), material: m }, m, 'both'); };   // (meshes: how a mesh made and in no scene yet is drawn, the world's straight by its owner, the library's as its subjects are; a material on no mesh yet, both: one a mesh grows into later (a figure's bones, what grows) is drawn as its scene's, one its owner draws as itself says so, userData.own: the painter's)   // (a mesh's own, and those it draws by turns: a baker's, userData.materials)
 takeMade();
 buildAll('the world');
 // what bakes the far ends (src/scatter/trees.js farOf): compiled at the start, drawn straight by the bakers, by no pass,
