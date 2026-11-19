@@ -213,7 +213,8 @@ from `main`). `?hud` shows the frame, memory and settle readout on any device; t
    draws. Things must coarsen with the dial, never vanish. Lead (draw path, 12:50): the trees' bands are sane on the CPU and
    nothing is out, so suspect the stand tiers holding 0 regions after the rest dial rises (#373's store turn in tier.js).
 3. **Fixed pools:** stage 1 is PR #396 (pool.js, plan/planDial). Then, in parallel and in separate files: the made-once
-   stores plan themselves (growth map, land lists, ground maps, rocks); stage 2, the heap's shapes into pages (heap.js,
+   stores plan themselves (growth map, land lists, ground maps, rocks; started on draft branch aven/0038-made-once-plan
+   8bab8ee9: the rocks' meshes planned, the rest not, verified only by lint and smoke); stage 2, the heap's shapes into pages (heap.js,
    drawer.js feed); stage 4, the resident tiers into region pages with no swap (tier.js). Prove each with storecheck walks at
    share 1 and 0.375: memory flat, zero layouts, no frame drawn short.
 4. **Water missing on the phone,** and the tent appearing and disappearing: check after step 3 (both were memory-starved).
