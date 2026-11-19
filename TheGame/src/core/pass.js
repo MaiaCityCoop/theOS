@@ -87,3 +87,15 @@ export function twinOf(m) {
   }
   return t;
 }
+/** The passes the game draws material m in, as it is drawn, [[pass, material], …]: what builds every material as the
+    game draws it (tools/smoke.js), and so the WGSL the gates compile and time and the census holds against the device.
+    how: 'routed', a mesh of a scene the game draws through its passes' routes (src/core/screen.js: its prepass's and its
+    colour's twin, where the eye sees it, layer 0; src/world/shadow.js and the canopy map: its shadow twin, where it
+    casts), by its twins, never as itself; 'own', what is drawn straight into a target by no pass (src/core/compile.js
+    drawMade's quads, a baker's samples, the painter's tiles, the ground's maps), as itself only; 'both', what is drawn
+    either way (the library's subjects: on its stage, and in its pictures as themselves, src/materials/preview.js
+    sceneThumb). eye, casts: whether a routed mesh is seen (layer 0), and casts (layer 1). */
+export function drawnAs(m, how, { eye = true, casts = false } = {}) {
+  const t = how === 'own' ? null : twinOf(m);
+  return [['own', how === 'routed' ? null : m], ['pre', eye ? t?.pre : null], ['main', eye ? t?.main : null], ['shadow', casts ? t?.shadow : null]].filter(([, x]) => x);
+}
