@@ -186,11 +186,14 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
         let eye_d = distance(p, view.world_position.xz);
         let pdx = dpdx(p);
         let pdy = dpdy(p);
-        let lawn_on = lawn.x * smoothstep(5.0, 9.0, eye_d) * (1.0 - bare);
+        let lawn_on = lawn.x * smoothstep(12.0, 18.0, eye_d) * (1.0 - bare);
         if (lawn_on > 0.0) {
             let hit = lawn_at(p, pbr_input.V, pdx, pdy);
             // between the blades: the ground in their shade
-            let struck = mix(colour * 0.6, hit.colour * 1.15, hit.cover);
+            // the biome's own variation over the field (lusher, drier, mossier, damper patches) tints the baked blades:
+            // the layers' colour here against the sward's base
+            let tint = clamp(colour / max(biome.colours[0].rgb, vec3<f32>(1e-3)), vec3<f32>(0.5), vec3<f32>(2.0));
+            let struck = mix(colour * 0.6, hit.colour * 1.15 * tint, hit.cover);
             colour = mix(colour, struck, lawn_on);
             // a sward lit as many blades facing every way: from above, as SmartImposter's normal spread does for grass
             pbr_input.N = normalize(mix(pbr_input.N, vec3<f32>(0.0, 1.0, 0.0), lawn_on));

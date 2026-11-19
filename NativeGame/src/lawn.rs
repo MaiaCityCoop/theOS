@@ -112,6 +112,9 @@ fn bake(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut images: Re
             mag_filter: bevy::image::ImageFilterMode::Linear,
             min_filter: bevy::image::ImageFilterMode::Linear,
             mipmap_filter: bevy::image::ImageFilterMode::Linear,
+            // the lawn is seen at a grazing angle: without anisotropy the footprint's long side picks a mip so coarse
+            // the blades blur into one flat green a few metres past the real ones
+            anisotropy_clamp: 16,
             ..default()
         });
         img
