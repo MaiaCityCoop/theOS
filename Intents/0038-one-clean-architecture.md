@@ -232,11 +232,25 @@ from `main`). `?hud` shows the frame, memory and settle readout on any device; t
 **Open PRs:** #379 and #382 (the start waits only for wanted far ends; bakes kept by shape). Both are **red in CI**: the far
 tier's gather binds 10 storage buffers against the limit of 8 (#379's T0 and WANT buffers). The fix is to read the wanted
 shapes from the far tiers' own bucket counts (a Tier.found), drop the T0/WANT buffers and want(), and set T.farEnd in
-drawer.js, applying the same change to far.js on #382. It was written but left uncommitted on the MacBook (worktree
-0038-cold-start-6e5ccd, branch aven/0038-far-wanted): commit and push it there, or redo it.
-Also: #392 (the pool
-design doc); #394 (the ground's level per smooth surface); #396 (pool stage 1). Drafts #255, #256, #265, #275 need a GPU
-look.
+drawer.js, applying the same change to far.js on #382. **#379 is merged** (0f1fbd69, 2026-11-19): its fix, c4a39b92,
+passed CI (check and build), but it is not GPU-checked, so check the start on next. #382 still needs main merged in (it
+conflicts) and the same change in far.js.
+#392, #394, #396 and #398 are merged. Drafts #255 and #275 conflict with main; #256 and #265 don't. All four need a GPU look.
+
+**Branches not in main, all pushed (2026-11-19, the MacBook):** no worktree or session is left on the MacBook, so these
+branches on GitHub are the only copies of their work:
+- `aven/0038-made-once-plan` (8bab8ee9): the made-once stores' plan, step 3 above.
+- `aven/0038-start-view-smoke` (cd091cfc, WIP): the start's view held by the smoke.
+- `aven/0038-placer-functions` (3b749198, WIP): the census counts what the start makes before its first frame.
+- `aven/0038-smoke-throw` (15eca2e5): the smoke's census sees an unpacked tree's places too.
+- `aven/0038-paints-wip` (9e605868, WIP): `tools/paints.js`, each material's painting compared texel by texel between two
+  versions.
+- Not 0038: `claude/earth-data-skill-placeholder-fc1555`, tag `keep/earth-data-skill`.
+
+**The MacBook (8 GB, Samuel's own):** bun is 1.4.4, the repo's pin. Its GPU may run blank-page checks (`gate.js wgsl`) one
+at a time under the lock. While Samuel works on it, it runs no full-game browser runs: one in WebKit at Retina took about
+3 GB and swapped the machine. The memory guard passed it at 51 % free with 4.2 GB already swapped, so the proposal for the
+gate is to refuse when swap is high, too.
 
 **How to work here:** branch `aven/0038-*`; one PR a change; a root cause, not a patch; no reverts (fix forward);
 `bun tools/gate.js` and the CPU proofs in `TheGame/tools/` before pushing; GPU runs only under `tools/gpu/lock.js`
