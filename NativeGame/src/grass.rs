@@ -196,7 +196,7 @@ fn blades(cx: i32, cz: i32, share: f32, fine: bool) -> Mesh {
     let full = (DENSITY * CHUNK * CHUNK) as u32;
     let count = (full as f32 * share) as u32;
     let segs = if share >= 1.0 { SEGS } else { SEGS - 1 };
-    let detail = share >= 0.35 && !fine; // seed heads only where they can be seen
+    let detail = share >= 1.0 && !fine; // seed heads, thatch and low plants only near the eye
     let fold = fine; // the close blades fold along the midrib, as real ones do (only near the eye, where it shows)
     let count = if fine { count * 3 / 2 } else { count };
 

@@ -41,7 +41,7 @@ pub fn noise(x: f32, z: f32, cell: f32, seed: u32) -> f32 {
 
 /// The small shape: tussock mounds and the crumbly unevenness of a meadow's floor, a few centimetres.
 fn small(x: f32, z: f32) -> f32 {
-    0.10 * noise(x, z, 1.6, 1) + 0.06 * noise(x, z, 0.55, 2) + 0.025 * noise(x, z, 0.16, 3) + 0.008 * noise(x, z, 0.05, 11)
+    0.10 * noise(x, z, 1.6, 1) + 0.06 * noise(x, z, 0.55, 2) + 0.025 * noise(x, z, 0.16, 3)
 }
 
 /// The height of the ground at (x, z), in metres.
@@ -84,7 +84,7 @@ fn sward(x: f32, z: f32) -> Vec3 {
 /// a few metres across, as a grazed or trodden meadow has them. The grass leaves them out.
 pub fn bare(x: f32, z: f32) -> f32 {
     let n = noise(x, z, 16.0, 20) * 0.65 + noise(x, z, 5.0, 21) * 0.25 + noise(x, z, 1.5, 22) * 0.10;
-    let t = ((n - 0.76) / 0.06).clamp(0.0, 1.0); // rarer: a few patches, not a mottled field
+    let t = ((n - 0.80) / 0.05).clamp(0.0, 1.0); // rarer: a few patches, not a mottled field
     t * t * (3.0 - 2.0 * t)
 }
 

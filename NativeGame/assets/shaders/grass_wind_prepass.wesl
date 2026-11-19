@@ -27,7 +27,7 @@ fn vertex(v: Vertex) -> VertexOutput {
     var b: Blade;
     if (made) {
         let slot = vec3<f32>(rest.x, length(world_from_local[0].xyz), rest.z);
-        b = blade(slot, side, up, wind, wind.params.x);
+        b = blade(slot, side, up, wind, wind.params.x, wind.params.y);
         out.world_position = vec4<f32>(b.position, 1.0);
     } else {
         let sunk = sink(rest.xyz, wind);
@@ -60,8 +60,7 @@ fn vertex(v: Vertex) -> VertexOutput {
     let prev = mesh_functions::mesh_position_local_to_world(prev_model, vec4<f32>(vertex.position, 1.0));
     if (made) {
         // where the same blade was a frame ago: the same cell, the wind of a frame ago
-        let slot = vec3<f32>(rest.x, length(world_from_local[0].xyz), rest.z);
-        out.previous_world_position = vec4<f32>(blade(slot, side, up, wind, wind.params.y).position, 1.0);
+        out.previous_world_position = vec4<f32>(b.previous, 1.0);
     } else {
         let prev_sunk = sink(prev.xyz, wind);
         out.previous_world_position = vec4<f32>(prev_sunk + sway(prev_sunk, wind.params.y, wind.params.z), 1.0);

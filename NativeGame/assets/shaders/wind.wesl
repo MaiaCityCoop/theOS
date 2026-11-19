@@ -85,14 +85,14 @@ fn tnoise(p: vec2<f32>, cell: f32, seed: u32) -> f32 {
 
 // `terrain::height`: the large shape and the small one.
 fn land(p: vec2<f32>) -> f32 {
-    let small = 0.10 * tnoise(p, 1.6, 1u) + 0.06 * tnoise(p, 0.55, 2u) + 0.025 * tnoise(p, 0.16, 3u) + 0.008 * tnoise(p, 0.05, 11u);
+    let small = 0.10 * tnoise(p, 1.6, 1u) + 0.06 * tnoise(p, 0.55, 2u) + 0.025 * tnoise(p, 0.16, 3u);
     return ground(p) + small;
 }
 
 // `terrain::bare`: where the ground is bare, no grass grows.
 fn bare(p: vec2<f32>) -> f32 {
     let n = tnoise(p, 16.0, 20u) * 0.65 + tnoise(p, 5.0, 21u) * 0.25 + tnoise(p, 1.5, 22u) * 0.10;
-    return smoothstep(0.0, 1.0, clamp((n - 0.76) / 0.06, 0.0, 1.0));
+    return smoothstep(0.0, 1.0, clamp((n - 0.80) / 0.05, 0.0, 1.0));
 }
 
 // The finest level's cell, in metres (625 blades a square metre), and how far a level reaches, in its cells.
@@ -101,11 +101,13 @@ const REACH: f32 = 110.0;
 
 struct Blade {
     position: vec3<f32>,
+    // where the same point was a frame ago (the wind of a frame ago), for the motion vectors
+    previous: vec3<f32>,
     normal: vec3<f32>,
     colour: vec4<f32>,
 };
 
-fn blade(slot: vec3<f32>, side: f32, t: f32, w: Wind, time: f32) -> Blade {
+fn blade(slot: vec3<f32>, side: f32, t: f32, w: Wind, time: f32, before: f32) -> Blade {
     var out: Blade;
     out.normal = vec3<f32>(0.0, 1.0, 0.0);
     out.colour = vec4<f32>(0.0, 0.0, 0.0, 1.0);
@@ -128,10 +130,12 @@ fn blade(slot: vec3<f32>, side: f32, t: f32, w: Wind, time: f32) -> Blade {
     }
     if (thash(ci, cj, seed + 3u) >= keep) {
         out.position = vec3<f32>(p.x, -10000.0, p.y); // no area, nothing drawn
+        out.previous = out.position;
         return out;
     }
     if (thash(ci, cj, seed + 4u) < bare(p)) {
         out.position = vec3<f32>(p.x, -10000.0, p.y);
+        out.previous = out.position;
         return out;
     }
     let root = vec3<f32>(p.x, land(p), p.y);
@@ -150,10 +154,14 @@ fn blade(slot: vec3<f32>, side: f32, t: f32, w: Wind, time: f32) -> Blade {
     let wt = width * pow(1.0 - clamp((t - 0.45) / 0.55, 0.0, 1.0), 1.2);
     pos = pos + across * wt * side;
     out.position = pos + sway(pos, time, w.params.z);
-    out.normal = normalize(across + vec3<f32>(0.0, 1.5, 0.0));
+    out.previous = pos + sway(pos, before, w.params.z);
+    // from about 8 m on, a blade melts into the sward: its colour toward the sward's green and its normal toward
+    // the sky, so the field far off reads as one carpet and not as pale specks catching the light
+    let far = smoothstep(8.0, 45.0, d);
+    out.normal = normalize(mix(normalize(across + vec3<f32>(0.0, 1.5, 0.0)), vec3<f32>(0.0, 1.0, 0.0), far));
     // each blade its own green, from deep to light yellow-green; a little straw where the field is dry
     let green = mix(vec3<f32>(0.045, 0.120, 0.018), vec3<f32>(0.100, 0.230, 0.035), thash(ci, cj, seed + 9u));
-    let dry = tnoise(p, 19.0, 41u);
+    let dry = lush * 0.6; // one noise for both: drier where the sward is thinner
     let tip = mix(green, vec3<f32>(0.30, 0.24, 0.10), min(dry * dry * 0.35 * thash(ci, cj, seed + 10u), 0.2))
         * (0.95 + 0.3 * thash(ci, cj, seed + 11u));
     let light = tip * vec3<f32>(1.15, 1.12, 0.95);
@@ -162,6 +170,7 @@ fn blade(slot: vec3<f32>, side: f32, t: f32, w: Wind, time: f32) -> Blade {
     if (t < 0.5) {
         c = mix(rootc, tip, pow(t / 0.5, 0.8));
     }
+    c = mix(c, vec3<f32>(0.060, 0.140, 0.024) * (0.75 + 0.35 * t), far);
     out.colour = vec4<f32>(c, 1.0);
     return out;
 }

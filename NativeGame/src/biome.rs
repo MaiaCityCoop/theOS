@@ -72,7 +72,7 @@ impl Biome {
                 layer("moss", [0.035, 0.070, 0.018], 0.8, 2.1, 0.60, 0.20, 0.6),
                 layer("damp", [0.045, 0.060, 0.025], 0.7, 3.0, 0.62, 0.20, 0.4),
                 // where the grass is gone: trodden loam (the grass's `bare` reads this same noise)
-                layer("bare", [0.100, 0.075, 0.052], 1.0, 16.0, 0.76, 0.06, 1.0),
+                layer("bare", [0.085, 0.072, 0.055], 1.0, 16.0, 0.80, 0.05, 1.0),
             ],
             relief: 0.6,
             mottle: 0.35,

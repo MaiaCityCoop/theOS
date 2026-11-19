@@ -19,7 +19,7 @@ fn vertex(v: Vertex) -> VertexOutput {
     if (made) {
         // the GPU grass: the slot's world place, with the tile's cell size in y
         let slot = vec3<f32>(world.x, length(world_from_local[0].xyz), world.z);
-        b = blade(slot, vertex.uv.x, vertex.uv.y, wind, wind.params.x);
+        b = blade(slot, vertex.uv.x, vertex.uv.y, wind, wind.params.x, wind.params.y);
         world = vec4<f32>(b.position, 1.0);
     } else {
         let sunk = sink(world.xyz, wind);
