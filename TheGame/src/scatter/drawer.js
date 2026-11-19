@@ -868,7 +868,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
         [T.begins, T.far] = band.reach(sizes[0], sizes[1], dialK()); T.near = i <= STREAMED ? 0 : T.begins;
         T.far = Math.min(T.far, far); band.near.value = T.near > 0 ? T.near : -1; band.far.value = T.far;
       };
-    T.band(); T.level = i; T.shaped = KS; T.label(`${name} level ${i}`);
+    T.band(); T.level = i; T.shaped = KS; T.farEnd = !!FAR; T.label(`${name} level ${i}`);   // (farEnd: a kind's things where its far end shows, its draws a kind each: src/scatter/trees.js farOf look)
     tagLevel(T, i);
     const cut = cutOf(i, shadow, T, cap, casts);   // (a level 0 drawn by its cut: below)
     for (const m of T.meshes) m.renderOrder = 1 + i * 0.01;   // the fine levels first: they are the near ones, and what is behind them need not be shaded
