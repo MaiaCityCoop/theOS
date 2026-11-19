@@ -229,7 +229,10 @@ const limitsFrom = (A) => Object.fromEntries(SIZED.filter((k) => A?.[k] != null)
     what the adapter says of itself kept (adapterOf). */
 export const askedLimits = async () => {
   const a = await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null);
-  if (a) ADAPTER = { maxBufferSize: a.limits.maxBufferSize, maxStorageBufferBindingSize: a.limits.maxStorageBufferBindingSize, vendor: a.info?.vendor ?? '', architecture: a.info?.architecture ?? '' };
+  if (a) {
+    const A = (ADAPTER = { maxBufferSize: a.limits.maxBufferSize, maxStorageBufferBindingSize: a.limits.maxStorageBufferBindingSize, vendor: a.info?.vendor ?? '', architecture: a.info?.architecture ?? '' }), gib = (b) => `${(b / 2 ** 30).toFixed(2)} GiB`;
+    console.info(`the device: ${A.vendor} ${A.architecture}, its largest buffer ${gib(A.maxBufferSize)}, its largest storage binding ${gib(A.maxStorageBufferBindingSize)} (window.__game.adapter)`);   // (once, where any inspector reads it: a phone's tab too, tethered, before the page is ready)
+  }
   return limitsFrom(a?.limits);
 };
 let ADAPTER = null;
