@@ -71,7 +71,7 @@ function watch(frameMs) {
   };
 }
 /** In the page: the ledger now (src/core/gpu.js), with the gate's own count and the device's state. */
-const look = () => ({ ready: window.__game?.loadMs ?? null, ledger: window.__game?.memory?.() ?? null, ...window.__device });
+const look = () => ({ ready: window.__game?.loadMs ?? null, shown: performance.getEntriesByName('game:first-frame')[0]?.startTime ?? null, ledger: window.__game?.memory?.() ?? null, ...window.__device });
 /** The resident memory of every process of the WebKit Playwright runs (its pages', its GPU's, its own), MB (0 where it
     cannot be read). */
 function gpuProcess() {
@@ -90,7 +90,7 @@ export async function device(url, { secs = 60 } = {}) {
     await page.goto(url, { waitUntil: 'load' });
     out.ready = await arrived(page, out, t0, secs);
     const s = out.ready == null ? await page.evaluate(look) : await stay(page, out, secs);
-    Object.assign(out, { settled: out.samples.at(-1) ?? null, longest: Math.round(s.longest ?? 0), over: s.over ?? 0, submits: s.submits ?? 0, lost: s.lost ?? null, errors: s.errors ?? [], long: s.long ?? null, dead: s.dead ?? [], process: Math.round(out.process) });
+    Object.assign(out, { shown: s.shown == null ? null : +(s.shown / 1e3).toFixed(1), settled: out.samples.at(-1) ?? null, longest: Math.round(s.longest ?? 0), over: s.over ?? 0, submits: s.submits ?? 0, lost: s.lost ?? null, errors: s.errors ?? [], long: s.long ?? null, dead: s.dead ?? [], process: Math.round(out.process) });
     out.honest = out.buffers == null || out.peak >= out.buffers;   // (the ledger holds at least the buffers the device made)
     out.pass = !out.lost && out.ready != null;
     say(out);
@@ -126,7 +126,10 @@ async function stay(page, out, secs) {
   return s;
 }
 
-/** The device's lines, as the hour's board begins with them. */
+/** Whether the game came: ready (window.__game.loadMs set: the start's world made and drawn) and in how long, the first
+    frame shown (the game's mark, src/core/marks.js) beside it; the hour's board's first line. */
+export const readyLine = (d) => (d?.ready != null ? `Ready: yes, ${d.ready} s in${d.shown != null ? ` (the first frame shown ${d.shown} s in)` : ''}, on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}× in WebKit.` : `**Ready: no**${d ? `, on ${d.machine.width} × ${d.machine.height} at ${d.machine.dpr}× in WebKit${d.lost ? ' (the device lost first)' : ''}` : ''}: the game never came.`);
+/** The device's lines, as the hour's board begins with them (after readyLine). */
 export function lines(d) {
   if (!d) return [];
   const mb = (n) => (n == null ? '–' : `${(n / 1024).toFixed(2)} GB`);
@@ -142,4 +145,4 @@ export function lines(d) {
     ...(d.errors.length ? [`The device said: ${d.errors[0]}`] : []),
   ];
 }
-const say = (d) => console.log(`device:\n  ${lines(d).join('\n  ').replace(/\*\*/g, '')}`);
+const say = (d) => console.log(`device:\n  ${[readyLine(d), ...lines(d)].join('\n  ').replace(/\*\*/g, '')}`);
