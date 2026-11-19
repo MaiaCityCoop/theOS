@@ -73,6 +73,15 @@ pub type Ground = ExtendedMaterial<StandardMaterial, GroundLook>;
 pub struct GroundLook {
     #[uniform(100)]
     pub biome: crate::biome::BiomeUniform,
+    /// x: 1 once the lawn is baked; y: its slab top.
+    #[uniform(101)]
+    pub lawn: Vec4,
+    #[texture(102)]
+    #[sampler(103)]
+    pub lawn_albedo: Option<Handle<Image>>,
+    #[texture(104)]
+    #[sampler(105)]
+    pub lawn_height: Option<Handle<Image>>,
 }
 
 impl MaterialExtension for GroundLook {

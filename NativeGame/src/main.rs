@@ -11,6 +11,7 @@ mod film;
 mod clouds;
 mod grass;
 mod impostor;
+mod lawn;
 mod library;
 mod meadow;
 mod patches;
@@ -71,7 +72,7 @@ fn main() {
         ..default()
     }))
     .init_state::<View>()
-    .add_plugins((world::plugin, film::plugin, meadow::plugin, wind::plugin, workshop::plugin, impostor::plugin, patches::plugin));
+    .add_plugins((world::plugin, film::plugin, meadow::plugin, wind::plugin, workshop::plugin, impostor::plugin, patches::plugin, lawn::plugin));
     if args.get(1).map(String::as_str) == Some("--shelf") {
         let dir: PathBuf = args.get(2).expect("--shelf <dir>").into();
         let _ = std::fs::create_dir_all(&dir);

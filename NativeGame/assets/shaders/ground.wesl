@@ -7,6 +7,7 @@ import bevy_pbr::{
         pbr_fragment::pbr_input_from_standard_material,
         forward_io::{VertexOutput, FragmentOutput},
         pbr_functions::{apply_pbr_lighting, main_pass_post_lighting_processing},
+        mesh_view_bindings::view,
     },
 };
 import super::wind::{tnoise, thash};
@@ -18,6 +19,67 @@ struct Biome {
 };
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(100) var<uniform> biome: Biome;
+@group(constants::MATERIAL_BIND_GROUP) @binding(101) var<uniform> lawn: vec4<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(102) var lawn_albedo: texture_2d<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(103) var lawn_albedo_smp: sampler;
+@group(constants::MATERIAL_BIND_GROUP) @binding(104) var lawn_height: texture_2d<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(105) var lawn_height_smp: sampler;
+
+// The baked lawn (`src/lawn.rs`): 16 azimuths × these slopes (degrees), each view 192 texels over 1 m.
+const LAWN_SLOPES = array<f32, 6>(8.0, 12.0, 18.0, 27.0, 40.0, 62.0);
+
+struct LawnHit {
+    colour: vec3<f32>,
+    normal: vec3<f32>,
+    cover: f32,
+};
+
+// One view's answer: where the ray crosses the tip plane in view (a, s), wrapped over 1 m tiles each shifted by its
+// own random offset.
+fn lawn_view(p: vec2<f32>, a: u32, s: u32, gx: vec2<f32>, gy: vec2<f32>) -> vec4<f32> {
+    let azr = f32(a) / 16.0 * 6.2831853;
+    let elr = radians(LAWN_SLOPES[s]);
+    let f = vec3<f32>(cos(elr) * cos(azr), sin(elr), cos(elr) * sin(azr));
+    let top = p + f.xz / f.y * lawn.y;
+    let cell = floor(top + 0.5);
+    let shift = vec2<f32>(thash(i32(cell.x), i32(cell.y), 120u), thash(i32(cell.x), i32(cell.y), 121u));
+    let inset = 0.5 / 192.0;
+    let uv = clamp(fract(top + 0.5 + shift), vec2<f32>(inset), vec2<f32>(1.0 - inset));
+    let atlas = (vec2<f32>(f32(a), f32(s)) + uv) / vec2<f32>(16.0, 6.0);
+    return textureSampleGrad(lawn_albedo, lawn_albedo_smp, atlas, gx, gy);
+}
+
+// What the eye's ray through ground point `p` (looking back along `V`) meets first in the lawn: the two baked
+// azimuths around its direction, blended by how near each is, at the nearest baked slope (a single nearest view
+// showed its sector's edges as seams).
+fn lawn_at(p: vec2<f32>, V: vec3<f32>, dx: vec2<f32>, dy: vec2<f32>) -> LawnHit {
+    var hit: LawnHit;
+    // the two baked slopes around the view's, blended in log of the angle (bands of one slope showed as arcs)
+    let el = clamp(degrees(asin(clamp(V.y, 0.0, 1.0))), LAWN_SLOPES[0], LAWN_SLOPES[5]);
+    var s = 0u;
+    for (var k = 0u; k < 5u; k = k + 1u) {
+        if (el >= LAWN_SLOPES[k]) {
+            s = k;
+        }
+    }
+    let s1 = min(s + 1u, 5u);
+    let ts = select(clamp((log(el) - log(LAWN_SLOPES[s])) / (log(LAWN_SLOPES[s1]) - log(LAWN_SLOPES[s])), 0.0, 1.0), 0.0, s1 == s);
+    let x = fract(atan2(V.z, V.x) / 6.2831853) * 16.0;
+    let a0 = u32(floor(x)) % 16u;
+    let a1 = (a0 + 1u) % 16u;
+    let t = smoothstep(0.0, 1.0, fract(x));
+    let gx = dx / vec2<f32>(16.0, 6.0);
+    let gy = dy / vec2<f32>(16.0, 6.0);
+    let c = mix(
+        mix(lawn_view(p, a0, s, gx, gy), lawn_view(p, a1, s, gx, gy), t),
+        mix(lawn_view(p, a0, s1, gx, gy), lawn_view(p, a1, s1, gx, gy), t),
+        ts,
+    );
+    hit.colour = c.rgb;
+    hit.cover = c.a;
+    hit.normal = vec3<f32>(0.0, 1.0, 0.0);
+    return hit;
+}
 
 // three octaves: the cell, about a third of it, about a tenth (16, 5, 1.5 m for the bare layer, as the grass reads it)
 fn fbm(p: vec2<f32>, cell: f32, seed: u32) -> f32 {
@@ -120,42 +182,19 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
         let fine = clamp(0.1 / px - 0.5, 0.0, 1.0);
         let m = (tnoise(p, 0.17, 90u) - 0.5) + 0.5 * (tnoise(p, 0.045, 91u) - 0.5) * clamp(0.03 / px - 0.5, 0.0, 1.0);
         colour = colour * (1.0 + biome.micro.y * m * 1.6 * fine);
-        // ---- the grass carpet: the sward beyond the blades, as a slab of grass, not paint ----
-        // A ray into a sward crosses blades until one stops it. Seen steeply it reaches far down, among the dark
-        // roots and the ground between; seen at a grazing angle it is stopped near the tips, light and dense. That
-        // is the Beer-Lambert law over the ray's horizontal path through the slab. The blades it meets are found at
-        // the height where it is stopped (parallax): blade-wide streaks along the view, shifted as the eye moves.
-        let carpet = smoothstep(0.004, 0.012, px) * (1.0 - bare); // where the real blades have thinned out
-        if (carpet > 0.0) {
-            let V = pbr_input.V;
-            let slope = max(V.y, 0.03); // the view's steepness: sin of its elevation
-            let H = 0.3; // the sward's mean height
-            let sigma = 2.5; // blades a ray meets per metre of horizontal path (625 a m², 4 mm wide)
-            let run = H * length(V.xz) / slope; // horizontal path through the slab
-            let cover = 1.0 - exp(-sigma * run); // share of rays stopped by a blade, not the ground
-            // the mean height a stopped ray hits, as a share of H: near the tips when grazing
-            let x = sigma * run;
-            let hit = clamp(1.0 - (1.0 - exp(-x)) / max(x, 1e-3) * 0.5 - 0.5 * exp(-x), 0.0, 1.0);
-            // where that point lies on the ground plane: back along the view by its height
-            let q = p + V.xz / slope * (hit * H);
-            // blade-wide streaks there: narrow across the view, long along it; never finer than two pixels
-            let along = normalize(V.xz + vec2<f32>(1e-5, 0.0));
-            let across = vec2<f32>(-along.y, along.x);
-            let w = max(0.012, px * 2.0);
-            // two value noises at an angle to each other, averaged: one alone shows its square cells as diamonds
-            let u = vec2<f32>(dot(q, across) / w, dot(q, along) / (w * 6.0));
-            let blade = 0.5 * (tnoise(u, 1.0, 96u) + tnoise(vec2<f32>(u.x * 0.8 + u.y * 0.6, u.y * 0.8 - u.x * 0.6) * 1.3, 1.0, 98u));
-            let tuft = tnoise(q, 0.6, 97u); // clumps, a little higher and greener
-            // the blade's colour at the height it was struck: dark roots, light yellow-green tips
-            let green = biome.colours[0].rgb;
-            let tip = green * vec3<f32>(1.55, 1.5, 1.1) * (0.85 + 0.35 * tuft);
-            let root = green * 0.35;
-            let struck = mix(root, tip, clamp(hit + 0.35 * (blade - 0.5), 0.0, 1.0));
+        // ---- the lawn: past the real blades, the sward as the baked lawn (one lookup a pixel) ----
+        let eye_d = distance(p, view.world_position.xz);
+        let pdx = dpdx(p);
+        let pdy = dpdy(p);
+        let lawn_on = lawn.x * smoothstep(5.0, 9.0, eye_d) * (1.0 - bare);
+        if (lawn_on > 0.0) {
+            let hit = lawn_at(p, pbr_input.V, pdx, pdy);
             // between the blades: the ground in their shade
-            let under = colour * 0.55;
-            let lawn = mix(under, struck, cover) * (0.9 + 0.25 * (blade - 0.5));
-            colour = mix(colour, lawn, carpet);
-            rough = mix(rough, 0.75, carpet);
+            let struck = mix(colour * 0.6, hit.colour * 1.15, hit.cover);
+            colour = mix(colour, struck, lawn_on);
+            // a sward lit as many blades facing every way: from above, as SmartImposter's normal spread does for grass
+            pbr_input.N = normalize(mix(pbr_input.N, vec3<f32>(0.0, 1.0, 0.0), lawn_on));
+            rough = mix(rough, 0.8, lawn_on);
         }
         pbr_input.material.base_color = vec4<f32>(colour, 1.0);
         pbr_input.material.perceptual_roughness = rough;

@@ -500,11 +500,13 @@ pub fn plant_master(generator: &str, seed: u32, col: Vec3) -> Mesh {
         flowering_stem(&mut g, Vec3::ZERO, 0.55 + 0.4 * r(3), r(5) * std::f32::consts::TAU, kind, &r);
     } else if generator == "grass_patch" {
         // a square metre of the meadow's sward, as dense as the near blades: the master its far views are baked from
-        for k in 0..700 {
+        // 1600 blades: the near field's 625 blades a square metre and the fine ones among them, so the lawn baked from
+        // it covers as much as the real field does at a grazing angle (700 left a quarter of the low views empty)
+        for k in 0..1600 {
             let base = Vec3::new(r(1000 + k) - 0.5, 0.0, r(2000 + k) - 0.5);
             let a = r(3000 + k) * std::f32::consts::TAU;
             let shade = Vec3::new(0.045, 0.120, 0.018).lerp(Vec3::new(0.100, 0.230, 0.035), r(4000 + k));
-            leaf(&mut g, base, Vec3::new(a.cos(), 0.0, a.sin()), 0.82 + 0.15 * r(5000 + k), 0.14 + 0.24 * r(6000 + k) * r(6000 + k), 0.0035, shade, false);
+            leaf(&mut g, base, Vec3::new(a.cos(), 0.0, a.sin()), 0.82 + 0.15 * r(5000 + k), 0.14 + 0.24 * r(6000 + k) * r(6000 + k), 0.004, shade, false);
         }
     } else if generator == "grass_tuft" {
         // a tuft of the meadow's blades, as the GPU makes them, for the library

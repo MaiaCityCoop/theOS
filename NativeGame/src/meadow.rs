@@ -89,6 +89,26 @@ fn lay_patches(state: Res<State<View>>, eye: Query<&GlobalTransform, With<Eye2>>
     }
 }
 
+/// Gives the ground the baked lawn once it exists (it is baked at startup).
+fn attach_lawn(lawn: Option<Res<crate::lawn::Lawn>>, field: Option<Res<Field>>, mut grounds: ResMut<Assets<crate::wind::Ground>>, mut waited: Local<u32>) {
+    let (Some(lawn), Some(field)) = (lawn, field) else { return };
+    // both atlases filled, and a few frames for their pictures to reach the GPU
+    if lawn.done.load(std::sync::atomic::Ordering::SeqCst) < 2 {
+        return;
+    }
+    *waited += 1;
+    if *waited < 5 {
+        return;
+    }
+    if grounds.get(&field.ground).is_some_and(|g| g.extension.lawn_albedo.is_none())
+        && let Some(mut g) = grounds.get_mut(&field.ground)
+    {
+        g.extension.lawn = Vec4::new(1.0, crate::lawn::TOP, 0.0, 0.0);
+        g.extension.lawn_albedo = Some(lawn.albedo.clone());
+        g.extension.lawn_height = Some(lawn.height.clone());
+    }
+}
+
 /// Spawns the baked patches' tiles once the grass patch's bake exists (it is made at startup, which a scene opened
 /// from the command line enters before).
 fn spawn_patches(
@@ -100,7 +120,8 @@ fn spawn_patches(
     mut fields: ResMut<Assets<crate::patches::PatchField>>,
 ) {
     let (Some(bake), Some(_)) = (bake, field) else { return };
-    if !tiles.is_empty() || std::env::var_os("MEADOW_NO_PATCHES").is_some() {
+    // the lawn carries the mid and far sward now; the patches only on request
+    if !tiles.is_empty() || std::env::var_os("MEADOW_PATCHES").is_none() {
         return;
     }
     let material = fields.add(crate::patches::PatchField::of(&bake.0, 7.0));
@@ -322,7 +343,7 @@ pub fn plugin(app: &mut App) {
         .add_systems(OnExit(View::Library), leave)
         .add_systems(
             Update,
-            (stream, lay, spawn_patches, lay_patches, reframe, focus, crate::clouds::drift).run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio | View::Library)),
+            (stream, lay, spawn_patches, lay_patches, attach_lawn, reframe, focus, crate::clouds::drift).run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio | View::Library)),
         )
         .add_systems(Update, (hours, sun).chain().run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio | View::Library)));
 }
@@ -502,7 +523,7 @@ fn enter(
     let _ = std::fs::write(path, serde_json::to_string_pretty(&biome).unwrap_or_default());
     let ground = grounds.add(crate::wind::Ground {
         base: StandardMaterial { base_color: Color::WHITE, perceptual_roughness: 0.95, reflectance: 0.3, cull_mode: None, ..default() },
-        extension: crate::wind::GroundLook { biome: biome.uniform() },
+        extension: crate::wind::GroundLook { biome: biome.uniform(), lawn: Vec4::ZERO, lawn_albedo: None, lawn_height: None },
     });
     // the land beyond the grass, to the horizon, rebuilt around the eye as it moves (`stream`)
     let far = meshes.add(crate::terrain::far(0.0, 0.0, None));

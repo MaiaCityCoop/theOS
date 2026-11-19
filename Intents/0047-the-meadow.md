@@ -131,6 +131,15 @@ pictures looked at by Samuel; the navigation self-test, `cargo run -- --navtest`
 - **The Library** (home tile D): each asset's master on a turntable; ← → step through, Space a new individual, the
   caption its generator, sizes and triangle count.
 
+- **The lawn, SmartImposter's method, procedural** (`src/lawn.rs`): a square metre of 1600 real blades between 9 × 9
+  copies of itself is baked once from 16 azimuths × 6 low slopes (8° to 62°): each view stores, for every point of
+  the tip plane, the first blade on the line along that view (sheared projection, its height as depth), 4× multisampled
+  (one sample a texel missed blades thinner than a texel: half of every view was empty), with coverage-weighted mips.
+  The ground shader looks up where the eye's ray crosses the tip plane in the four views around its direction,
+  blended; each 1 m tile shifted by its own random offset. Root causes found on the way: a scene opened before the
+  bake missed it; a material bound to the atlases before they were filled kept the empty pictures (bound only once
+  done). Gate: 31 to 36 ms in all four anchors.
+
 ### How the scene evolved
 
 The story of the Meadow, stage by stage, for the devlog. Every stage is a commit on `aven/0047-meadow`; checked out
