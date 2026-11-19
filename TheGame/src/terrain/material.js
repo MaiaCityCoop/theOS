@@ -7,7 +7,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, int, uint, vec2, vec3, vec4, array, attribute, positionGeometry, positionWorld, varyingProperty, cameraProjectionMatrix, dFdx, dFdy, If, Loop, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, floor, exp2, log2, step } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { DIAL_LEAST, pxAt, dialPxAt } from '../detail/measure.js';
+import { DIAL_ASKED, pxAt, dialPxAt } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
 import { camDist, riverInfo, riverNear, heightAt, heightSlopeAt, roofAt, hashI, BASE } from '../world/land.nodes.js';
 import { OCT_LAM, OCT_AMP } from '../world/land.js';
@@ -21,9 +21,9 @@ import { SOIL_RELIEF } from '../world/physics.js';
 
 export const GRID = 16, NODE = 8;   // quads per node side; a level-0 node's side, metres (its reach is the measure's: U.uLandR0, src/terrain/terrain.js)
 /** How many times as far every level of the land reaches but the last (whose reach is where the land ends): one over the
-    page's least dial, each quad as much smaller on the screen as the dial is (src/detail/measure.js DIAL_LEAST): the
-    game's 1, ?truth's 4 (its finest everywhere is past any GPU). */
-export const FINE = 1 / DIAL_LEAST;
+    dial the address asks for, each quad as much smaller on the screen as the dial is (src/detail/measure.js DIAL_ASKED):
+    the game's 1, ?truth's 4 (its finest everywhere is past any GPU). */
+export const FINE = 1 / DIAL_ASKED;
 /** The parallax's steps down the eye's ray (pages.js read, relief.js reliefShares): as many as keep a step of it within a
     dial pixel where the relief's geometry lets go, half its first level's reach (src/terrain/terrain.js): there the
     soil's relief (src/world/physics.js) covers SOIL_RELIEF GRID / (NODE FINE) over the steepest of the land's octaves
