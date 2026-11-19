@@ -432,12 +432,15 @@ pub fn tile(segs: u32) -> Mesh {
     for j in 0..TILE {
         for i in 0..TILE {
             let start = pos.len() as u32;
-            let slot = [i as f32 + 0.5, 0.0, j as f32 + 0.5];
+            // the slot, with the blade's side in the x within its cell (0.25, 0.5, 0.75) and how far up in y: the
+            // position reaches every pass (the depth prepass gets no UV, and without it drew no blades: the
+            // anti-aliasing then blended the sky behind them in as white streaks)
+            let (ci, cj) = (i as f32, j as f32);
             for s in 0..=segs {
                 let t = s as f32 / segs as f32;
                 let sides: &[f32] = if s == segs { &[0.0] } else { &[-1.0, 0.0, 1.0] };
                 for &side in sides {
-                    pos.push(slot);
+                    pos.push([ci + 0.5 + 0.25 * side, t, cj + 0.5]);
                     uv.push([side, t]);
                     nrm.push([0.0, 1.0, 0.0]);
                     col.push([1.0, 1.0, 1.0, 1.0]);

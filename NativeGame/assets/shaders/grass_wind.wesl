@@ -4,7 +4,7 @@ import bevy_pbr::render::{
     forward_io::{Vertex, VertexOutput, decompress_vertex},
     view_transformations::position_world_to_clip,
 };
-import super::wind::{Wind, Blade, sway, sink, blade};
+import super::wind::{Wind, Blade, sway, sink, blade, slot_of};
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(100) var<uniform> wind: Wind;
 
@@ -18,8 +18,8 @@ fn vertex(v: Vertex) -> VertexOutput {
     var b: Blade;
     if (made) {
         // the GPU grass: the slot's world place, with the tile's cell size in y
-        let slot = vec3<f32>(world.x, length(world_from_local[0].xyz), world.z);
-        b = blade(slot, vertex.uv.x, vertex.uv.y, wind, wind.params.x, wind.params.y);
+        let at = slot_of(world.xyz, length(world_from_local[0].xyz));
+        b = blade(at.xyz, at.w, world.y, wind, wind.params.x, wind.params.y);
         world = vec4<f32>(b.position, 1.0);
     } else {
         let sunk = sink(world.xyz, wind);

@@ -187,3 +187,9 @@ fn blade(slot: vec3<f32>, side: f32, t: f32, w: Wind, time: f32, before: f32) ->
     out.colour = vec4<f32>(c, 1.0);
     return out;
 }
+
+// A GPU grass vertex's slot, side and height up its blade, from its world position (see `grass::tile`).
+fn slot_of(world: vec3<f32>, s: f32) -> vec4<f32> {
+    let side = round((fract(world.x / s) - 0.5) * 4.0);
+    return vec4<f32>(world.x, s, world.z, side);
+}

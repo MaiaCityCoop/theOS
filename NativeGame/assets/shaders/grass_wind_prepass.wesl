@@ -7,7 +7,7 @@ import bevy_pbr::{
         view_transformations::position_world_to_clip,
     },
 };
-import super::wind::{Wind, Blade, sway, sink, blade};
+import super::wind::{Wind, Blade, sway, sink, blade, slot_of};
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(100) var<uniform> wind: Wind;
 
@@ -26,8 +26,8 @@ fn vertex(v: Vertex) -> VertexOutput {
 }
     var b: Blade;
     if (made) {
-        let slot = vec3<f32>(rest.x, length(world_from_local[0].xyz), rest.z);
-        b = blade(slot, side, up, wind, wind.params.x, wind.params.y);
+        let at = slot_of(rest.xyz, length(world_from_local[0].xyz));
+        b = blade(at.xyz, at.w, rest.y, wind, wind.params.x, wind.params.y);
         out.world_position = vec4<f32>(b.position, 1.0);
     } else {
         let sunk = sink(rest.xyz, wind);
