@@ -70,7 +70,7 @@ await tryTo('the city', async () => { (await import('../src/city/index.js')).cre
 await tryTo('a frame', async () => { game?.screen?.render(scene, camera); await Promise.resolve(); await (await import('../src/core/compile.js')).inTurn(() => {}); });   // (and what it asked to be made, made: its passes of their own, src/core/compile.js drawMade)
 
 // ---- every material made, built as each pass draws it ----
-const { twinOf } = await import('../src/core/pass.js'), { prepassTarget } = await import('../src/core/screen.js');
+const { twinOf, LIT } = await import('../src/core/pass.js'), { prepassTarget } = await import('../src/core/screen.js');
 const PRE_TARGET = prepassTarget(4, 4, new THREE.DepthTexture(4, 4));   // (the prepass built as it draws: into its target, writing its id too)
 const built = new Set(), materials = new Map();
 const take = (object, m) => { if (m?.isNodeMaterial && !materials.has(m)) materials.set(m, object); };
@@ -91,6 +91,7 @@ const buildAll = (where) => {
     }
   }
 };
+for (const L of LIT) take(L.mesh, L.mesh.material);   // (a deferred family's pass of light: drawn by the screen, in no scene)
 buildAll('the world');
 // what bakes the far ends (src/scatter/trees.js farOf): compiled at the start, drawn straight by the bakers, by no pass,
 // so as itself only (no prepass or colour twin); and the bakers' own reduce (src/detail/impostor.js createBaker: a row's

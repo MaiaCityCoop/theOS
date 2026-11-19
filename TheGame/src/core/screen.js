@@ -21,17 +21,19 @@
 import * as THREE from 'three/webgpu';
 import { note, mark } from './gpu.js';
 import { compileFor, compileList, made, ask, labelled } from './compile.js';
-import { twinOf } from './pass.js';
+import { twinOf, LIT } from './pass.js';
 import { U } from './uniforms.js';
 import { ERROR_PX } from '../detail/error.js';
 import { occlusion } from './occlusion.js';
 import { outputRatio } from './output.js';
 
-/** The prepass's target, w × h pixels on `depth`: its motion (rgba16f, `output`), and what drew each pixel (`id`: two
+/** The prepass's target, w × h pixels on `depth`: its motion (rgba16f, `output`), what a deferred family's light needs
+    (`gA`: rgba16f, `gB`: two numbers of 32 bits; src/core/pass.js GA, GB), and what drew each pixel (`id`: two
     numbers of 32 bits: src/core/pass.js drawnId, written by every material's prepass twin, twinOf). */
 export const prepassTarget = (w, h, depth) => {
-  const t = new THREE.RenderTarget(w, h, { samples: 0, type: THREE.HalfFloatType, generateMipmaps: false, depthTexture: depth, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, count: 2 });
-  t.textures[0].name = 'output'; Object.assign(t.textures[1], { name: 'id', type: THREE.UnsignedIntType, format: THREE.RGIntegerFormat });
+  const t = new THREE.RenderTarget(w, h, { samples: 0, type: THREE.HalfFloatType, generateMipmaps: false, depthTexture: depth, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, count: 4 });
+  t.textures[0].name = 'output'; t.textures[2].name = 'gA';
+  for (const [i, name] of [[1, 'id'], [3, 'gB']]) Object.assign(t.textures[i], { name, type: THREE.UnsignedIntType, format: THREE.RGIntegerFormat });
   return t;
 };
 
@@ -54,7 +56,7 @@ export function createScreen(renderer, { temporal, lens = null }) {
       const w = size.x, h = size.y, made = (o, depth) => new THREE.RenderTarget(w, h, { samples: 0, type: THREE.HalfFloatType, generateMipmaps: false, depthTexture: depth, ...o });
       const turns = [0, 1].map(() => { const depth = new THREE.DepthTexture(w, h); return { depth, pre: prepassTarget(w, h, depth), main: made({ minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter }, depth) }; });
       T = { w, h, turns };
-      note('the picture inside (its colour, motion, id and depth, two of each)', 2 * w * h * (8 + 8 + 8 + 4), 0, 'geometry');   // (what the prepass and the colour draw into)
+      note('the picture inside (its colour, motion, id, the deferred light\'s inputs and depth, two of each)', 2 * w * h * (8 + 8 + 8 + 8 + 8 + 4), 0, 'geometry');   // (what the prepass and the colour draw into)
     }
     return T.turns[turn];
   };
@@ -70,12 +72,14 @@ export function createScreen(renderer, { temporal, lens = null }) {
     return makers.get(k);
   };
   // (drawn in either pass once made for both it takes part in: made for the prepass and not for the colour, its depth
-  // with no colour on it would be a hole the sky shows through)
+  // with no colour on it would be a hole the sky shows through. A deferred material's colour is its pass of light's
+  // (src/core/pass.js LIT): made for that instead)
+  const lit = (L) => made(L.mesh, 'main') || (ask(L.mesh, 'main', makerOf('main', L.camera, L.mesh), labelled(twin.main(L.mesh.material), L.mesh, 'main')), false);
   const both = (object, material, camera, scene) => {
-    const pre = twin.pre(material);
-    if ((!pre || made(object, 'pre')) && made(object, 'main')) return true;   // (a frame's own way: two looks)
+    const pre = twin.pre(material), main = twin.main(material);
+    if ((!pre || made(object, 'pre')) && (main ? made(object, 'main') : [...LIT].every(lit))) return true;   // (a frame's own way: two looks)
     if (pre) ask(object, 'pre', makerOf('pre', camera, scene), labelled(pre, object, 'pre'));
-    ask(object, 'main', makerOf('main', camera, scene), labelled(twin.main(material), object, 'main'));
+    if (main) ask(object, 'main', makerOf('main', camera, scene), labelled(main, object, 'main'));
     return false;
   };
   const drawn = (pass) => (object, scene, camera, geometry, material, ...rest) => { const m = twin[pass](material); if (m && both(object, material, camera, scene)) drawObject.call(renderer, object, scene, camera, geometry, m, ...rest); };
@@ -122,7 +126,12 @@ export function createScreen(renderer, { temporal, lens = null }) {
       // horizon as the screen shows it: here in the light's own numbers, the screen's curve taken back off it)
       const E = 1.25 * U.uExposure.value, un = (v) => -Math.log(1 - Math.min(0.999, v) ** 2.2) / E;
       sky.setRGB(un(clear.r), un(clear.g), un(clear.b), THREE.LinearSRGBColorSpace); renderer.setClearColor(sky, 1); renderer.autoClearDepth = false;
-      mark('colour'); renderer.setRenderObjectFunction(main); renderer.setRenderTarget(t.main); renderer.render(scene, camera);
+      // (the deferred families first, src/core/pass.js LIT: their pixels lit where the prepass left what their light needs,
+      // into the colour's target cleared to the sky; then the rest drawn over it, nothing cleared again)
+      const ac = renderer.autoClear;
+      mark('colour'); renderer.setRenderObjectFunction(main); renderer.setRenderTarget(t.main);
+      for (const L of LIT) { L.frame({ camera, textures: t.pre.textures, w: size.x, h: size.y }); renderer.render(L.mesh, L.camera); renderer.autoClear = false; }
+      renderer.render(scene, camera); renderer.autoClear = ac;
       renderer.setRenderObjectFunction(null); renderer.autoClearDepth = clearDepth; renderer.setRenderTarget(null); renderer.setClearColor(clear, alpha);
       if (culls) occlusion.rest();   // (every other view draws all that was packed: the shadow map, a still, a bake)
       temporal.end(camera);

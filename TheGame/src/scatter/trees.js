@@ -40,13 +40,13 @@
 //   - where it has sunk, the land wears its stand's colour (the stand's `cover`: src/terrain/material.js), as thick as
 //     the stand grows there: a forest, and its undergrowth, to the horizon.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, attribute, positionGeometry, vertexIndex, instanceIndex, screenCoordinate, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cos, sin, cross, clamp, log, log2, exp2, step, fract, unpackHalf2x16, hash, sqrt } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, attribute, positionGeometry, vertexIndex, instanceIndex, screenCoordinate, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cos, sin, cross, clamp, log, log2, exp2, step, fract, unpackHalf2x16, hash, sqrt, uvec2, ivec2, sign, texture } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, camDist, heightAt } from '../world/land.nodes.js';
 import { layersOf, posIn, placeIn, grownIn, grovesOf, writersOf } from './rule.js';
 import { createGrowth } from './growth.js';
 import { toScreen, airOf, lightOn, sunAt, contactShade, weatherOn, snowLiftAtVertex, unlit, windAt, windDir, windStrength, ign } from '../world/light.js';
-import { passOf, cut, motion, vWas } from '../core/pass.js';
+import { passOf, cut, motion, vWas, GA, GB, LIT } from '../core/pass.js';
 import { CLEARINGS } from '../../world/places.js';
 import { recipe, recipes, versionOf } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
@@ -68,7 +68,7 @@ import { pxOf, turnOf, seedOf } from './row.js';
 import { levelOf as crowdLevelOf } from '../../assets/kit/crowd.js';
 import { crowdOf, bandsOf, baseShare, goneOf, GRID, GOQ, GO0, FOOT } from '../../assets/kit/plant.js';
 import { ringsOf, bandsOf as ringBands } from './grass.js';
-import { lo16, hi16 } from './unpack.js';
+import { lo16, hi16, octDir } from './unpack.js';
 import { farMost, pxKMost, measureVersion, dialPxAt } from '../detail/measure.js';
 import { BAND, FADE } from '../detail/error.js';
 import { source } from '../core/settle.js';
@@ -221,6 +221,50 @@ const standLight = ({ w, n0, Ve, part, leaf = part.greaterThan(0.5).select(float
   return { through, sky: plane.select(keep, Lo.sky.mul(keep)), sun: plane.select(vec3(0), Lo.sun.mul(keep)), add: W.add.mul(Lo.sky.add(Lo.sun)).mul(air.k).add(air.col.mul(float(1).sub(air.k))) };
 };
 
+// ---- the stands' light where their pixels are (src/core/pass.js: deferred) ----
+// Their prepass writes what their light needs (gWrite: GA, GB); one pass over the picture lights every pixel of theirs
+// with it (standsLit), before the colour pass draws the rest. Their geometry is drawn once, not twice.
+/** A unit direction as two numbers -1 … 1 (octahedral: unpack.js octDir the other way). */
+const octOf = (n) => { const a = n.div(abs(n.x).add(abs(n.y)).add(abs(n.z)).max(1e-6)); return a.z.lessThan(0).select(vec2(float(1).sub(abs(a.y)).mul(sign(a.x)), float(1).sub(abs(a.x)).mul(sign(a.y))), a.xy); };
+/** 0 … 1 as `bits` bits (a uint node), shifted up by `at`. */
+const unorm = (v, bits, at) => uint(clamp(v, 0, 1).mul(2 ** bits - 1).add(0.5)).shiftLeft(uint(at));
+/** What a stand's pixel writes in the prepass for its light (A: its colour squared in its green, the colour its light
+    multiplies; n: its way; ao; part: 1 its wood, 2 a card, 3 a chunk's plane; w: where it is; k: ao's neighbours, wrap,
+    shines, clumps): GA its colour and how far it is from the eye, GB its way (16 bits each way) and wrap, shines, ao (8
+    bits each), clumps (6) and its part (2). */
+const gWrite = (A, n, ao, part, w, k) => {
+  const o = octOf(normalize(n)).mul(0.5).add(0.5);
+  GA.assign(vec4(A, length(U.uCam.sub(w))));
+  GB.assign(uvec2(unorm(o.x, 16, 0).bitOr(unorm(o.y, 16, 16)), unorm(k.y, 8, 0).bitOr(unorm(k.z, 8, 8)).bitOr(unorm(ao, 8, 16)).bitOr(unorm(k.w, 6, 24)).bitOr(uint(part).shiftLeft(uint(30)))));
+};
+let STANDS = null;
+/** The stands' pass of light (one for every stand: src/core/pass.js LIT): a pixel the prepass left a stand's in, lit as
+    standLight lights it (a chunk's plane as its leaves are: lightOn), where it is (its way back from the eye, as far as
+    it wrote), with the contact shadows (light.js contactShade: userData.lit). */
+const standsLit = () => {
+  if (STANDS) return;
+  const tA = texture(new THREE.DataTexture(new Uint16Array(4), 1, 1, THREE.RGBAFormat, THREE.HalfFloatType)), tB = texture(new THREE.DataTexture(new Uint32Array(2), 1, 1, THREE.RGIntegerFormat, THREE.UnsignedIntType));
+  const unproject = uniform(new THREE.Matrix4()), eyeWorld = uniform(new THREE.Matrix4()), size = uniform(new THREE.Vector2(1, 1));
+  const m = new THREE.NodeMaterial(); m.depthTest = false; m.depthWrite = false; m.userData.lit = true;
+  m.fragmentNode = Fn(() => {
+    const at = ivec2(screenCoordinate.xy), b = tB.load(at).xy.toVar(), part = b.y.shiftRight(uint(30)).toVar();
+    Discard(part.equal(uint(0)));   // (no stand's: what the colour pass draws)
+    const a = tA.load(at), A = a.rgb, far = a.w;
+    const ndc = vec2(screenCoordinate.x.div(size.x).mul(2).sub(1), float(1).sub(screenCoordinate.y.div(size.y).mul(2))), r = unproject.mul(vec4(ndc, 1, 1));
+    const dir = normalize(eyeWorld.mul(vec4(r.xyz.div(r.w), 0)).xyz).toVar(), w = U.uCam.add(dir.mul(far)).toVar(), Ve = dir.negate();
+    const n = normalize(octDir(float(b.x.bitAnd(uint(0xffff))).div(65535).mul(2).sub(1), float(b.x.shiftRight(uint(16))).div(65535).mul(2).sub(1))).toVar();
+    const byte = (at8) => float(b.y.shiftRight(uint(at8)).bitAnd(uint(255))).div(255);
+    const wrap = byte(0), shines = byte(8), ao = byte(16), clumps = float(b.y.shiftRight(uint(24)).bitAnd(uint(63))).div(63), share = sunAt(w, 'vertex').toVar();
+    const S = standLight({ w, n0: n, Ve, part: float(part).sub(1), ao, wrap, shines, clumps, tint: vec3(1), share });
+    const plane = lightOn({ n, w, V: Ve, sun: share, ndl: n.dot(U.uSunDir).add(wrap).div(wrap.add(1)).max(0), through: shines, ao });
+    const col = part.equal(uint(3)).select(A.mul(plane.sky.add(plane.sun)).mul(S.sky), A.mul(S.sky.add(S.sun.mul(contactShade()))));
+    return vec4(toScreen(col.add(S.add)).rgb, 1);
+  })();
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), m); mesh.frustumCulled = false;
+  STANDS = { mesh, camera: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), frame({ camera, textures, w, h }) { tA.value = textures[2]; tB.value = textures[3]; unproject.value.copy(camera.projectionMatrixInverse); eyeWorld.value.copy(camera.matrixWorld); size.value.set(w, h); } };
+  LIT.add(STANDS);
+};
+
 // the one material of everything that stands in a stand, whatever its kind: shape(A, B) its vertex from what plantIn
 // packed, swayed by the wind; its wood wrapped in its bark, its leaves cut out of their painted sprig (also in the shadow
 // map: the shadow under a pine is dappled), lit through when the sun is behind them, and rounded over the crown as one
@@ -261,6 +305,7 @@ function plantMaterial(tex, D) {
     const vLay = varyingProperty('vec2', 'tLay');   // (the layers of its leaves' and its wood's textures: its kind's)
     // a chunk's plane (the world's: its stand's clumps, D.far): its kind's layer, how finely its texels are read, how
     // much of its cover is kept; its light (the sun as it reaches it, through, wrap, the plant's turn); the way to the eye
+    const DEFER = !!feed;   // (the world's stands: lit where their pixels are, standsLit; a library's plant as it always was)
     const FAR = feed ? D.far : null, vClump = FAR ? varyingProperty('vec4', 'tClump') : null, vLit = FAR ? varyingProperty('vec4', 'tLit') : null, vEye = FAR ? varyingProperty('vec3', 'tEye') : null, vFade = FAR ? varyingProperty('float', 'tFade') : null;
     // (pass: what it is built for, src/core/pass.js: the prepass works out no light)
     const shape = (A, B, pass) => {
@@ -333,7 +378,7 @@ function plantMaterial(tex, D) {
       // each plant its own green: lighter or darker, and warmer (yellower) or cooler (bluer)
       const leaf = part.greaterThan(0.5), n0 = normalize(turn(V.normal));
       const tint = leaf.select(mix(vec3(1.07, 1.0, 0.78), vec3(0.86, 0.98, 1.1), B.z.mul(1.1631).fract()).mul(V.shade.mul(0.3).add(0.84)).mul(Tn), vec3(1));
-      if (pass === 'main') {   // (the colour pass: what its pixels light themselves by; a chunk's plane's wrap and turn)
+      if (pass === 'main' || (pass === 'pre' && DEFER)) {   // (what its pixels light themselves by, in the colour pass or, deferred, its prepass; a chunk's plane's wrap and turn)
         vW.assign(w); vN.assign(n0); vTint.assign(tint); vK.assign(vec4(ao, wrap, shines, clumps));
         if (vLit) vLit.assign(vec4(0, 0, wrap, B.x));
       } else if (pass !== 'pre' && pass !== 'shadow') {   // (the prepass and the shadow map: only its depth and its cut-out count)
@@ -381,6 +426,7 @@ function plantMaterial(tex, D) {
           // frame, sitting on the plane as a leaf does), and as much as is still its mesh's (handing); cut in the prepass
           const C = clumpRead(FAR.clumps(), vClump.x, vUv, vClump.y), t = floor(vUv.mul(atlases().TILE)), keep = hash(uint(t.x).add(uint(t.y).mul(uint(4099))).add(uint(vClump.x).mul(uint(1000003))));
           cut(builder, C.cover.lessThan(0.5).or(keep.greaterThanEqual(vClump.z)).or(handing(vFade).not()));
+          if (pass === 'pre' && DEFER) gWrite(C.colour.mul(C.colour).mul(vTint), turnOf(vLit.w).turn(C.normal).add(vEye.mul(0.35)), C.light, 3, vW, vK);   // (deferred: what its light needs, as the colour pass would have lit it)
           if (pass === 'pre' || pass === 'shadow') return;
           If(shadow.not(), () => {
             // lit as its leaves are, pixel by pixel, their way there turned with the plant and pulled a little towards
@@ -393,6 +439,8 @@ function plantMaterial(tex, D) {
           });
         }).Else(cards);
       }).Else(fading);   // (its wood: only its impostor's coming cuts it)
+      // (deferred: what a card's or its wood's light needs, its bark read here then)
+      if (pass === 'pre' && DEFER) If(vPart.lessThan(1.5), () => { If(leaf.not(), () => { const W = tex.a(floor(vLay.y.add(0.5)), vUv); T.assign(vec4(W.rgb.mul(mix(0.74, 1, W.a)), 1)); }); gWrite(T.rgb.mul(T.rgb).mul(vTint), vN, vK.x, leaf.select(uint(2), uint(1)), vW, vK); });
       if (pass === 'pre') return motion(vWas, leaf.select(float(1), float(0)));   // (where it was a frame ago; a leaf's card is thin)
       if (pass === 'shadow') return vec4(0);   // (into a shadow map: its depth and its cut-out, no light)
       If(leaf.not().and(shadow.not()), () => { const W = tex.a(floor(vLay.y.add(0.5)), vUv); T.assign(vec4(W.rgb.mul(mix(0.74, 1, W.a)), 1)); });   // its bark, darker in its fissures (0.74 squared: 0.55)
@@ -404,6 +452,7 @@ function plantMaterial(tex, D) {
       return out;
     });
     const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.alphaToCoverage = true; m.userData.pre = true; m.userData.shadow = true;   // (it takes part in the prepass: src/core/pass.js)
+    if (DEFER) { m.userData.deferred = true; standsLit(); }   // (lit where its pixels are: no colour pass of its own)
     return { m, shape, slot };
   };
 }

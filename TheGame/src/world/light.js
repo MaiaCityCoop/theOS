@@ -208,7 +208,7 @@ export const sunAt = (w, how = 'soft', n = null) => sunDim().mul(cloudShade(w)).
 // what the screen's light left for this pixel (src/world/light/screen.js): one texel, loaded (no sampler), the share of
 // the sun the contact shadows let through. Read in the colour pass of what takes part in the prepass (its depth is the
 // one the screen's light read), in a fragment; 1 anywhere else.
-const onScreen = (builder) => passOf(builder) === 'main' && builder.shaderStage === 'fragment' && builder.material?.userData?.pre === true;
+const onScreen = (builder) => passOf(builder) === 'main' && builder.shaderStage === 'fragment' && (builder.material?.userData?.pre === true || builder.material?.userData?.lit === true);   // (lit: a deferred family's pass of light, src/core/pass.js LIT)
 /** The share of the sun the contact shadows let reach this pixel (1: all of it): for lightOn, and for a material that lights
     itself per vertex and takes the rest per pixel (a tree's cards). */
 export const contactShade = Fn((builder) => (onScreen(builder) ? mix(float(1), SCREEN.contact.load(ivec2(screenCoordinate.xy)).x, SCREEN.on) : float(1)));
