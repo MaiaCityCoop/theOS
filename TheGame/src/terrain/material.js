@@ -14,7 +14,7 @@ import { OCT_LAM, OCT_AMP } from '../world/land.js';
 import { layerOf, standOf, standFade, CARPET, SLOPES, NO_STAND, SHADE_REACH, CROWNS } from './layers.js';
 import { lit, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
 import { passOf, motion } from '../core/pass.js';
-import { endOf, bladeLight } from '../scatter/grass.js';
+import { endOf, bladeLight, tuftShade, underShade } from '../scatter/grass.js';
 import { reliefShares, reliefOverSnow } from './relief.js';
 import { SOIL_RELIEF } from '../world/physics.js';
 
@@ -115,7 +115,12 @@ export function laid(tex, p, s, D, X) {
   const glum = mix(mix(g1a, ga2, gk), mix(ga2, g3a, 0.6), gk2).toVar();
   const gq0 = gn2.mul(2).sub(1), gq = vec2(gq0.x.mul(0.6).add(gq0.y.mul(0.8)), gq0.x.mul(-0.8).add(gq0.y.mul(0.6)));
   const gnrm = mix(gn1, gq, gk).mul(float(1).sub(gk2.mul(0.7)));
-  const grass = (M) => { M.c.assign(mix(M.c, X.tint.mul(glum.mul(1.05).add(0.32)), cv)); M.n.assign(mix(M.n, gnrm.mul(1.4), cv)); M.h.assign(mix(M.h, glum, cv)); M.g.assign(cv); };
+  // (its colour the meadow's as its blades' tips show it, the layer map's (src/terrain/layers.js, src/scatter/grass.js
+  // meadowTip), in the blades' own tufts' shade (0.875 + 0.35 c3 of their mean's 1.05, 0.6 m across: as much of a tuft's
+  // own as a texel holds one, the mean as it holds many: its spread as a mean of (s / 0.6)² tufts'); its texture its
+  // relief alone, the height and the normal the blades stand in)
+  const tuft = float(0.5).add(tuftShade(p).sub(0.5).mul(float(0.6).div(s.max(0.6))));
+  const grass = (M) => { M.c.assign(mix(M.c, X.tint.mul(float(0.875).add(tuft.mul(0.35)).div(1.05)), cv)); M.n.assign(mix(M.n, gnrm.mul(1.4), cv)); M.h.assign(mix(M.h, glum, cv)); M.g.assign(cv); };
 
   // the layers, in the order they are laid: each its share of what lies under it (its share over the shares so far),
   // let go with distance where it says (not the lowest: nothing lies under it); the slope's rock as much as the texel's
@@ -230,9 +235,10 @@ export function terrainMaterial(vt) {
     const rdist = length(vWorld.sub(U.uCam)), dist2 = rdist.mul(U.uLodInv);   // the true distance (for the air), and the lens's (for detail)
     const d = abs(vI.x), w = vI.y;
     const G = vt.read(p, dx, dy, rdist, { eye: normalize(U.uCam.sub(vWorld)), level: by(vWorld, [dx, dy]) });   // (along the eye's ray through the ground's relief: parallax)
-    // where the meadow's blades stand, the carpet lies in their shade, drawn over it; as they thin out towards its end
-    // it comes out of it (their own share at the pixel's distance: src/scatter/grass.js endOf)
-    const blades = endOf(dist2), c = G.c.mul(mix(1, 0.5, G.cv.mul(blades))).toVar(), cv = G.cv, h = G.h;
+    // where the meadow's blades stand, what shows between them is their lower halves, as dark to their tips as a blade
+    // is (src/scatter/grass.js underShade), drawn over it; as they thin out towards its end it comes out of it (their own
+    // share at the pixel's distance: endOf), their tips' then
+    const blades = endOf(dist2), c = G.c.mul(mix(float(1), underShade(), G.cv.mul(blades))).toVar(), cv = G.cv, h = G.h;
     // past where the shadow cascades reach round the camera (the farthest of them: SHADE_REACH, src/world/shadow.js), a
     // stand's floor lies in its crowns' shade
     const shade = SHADE_REACH > 0 ? G.shade.mul(smoothstep(SHADE_REACH * 0.8, SHADE_REACH, length(p.sub(U.uCam.xz)))) : float(0);

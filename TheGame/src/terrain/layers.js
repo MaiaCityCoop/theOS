@@ -13,13 +13,13 @@
 //   the grass's carpet      how much of the ground it covers: near (the bare patches cut out), between, and far (its tufts
 //                           let go); and the slow variation of every ground's colour (macro)
 //   the stands' cover       the two thickest stands (STANDS below): how thick each grows there and its crowns' pattern
-//   the grass's colour      its tint, and which two stands those are
+//   the grass's colour      the meadow's as its blades' tips show it (the carpet's), and which two stands those are
 import * as THREE from 'three/webgpu';
 import { If, Loop, float, int, uint, vec2, vec3, abs, max, clamp, smoothstep, log2, sqrt, round, uniformArray, renderGroup } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { byRole } from '../core/registry.js';
 import { riverInfo, biomesAt, grassFrom, groveAt, leadAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, BASE, LAID, PATH_W } from '../world/land.nodes.js';
-import { endOf } from '../scatter/grass.js';
+import { endOf, meadowTip } from '../scatter/grass.js';
 import { byte, un } from '../scatter/growth.js';
 import { BAND } from '../detail/error.js';
 import { standsOf, rowsOf } from '../scatter/rule.js';
@@ -206,8 +206,10 @@ export function layerWords(tex, p, texel) {
     });
   });
   If(st[1].id.lessThan(st[0].id), () => { const i = int(st[0].id).toVar(), c = float(st[0].c).toVar(), n = float(st[0].n).toVar(); st[0].id.assign(st[1].id); st[0].c.assign(st[1].c); st[0].n.assign(st[1].n); st[1].id.assign(i); st[1].c.assign(c); st[1].n.assign(n); });
-  // the grass's colour (its tint: what the carpet and the blades wear), as fine as the map's points call for
-  const tint = grassTint(tex, p, dry, max(log2(texel.mul(1024 / 45)), 0)).rgb;
+  // the grass's colour, as fine as the map's points call for: the meadow's as its blades' tips show it, which the carpet
+  // that stands for them past their end is (src/scatter/grass.js meadowTip: the grass's tint and dryness there, its
+  // tufts' mean shade; the carpet gives them their own, src/terrain/material.js laid)
+  const g = grassTint(tex, p, dry, max(log2(texel.mul(1024 / 45)), 0)), tint = meadowTip(g.rgb, g.a, float(0.5));
   const word = (a, b, c, d) => a.bitOr(b.shiftLeft(uint(8))).bitOr(c.shiftLeft(uint(16))).bitOr(d.shiftLeft(uint(24)));
   return [
     word(...top.map((t) => uint(t.id))),

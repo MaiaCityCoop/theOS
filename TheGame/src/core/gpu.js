@@ -205,6 +205,22 @@ const retire = (attr) => nextFrame(() => nextFrame(() => {
   const own = R.backend.get(attr).buffer, done = R.backend.device.queue?.onSubmittedWorkDone?.() ?? Promise.resolve();
   done.then(() => { attr.dispose(); if (own && R.backend.get(attr).buffer === own) own.destroy(); });   // (three's, let go by three; one three never bound, by us)
 }));
+/** A draw's index, its corners (list: a Uint32Array), made on the GPU at its true size and written there once (one
+    sized writeBuffer: nothing mapped at its making, and no copy of it kept on the page). three is given a placeholder
+    of one corner, its buffer handed to the backend before it would make its own: a draw so indexed takes its count
+    from its own arguments (an indirect draw: src/scatter/tier.js), never from the placeholder. old: the index it
+    replaces on the same draw; one made here is let go once nothing uses it (as a store made again, above). Without
+    WebGPU: an ordinary index, kept twice. */
+const INDICES = new WeakSet();
+export function gpuIndex(list, old = null) {
+  if (!R) return new THREE.BufferAttribute(list, 1);
+  if (old && INDICES.has(old)) retire(old);
+  const dev = R.backend.device, attr = new THREE.BufferAttribute(new Uint32Array(1), 1);
+  const buffer = asClass('geometry', () => dev.createBuffer({ label: "a draw's corners", size: Math.max(4, list.byteLength), usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST }));
+  if (list.byteLength) dev.queue.writeBuffer(buffer, 0, list.buffer, list.byteOffset, list.byteLength);
+  R.backend.get(attr).buffer = buffer; INDICES.add(attr);
+  return attr;
+}
 /** The same, its size said later, before anything binds it (what is shared by things not all made yet: the culling's
     lists, src/core/occlusion.js), and said again as what it must hold changes (a resident tier's store, from its own
     count: src/scatter/tier.js; what grows with need, the single things' table: src/world/things.js): { node, attr (the buffer it is now), make(count) -> bytes }. Made again, it is a new
