@@ -40,7 +40,7 @@
 //   - where it has sunk, the land wears its stand's colour (the stand's `cover`: src/terrain/material.js), as thick as
 //     the stand grows there: a forest, and its undergrowth, to the horizon.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, attribute, positionGeometry, vertexIndex, screenCoordinate, If, Discard, abs, max, mix, smoothstep, exp, pow, normalize, length, floor, cos, sin, cross, clamp, log, log2, exp2, step, fract, unpackHalf2x16, hash, sqrt } from 'three/tsl';
+import { Fn, mrt, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, attribute, positionGeometry, vertexIndex, screenCoordinate, If, Discard, abs, max, mix, smoothstep, exp, pow, normalize, length, floor, cos, sin, cross, clamp, log, log2, exp2, step, fract, unpackHalf2x16, hash, sqrt } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, camDist, heightAt } from '../world/land.nodes.js';
 import { layersOf, posIn, placeIn, grownIn, grovesOf, writersOf, hashesOf } from './rule.js';
@@ -689,8 +689,8 @@ function farOf(renderer, tex, G, D) {
     // is lit as its mesh is where it hands over)
     const dataF = Fn(() => { If(vPart.greaterThan(0.5), () => { If(leafA().a.lessThan(0.45), () => { Discard(); }); }); return vec4(facingEnc(vN), vZ.mul(0.5).add(0.5), litIn(vAo, step(0.5, vPart))); })();
     const mat = (v, f) => { const m = new THREE.NodeMaterial(); m.vertexNode = v; m.fragmentNode = f; m.side = THREE.DoubleSide; return m; };
-    const geo = new THREE.InstancedBufferGeometry(), tgeo = new THREE.InstancedBufferGeometry(), mesh = (g, v) => Object.assign(new THREE.Mesh(g, null), { frustumCulled: false, userData: { materials: [mat(v, colourF), mat(v, dataF)] } });   // (tgeo: no corners of its own, its vertex stage reads them)
-    return (M = { kindU, levelU, rowU, sphereU, nU, cells, CL, geo, tgeo, view: mesh(geo, viewV), tile: mesh(tgeo, tileV) });
+    const geo = new THREE.InstancedBufferGeometry(), tgeo = new THREE.InstancedBufferGeometry(), mesh = (g, v, baker) => Object.assign(new THREE.Mesh(g, null), { frustumCulled: false, userData: { target: baker.samples, materials: [mat(v, mrt({ output: colourF, data: dataF }))] } });   // (its colour and its data drawn at once: src/detail/impostor.js createBaker)   // (tgeo: no corners of its own, its vertex stage reads them)
+    return (M = { kindU, levelU, rowU, sphereU, nU, cells, CL, geo, tgeo, view: mesh(geo, viewV, bakers(renderer).views()), tile: mesh(tgeo, tileV, bakers(renderer).tiles(G.tiles)) });   // (each drawn by its baker into its samples: userData.target)
   };
   // what a shape shows, on the whole (src/detail/seen.js), read from its pictures as they are baked or kept: their least
   // level (each texel already its cover's mean of those under it: src/detail/impostor.worker.js), as its impostor shows

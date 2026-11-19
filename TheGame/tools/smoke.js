@@ -129,15 +129,19 @@ scene.traverse((o) => { for (const m of [o.material].flat()) take(o, m); });
 for (const o of M.drawn) { if (o.isMaterial) take({ isMesh: true, geometry: new THREE.PlaneGeometry(), material: o }, o); else for (const m of [o.material].flat()) take(o, m); }
 /** Material m of `object` built as each pass draws it (src/core/pass.js: its own, its prepass's and its colour's twins;
     and what a caster draws into the shadow cascades and the canopy map, its shadow twin: src/world/shadow.js). */
+/** The target a pass of `object` is built for (null: none): the prepass's; or, as itself, its own where it is drawn
+    straight into one by no pass (userData.target: a baker's samples, src/detail/impostor.js), as what it writes says
+    (mrt). */
+const targetOf = (object, pass) => (pass === 'pre' ? PRE_TARGET : pass === 'own' ? (object.userData?.target ?? null) : null);
 const buildPasses = (object, m) => {
-  const twins = (() => { try { return twinOf(m); } catch { return { pre: null, main: null }; } })();
+  const twins = object.userData?.target ? { pre: null, main: null } : (() => { try { return twinOf(m); } catch { return { pre: null, main: null }; } })();   // (one drawn into its own target: as itself only)
   for (const t of Object.values(twins)) if (t?.isMaterial) TWINS.add(t);   // (built as its material's twin, never on its own)
   for (const [pass, mat] of [['own', m], ['pre', twins.pre], ['main', twins.main], ['shadow', object.layers?.isEnabled?.(CASTS) ? twins.shadow : null]]) {
     if (!mat) continue;
-    if (pass === 'pre') renderer.setRenderTarget(PRE_TARGET);
+    const to = targetOf(object, pass); if (to) renderer.setRenderTarget(to);
     try { const s = M.build(object.isMesh || object.isPoints || object.isLine || object.isSprite ? object : { isMesh: true, geometry: new THREE.BufferGeometry(), material: mat }, mat); add(shaders.render, `${s.vertex}\0${s.fragment}`, `${part}, ${pass}`); made.push(pass); built_(m); }
     catch (e) { failed.push(`${part}, ${pass}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); }
-    if (pass === 'pre') renderer.setRenderTarget(null);
+    if (to) renderer.setRenderTarget(null);
   }
 };
 const buildAll = (where) => {
@@ -158,7 +162,8 @@ buildAll('the world');
 await tryTo("the far ends' reduce", async () => { const { bakers: of } = await import('../src/detail/impostor.js'); bakers.push(...of().views().reduces, ...of().tiles(1).reduces); });
 for (const o of bakers) for (const m of o.userData.materials) {
   if (built.has(m)) continue; built.add(m); part = `the world: a far end's bake (${m.name || m.type})`;
-  try { const s = M.build(o, m); add(shaders.render, `${s.vertex}\0${s.fragment}`, part); made.push('own'); built_(m); } catch (e) { failed.push(`${part}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); }
+  renderer.setRenderTarget(o.userData.target ?? null);   // (a picture's samples: what its material writes, mrt)
+  try { const s = M.build(o, m); add(shaders.render, `${s.vertex}\0${s.fragment}`, part); made.push('own'); built_(m); } catch (e) { failed.push(`${part}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); } finally { renderer.setRenderTarget(null); }
 }
 let passes = 0;
 /** Every compute pass made or run and not yet built, built (after each step: what it made since). */
