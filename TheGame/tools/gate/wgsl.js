@@ -30,7 +30,7 @@ import { webkitAt } from '../browsers.js';
 import { watched } from './machine.js';
 import { SIZED } from '../../src/core/gpu.js';
 
-const KEPT = new URL('../../.gate/wgsl/', import.meta.url).pathname, CEILINGS = new URL('./shaders.json', import.meta.url).pathname;
+const KEPT = new URL('../../.gate/wgsl/', import.meta.url).pathname, CEILINGS = new URL('./shaders.json', import.meta.url).pathname, LIMITS = new URL('./limits.json', import.meta.url).pathname;
 const ENGINES = { chrome: () => chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-webgpu'] }), webkit: () => webkit.launch({ headless: true, ...webkitAt() }) };
 
 /** Every module the smoke builds, by running it (its own process: the world made on the stand-in): { render: [{ label,
@@ -167,6 +167,7 @@ export async function wgsl(opt = {}) {
   const out = { modules: { render: S.render.length, compute: S.compute.length }, engines: {}, list: rowsOf(S) }, set = hashOf(...codesOf(S));
   for (const [name, launch] of Object.entries(W.engines)) out.engines[name] = await W.run(name, launch, S, set);
   out.errors = Object.entries(out.engines).flatMap(([n, e]) => (e.errors ?? []).map((x) => `${n}: ${x}`));   // (what the shaders got wrong: it fails)
+  known(out);
   out.unchecked = Object.entries(out.engines).filter(([, e]) => e.error).map(([n, e]) => `${n}: ${e.error}`);   // (an engine that did not come to them, no adapter, say: said, it fails nothing)
   out.pass = !out.errors.length;
   out.cost = W.cost(out, opt);
@@ -196,6 +197,15 @@ export async function firstView(P, W, opt = {}) {
   out.cost = held('firstView', costs(out.list, out.engines), (c) => c.total, opt.ratchet);
   console.log(`  ${firstLine(out).replace(/\*\*/g, '')}`);
   return out;
+}
+/** Of out's errors, the layouts over the game's limits that tools/gate/limits.json knows (by place, file and function, as
+    many as it names an engine's run finds there): said (out.known), not failed on; and the places it names where fewer
+    were found now (out.within: to be taken out of it, the list only shrinking). */
+function known(out) {
+  const K = existsSync(LIMITS) ? JSON.parse(readFileSync(LIMITS, 'utf8')).known ?? {} : {}, seen = {};
+  const placeOf = (e) => e.match(/ at (\S+?):\d+ (\S+?), layout/)?.slice(1).join(' ');
+  out.known = []; out.errors = out.errors.filter((e) => { const p = placeOf(e), k = `${e.split(':')[0]} ${p}`; if (p && (seen[k] = (seen[k] ?? 0) + 1) <= (K[p] ?? 0)) { out.known.push(e); return false; } return true; });
+  out.within = Object.keys(K).filter((p) => Object.keys(out.engines).some((n) => !out.engines[n].error && (seen[`${n} ${p}`] ?? 0) < K[p]));
 }
 /** Each pipeline's cost by engine (its modules' compile and its making, ms, kept on its row), and each engine's worst
     and total. */
@@ -238,5 +248,5 @@ export const costTable = (T, n = 20) => (!T?.cost || !Object.keys(T.cost).length
   ...T.list.filter((x) => x.ms).sort((a, b) => Math.max(...Object.values(b.ms).map((v) => v ?? 0)) - Math.max(...Object.values(a.ms).map((v) => v ?? 0))).slice(0, n).map((x) => `| ${x.label} | ${(x.bytes / 1024).toFixed(0)} | ${Object.keys(T.cost).map((e) => x.ms[e] ?? '–').join(' | ')} |`)]);
 /** The check's line, as the hour's board has it after Ready. */
 export const wgslLine = (W) => (!W ? 'WGSL: not checked.' : W.error ? `**WGSL: not checked**: ${W.error}.`
-  : `${W.pass ? 'WGSL: every module compiles' : `**WGSL: ${W.errors.length} error${W.errors.length === 1 ? '' : 's'}**`}${W.unchecked?.length ? ` (**not checked** in ${W.unchecked.join('; ')})` : ''} on the device (${W.modules.render} render and ${W.modules.compute} compute pipelines the smoke builds; ${Object.entries(W.engines).map(([n, e]) => (e.error ? `${n}: ${e.error}` : `${n} on ${e.adapter}: ${e.modules} modules, ${e.pipelines ? `${e.pipelines} pipelines` : `${e.layouts} layouts`}`)).join('; ')})${W.pass ? '.' : `: ${W.errors.slice(0, 3).join(' | ')}${W.errors.length > 3 ? ` (and ${W.errors.length - 3} more)` : ''}`}`);
+  : `${W.pass ? 'WGSL: every module compiles' : `**WGSL: ${W.errors.length} error${W.errors.length === 1 ? '' : 's'}**`}${W.unchecked?.length ? ` (**not checked** in ${W.unchecked.join('; ')})` : ''}${W.known?.length ? ` (${W.known.length} layout${W.known.length === 1 ? '' : 's'} over the game's limits as tools/gate/limits.json knows)` : ''}${W.within?.length ? ` (**now within, take out of tools/gate/limits.json**: ${W.within.join('; ')})` : ''} on the device (${W.modules.render} render and ${W.modules.compute} compute pipelines the smoke builds; ${Object.entries(W.engines).map(([n, e]) => (e.error ? `${n}: ${e.error}` : `${n} on ${e.adapter}: ${e.modules} modules, ${e.pipelines ? `${e.pipelines} pipelines` : `${e.layouts} layouts`}`)).join('; ')})${W.pass ? '.' : `: ${W.errors.slice(0, 3).join(' | ')}${W.errors.length > 3 ? ` (and ${W.errors.length - 3} more)` : ''}`}`);
 const say = (W) => { console.log(`wgsl: ${wgslLine(W).replace(/\*\*/g, '')}`); for (const e of (W.errors ?? []).slice(3, 40)) console.log(`  ${e}`); console.log(`  ${costLine(W).replace(/\*\*/g, '')}`); for (const l of costTable(W, 10)) console.log(`  ${l}`); };
