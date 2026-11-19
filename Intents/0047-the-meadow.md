@@ -158,3 +158,4 @@ they are set with the sliders.)
 | 2026-11-19 | `9a26fa9` | grass in rings around the camera, grown in the background; seed heads of three kinds; wind and 24-hour sun sliders |
 | 2026-11-19 | `330544d` | calm at zero wind; night sky; procedural ground floor, thatch and low plants; clouds; the Studio plays hour and wind |
 | 2026-11-19 | `6c6b00a` | the world at 1080p under a sharp interface; arc wind; fine tips; three more rings; scroll to 12 km, click to look |
+| 2026-11-19 | `401b163` | the land as 3D geometry: hills, mounds, bumps, generated stones; far land to the horizon; no textures |
