@@ -494,7 +494,7 @@ function residentPackedOf(T, geos, material, { found, select, store = 0, slots =
   me.P = (s.twice ? 2 : 1) * me.N;   // (what it packs for its draws: until its own count is read back, as much as its store, twice where a thing of it may be drawn twice)
   const P = () => me.P;
   G.tiers.push(me); G.KB += K; G.KMAX = Math.max(G.KMAX, K); G.dirty = G.stale = true; s.tiers.push(me); s.dirty = true;
-  const row = (k) => me.uKb.add(typeof k === 'number' ? uint(k) : k), count = { element: (k) => G.C.element(row(k)) }, { args, argsNode } = argsOf(geos);
+  const row = (k) => me.uKb.add(typeof k === 'number' ? uint(k) : k), count = { element: (k) => G.C.element(row(k)) }, { args, argsNode } = argsOf(geos), uSlots = uniform(slots, 'uint');   // (uSlots: its rows a thing, for its culling's boxes: one pipeline whatever its rows)
   // (where each of its draws' things begin in what its kind packed: its own copy, written with its draws' counts after
   // each packing, so its draws read it as any tier's draws read theirs)
   const OFF = new THREE.StorageBufferAttribute(new Uint32Array(K), 1), OFw = storage(OFF, 'uint', K), OFr = storage(OFF, 'uint', K).toReadOnly();
@@ -502,7 +502,7 @@ function residentPackedOf(T, geos, material, { found, select, store = 0, slots =
   const culled = !!bounds && hasFeature('indirect-first-instance') && cullable(P());   // (?truth too: what this frame's depth hides adds nothing to any pixel)
   Object.assign(T, { slots, data: s.data, args, offsets: OFF, residentRow: me, room: () => Infinity });
   T.offAt = (k) => OFr.element(k);   // (where bucket k's things begin in what its kind packed: a node, for what reads a bucket of it itself: src/scatter/cut.js)
-  const C = (T.culler = culled ? cullOf(T, { K, caps: null, offs: geos.map(() => 0), total: P(), S: slots, data: { element: (e) => s.data.element(me.uBase.mul(S).add(e)) }, args, count, box: bounds, offAt: (k) => G.O.element(row(k)), also: offsOf }) : null);
+  const C = (T.culler = culled ? cullOf(T, { K, caps: null, offs: geos.map(() => 0), total: P(), S: slots, data: { element: (e) => s.data.element(me.uBase.mul(uSlots).add(e)) }, args, count, box: bounds, offAt: (k) => G.O.element(row(k)), also: offsOf }) : null);
   const uK = uniform(K, 'uint'), ends = C ? [C.args, C.boxes] : [Fn(() => { eachDraw(uK, (k) => { argsNode.element(k.mul(uint(5)).add(uint(1))).assign(atomicLoad(count.element(k))); offsOf(k); }); })().compute(1)];
   T.resident = residentOf(T, me, s, ends);
   T.passes = [...new Set([...s.full, ...s.only, ...ends])];
