@@ -763,8 +763,13 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       return meshOf(src, i, shadow, false, leafy && k >= K0 && k !== KS, k === KS);
     };
   };
-  /** A tier's meshes told their level (what a material its levels share reads of it: alike). */
-  const tagLevel = (T, i) => { for (const m of T.meshes) Object.assign(m.userData, { heapLevel: i, Lv: MAKE?.levelOf?.(i) ?? null }); };
+  /** A tier's meshes told their level (what a material its levels share reads of it: alike), and where its band begins
+      (near, metres: what the first view waits for, src/core/screen.js), each time its band is reckoned again. */
+  const tagLevel = (T, i) => {
+    const near = () => { for (const m of T.meshes) m.userData.near = T.near; }, band = T.band;
+    for (const m of T.meshes) Object.assign(m.userData, { heapLevel: i, Lv: MAKE?.levelOf?.(i) ?? null });
+    T.band = () => { band(); near(); }; near();
+  };
   const kinds = new WeakMap();   // (by the placer's place: its kinds, by how they are drawn)
   const kindFor = (place, shadow, thing, flags) => {
     const key = [shadow, thing, flags.isDot, flags.perSlot, flags.classed, flags.byKind, !!flags.FAR, flags.KF, flags.leafy, flags.K0, flags.cLo, flags.cHi, flags.KS].join('|');

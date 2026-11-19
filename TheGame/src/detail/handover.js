@@ -18,9 +18,12 @@ import { float, vec3, uniform, log, max, clamp, mix, smoothstep, sqrt } from 'th
 export const levelOf = (Lv, fade) => ({ hi: uniform(Number.isFinite(Lv.hi) ? Math.log(Lv.hi) + fade : 1e3), lo: uniform(Math.log(Lv.lo) + fade), px: uniform(Lv.lo), last: uniform(Lv.last ? 1 : 0), fade });
 
 /** A level's numbers as the mesh drawing it tells them (mesh.userData.Lv: { lo, hi, last }), read at each draw: every
-    level of a thing drawn alike is then one material, not one a level (src/scatter/drawer.js). */
+    level of a thing drawn alike is then one material, not one a level (src/scatter/drawer.js). And how far the mesh has
+    come since it could first be drawn (userData.arrived, 0 … 1, the screen's ramp after the first view: absent, all of
+    it): what comes later rises out of the ground as its last level sinks into it, never at once (handOver's sunk). */
 const ofLv = (f) => uniform(0).onObjectUpdate(({ object }) => { const Lv = object?.userData?.Lv; return Lv ? f(Lv) : 0; });
-export const levelOfMesh = (fade) => ({ hi: ofLv((Lv) => (Number.isFinite(Lv.hi) ? Math.log(Lv.hi) + fade : 1e3)), lo: ofLv((Lv) => Math.log(Lv.lo) + fade), px: ofLv((Lv) => Lv.lo), last: ofLv((Lv) => (Lv.last ? 1 : 0)), fade });
+export const levelOfMesh = (fade) => ({ hi: ofLv((Lv) => (Number.isFinite(Lv.hi) ? Math.log(Lv.hi) + fade : 1e3)), lo: ofLv((Lv) => Math.log(Lv.lo) + fade), px: ofLv((Lv) => Lv.lo), last: ofLv((Lv) => (Lv.last ? 1 : 0)), fade,
+  arrived: uniform(1).onObjectUpdate(({ object }) => object?.userData?.arrived ?? 1) });
 
 /** How far the camera may move before an engine's cells of P cells of `cell` metres are packed again, and a little: the
     margin a level's packing keeps a thing either side of its band, so it is there when the camera has moved. */
@@ -45,7 +48,7 @@ export const bandOf = (Lv, fade, pad = 0) => {
     piece shows. Two levels drawn at once reckon the same shares. sink: its kind's (0: none). */
 export const handOver = (px, LU, sink = 0) => {
   const L = log(max(px, 1e-6)), u = clamp(LU.hi.sub(L).div(2 * LU.fade), 0, 1), v = clamp(LU.lo.sub(L).div(2 * LU.fade), 0, 1).mul(float(1).sub(LU.last));
-  const sunk = sink > 1 ? mix(float(1), smoothstep(LU.px, LU.px.mul(sink), px), LU.last) : float(1);
+  const sunk0 = sink > 1 ? mix(float(1), smoothstep(LU.px, LU.px.mul(sink), px), LU.last) : float(1), sunk = LU.arrived ? sunk0.mul(LU.arrived) : sunk0;   // (arrived: a mesh's, levelOfMesh)
   return { u, v, sunk, there: u.greaterThan(0).and(v.lessThan(1)).and(sunk.greaterThan(0)), whole: u.greaterThanEqual(0.5).and(v.lessThan(0.5)) };
 };
 
