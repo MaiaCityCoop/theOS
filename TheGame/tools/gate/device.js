@@ -43,7 +43,7 @@ import { MACHINE, BUDGET_MB, FRAME_MS, SUBMIT_MS, TASK_MS, WATCHDOG_MS } from '.
     free, so a submission's time is at most so: how late its done may have been heard is kept with it (late, the thread
     busy just before), and a submission over submitMs even so is surely over (sure). */
 export function watch(frameMs, submitMs, salt = 0) {
-  const W = (window.__device = { buffers: 0, submits: 0, longest: 0, over: 0, slow: [], slowN: 0, sure: 0, lost: null, errors: [], top: null, long: null, dead: [] });
+  const W = (window.__device = { buffers: 0, submits: 0, stamped: 0, longest: 0, over: 0, slow: [], slowN: 0, sure: 0, lost: null, errors: [], top: null, long: null, dead: [] });
   // (the ledger's most, read in the page every frame, what it held then with it: it rises by gigabytes the seconds before
   // a device is lost, between two of the gate's looks)
   const keep = () => { const L = window.__game?.memory?.(); if (L && L.gpu > (W.top?.device ?? -1)) W.top = { device: L.gpu, classes: L.classes, rows: L.rows.slice(0, 8), makers: L.makers.slice(0, 8), over: L.over, unnoted: L.unnoted, buffers: W.buffers }; requestAnimationFrame(keep); };
@@ -87,12 +87,12 @@ export function watch(frameMs, submitMs, salt = 0) {
   };
   /** A submission's own time ms, submitted at t, what it held (list: its passes), what was written to the device before
       it (up: [bytes, writes]), how late its done may have been heard. */
-  const held = (list, ms, t, up, late) => {
+  const held = (list, ms, t, up, late, gpu = null, heard = ms) => {
     const by = {}, of = (n, one, many) => `${n} ${n === 1 ? one : many}`;
     for (const r of list) for (const [name, c] of r.uses) { const a = (by[`${r.kind} ${name}, begun at ${r.by || '?'}`] ||= { kind: r.kind, passes: 0, n: 0, inst: 0, wg: 0, ind: 0, fresh: false }); a.passes++; a.n += c.n; a.inst += c.inst; a.wg += c.wg; a.ind += c.ind; a.fresh ||= c.fresh; }
     const what = Object.entries(by).sort(([, x], [, y]) => y.inst + y.wg + y.ind - (x.inst + x.wg + x.ind) || y.n - x.n).slice(0, 8)
       .map(([k, a]) => `${a.passes}× ${k}: ${a.kind === 'compute' ? `${of(a.n, 'dispatch', 'dispatches')}, ${of(a.wg, 'workgroup', 'workgroups')}` : `${of(a.n, 'draw', 'draws')}, ${of(a.inst, 'instance', 'instances')}`}${a.ind ? ` (${a.ind} of them indirect)` : ''}${a.fresh ? ', its first use' : ''}`);
-    return { at: Math.round(t), ms: Math.round(ms), late: late > 12 ? Math.round(Math.min(late, ms)) : 0, passes: list.length, up: { bytes: up[0], writes: up[1] }, what };
+    return { at: Math.round(t), ms: Math.round(ms), ...(gpu != null ? { gpu: +gpu.toFixed(2), heard: Math.round(heard) } : {}), late: late > 12 ? Math.round(Math.min(late, ms)) : 0, passes: list.length, up: { bytes: up[0], writes: up[1] }, what };
   };
   const timed = (dev) => {
     const q = dev.queue, submit = q.submit.bind(q);
@@ -102,18 +102,24 @@ export function watch(frameMs, submitMs, salt = 0) {
     upload('writeTexture', (to, d) => d.byteLength ?? 0);
     upload('copyExternalImageToTexture', (from, to, s) => (s.width ?? s[0] ?? 0) * (s.height ?? s[1] ?? 1) * 4);
     q.submit = (cbs) => {
+      if ([...cbs].every((c) => globalThis.__isMark?.(c))) return submit(cbs);   // (the GPU's clock's own marks, src/core/pace.js stampedMs: handed on unwatched)
       const t = performance.now(), list = [...cbs].flatMap((c) => HOLDS.get(c) ?? []), before = [up, ups];
       up = ups = 0;
       for (const r of list) for (const b of r.bufs) if (DEAD.has(b) && W.dead.length < 12) W.dead.push(`the destroyed buffer "${LABEL.get(b)}" bound by a ${r.kind} pass (${r.uses.keys().next().value ?? 'no pipeline'}) begun at ${r.by || '?'}, ${Math.round(t / 1e3)} s in`);
-      submit(cbs); W.submits++;
+      const stamped = globalThis.__stampedMs?.(dev, () => submit(cbs), submit) ?? (submit(cbs), null);   // (its own GPU time by the GPU's timestamps, where the device has them: the game's one reader, src/core/pace.js)
+      W.submits++;
       q.onSubmittedWorkDone().then(() => {
-        const now = performance.now(), ms = now - Math.max(t, last);
+        const now = performance.now(), heard = now - Math.max(t, last), late = lateBy(now);
         last = now;
-        if (ms > frameMs) W.over++;
-        if (ms <= W.longest && ms <= submitMs) return;
-        const h = held(list, ms, t, before, lateBy(now));
-        if (ms > W.longest) { W.longest = ms; W.long = h; }
-        if (ms > submitMs) { W.slowN++; if (h.ms - h.late > submitMs) W.sure++; W.slow = [...W.slow, h].sort((x, y) => y.ms - x.ms).slice(0, 12); }
+        return Promise.resolve(stamped).then((gpu) => {
+          const ms = gpu ?? heard;   // (the GPU's own time where its timestamps tell it; else as heard, a bound)
+          if (gpu != null) W.stamped++;
+          if (ms > frameMs) W.over++;
+          if (ms <= W.longest && ms <= submitMs) return;
+          const h = held(list, ms, t, before, gpu != null ? 0 : late, gpu, heard);
+          if (ms > W.longest) { W.longest = ms; W.long = h; }
+          if (ms > submitMs) { W.slowN++; if (h.ms - h.late > submitMs) W.sure++; W.slow = [...W.slow, h].sort((x, y) => y.ms - x.ms).slice(0, 12); }
+        });
       }, () => {});
     };
   };
@@ -200,7 +206,7 @@ async function coldStart(url, { secs, programs, dir, salt }) {
     if (out.ready != null) await page.evaluate(() => window.__game?.frames?.());   // (the frames from ready on: the start's are the veil's, src/boot.js)
     const s = out.ready == null ? await page.evaluate(look) : await stay(page, out, secs);
     out.frames = await page.evaluate(() => window.__game?.frames?.() ?? null);
-    Object.assign(out, { shown: s.shown == null ? null : +(s.shown / 1e3).toFixed(1), settled: out.samples.at(-1) ?? null, longest: Math.round(s.longest ?? 0), over: s.over ?? 0, submits: s.submits ?? 0, lost: s.lost ?? null, errors: s.errors ?? [], long: s.long ?? null, slow: s.slow ?? [], slowN: s.slowN ?? 0, sure: s.sure ?? 0, dead: s.dead ?? [], process: Math.round(out.process) });
+    Object.assign(out, { shown: s.shown == null ? null : +(s.shown / 1e3).toFixed(1), settled: out.samples.at(-1) ?? null, longest: Math.round(s.longest ?? 0), over: s.over ?? 0, submits: s.submits ?? 0, lost: s.lost ?? null, errors: s.errors ?? [], long: s.long ?? null, slow: s.slow ?? [], slowN: s.slowN ?? 0, sure: s.sure ?? 0, stamped: s.stamped ?? 0, dead: s.dead ?? [], process: Math.round(out.process) });
     out.honest = out.buffers == null || out.peak >= out.buffers;   // (the ledger holds at least the buffers the device made)
     out.pass = !out.lost && out.ready != null;
     say(out);
@@ -272,10 +278,10 @@ export function lines(d) {
 /** A submission as the board says it (watch: held): its own time, how late its done may have been heard, when, and what
     it held: what was written before it, each pipeline with its draws and instances or its dispatches and workgroups,
     where its pass began. */
-export const submission = (h) => `${h.ms} ms${h.gpu != null ? ` (${h.gpu} ms of it on the GPU, by its timestamps)` : ''}${h.late ? ` (its done heard up to ${h.late} ms late: the page's thread was busy)` : ''}, ${(h.at / 1e3).toFixed(1)} s in, ${h.passes} pass${h.passes === 1 ? '' : 'es'}${h.up?.writes ? `, ${h.up.bytes < 1048576 ? `${Math.ceil(h.up.bytes / 1024)} KB` : `${(h.up.bytes / 1048576).toFixed(1)} MB`} written before it in ${h.up.writes} write${h.up.writes === 1 ? '' : 's'}` : ''}: ${h.what.join('; ') || 'no draw or dispatch'}`;
+export const submission = (h) => `${h.ms} ms${h.gpu != null ? ` on the GPU, by its timestamps (its done heard ${h.heard} ms after it was handed over)` : ''}${h.late ? ` (its done heard up to ${h.late} ms late: the page's thread was busy)` : ''}, ${(h.at / 1e3).toFixed(1)} s in, ${h.passes} pass${h.passes === 1 ? '' : 'es'}${h.up?.writes ? `, ${h.up.bytes < 1048576 ? `${Math.ceil(h.up.bytes / 1024)} KB` : `${(h.up.bytes / 1048576).toFixed(1)} MB`} written before it in ${h.up.writes} write${h.up.writes === 1 ? '' : 's'}` : ''}: ${h.what.join('; ') || 'no draw or dispatch'}`;
 /** The submissions as the board says them (r: the device's run, or a world's walk: what watch kept): the longest with what
     it held, how many were over SUBMIT_MS (how many surely, however late heard), and the next worst with what each held. */
-export const submissions = (r) => `the longest ${r.long ? submission(r.long) : `${r.longest ?? 0} ms`}${r.slow == null ? '' : r.slowN ? `; **${r.slowN} over ${SUBMIT_MS} ms** (budget.js SUBMIT_MS; ${r.sure} surely, however late heard)${r.slow.length > 1 ? `, the next worst: ${r.slow.slice(1, 3).map(submission).join(' | ')}` : ''}` : `; none over ${SUBMIT_MS} ms`}`;
+export const submissions = (r) => `${r.stamped ? `${r.stamped} of ${r.submits ?? '?'} timed by the GPU's timestamps` : 'timed as heard (no GPU timestamps)'}; the longest ${r.long ? submission(r.long) : `${r.longest ?? 0} ms`}${r.slow == null ? '' : r.slowN ? `; **${r.slowN} over ${SUBMIT_MS} ms** (budget.js SUBMIT_MS; ${r.sure} surely, however late heard)${r.slow.length > 1 ? `, the next worst: ${r.slow.slice(1, 3).map(submission).join(' | ')}` : ''}` : `; none over ${SUBMIT_MS} ms`}`;
 /** The hour's rule on its submissions (R: the hour's run; was: the last measured hour's run, or null), the device's run
     and each world's walk alike: it fails where a submission's own time on the GPU, as the GPU's own timestamps tell it
     (gpu: ms), was within the watchdog's reach (WATCHDOG_MS: a lost device waiting to happen), or where more were surely
