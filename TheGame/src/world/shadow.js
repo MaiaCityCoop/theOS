@@ -28,6 +28,7 @@ import * as THREE from 'three/webgpu';
 import { uniformArray } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { compileFor, compileList, made, ask, pending, labelled } from '../core/compile.js';
+import { complete } from '../core/settle.js';
 import { twinOf } from '../core/pass.js';
 import { note, mark } from '../core/gpu.js';
 import { pxKAt } from '../detail/measure.js';
@@ -92,6 +93,15 @@ export const castRoute = (renderer, target, camera, missed = null) => {
   return Object.assign(route, { twin, ahead });
 };
 
+// (whether what a map left out has come since: none of it still being made, and some of it made (what was let go, its
+// compile failed or not reached, comes no more: it never makes the map again). Before the first frame it is drawn again
+// at once (the first frame shows it whole); after it, by the map's own turns: a cascade a frame
+let shown = false; complete.then(() => (shown = true));
+/** missing: the casters a map left out (it is emptied once they are settled). Whether any of them came. */
+export const arrived = (missing) => {
+  if (!missing.size || [...missing].some((o) => pending(o, 'cast'))) return false;
+  const any = [...missing].some((o) => made(o, 'cast')); missing.clear(); return any;
+};
 export function createShadows(renderer) {
   const { S, n, half, top, mats } = cascades();
   // (depth32float, as the canopy map's is, src/world/light/canopy.js: a caster's twin is then one pipeline for both)
@@ -139,8 +149,7 @@ export function createShadows(renderer) {
       if (L.y < 0.03 || sun.x + sun.y + sun.z < 0.02) { U.uShadowOn.value = 0; return; }   // no light to cast by
       // the others: one a frame in turn, or all at once when the light has turned or the eye has jumped since, or when
       // what they left out has been made since (made by need: no caster comes into the cascades one by one)
-      const came = missing.size > 0 && ![...missing].some((o) => pending(o, 'cast'));
-      if (came) missing.clear();
+      const came = arrived(missing) && !shown;
       const jump = came || lastSun.dot(L) < 0.99998 || lastEye.distanceToSquared(camera.position) > 25 || !U.uShadowOn.value;
       const which = jump ? half.map((_, k) => n - 1 - k) : [1 + (turn++ % (n - 1)), 0];
       const prev = renderer.getRenderTarget(), ac = renderer.autoClear, acd = renderer.autoClearDepth;
