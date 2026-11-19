@@ -1,6 +1,6 @@
 // The light's small tables, in one texture every lit material binds once (intent 0038): a stage of a shader holds at
-// most so many sampled textures (the device's maxSampledTexturesPerShaderStage, 16 by default: tools/smoke.js holds every
-// module to it), and the light reaches every lit material, so its tables are packed here, not a texture each. Half
+// most so many sampled textures (the device's maxSampledTexturesPerShaderStage, 16 by default: CI builds every layout on a
+// device with the game's limits, tools/gate/wgsl.js), and the light reaches every lit material, so its tables are packed here, not a texture each. Half
 // floats, which every GPU filters (a noise rank, k/255, within a half float's step):
 //   the blue noise   its tile (light/noise.js), rows 0 … BLUE_NOISE_SIDE - 1, read texel by texel
 //   the sky          its light along every way (sky/dome.js skyAlong; laid by the sky, src/world/sky.js), its rows after,
