@@ -55,7 +55,7 @@ export function createScreen(renderer, { temporal, lens = null }) {
       if (T) for (const t of T.turns) { t.pre.dispose(); t.main.dispose(); t.depth.dispose(); }
       const w = size.x, h = size.y, made = (o, depth) => new THREE.RenderTarget(w, h, { samples: 0, type: THREE.HalfFloatType, generateMipmaps: false, depthTexture: depth, ...o });
       const turns = [0, 1].map(() => { const depth = new THREE.DepthTexture(w, h); return { depth, pre: prepassTarget(w, h, depth), main: made({ minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter }, depth) }; });
-      T = { w, h, turns };
+      T = { w, h, turns, drawn: 0 };   // (drawn: frames drawn into them: the first, the other turn's depth holds nothing yet)
       note('the picture inside (its colour, motion, id, G-buffer and depth, two of each)', 2 * w * h * (8 + 8 + 8 + GBUFFER_BYTES + 4), 0, 'geometry');   // (what the prepass and the colour draw into)
     }
     return T.turns[turn];
@@ -109,7 +109,8 @@ export function createScreen(renderer, { temporal, lens = null }) {
     last: null,
     /** fn({ depth, depthWas, motion, camera, w, h }) after every prepass, before the colour: what reads what the prepass
         drew, with the camera as it drew it (its shift for this frame too); depthWas the frame before's depth (the other
-        turn's, drawn into by nothing this frame; empty the first frame after a new size). The land's pages ask there for
+        turn's, drawn into by nothing this frame; null the first frame after the targets are made again: a new size, or a
+        new ratio inside, where it holds nothing yet). The land's pages ask there for
         what they show (src/terrain/pages.js); the water takes what it reflects of the world from the frame before
         (src/terrain/water.js). name: whose its passes are, for a tool's timing (src/core/gpu.js mark). */
     afterPrepass(fn, name = null) { prepassed.push([fn, name]); },
@@ -129,7 +130,7 @@ export function createScreen(renderer, { temporal, lens = null }) {
       mark('prepass'); renderer.setRenderObjectFunction(pre); renderer.setRenderTarget(t.pre); renderer.render(scene, camera);
       // (and pass two, against this frame's depth: what it finds drawn into the prepass after the rest)
       if (culls) { mark('prepass, late'); occlusion.late(renderer, t.depth, size.x, size.y, (late) => { const ac = renderer.autoClear; renderer.autoClear = false; renderer.render(late, camera); renderer.autoClear = ac; }); }
-      for (const [fn, name] of prepassed) { mark(name); fn({ depth: t.depth, depthWas: was.depth, motion: t.pre.texture, camera, w: size.x, h: size.y }); }   // (once all of it is drawn)
+      for (const [fn, name] of prepassed) { mark(name); fn({ depth: t.depth, depthWas: T.drawn ? was.depth : null, motion: t.pre.texture, camera, w: size.x, h: size.y }); }   // (once all of it is drawn)
       // the colour, into the prepass's depth. (Cleared to the renderer's clear colour, which the sky sets to the hour's
       // horizon as the screen shows it: here in the light's own numbers, the screen's curve taken back off it)
       const E = 1.25 * U.uExposure.value, un = (v) => -Math.log(1 - Math.min(0.999, v) ** 2.2) / E;
@@ -148,7 +149,7 @@ export function createScreen(renderer, { temporal, lens = null }) {
       const dof = camera.userData.dof, glass = camera.userData.glass;   // the virtual camera brings a lens with it: its picture is drawn through it; the walker's glass, without the film's depth of field (src/camera/rig.js)
       mark('lens'); const blurred = lens && dof && dof.on ? lens.blur(t.main, camera, dof) : null;
       mark('upscale'); temporal.resolve((this.last = { colour: blurred ? blurred.colour : t.main.texture, depth: t.depth, motion: t.pre.texture, depthWas: was.depth, glass: blurred ? blurred.glass : glass ?? null }));
-      mark(null); turn = 1 - turn;
+      mark(null); turn = 1 - turn; T.drawn++;
     },
   };
 }
