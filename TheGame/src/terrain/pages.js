@@ -33,7 +33,7 @@ import { note, gpuStorage, roomOf } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { source, ready } from '../core/settle.js';
 import { FRAME_MS, FRAME_MS_BY_CLASS, OUTPUT } from '../core/budget.js';
-import { drawnRows } from '../core/output.js';
+import { outputRatio } from '../core/output.js';
 import { ownGpuMs, pace } from '../core/pace.js';
 import { pxAt, dialPxAt, pxKAt } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
@@ -341,7 +341,7 @@ export function createPages(renderer, tex) {
   // each (a pixel shows the finest in, so its parents come first), when last asked (f), by how many asks (n). The pages
   // asked for are the want's keys; those not in yet, the queue
   const refs = new Map(), want = new Map();
-  const prev = new THREE.Vector3(), turn = new THREE.Quaternion(); let moved = 0, swung = 0, pxRad = 0, pxH = drawnRows();   // (metres and radians the camera moved last frame; screen pixels a radian through its lens, and its rows: the first frame's, src/core/output.js drawnRows till then, none moved before it)
+  const prev = new THREE.Vector3(), turn = new THREE.Quaternion(); let moved = 0, swung = 0, pxRad = 0, pxH = OUTPUT.height * outputRatio(OUTPUT.width, OUTPUT.height);   // (metres and radians the camera moved last frame; screen pixels a radian through its lens, and its rows: the first frame's, till then the most the game draws on the output, src/core/output.js; none moved before it)
   let stoodAt = 0, askW = 0, askH = 0;   // (the last frame the camera stood; the pixels the last asks came from)
   let quietFrom = 0, readTo = 0, dirty = false, pick = null, pickedAt = -1e9, judged = -1, nAsk = 0, askedAt = -1;   // (since when nothing changed what is asked for; the last frame whose asks are in; the queue to be sorted again; the bias being chosen)
   // (which frames' asks have come back: a read-back is not taken while all its buffers are out, so a sweep counts only

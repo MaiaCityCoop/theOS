@@ -1,14 +1,14 @@
 // The cells each tier's packing visits at the bench's six views (intent 0038, #82 v2; CPU only, `bun tools/visits.js
 // [per] [walk] [turn] [dial]`: per, each tier). The world's own tiers: the plants' levels and stand-ins (src/scatter/trees.js),
 // the meadow's rings (grass.js). The measure at the gate's: the output's window drawn at the most rows the game draws
-// (src/core/output.js drawnRows), the dial at rest. A view: the cells #82 looked at (patches of P x P cells, at most 384 a tier, in scan order) against the cells the
+// on it (src/core/output.js outputRatio), the dial at rest. A view: the cells #82 looked at (patches of P x P cells, at most 384 a tier, in scan order) against the cells the
 // resident regions (src/scatter/regions.js Resident) visit to fill their store from nothing, every way round.
 // walk: from each view straight ahead, the cells the resident regions visit a metre (what is new or has run out), their
 // CPU time, and the cells they hold at the end. turn: from each view the camera turned 90° on the spot, a degree a frame:
 // the cells they visit (none: nothing they hold asks the view). dial: from each view the measure stepped as the governor
 // steps it (an eighth of the pixels drawn down, twice, and back), the cells visited each step, against packing it all again.
 const G = new URL('..', import.meta.url).pathname.replace(/\/$/, '');   // (TheGame/)
-const { OUTPUT } = await import(`${G}/src/core/budget.js`), { drawnRows } = await import(`${G}/src/core/output.js`);
+const { OUTPUT } = await import(`${G}/src/core/budget.js`), { outputRatio } = await import(`${G}/src/core/output.js`);
 Object.assign(globalThis, { innerHeight: OUTPUT.height, innerWidth: OUTPUT.width, window: globalThis, addEventListener() {}, devicePixelRatio: 1 });
 await import(`${G}/tools/glob.js`);
 await import(`${G}/src/core/registry.js`);
@@ -26,7 +26,7 @@ const { recipes } = await import(`${G}/src/core/registry.js`);
 const { VIEWS } = await import(`${G}/tools/bench.js`);
 const K = dialK(), MAXP = 384, patch82 = (cell, reach) => Math.min(256, Math.max(4, 2 ** Math.ceil(Math.log2(Math.max(1, (0.105 * reach) / cell)))));
 const M = (x) => (x / 1e6).toFixed(2);
-console.log(`the measure: ${K.toFixed(1)} dial pixels a metre at a metre (${drawnRows()} drawn, the dial at rest), gone at ${GONE.toFixed(2)} of them`);
+console.log(`the measure: ${K.toFixed(1)} dial pixels a metre at a metre (${OUTPUT.height * outputRatio(OUTPUT.width, OUTPUT.height)} drawn, the dial at rest), gone at ${GONE.toFixed(2)} of them`);
 
 // ---- the tiers: { name, cell, P (#82's), near, far, cull, fixed, metres } ----
 const tiers = [];

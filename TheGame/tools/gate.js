@@ -108,7 +108,7 @@ import RIG from '../camera/rig.js';
 import { FIRST_FRAME } from '../src/core/marks.js';
 import { CLASSES, classOf, CLASS_NAMES, memoryNow } from './bench.js';
 import { FRAME_MS as BUDGET, MEMORY, GPU_MB, BUDGET_MB, FRAME_MS_BY_CLASS, OUTPUT, FPS } from '../src/core/budget.js';
-import { drawnRows } from '../src/core/output.js';
+import { outputRatio } from '../src/core/output.js';
 import { flip, tiles, heat, readPNG, writePNG, PPD } from './gate/flip.js';
 import { stepper } from './gate/clock.js';
 import { locked, unlock } from './gpu/lock.js';
@@ -121,7 +121,7 @@ const URL_AT = process.argv.indexOf('--url'), BASE = (URL_AT > 0 && process.argv
 const Q_AT = process.argv.indexOf('--query'), EXTRA = Q_AT > 0 ? process.argv[Q_AT + 1] : '';   // (more of the address for every page the gate opens: --query stress, the stress world)
 const OUT = new URL('../.gate/', import.meta.url).pathname;   // TheGame/.gate/: made again by every run, not kept in git
 // (the output the gate draws: OUTPUT (src/core/budget.js), at one pixel a point: the canvas is the output's own pixels)
-const SCREEN = { ...OUTPUT, dpr: 1 }, INSIDE = drawnRows() / OUTPUT.height, TIME = 100;   // (INSIDE: the world drawn at the most rows the game draws it at, a share of the output's: src/core/output.js drawnRows)   // (TIME: the seconds the world's clock stands at for stills)
+const SCREEN = { ...OUTPUT, dpr: 1 }, INSIDE = outputRatio(SCREEN.width, SCREEN.height), TIME = 100;   // (INSIDE: the most the game draws on the gate's screen, by its own rule, src/core/output.js: no more pixels than the output has, 1 here; src/core/screen.js holds the inside to it)   // (TIME: the seconds the world's clock stands at for stills)
 const FRAME = 1000 / FPS, JITTER = 1;   // the hard gates in motion: no frame longer than 1/FPS s (the frame clock's own jitter allowed), the GPU within BUDGET ms in every frame, the whole browser within 8 GB
 const WAIT = 300e3;   // ms the world may take to come, or to settle, before the gate calls it broken (an error; never a wait for readiness)
 const ARGS = ['--enable-unsafe-webgpu', '--enable-webgpu-developer-features'];   // (the second: the GPU's timestamps to the nanosecond, not rounded to a tenth of a millisecond: the bench times passes of a few hundredths)
