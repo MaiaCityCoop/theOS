@@ -123,8 +123,9 @@ async function resident(per, { frames, visit, means, first, cells }) {
   const gather = () => { drawn = { n: sealed, whole: done >= cells }; H.gathered(1); };   // (what its draws read: its store's things now)
   // (a read come back: laid out again where roomsFor says, else it fits)
   const answer = (z, read) => {
-    const room = roomsFor([z[1], z[2]], [N, P], read.whole && read.at === S.at());
+    const room = read.whole && read.at === S.at() ? roomsFor([z[1], z[2]], [N, P], true) : null;   // (laid out again only from a read of its whole fill, as residentOf)
     if (room && (room[0] !== N || room[1] !== P)) { if (room[0] > N && !(z[1] > N) && !(z[2] > P)) out.past++; N = room[0]; P = room[1]; out.least = Math.min(out.least, N); dirty = true; return; }
+    if (z[1] > N || z[2] > P) return;   // (more found than it holds: not known to fit till then)
     S.fit(read.at);
   };
   // (its visits, the nearest first, within the frame's cells; a packing whole where nothing waits after it; gathered
@@ -267,7 +268,7 @@ async function check() {
     });
     console.log(`  the page: ${RES_TIERS} resident tiers filling, a packing ${cost} ms of it: ${cells.join('; ')} (every tier every frame: ${main.most.toFixed(1)} ms, ${main.frames} frames)`);
   }
-  for (const [how, R] of [['the camera jumping', MOVED], ['the camera still', { ...MOVED, visit: Infinity }]]) {
+  for (const [how, R] of [['the camera jumping', MOVED], ['the camera still', { ...MOVED, visit: Infinity }], ['the meadow at a Mac\'s share, thirty times its first room', { ...MOVED, visit: Infinity, means: [MOVED.first * 30] }]]) {
     const places = Number.isFinite(R.visit) ? Math.ceil(R.frames / R.visit) : 1;
     for (const per of [1, 3, 8, 16]) {
       const r = await resident(per, R);
@@ -275,7 +276,8 @@ async function check() {
       if (r.past) fail(`resident over ${per}, ${how}: laid out ${r.past} times for no more found than it held`);
       if (r.short) fail(`resident over ${per}, ${how}: ${r.short} frames its draws showed part of what they had shown, or none`);
       if (r.wrong > 4 * places) fail(`resident over ${per}, ${how}: filled and not known to fit ${r.wrong} frames`);
-      if (r.laid > places) fail(`resident over ${per}, ${how}: laid out ${r.laid} times, at ${places} place${places > 1 ? 's' : ''}`);
+      const grows = R.means.some((m) => m * MARGIN > R.first) ? 1 : 0;   // (a first room smaller than it finds: once more, from the read of its whole fill)
+      if (r.laid > places + grows) fail(`resident over ${per}, ${how}: laid out ${r.laid} times, at ${places} place${places > 1 ? 's' : ''}`);
       const rest = Math.floor(R.cells / per), fill = Math.ceil(R.cells / rest), ramp = Math.ceil(Math.log2(rest / WG)) + 1;   // (a fill at the pace's rest, frames; and its first, from a workgroup's cells a frame, twice as many a frame)
       if (r.waiting > (places + r.laid - 1) * fill + ramp) fail(`resident over ${per}, ${how}: its regions waited ${r.waiting} frames, past a fill a place and one a layout`);   // (a layout empties it: filled anew)
     }
