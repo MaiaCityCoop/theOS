@@ -10,6 +10,7 @@ mod camera;
 mod film;
 mod clouds;
 mod grass;
+mod impostor;
 mod library;
 mod meadow;
 mod terrain;
@@ -70,7 +71,17 @@ fn main() {
         ..default()
     }))
     .init_state::<View>()
-    .add_plugins((world::plugin, film::plugin, meadow::plugin, wind::plugin, workshop::plugin));
+    .add_plugins((world::plugin, film::plugin, meadow::plugin, wind::plugin, workshop::plugin, impostor::plugin));
+    if args.get(1).map(String::as_str) == Some("--shelf") {
+        let dir: PathBuf = args.get(2).expect("--shelf <dir>").into();
+        let _ = std::fs::create_dir_all(&dir);
+        app.add_plugins(ui::plugin)
+            .insert_resource(workshop::ShelfShots { dir })
+            .insert_state(View::Library)
+            .add_systems(Update, workshop::shelf_shots);
+        app.run();
+        return;
+    }
     if args.get(1).map(String::as_str) == Some("--gate") {
         let dir: PathBuf = args.get(2).expect("--gate <dir>").into();
         let _ = std::fs::create_dir_all(&dir);

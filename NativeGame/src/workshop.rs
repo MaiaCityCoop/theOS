@@ -27,6 +27,9 @@ struct Specimen;
 struct Turn;
 #[derive(Component)]
 pub struct Caption;
+/// Which turntable: 0 the master, 1 its impostor.
+#[derive(Component)]
+struct Side(u8);
 
 pub fn plugin(app: &mut App) {
     app.add_systems(OnEnter(View::Library), enter)
@@ -74,7 +77,9 @@ fn enter(
         MeshMaterial3d(materials.add(StandardMaterial { base_color: Color::srgb(0.32, 0.32, 0.30), perceptual_roughness: 1.0, ..default() })),
         Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
     ));
-    commands.spawn((Room, Turn, LAYER, Transform::default(), Visibility::default()));
+    // two turntables: the master on the left, its baked far view (the impostor) on the right
+    commands.spawn((Room, Turn, Side(0), LAYER, Transform::default(), Visibility::default()));
+    commands.spawn((Room, Turn, Side(1), LAYER, Transform::default(), Visibility::default()));
 }
 
 fn leave(mut commands: Commands, room: Query<Entity, With<Room>>, mut plain: Query<&mut Visibility, With<Plain>>, mut eye: Query<(Entity, &mut Camera), With<Eye>>) {
@@ -118,9 +123,12 @@ fn show(
     shelf: Option<ResMut<Shelf>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    turn: Query<Entity, With<Turn>>,
+    mut images: ResMut<Assets<Image>>,
+    mut bakes: ResMut<Assets<crate::impostor::NormalBake>>,
+    mut impostors: ResMut<Assets<crate::impostor::Impostor>>,
+    mut turn: Query<(Entity, &Side, &mut Transform), (With<Turn>, Without<Camera3d>)>,
     old: Query<Entity, With<Specimen>>,
-    mut cam: Query<&mut Transform, (With<Room>, With<Camera3d>)>,
+    mut cam: Query<&mut Transform, (With<Room>, With<Camera3d>, Without<Turn>)>,
     mut caption: Query<&mut Text, With<Caption>>,
 ) {
     let Some(mut s) = shelf else { return };
@@ -129,8 +137,11 @@ fn show(
     // the camera stands back by the asset's size
     let size = a.size[1].max(0.05);
     for mut t in &mut cam {
-        let d = size * 2.2 * s.zoom;
+        let d = size * 3.2 * s.zoom;
         *t = Transform::from_xyz(0.0, d * 0.45, d).looking_at(Vec3::new(0.0, size * 0.25, 0.0), Vec3::Y);
+    }
+    for (_, side, mut t) in &mut turn {
+        t.translation.x = if side.0 == 0 { -size * 0.75 } else { size * 0.75 };
     }
     if !s.dirty {
         return;
@@ -141,7 +152,28 @@ fn show(
     }
     let mesh = crate::library::master(a, s.seed);
     let tris = crate::library::triangles(&mesh);
-    let Ok(parent) = turn.single() else { return };
+    let baked = crate::impostor::bake(&mut commands, mesh.clone(), &mut meshes, &mut images, &mut materials, &mut bakes);
+    let (Some(parent), Some(far)) = (turn.iter().find(|t| t.1.0 == 0).map(|t| t.0), turn.iter().find(|t| t.1.0 == 1).map(|t| t.0)) else { return };
+    let imp = commands
+        .spawn((
+            Specimen,
+            LAYER,
+            Mesh3d(meshes.add(crate::impostor::quad())),
+            MeshMaterial3d(impostors.add(crate::impostor::Impostor::of(&baked))),
+            bevy::camera::visibility::NoFrustumCulling,
+            // its shadow would be the bare quad's: the shadow pass does not turn it
+            bevy::light::NotShadowCaster,
+            Transform::default(),
+        ))
+        .id();
+    commands.entity(far).add_child(imp);
+    // the atlas itself, small, bottom right: the 8 × 8 views of the master as baked
+    commands.spawn((
+        Specimen,
+        ImageNode::new(baked.albedo.clone()),
+        Node { position_type: PositionType::Absolute, right: Val::Px(12.0), bottom: Val::Px(12.0), width: Val::Px(256.0), height: Val::Px(256.0), ..default() },
+        BackgroundColor(Color::srgb(0.15, 0.15, 0.15)),
+    ));
     let child = commands
         .spawn((
             Specimen,
@@ -162,7 +194,7 @@ fn show(
     commands.entity(parent).add_child(child);
     for mut t in &mut caption {
         t.0 = format!(
-            "{} · {} · generator {} · {:.0}–{:.0} cm · seed {} · master {} triangles · {}/{}",
+            "{} · {} · generator {} · {:.0}–{:.0} cm · seed {} · master {} triangles | impostor 2 triangles, {}×{} views · {}/{}",
             a.name,
             a.kind,
             a.generator,
@@ -170,6 +202,8 @@ fn show(
             a.size[1] * 100.0,
             s.seed,
             tris,
+            crate::impostor::FRAMES,
+            crate::impostor::FRAMES,
             s.at + 1,
             s.names.len()
         );
@@ -179,5 +213,38 @@ fn show(
 fn turn(time: Res<Time>, mut t: Query<&mut Transform, With<Turn>>) {
     for mut t in &mut t {
         t.rotate_y(time.delta_secs() * 0.35);
+    }
+}
+
+/// `--shelf <dir>`: one picture of every asset, master beside its impostor, then quit (for checking the bake).
+#[derive(Resource)]
+pub struct ShelfShots {
+    pub dir: std::path::PathBuf,
+}
+
+pub fn shelf_shots(
+    mut commands: Commands,
+    shots: Res<ShelfShots>,
+    shelf: Option<ResMut<Shelf>>,
+    mut n: Local<u32>,
+    mut exit: MessageWriter<AppExit>,
+) {
+    let Some(mut s) = shelf else { return };
+    *n += 1;
+    let wait = if s.at == 0 { 300 } else { 140 };
+    if *n == wait {
+        let name = s.names.get(s.at).cloned().unwrap_or_default().replace(' ', "-");
+        commands
+            .spawn(bevy::render::view::screenshot::Screenshot::primary_window())
+            .observe(bevy::render::view::screenshot::save_to_disk(shots.dir.join(format!("{}-{name}.png", s.at))));
+    }
+    if *n == wait + 10 {
+        *n = 0;
+        if s.at + 1 >= s.names.len() {
+            exit.write(AppExit::Success);
+        } else {
+            s.at += 1;
+            s.dirty = true;
+        }
     }
 }
