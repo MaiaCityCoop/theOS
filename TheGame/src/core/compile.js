@@ -51,6 +51,51 @@ export function shareComputeCompiles(renderer) {
   };
 }
 
+// ---- what the GPU is asked to compile, timed (__game.compiles(): src/boot.js) ----
+// (2026-11-19: in Chrome the first view's 312 asks took minutes, about one a second. Whether they are as many pipelines,
+// whether a turn's pipelines are compiled side by side or one slow one holds the rest, and whether the page's thread
+// (three building their code) or the GPU's compiler takes the time: said here, at every start)
+const PIPES = [], TURNS = [];
+let modules = 0, moduleBytes = 0;   // (the shader modules asked for: distinct code, and its size)
+/** Every pipeline and shader module the renderer's device is asked to make, kept with how long it took (compiles). On
+    the renderer's device, once, after shareComputeCompiles: a pipeline's time is from three's ask to its pipeline. */
+export function watchCompiles(renderer) {
+  const dev = renderer.backend?.device;
+  if (!dev?.createRenderPipelineAsync || dev.__watched) return;
+  dev.__watched = true;
+  const timed = (fn, kind) => { const make = dev[fn]; dev[fn] = function (d) { const p = { kind, name: d?.label ?? '', at: performance.now(), ms: null }; PIPES.push(p); const r = make.call(this, d); r.then(() => { p.ms = performance.now() - p.at; }, () => { p.ms = performance.now() - p.at; p.failed = true; }); return r; }; };
+  timed('createRenderPipelineAsync', 'render'); timed('createComputePipelineAsync', 'compute');
+  // (made at once: a pipeline first used in a frame, which waits for it)
+  const now = (fn, kind) => { const make = dev[fn]; dev[fn] = function (d) { PIPES.push({ kind, name: d?.label ?? '', at: performance.now(), ms: 0, sync: true }); return make.call(this, d); }; };
+  now('createRenderPipeline', 'render'); now('createComputePipeline', 'compute');
+  const mod = dev.createShaderModule; dev.createShaderModule = function (d) { modules++; moduleBytes += d?.code?.length ?? 0; return mod.call(this, d); };
+}
+// (a pipeline by what it draws: three labels it by its material's name and id, a compute one by its node's name)
+const familyOf = (p) => p.name.replace(/^(render|compute)Pipeline_(compute_)?/, '').replace(/_\d+$/, '');
+const sum = (L, f) => L.reduce((s, x) => s + f(x), 0);
+/** What the GPU was asked to compile since the start (__game.compiles()):
+      firstView   the first view's asks (the snapshot its first frame waits for), the turns that made any of them, the
+                  pipelines those turns asked for (none: each was made before, three's own, shared), their time on the
+                  page's thread (three building the code) and from the first of them to the last
+      pipelines   how many, render and compute; sync: made as a frame first drew it; waiting: not made yet; the shader
+                  modules (distinct code) and their size
+      inFlight    a turn's pipelines' times summed over its wait for them: about 1, they were compiled one at a time
+      turns       each turn of made-by-need: { name, asks, inView, pipes, cpu, ms, slowest }
+      slowest     the slowest pipelines; byName: the pipelines of each material or pass, each one's time */
+export function compiles() {
+  const ms = (t) => t.ms ?? performance.now() - t.at, wait = (t) => Math.max(0, ms(t) - t.cpu), own = (t) => sum(t.pipes, (p) => p.ms ?? performance.now() - p.at);
+  const first = TURNS.filter((t) => t.inView), busy = TURNS.filter((t) => t.pipes.length), byName = {};
+  for (const p of PIPES) (byName[familyOf(p)] ||= []).push(Math.round(p.ms ?? -1));
+  return {
+    firstView: { asks: view?.size ?? null, turns: first.length, pipes: sum(first, (t) => t.pipes.length), cpu: Math.round(sum(first, (t) => t.cpu)), ms: first.length ? Math.round(Math.max(...first.map((t) => t.at + ms(t))) - first[0].at) : 0 },
+    pipelines: { render: PIPES.filter((p) => p.kind === 'render').length, compute: PIPES.filter((p) => p.kind === 'compute').length, sync: PIPES.filter((p) => p.sync).length, waiting: PIPES.filter((p) => p.ms == null).length, modules, kb: Math.round(moduleBytes / 1024) },
+    inFlight: sum(busy, wait) ? +(sum(busy, own) / sum(busy, wait)).toFixed(2) : null,
+    turns: TURNS.map((t) => ({ name: t.name, asks: t.asks, inView: t.inView, pipes: t.pipes.length, cpu: Math.round(t.cpu), ms: Math.round(ms(t)), slowest: Math.round(Math.max(0, ...t.pipes.map((p) => p.ms ?? 0))) })),
+    slowest: PIPES.filter((p) => p.ms != null).sort((a, b) => b.ms - a.ms).slice(0, 20).map((p) => ({ name: familyOf(p), kind: p.kind, ms: Math.round(p.ms) })),
+    byName,
+  };
+}
+
 /** The world's source `compiling`: what it waits for to be compiled (src/core/settle.js): the turns it waits for, and
     what a frame asked to be made and is not yet (asked in the frame just drawn, its turn comes after it). */
 export const countCompiles = () => {
@@ -99,7 +144,12 @@ const turnOf = (maker, counted) => inTurn(() => {
 function made1(maker, list) {
   const names = [...new Set(list.map((e) => e.name))], over = (L) => { done += L.filter((e) => e.counted).length; for (const e of L) open.delete(e); };
   now = names.length > 1 ? `${names[0]} and ${names.length - 1} more` : names[0];
-  return Promise.resolve(maker(list.map((e) => e.what)))
+  // (the turn timed, compiles: what its compile asked of the GPU, each pipeline asked as three builds it, at once)
+  const t = { name: now, asks: list.length, inView: 0, at: performance.now(), cpu: 0, ms: null, pipes: null }, p0 = PIPES.length;
+  const going = Promise.resolve(maker(list.map((e) => e.what)));
+  t.cpu = performance.now() - t.at; t.pipes = PIPES.slice(p0); TURNS.push(t);
+  return going
+    .finally(() => { t.ms = performance.now() - t.at; t.inView = view ? list.filter((e) => view.has(e)).length : 0; })
     .then((got) => { for (const e of list) { const S = stateOf(own(e.what)); if (!got || got.has(e.what)) S.set(e.pass, 'made'); else S.delete(e.pass); } over(list); },
       (err) => {
         if (list.length > 1) { console.warn(`compile: one of ${list.length} (${names[0]}, …) could not be compiled: each made alone`); for (const e of list) inTurn(() => made1(maker, [e]), e.counted); return; }
