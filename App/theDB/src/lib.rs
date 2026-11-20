@@ -3,16 +3,26 @@
 //! - A **blob** is immutable bytes named by their BLAKE3 hash (as IPFS): an image, a font, a bake, an engine build.
 //! - A **doc** is a Loro document with its whole history, named by an id (as IPNS): one shader, one asset, one recipe,
 //!   one shot list, one interface view, one engine. Its id is opaque and flat, made once (`new`) and never changed; what
-//!   it is and what people call it are inside it (`meta`: kind and name). Nothing is found by a name or a path: a doc
-//!   names the docs and blobs it uses by their ids and hashes, and everything is reached from one root doc. It is stored as blobs too: each commit writes the doc's snapshot as a
-//!   blob, and the doc's id points to its latest one. Every commit's snapshot is kept, so each version of a doc is also
-//!   named by a hash, and a world that names its docs by those hashes is made again exactly.
+//!   it is and what people call it are inside it (`meta`: kind and name). Nothing is found by a path: a doc names the
+//!   docs and blobs it uses by their ids and hashes, and everything is reached from one root doc. Each commit is a
+//!   version, named by the BLAKE3 hash of the doc's snapshot at that moment, so a world that names its docs by those
+//!   hashes is made again exactly.
 //!
-//! One store on this device, on disk (iroh-blobs' file store); no sync between devices. Its files can be open in one
-//! process only, so the first process to open it owns it and serves it to the others on this machine (iroh-blobs'
-//! RPC over QUIC on 127.0.0.1, trusting only the owner's own certificate): the app and `thedb` in a shell work on the
-//! same store at once, and a commit made by either is seen by both. The API is blocking: the store runs on its own
-//! small runtime, so the engine and the tools call it from anywhere.
+//! One store on this device, in one folder; no sync between devices.
+//!
+//! - **Docs are in SQLite** (`theDB.sqlite`, intent 0053; the schema is at the top of `sql.rs`): each version as Loro's
+//!   own update since the version before, with a snapshot now and then; each doc's head on main and on each branch; the
+//!   branches; the root. Every process on the machine reads and writes it directly (WAL mode: many readers, one
+//!   writer at a time), and a commit is one transaction, so two processes writing one doc both keep their edit.
+//! - **Blobs are in iroh-blobs' file store** (`blobs.db`, `data/`). Its files can be open in one process only, so the
+//!   first process to open the store owns them and serves them to the others on this machine (iroh-blobs' RPC over
+//!   QUIC on 127.0.0.1, trusting only the owner's own certificate).
+//! - **What leaves goes to the compost** (`compost/`, deleted for good after 30 days) or to the **archive**
+//!   (`archive/`, kept): `compost.rs`. `fresh` makes a store of only what the root reaches and composts the old one.
+//!
+//! A store made before SQLite (heads as tags, every version a snapshot blob) is moved into SQLite the first time this
+//! code opens it as the owner of its files (`migrate`). The API is blocking: the blob store runs on its own small
+//! runtime, so the engine and the tools call it from anywhere.
 
 use iroh_blobs::api::Store;
 use iroh_blobs::store::fs::FsStore;
@@ -30,21 +40,21 @@ fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
 }
 
-/// The doc ids' tags in the store: `doc/<id>` → the doc's latest snapshot.
-const DOC: &str = "doc/";
-
 /// How large a piece of a blob another process sends to the store's owner at a time.
 const PIECE: usize = 256 * 1024;
 
-/// The store's one entry point: the tag naming the blob that holds the root doc's id.
-const ROOT: &str = "root";
+/// How often a commit merges with a head that moved under it before it gives up.
+const TRIES: usize = 16;
 
-/// A branch's docs (intent 0051): `branch/<name>/<id>` → the doc's latest snapshot on that branch. A doc the branch has
-/// not changed is read from main.
-const BRANCH: &str = "branch/";
+/// The name main has where a branch is named in SQLite (no branch can be called so: `make_branch`).
+pub(crate) const MAIN: &str = "main";
 
-/// The branches that exist: `branches/<name>` → a blob of what the branch is for.
-const BRANCHES: &str = "branches/";
+/// The tags of a store made before SQLite, read once by `migrate`: `doc/<id>` and `branch/<name>/<id>` → a doc's
+/// latest snapshot; `branches/<name>` → a blob of what the branch is for; `root` → a blob holding the root doc's id.
+const OLD_DOC: &str = "doc/";
+const OLD_BRANCH: &str = "branch/";
+const OLD_BRANCHES: &str = "branches/";
+const OLD_ROOT: &str = "root";
 
 /// Whether `name` can be a branch's name: lowercase letters, digits and dashes.
 pub fn is_branch(name: &str) -> bool {
@@ -56,17 +66,14 @@ pub fn is_branch(name: &str) -> bool {
 const ALPHABET: &[u8; 32] = b"abcdefghijklmnopqrstuvwxyz234567";
 const ID_LEN: usize = 26;
 
+/// Whether `s` reads as a hash: 64 hex digits (a blob's, or a doc version's).
+pub fn is_hash(s: &str) -> bool {
+    s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
 /// Whether `id` is a doc's id: opaque, flat, 26 letters of the alphabet, the first a-z.
 pub fn is_id(id: &str) -> bool {
     id.len() == ID_LEN && id.bytes().all(|b| ALPHABET.contains(&b)) && id.as_bytes()[0].is_ascii_lowercase()
-}
-
-/// The tag of doc `id` on `branch` (main with `None`).
-fn tag(branch: Option<&str>, id: &str) -> String {
-    match branch {
-        Some(b) => format!("{BRANCH}{b}/{id}"),
-        None => format!("{DOC}{id}"),
-    }
 }
 
 fn check(id: &str) -> Result<()> {
@@ -98,6 +105,13 @@ pub struct TheDB {
     dir: PathBuf,
     /// The branch this process reads and writes (`THEDB_BRANCH`); none is main.
     branch: Option<String>,
+    /// The docs: this process's own connection to `theDB.sqlite`.
+    sql: std::sync::Mutex<rusqlite::Connection>,
+}
+
+/// Now, in seconds since 1970: when a version was made.
+pub(crate) fn now() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
 impl TheDB {
@@ -110,18 +124,35 @@ impl TheDB {
         main_checkout(Path::new(env!("CARGO_MANIFEST_DIR"))).join("DATA")
     }
 
-    /// Opens (or makes) the store in `dir`.
+    /// Opens (or makes) the store in `dir`, on the branch `THEDB_BRANCH` names.
     pub fn open(dir: impl AsRef<Path>) -> Result<Self> {
-        let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().map_err(err)?;
-        std::fs::create_dir_all(dir.as_ref()).map_err(err)?;
-        let dir = dir.as_ref();
-        let (port, cert) = (dir.join("rpc.port"), dir.join("rpc.cert"));
         let branch = match std::env::var("THEDB_BRANCH") {
-            Ok(b) if b.is_empty() || b == "main" => None,
+            Ok(b) if b.is_empty() || b == MAIN => None,
             Ok(b) if is_branch(&b) => Some(b),
             Ok(b) => return Err(format!("THEDB_BRANCH is not a branch's name (lowercase letters, digits, dashes): {b:?}")),
             Err(_) => None,
         };
+        Self::open_on(dir.as_ref(), branch)
+    }
+
+    /// Opens (or makes) the store in `dir`, on `branch`.
+    pub(crate) fn open_on(dir: &Path, branch: Option<String>) -> Result<Self> {
+        let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().map_err(err)?;
+        std::fs::create_dir_all(dir).map_err(err)?;
+        // what the compost has held for longer than its days goes for good, before anything is read
+        for gone in compost::sweep(dir, std::time::SystemTime::now()) {
+            eprintln!("thedb: {gone} left the compost for good");
+        }
+        let (store, owner) = Self::open_blobs(&rt, dir)?;
+        let sql = sql::open(dir)?;
+        let db = TheDB { rt, store, owner, dir: dir.to_path_buf(), branch, sql: std::sync::Mutex::new(sql) };
+        db.prepare()?;
+        Ok(db)
+    }
+
+    /// The blob store in `dir`: owned by this process if its files are free, otherwise reached through its owner.
+    fn open_blobs(rt: &tokio::runtime::Runtime, dir: &Path) -> Result<(Store, Option<FsStore>)> {
+        let (port, cert) = (dir.join("rpc.port"), dir.join("rpc.cert"));
         // a store whose owner is closing, or has gone without tidying up, answers nothing: wait a little and take it
         // over (the files are free once the owner is gone)
         for _ in 0..40 {
@@ -135,7 +166,7 @@ impl TheDB {
                     std::fs::write(&port, at.port().to_string()).map_err(err)?;
                     let store: Store = (*fs).clone();
                     rt.spawn(store.clone().listen(endpoint));
-                    return Ok(TheDB { rt, store, owner: Some(fs), dir: dir.to_path_buf(), branch });
+                    return Ok((store, Some(fs)));
                 }
                 Err(e) => {
                     // another process owns it: talk to that one, if it answers
@@ -148,15 +179,110 @@ impl TheDB {
                         let endpoint = irpc::util::make_client_endpoint("127.0.0.1:0".parse().unwrap(), &[&der]).map_err(err)?;
                         Store::connect(endpoint, addr)
                     };
-                    let answers = rt.block_on(async { tokio::time::timeout(std::time::Duration::from_secs(2), store.tags().get(ROOT)).await.is_ok_and(|r| r.is_ok()) });
+                    let answers = rt.block_on(async { tokio::time::timeout(std::time::Duration::from_secs(2), store.tags().get(OLD_ROOT)).await.is_ok_and(|r| r.is_ok()) });
                     if answers {
-                        return Ok(TheDB { rt, store, owner: None, dir: dir.to_path_buf(), branch });
+                        return Ok((store, None));
                     }
                     std::thread::sleep(std::time::Duration::from_millis(250));
                 }
             }
         }
         Err("the store's owner neither answers nor lets it go".into())
+    }
+
+    /// Makes the SQLite file ready: its tables, made once, by the owner of the blob store. A store made before SQLite
+    /// is moved into it in the same transaction, so no process ever reads half of it.
+    ///
+    /// A process that does not own the blob store and finds no tables is talking to an owner that runs the code from
+    /// before SQLite (the new code makes them when it opens): that owner reads heads from tags, this one would write
+    /// them to SQLite, and the two would no longer see each other's commits. So it is refused.
+    fn prepare(&self) -> Result<()> {
+        if self.owner.is_none() {
+            // an owner that has just opened makes its tables in a moment
+            for _ in 0..20 {
+                if sql::ready(&self.sql())? {
+                    return Ok(());
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+            return Err("the store's files are held by a process that runs the code from before SQLite (the kernel, most likely): stop it, then run this again; the first run moves the docs into theDB.sqlite".into());
+        }
+        let mut sql = self.sql();
+        let tx = sql.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(err)?;
+        if sql::ready(&tx)? {
+            return Ok(());
+        }
+        sql::create(&tx)?;
+        let moved = self.migrate(&tx)?;
+        sql::mark_ready(&tx)?;
+        tx.commit().map_err(err)?;
+        if moved > 0 {
+            // the code from before SQLite starts from the root tag: without it, it stops with "no root" instead of
+            // going on with heads that no longer move
+            self.rt.block_on(async { self.store.tags().delete(OLD_ROOT).await.map(|_| ()).map_err(err) })?;
+            eprintln!("thedb: {moved} doc heads moved from tags into theDB.sqlite (the old snapshots stay as blobs, read by hash as before)");
+        }
+        Ok(())
+    }
+
+    /// Moves a store made before SQLite into it: every doc's head on main and on each branch as a version (its
+    /// snapshot as it is, under the hash it had), the branches, and the root. Earlier versions were never listed
+    /// anywhere; their snapshots stay in the blob store, where `doc_at` still finds them by hash. How many heads moved.
+    fn migrate(&self, tx: &rusqlite::Connection) -> Result<usize> {
+        let at = now();
+        let mut moved = 0;
+        let mut heads: Vec<(String, String, Hash)> = self.tags_under(OLD_DOC)?.into_iter().map(|(id, h)| (MAIN.to_string(), id, h)).collect();
+        for (rest, h) in self.tags_under(OLD_BRANCH)? {
+            if let Some((branch, id)) = rest.split_once('/') {
+                heads.push((branch.to_string(), id.to_string(), h));
+            }
+        }
+        for (branch, id, hash) in heads {
+            let Some(snapshot) = self.get(hash)? else {
+                eprintln!("thedb: {id} on {branch}: its snapshot {hash} is not in the store; left behind");
+                continue;
+            };
+            let Ok(doc) = LoroDoc::from_snapshot(&snapshot) else {
+                eprintln!("thedb: {id} on {branch}: {hash} is no doc; left behind");
+                continue;
+            };
+            sql::adopt(tx, &id, hash, &snapshot, &doc, at)?;
+            sql::set_head(tx, &branch, &id, hash, at)?;
+            if branch == MAIN || !sql::described(tx, &id)? {
+                sql::describe(tx, &id, &doc)?;
+            }
+            moved += 1;
+        }
+        for (name, h) in self.tags_under(OLD_BRANCHES)? {
+            let about = self.get(h)?.map(|b| String::from_utf8_lossy(&b).into_owned()).unwrap_or_default();
+            sql::make_branch(tx, &name, &about, at)?;
+        }
+        let root = self.rt.block_on(async { self.store.tags().get(OLD_ROOT).await.map(|t| t.map(|t| t.hash)).map_err(err) })?;
+        if let Some(h) = root
+            && let Some(id) = self.get(h)?
+        {
+            sql::set_meta(tx, sql::ROOT, &String::from_utf8_lossy(&id))?;
+        }
+        Ok(moved)
+    }
+
+    /// The tags under `prefix` in the blob store: what follows the prefix, and the hash each names.
+    fn tags_under(&self, prefix: &str) -> Result<Vec<(String, Hash)>> {
+        use n0_future::StreamExt;
+        self.rt.block_on(async {
+            let mut list = self.store.tags().list_prefix(prefix).await.map_err(err)?;
+            let mut out = Vec::new();
+            while let Some(t) = list.next().await {
+                let t = t.map_err(err)?;
+                out.push((String::from_utf8_lossy(&t.name.0[prefix.len()..]).into_owned(), t.hash));
+            }
+            Ok(out)
+        })
+    }
+
+    /// This process's connection to the docs.
+    pub(crate) fn sql(&self) -> std::sync::MutexGuard<'_, rusqlite::Connection> {
+        self.sql.lock().unwrap_or_else(|e| e.into_inner())
     }
 
     /// The store's folder.
@@ -197,15 +323,31 @@ impl TheDB {
         })
     }
 
+    /// How many bytes the blob `hash` has, if the store has all of it.
+    pub fn blob_size(&self, hash: Hash) -> Result<Option<u64>> {
+        use iroh_blobs::api::blobs::BlobStatus;
+        self.rt.block_on(async {
+            Ok(match self.store.blobs().status(hash).await.map_err(err)? {
+                BlobStatus::Complete { size } => Some(size),
+                _ => None,
+            })
+        })
+    }
+
+    /// Every blob the store has.
+    pub fn blobs(&self) -> Result<Vec<Hash>> {
+        self.rt.block_on(async { self.store.blobs().list().hashes().await.map_err(err) })
+    }
+
     // ---- docs ----
 
-    /// The latest snapshot of doc `id` on this process's branch (main's where the branch has not changed it): the hash
-    /// that names its current version.
+    /// The latest version of doc `id` on this process's branch (main's where the branch has not changed it): the hash
+    /// that names it.
     pub fn head(&self, id: &str) -> Result<Option<Hash>> {
         self.head_seen(self.branch.as_deref(), id)
     }
 
-    /// The latest snapshot of doc `id` as `branch` sees it: the branch's version, or main's where it has none.
+    /// The latest version of doc `id` as `branch` sees it: the branch's version, or main's where it has none.
     pub fn head_seen(&self, branch: Option<&str>, id: &str) -> Result<Option<Hash>> {
         if let Some(b) = branch
             && let Some(h) = self.head_on(Some(b), id)?
@@ -215,15 +357,9 @@ impl TheDB {
         self.head_on(None, id)
     }
 
-    /// The latest snapshot of doc `id` on `branch` itself (main with `None`), without falling through.
+    /// The latest version of doc `id` on `branch` itself (main with `None`), without falling through.
     pub fn head_on(&self, branch: Option<&str>, id: &str) -> Result<Option<Hash>> {
-        let tag = tag(branch, id);
-        self.rt.block_on(async { self.store.tags().get(tag).await.map(|t| t.map(|t| t.hash)).map_err(err) })
-    }
-
-    fn set_head(&self, branch: Option<&str>, id: &str, hash: Hash) -> Result<()> {
-        let tag = tag(branch, id);
-        self.rt.block_on(async { self.store.tags().set(tag, hash).await.map_err(err) })
+        sql::head(&self.sql(), branch.unwrap_or(MAIN), id)
     }
 
     /// The branch this process reads and writes; `None` is main.
@@ -250,10 +386,21 @@ impl TheDB {
         }
     }
 
-    /// The doc whose snapshot is `hash`: one exact version, with its history up to it.
+    /// The doc at the version `hash`: one exact version, with its history up to it. A version made before SQLite that
+    /// was no head when the store moved is read from its snapshot blob, as it always was.
     pub fn doc_at(&self, hash: Hash) -> Result<LoroDoc> {
-        let bytes = self.get(hash)?.ok_or_else(|| format!("no blob {hash}"))?;
+        if let Some(doc) = sql::load(&self.sql(), hash)? {
+            return Ok(doc);
+        }
+        let bytes = self.get(hash)?.ok_or_else(|| format!("no version {hash}"))?;
         LoroDoc::from_snapshot(&bytes).map_err(err)
+    }
+
+    /// Brings what the version `hash` has and `into` lacks into `into`.
+    pub(crate) fn bring(&self, into: &LoroDoc, hash: Hash) -> Result<()> {
+        let theirs = self.doc_at(hash)?;
+        let updates = theirs.export(ExportMode::updates(&into.oplog_vv())).map_err(err)?;
+        into.import(&updates).map(|_| ()).map_err(err)
     }
 
     /// Keeps `doc` as the latest version of `id` on this process's branch; returns the hash that names this version.
@@ -264,26 +411,57 @@ impl TheDB {
 
     /// Keeps `doc` as the latest version of `id` on `branch` (main with `None`). A doc is a CRDT: what was committed to
     /// it meanwhile (by another process, or on main before the branch first changed it) is merged in, never
-    /// overwritten.
+    /// overwritten. The head moves only by compare-and-swap, from the head this commit merged with: reading it,
+    /// merging, keeping the version and moving it are one SQLite transaction that holds the write lock, and should the
+    /// head have moved all the same, the commit merges with the new one and tries again. So of two processes
+    /// committing one doc at once, the second merges the first's version, and neither edit is lost.
     pub fn commit_on(&self, branch: Option<&str>, id: &str, doc: &LoroDoc) -> Result<Hash> {
         check(id)?;
         doc.commit();
-        if let Some(head) = self.head_seen(branch, id)?
-            && let Some(theirs) = self.get(head)?
-        {
-            doc.import(&theirs).map_err(err)?;
-            json::heal(doc)?;
-            doc.commit();
+        let on = branch.unwrap_or(MAIN);
+        for _ in 0..TRIES {
+            let mut sql = self.sql();
+            let tx = sql.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(err)?;
+            // the head the swap expects: the doc's own on this branch (none yet: a branch that has not changed it)
+            let expected = sql::head(&tx, on, id)?;
+            let base = match expected {
+                Some(h) => Some(h),
+                None => sql::head(&tx, MAIN, id)?,
+            };
+            if let Some(base) = base {
+                let theirs = sql::vv(&tx, base)?;
+                if !doc.oplog_vv().includes_vv(&theirs) {
+                    let theirs = match sql::load(&tx, base)? {
+                        Some(d) => d,
+                        // a head is always a version SQLite holds; this reads one from before it all the same
+                        None => LoroDoc::from_snapshot(&self.get(base)?.ok_or_else(|| format!("no version {base}"))?).map_err(err)?,
+                    };
+                    doc.import(&theirs.export(ExportMode::updates(&doc.oplog_vv())).map_err(err)?).map_err(err)?;
+                }
+                json::heal(doc)?;
+                doc.commit();
+            }
+            let at = now();
+            let hash = sql::keep(&tx, id, doc, base, at)?;
+            if !sql::move_head(&tx, on, id, expected, hash, at)? {
+                // the head moved under us: let this transaction go and merge with the new head
+                drop(tx);
+                continue;
+            }
+            // what a doc is called and what it says are main's; a doc made on a branch is the branch's until it is
+            // merged
+            if branch.is_none() || !sql::described(&tx, id)? {
+                sql::describe(&tx, id, doc)?;
+            }
+            tx.commit().map_err(err)?;
+            return Ok(hash);
         }
-        let snapshot = doc.export(ExportMode::Snapshot).map_err(err)?;
-        let hash = self.put(snapshot)?;
-        self.set_head(branch, id, hash)?;
-        Ok(hash)
+        Err(format!("{id}: its head kept moving while this commit merged with it ({TRIES} tries)"))
     }
 
     /// Every doc's id and the hash of its current version, as this process's branch sees them.
     pub fn docs(&self) -> Result<Vec<(String, Hash)>> {
-        let mut all: std::collections::BTreeMap<String, Hash> = self.list(DOC)?.into_iter().collect();
+        let mut all: std::collections::BTreeMap<String, Hash> = sql::heads(&self.sql(), MAIN)?.into_iter().collect();
         if let Some(b) = &self.branch {
             all.extend(self.changed_on(b)?);
         }
@@ -292,21 +470,7 @@ impl TheDB {
 
     /// The docs `branch` has changed, and their versions there.
     pub fn changed_on(&self, branch: &str) -> Result<Vec<(String, Hash)>> {
-        self.list(&format!("{BRANCH}{branch}/"))
-    }
-
-    /// The tags under `prefix`: what follows the prefix, and the hash each names.
-    fn list(&self, prefix: &str) -> Result<Vec<(String, Hash)>> {
-        use n0_future::StreamExt;
-        self.rt.block_on(async {
-            let mut list = self.store.tags().list_prefix(prefix).await.map_err(err)?;
-            let mut out = Vec::new();
-            while let Some(t) = list.next().await {
-                let t = t.map_err(err)?;
-                out.push((String::from_utf8_lossy(&t.name.0[prefix.len()..]).into_owned(), t.hash));
-            }
-            Ok(out)
-        })
+        sql::heads(&self.sql(), branch)
     }
 
     // ---- branches (intent 0051) ----
@@ -319,20 +483,17 @@ impl TheDB {
         if self.branches()?.iter().any(|b| b == name) {
             return Ok(());
         }
-        let h = self.put(about.as_bytes().to_vec())?;
-        self.rt.block_on(async { self.store.tags().set(format!("{BRANCHES}{name}"), h).await.map_err(err) })
+        sql::make_branch(&self.sql(), name, about, now())
     }
 
     /// Every branch's name.
     pub fn branches(&self) -> Result<Vec<String>> {
-        Ok(self.list(BRANCHES)?.into_iter().map(|(n, _)| n).collect())
+        sql::branches(&self.sql())
     }
 
     /// What `branch` is for.
     pub fn about(&self, branch: &str) -> Result<String> {
-        let h = self.rt.block_on(async { self.store.tags().get(format!("{BRANCHES}{branch}")).await.map_err(err) })?;
-        let h = h.ok_or_else(|| format!("no branch {branch}"))?.hash;
-        Ok(self.get(h)?.map(|b| String::from_utf8_lossy(&b).into_owned()).unwrap_or_default())
+        sql::about(&self.sql(), branch)?.ok_or_else(|| format!("no branch {branch}"))
     }
 
     /// Doc `id` as `branch`'s version and main's merged, without keeping it: what main would be after the merge.
@@ -342,13 +503,13 @@ impl TheDB {
             None => LoroDoc::new(),
         };
         if let Some(h) = self.head_on(Some(branch), id)? {
-            doc.import(&self.get(h)?.ok_or_else(|| format!("no blob {h}"))?).map_err(err)?;
+            self.bring(&doc, h)?;
         }
         Ok(doc)
     }
 
     /// Brings the versions `docs` (id → a version on a branch) into main: each merged with what main has. Returns the
-    /// new main versions. The branch keeps its own tags; what it changes afterwards can be brought in again.
+    /// new main versions. The branch keeps its own heads; what it changes afterwards can be brought in again.
     pub fn merge_into_main(&self, docs: &[(String, Hash)]) -> Result<Vec<(String, Hash)>> {
         let mut out = Vec::new();
         for (id, version) in docs {
@@ -369,35 +530,42 @@ impl TheDB {
         Ok(id)
     }
 
-    /// What doc `id` is and what people call it: (kind, name).
+    /// What doc `id` is and what people call it: (kind, name). On main this is a row in SQLite, no doc is opened; a
+    /// branch reads its own version, where it may have renamed the doc.
     pub fn meta(&self, id: &str) -> Result<(String, String)> {
-        let doc = self.doc(id)?;
-        let meta = doc.get_map("meta");
-        let field = |k: &str| meta.get(k).and_then(|v| v.into_value().ok()).and_then(|v| v.into_string().ok()).map(|s| s.to_string()).unwrap_or_default();
-        Ok((field("kind"), field("name")))
+        if self.branch.is_none()
+            && let Some(m) = sql::meta_of(&self.sql(), id)?
+        {
+            return Ok(m);
+        }
+        Ok(self.meta_of(&self.doc(id)?))
     }
 
-    /// Lets doc `id` go: it is no longer reached. Its versions' blobs stay, so what pinned them still reads them.
+    /// Lets doc `id` go: it is no longer reached. Its versions stay, so what pinned them still reads them.
     pub fn forget(&self, id: &str) -> Result<()> {
         if let Some(b) = &self.branch {
             return Err(format!("forget on main only (this process is on the branch {b})"));
         }
-        self.rt.block_on(async { self.store.tags().delete(format!("{DOC}{id}")).await.map(|_| ()).map_err(err) })
+        sql::forget(&self.sql(), id)
     }
 
     /// The root doc's id: where everything is reached from.
     pub fn root(&self) -> Result<Option<String>> {
-        let Some(h) = self.rt.block_on(async { self.store.tags().get(ROOT).await.map(|t| t.map(|t| t.hash)).map_err(err) })? else {
-            return Ok(None);
-        };
-        Ok(self.get(h)?.map(|b| String::from_utf8_lossy(&b).into_owned()))
+        sql::get_meta(&self.sql(), sql::ROOT)
     }
 
     /// Makes doc `id` the root.
     pub fn set_root(&self, id: &str) -> Result<()> {
         check(id)?;
-        let h = self.put(id.as_bytes().to_vec())?;
-        self.rt.block_on(async { self.store.tags().set(ROOT, h).await.map_err(err) })
+        sql::set_meta(&self.sql(), sql::ROOT, id)
+    }
+
+    // ---- finding docs: by what they are, what they are called, what they say ----
+
+    /// The docs this process's branch sees that match `by`, without opening a doc: a kind, a part of a name, or words
+    /// in the name or the text (SQLite's full-text search; every word must be there).
+    pub fn find(&self, by: Find) -> Result<Vec<Found>> {
+        sql::find(&self.sql(), self.branch.as_deref(), by)
     }
 
     // ---- text docs: a shader, a recipe, a shot list ----
@@ -633,7 +801,13 @@ impl TheDB {
     }
 }
 
-pub mod plugin;
+pub mod compost;
+
+pub mod fresh;
+
+mod sql;
+
+pub use sql::{Find, Found};
 
 #[cfg(feature = "bevy")]
 pub mod bevy;

@@ -141,7 +141,7 @@ fn to_loro(v: &Value) -> LoroValue {
     }
 }
 
-fn from_loro(v: &LoroValue) -> Value {
+pub(crate) fn from_loro(v: &LoroValue) -> Value {
     match v {
         LoroValue::Bool(b) => Value::Bool(*b),
         LoroValue::I64(i) => Value::from(*i),
@@ -150,5 +150,26 @@ fn from_loro(v: &LoroValue) -> Value {
         LoroValue::List(l) => Value::Array(l.iter().map(from_loro).collect()),
         LoroValue::Map(m) => Value::Object(m.iter().map(|(k, v)| (k.to_string(), from_loro(v))).collect()),
         _ => Value::Null,
+    }
+}
+
+/// Everything a doc holds, in every container, as one JSON value: what `fresh` compares and what is searched for the
+/// ids and hashes a doc names.
+pub(crate) fn whole(doc: &LoroDoc) -> Value {
+    from_loro(&doc.get_deep_value())
+}
+
+/// Every string in `v`: the keys and the values, at any depth.
+pub(crate) fn strings(v: &Value, out: &mut Vec<String>) {
+    match v {
+        Value::String(s) => out.push(s.clone()),
+        Value::Array(a) => a.iter().for_each(|x| strings(x, out)),
+        Value::Object(o) => {
+            for (k, x) in o {
+                out.push(k.clone());
+                strings(x, out);
+            }
+        }
+        _ => {}
     }
 }
