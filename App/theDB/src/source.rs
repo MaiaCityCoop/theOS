@@ -434,7 +434,7 @@ impl TheDB {
         self.make_branch(&trial, &format!("the check of proposal {id}"))?;
         for (doc, version) in &p.docs {
             let merged = self.doc_seen(None, doc)?;
-            merged.import(&self.get(version.parse().map_err(err)?)?.ok_or_else(|| format!("no blob {version}"))?).map_err(err)?;
+            self.bring(&merged, version.parse().map_err(err)?)?;
             self.commit_on(Some(&trial), doc, &merged)?;
         }
         // every tree the proposal touches: the trees it changes, and the trees holding the files it changes
@@ -486,7 +486,7 @@ impl TheDB {
 
     /// Every doc on main.
     fn docs_on_main(&self) -> Result<Vec<(String, Hash)>> {
-        self.list(crate::DOC)
+        crate::sql::heads(&self.sql(), crate::MAIN)
     }
 
     // ---- builds and snapshots ----
