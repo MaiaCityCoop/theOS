@@ -20,7 +20,7 @@ Samuel, 2026-11-20, on why every change rebuilds the whole app:
 
 ## Define
 
-_Approved to define by Samuel; to be built after intent 0050. The definition waits for his approval before Build._
+_Approved by Samuel, 2026-11-20 ("accept the plan"). To be built after intent 0050._
 
 **What is there (2026-11-20).** theKERNEL and theDB are the only fixed parts, and the engine is a blob theKERNEL loads
 by hash. Data is docs and blobs (recipes, shaders, layers, places, bakes). But the engine blob is one binary of
@@ -99,7 +99,7 @@ the trust and sharing are their own intent); theDB's docs in SQLite (0053).
 ## Todo
 
 - [ ] Intent 0050 finished first
-- [ ] Samuel approves the definition
+- [x] Samuel approves the definition (2026-11-20)
 - [ ] Research written
 - [ ] 1–5
 
