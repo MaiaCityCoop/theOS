@@ -1,8 +1,8 @@
 #!/bin/sh
 # Installed on the host as /usr/local/bin/maia-deploy and bound to the deploy key in
-# ~deploy/.ssh/authorized_keys (command="..."), so that key can run nothing else.
+# ~Deploy/.ssh/authorized_keys (command="..."), so that key can run nothing else.
 #
-# Standard input is a tar archive holding website/ (OS/dist), game/ (TheGame/dist) and api/ (the API's source), each
+# Standard input is a tar archive holding website/ (Website/dist), game/ (TheGame/dist) and api/ (the API's source), each
 # with version.json at its root, made by bundle.sh. The script checks the archive, unpacks it as
 # /srv/maia-city/releases/<commit>-<time>, has root build and start that release's API (sudo maia-api-up, the one
 # command this user may run as root), switches /srv/maia-city/current to it (both sites at once), checks that Caddy

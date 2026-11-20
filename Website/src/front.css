@@ -1,4 +1,4 @@
-/* The website's own look (OS/index.html): the front page, the dashboard and the views it opens (the intents' sheet, the
+/* The website's own look (Website/index.html): the front page, the dashboard and the views it opens (the intents' sheet, the
    stories, the game's frame, joining, the legal pages). It comes after the brand's (/brand/brand.css), whose tokens and
    parts it builds on. A build bundles it as one file named by its content. */
 *{box-sizing:border-box}
@@ -158,7 +158,7 @@ header.site .visit{flex:none;margin-left:.5rem}
 .lead-in{max-width:36rem;margin:0 auto;font:400 clamp(1.1rem,1.8vw,1.3rem)/1.6 var(--sans);color:var(--forest2)}
 .creed{margin:1.5rem 0 0;font:400 clamp(2rem,5vw,3.8rem)/1.08 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.03em;text-wrap:balance;color:var(--forest)}
 .signature{display:inline-flex;align-items:center;gap:.7rem;margin:2.5rem 0 0;font:500 .95rem/1 var(--sans);color:var(--forest2)}
-.signature img{width:2.4rem;height:2.4rem;border-radius:50%;object-fit:cover}   /* brand/samuel.jpg is 77 px square: twice this (38.4 px), for sharp screens */
+.signature img{width:2.4rem;height:2.4rem;border-radius:50%;object-fit:cover}   /* Brand/samuel.jpg is 77 px square: twice this (38.4 px), for sharp screens */
 @media (max-width:760px){.manin{--gutter:auto}.chapter{grid-template-columns:1fr;gap:1.25rem}.marker{flex-direction:row;align-items:baseline;gap:.9rem}}
 
 .follow{padding-bottom:clamp(24px,3vw,40px)}

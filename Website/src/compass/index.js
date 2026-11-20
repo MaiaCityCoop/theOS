@@ -1,7 +1,7 @@
 // The Compass (../../Compass): Maia City's story and game as one guided journey. Seven chapters, one idea at a time:
 // why (the vision), what (the mission), how the money works (one concept after another, each with its picture), how
 // things grow (every recipe, played with), how a village climbs (every gate), who it is about, and the library of
-// every document. Everything here is read from the Compass's files as they stand (OS/compass.js serves them); the
+// every document. Everything here is read from the Compass's files as they stand (Website/compass.js serves them); the
 // page only shows them, and the story CLI alone changes them. The few numbers the diagrams compute with are the
 // sheets' own rules, named once below.
 import { marked } from 'marked';

@@ -4,7 +4,7 @@ run-name: Deploy ${{ inputs.commit || github.event.workflow_run.head_sha }} to $
 # Installs a release CI built (ci.yml's artifact `release-next`: the website, the game and the API's source at one
 # commit on main) on an environment's host over SSH; nothing is built again. It runs by itself once CI has passed on a
 # push to main, and ships that run's release to next. Started by hand, it takes a full commit SHA on main and ships
-# the release of that commit's passed CI run: rolling back is deploying an earlier commit. deploy/README.md lists the
+# the release of that commit's passed CI run: rolling back is deploying an earlier commit. Deploy/README.md lists the
 # secrets and variables.
 on:
   workflow_run:

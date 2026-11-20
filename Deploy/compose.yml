@@ -1,10 +1,10 @@
 # The game's API (API/) and its Postgres on the environment's host. setup-host.sh installs this file as
 # /etc/maia-city/compose.yml, owned by root, and writes /etc/maia-city/api.env (the database password, the issuer, the
-# game's origin); maia-api-up (deploy/api-up.sh) builds the API from one release and starts it. A deploy cannot change
+# game's origin); maia-api-up (Deploy/api-up.sh) builds the API from one release and starts it. A deploy cannot change
 # this file: what the API may touch is set here, not in the release.
 #
 #   - Postgres is on a network of its own with no way out, and nothing outside reaches it.
-#   - The API answers on 127.0.0.1:8083 only, for Caddy (deploy/Caddyfile); it runs as an unprivileged user, on a
+#   - The API answers on 127.0.0.1:8083 only, for Caddy (Deploy/Caddyfile); it runs as an unprivileged user, on a
 #     read-only filesystem, with no capabilities, and reaches out only to read aven.id's keys.
 name: maia-city
 

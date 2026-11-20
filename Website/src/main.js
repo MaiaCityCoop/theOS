@@ -5,7 +5,7 @@
 import { marked } from 'marked';
 
 const GAME = import.meta.env.VITE_GAME || '/game';
-   // the game, served by this same server under /game (OS/vite.config.js)
+   // the game, served by this same server under /game (Website/vite.config.js)
 const STATES = ['idea', 'define', 'build', 'propose', 'story', 'archived'];
 const DAYS = 5423, NOTED = { 1: { title: 'The decision', inGame: 1 } };   // days that have a name and a count but no film yet: day 1, Samuel alone
 const DAYS_ = DAYS;   // the days; the humans, 1,346,269 (the 31st Fibonacci number), stand in the page's title
@@ -99,7 +99,7 @@ if ($('channels')) $('channels').innerHTML = SOCIALS.map((s) => `<a ${out(s)}><i
 if ($('playnow')) $('playnow').onclick = () => { tab('join'); };   // the button that follows the whole scroll: the way in
 if ($('playlink')) $('playlink').onclick = (e) => { e.preventDefault(); game('walk'); };
 
-// ---- the legal pages, ported from maia.city as they stand (OS/src/legal/): each a document of sections and blocks,
+// ---- the legal pages, ported from maia.city as they stand (Website/src/legal/): each a document of sections and blocks,
 // opened from the foot of the front page and read in its own window ----
 const LEG = { slug: null };
 const legEsc = (t) => String(t ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);

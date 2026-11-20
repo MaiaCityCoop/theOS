@@ -1,24 +1,24 @@
 name: CI
 
-# Checks and builds the website (OS/) and the game (TheGame/), and tests the game's API (API/) on Postgres, for every
+# Checks and builds the website (Website/) and the game (TheGame/), and tests the game's API (API/) on Postgres, for every
 # change to them: first what breaks without vite build seeing it, a name left unbound, an import that leads nowhere, a
 # shader that does not build (TheGame/tools/lint.js, TheGame/tools/smoke.js on the GPU's stand-in: no GPU), so it is red
 # in a minute; a pull request is held to the code gates against main as well (TheGame/tools/health.js --base). On a
 # push to main it keeps the release it built as the run's artifact `release-next`, which Deploy ships to `next` once
-# this run has passed (deploy.yml, deploy/README.md).
+# this run has passed (deploy.yml, Deploy/README.md).
 #
 # Its jobs run side by side, so a run takes as long as its longest: `check` (lint, smoke, the code gates), `build` (the
 # schemas, the sign-in checks, the assets' measures, both sites built) and `api` (the API's tests on Postgres, only
-# where API/ or server/ changed: `changes` says). The code gates read what smoke counted in this run (TheGame/.gate/
+# where API/ or Server/ changed: `changes` says). The code gates read what smoke counted in this run (TheGame/.gate/
 # smoke/<commit>.json) and, for the base, what main's own run counted, kept as a cache by commit: a pull request never
 # makes its base's world again.
 on:
   push:
     branches: [main]
-    paths: [OS/**, TheGame/**, API/**, server/**, Intents/**, Stories/**, Compass/**, Artifacts/**, brand/**, deploy/**, .github/workflows/**]
+    paths: [Website/**, TheGame/**, API/**, Server/**, Intents/**, Stories/**, Compass/**, Artifacts/**, Brand/**, Deploy/**, .github/workflows/**]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: [OS/**, TheGame/**, API/**, server/**, Intents/**, Stories/**, Compass/**, Artifacts/**, brand/**, deploy/**, .github/workflows/**]
+    paths: [Website/**, TheGame/**, API/**, Server/**, Intents/**, Stories/**, Compass/**, Artifacts/**, Brand/**, Deploy/**, .github/workflows/**]
 
 permissions:
   contents: read
@@ -63,19 +63,19 @@ jobs:
       - name: Install
         run: |
           (cd TheGame && bun install --frozen-lockfile)
-          (cd OS && bun install --frozen-lockfile)
+          (cd Website && bun install --frozen-lockfile)
       - name: Every artifact against its schema
         run: bun Artifacts/artifacts.js check
       - name: Sign-in checks
         working-directory: TheGame
         run: bun tools/account-check.js
       - name: Build both sites for next
-        run: deploy/bundle.sh deploy/environments/next.json "$GITHUB_SHA" "$RUNNER_TEMP/release-next.tar"
+        run: Deploy/bundle.sh Deploy/environments/next.json "$GITHUB_SHA" "$RUNNER_TEMP/release-next.tar"
       - name: Shell scripts parse
         run: |
-          bash -n deploy/bundle.sh deploy/setup-host.sh
-          sh -n deploy/deploy.sh
-          sh -n deploy/api-up.sh
+          bash -n Deploy/bundle.sh Deploy/setup-host.sh
+          sh -n Deploy/deploy.sh
+          sh -n Deploy/api-up.sh
       - name: Keep the release for the deploy
         if: github.event_name == 'push'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -85,7 +85,7 @@ jobs:
           if-no-files-found: error
 
   changes:
-    # Whether this change touches the API (API/, server/): only then are its tests and their Postgres started.
+    # Whether this change touches the API (API/, Server/): only then are its tests and their Postgres started.
     if: github.event_name == 'push' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 5

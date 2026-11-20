@@ -1,4 +1,4 @@
-/* The Compass and the village ladder: Meadow (brand/brand.css). Cream paper, forest words, gold for the light, a
+/* The Compass and the village ladder: Meadow (Brand/brand.css). Cream paper, forest words, gold for the light, a
    plant green for what counts; the arch and the seed as its shapes; everything round. One idea per chapter. */
 #compass.on, #ladder.on { display: block; background: var(--paper); color: var(--forest); }
 body:has(#compass.on), body:has(#ladder.on) { background: var(--paper); }

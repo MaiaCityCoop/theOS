@@ -1,5 +1,5 @@
 // The game's API (API/, intent 0024), on the game's own origin: Caddy hands it /api/session and /api/me
-// (deploy/Caddyfile); on this machine the dev server does (vite.config.js, MAIA_API). The game shows the API the ID
+// (Deploy/Caddyfile); on this machine the dev server does (vite.config.js, MAIA_API). The game shows the API the ID
 // token once, right after signing in (callback.js); from then on the API knows the person by its own cookie, which this
 // page never sees (HttpOnly). Each call says what came of it and never throws: without its API the game plays on.
 //

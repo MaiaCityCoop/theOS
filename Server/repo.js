@@ -1,13 +1,13 @@
 // The repository as TheOS's two dev servers answer it and their builds write it down: the brand, the intents, the
 // story ideas, the compass, the artifact library, the scenes and their media, the stories and the game's kept timelines. One copy, for the
-// dashboard (OS/vite.config.js, at /) and the game (TheGame/vite.config.js, at / on its own and at /game inside the
+// dashboard (Website/vite.config.js, at /) and the game (TheGame/vite.config.js, at / on its own and at /game inside the
 // dashboard's server). Nothing is copied or cached: the files are the one source.
 import { readdirSync, readFileSync, existsSync, statSync, mkdirSync, writeFileSync, cpSync } from 'node:fs';
 import { resolve, dirname, extname, sep } from 'node:path';
 import { front, readJSON } from '../Stories/store.js';
 import { readIdeas } from '../Stories/ideas.js';
 import { listScenes, objectPath, objectType } from '../Stories/scenes.js';
-import { readCompass } from '../OS/compass.js';
+import { readCompass } from '../Website/compass.js';
 import { readArtifacts, ITEMS } from '../Artifacts/store.js';
 
 const ROOT = resolve(import.meta.dirname, '..'), BRAND = resolve(ROOT, 'brand'), INTENTS = resolve(ROOT, 'Intents');
@@ -87,12 +87,12 @@ function object(req, res, hash) {
 /** One file of a build: `body` at `path` in `out`, a list of /api at <path>/index.json (its path is also its items' folder). */
 export const put = (out, path, body) => { const f = resolve(out, '.' + (path.startsWith('/api/') && !extname(path) ? `${path}/index.json` : path)); mkdirSync(dirname(f), { recursive: true }); writeFileSync(f, body); };
 
-/** A build's copy of the repository: the brand (without the drafts it was chosen from, brand/sheets/, which no page
+/** A build's copy of the repository: the brand (without the drafts it was chosen from, Brand/sheets/, which no page
  *  loads), and what the dev server answers at each of `paths` that has an answer. */
 const DRAFTS = resolve(BRAND, 'sheets');
 export const write = (out, paths) => { cpSync(BRAND, resolve(out, 'brand'), { recursive: true, filter: (f) => f !== DRAFTS }); for (const p of paths) { const a = answer(p); if (a) put(out, p, a.body); } };
 
-/** What the website's build holds (OS/): every list and file the dashboard reads. */
+/** What the website's build holds (Website/): every list and file the dashboard reads. */
 export const website = () => ['/api/intents', ...intentList().map((i) => `/api/intents/${i.file}`), '/api/ideas', '/api/compass', '/api/artifacts', '/api/scenes', ...listScenes().map((s) => `/api/scenes/${s.id}/scene.json`), '/api/stories',
   ...storyList().flatMap(({ id }) => [...['story.md', 'timeline.json', 'arc.json', 'hook.json', 'preview.jpg'].map((n) => `/api/stories/${id}/${n}`), ...shotsOf(id).map((f) => `/api/stories/${id}/shots/${f}`)])];
 

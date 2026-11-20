@@ -5,7 +5,7 @@
 // before ten, the day's (the meadow, or under the pines) till five, the evening's after, and through the night; before
 // any was kept, one of the day's (TheGame/world/clock.js opens on a day). (2026-11-19: one start in five showed the
 // snow's over a green meadow, the world snow-white behind the veil as it was made, and green at Ready.) The stills lie
-// beside this script (brand/loading/), named from where it was served, as brand.css names its pictures: a page under a
+// beside this script (Brand/loading/), named from where it was served, as brand.css names its pictures: a page under a
 // base (the game's dev server at /game) finds them there too.
 (() => {
   const kept = (k) => { try { return JSON.parse(localStorage.getItem('maia.' + k)); } catch { return null; } };
@@ -23,7 +23,7 @@
 //   os:stuck  the start is held: a part it waits for failed, or a worker has not started (src/core/waits.js); the line
 //             goes once it comes (a detail of null), or with the veil
 // A file of its build: its code, a style or a worker of it, all named by their content (/assets/: a build's own, never
-// another's in their place), and gone once the host serves a build two deploys newer (deploy/deploy.sh serves the one
+// another's in their place), and gone once the host serves a build two deploys newer (Deploy/deploy.sh serves the one
 // before too). If the host serves another build now (the page, asked again, no longer names this one's entry), the page
 // reloads into it, once for this build; otherwise the line says which file, and that a blocker may be stopping it. What
 // tells it: the browser, of a script or a stylesheet that did not load (the entry's error stands for every module it

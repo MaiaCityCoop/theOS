@@ -63,7 +63,7 @@ job.
    current best practice and the state of the art (papers, conference talks, the docs and source of
    the engines and libraries that solved it, recent releases), on the web, not from memory. Write
    the sources, the options weighed and the pattern chosen, with the reason, into
-   `research_notes/NNNN-topic.md`, and cite it in Define.
+   `Research/NNNN-topic.md`, and cite it in Define.
 5. **Set the code gates.** The numbers below, measured now on `main` over the touched area, with
    the target the intent commits to. They are checks like any other, and every merge holds them.
 
@@ -275,7 +275,7 @@ iPhone, and 0038's rebuild of it did not (the same walk: p50 50 ms and 1254 hitc
   pushed that `vite build` would refuse.
 - **One writer for the intent's file: the master.** A PR's notes go in its body, and the master
   folds them in. A branch that merges `main` takes the intent's file from `main` afterwards.
-- A change outside CI's paths (`research_notes/`, `.claude/`) merges at once: no build, no deploy.
+- A change outside CI's paths (`Research/`, `.claude/`) merges at once: no build, no deploy.
 - `next` deploys itself after CI passes on `main`; the master checks `next.maia.city/version.json`
   names the merged commit, and that the game answers.
 
@@ -321,9 +321,9 @@ It plays at `http://localhost:5173/timeline.html?story=NNNN-slug`, and from the 
 | --- | --- |
 | `Intents/` | the intents, `TEMPLATE.md` |
 | `Stories/` | a folder per proposed intent: `story.md`, `timeline.json` |
-| `brand/` | `MaiaCity.svg`, the mark, and `brand.css`, the one look of every page: Meadow (cream, forest, clay, gold; Fraunces at its softest with Outfit; the arch, the seed and the sun; everything round, glass over the game). New interface takes its colours and shapes from there, never its own. `brand/sheets/` keeps the drafts it was chosen from |
+| `Brand/` | `MaiaCity.svg`, the mark, and `brand.css`, the one look of every page: Meadow (cream, forest, clay, gold; Fraunces at its softest with Outfit; the arch, the seed and the sun; everything round, glass over the game). New interface takes its colours and shapes from there, never its own. `Brand/sheets/` keeps the drafts it was chosen from |
 | `TheGame/` | the world and the virtual camera |
-| `OS/` | the dashboard over the three: `bun run dev` at the repository's root starts it (port 5180) with the game (5173) |
+| `Website/` | the dashboard over the three: `bun run dev` at the repository's root starts it (port 5180) with the game (5173) |
 
 ## Do not
 

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Installed on the host as /usr/local/bin/maia-api-up, owned by root. The deploy user may run it with sudo and nothing
 # else as root (/etc/sudoers.d/maia-deploy): it builds the API of one release in /srv/maia-city/releases and starts it
-# with Postgres, as /etc/maia-city/compose.yml (deploy/compose.yml) says, and waits until both are healthy.
+# with Postgres, as /etc/maia-city/compose.yml (Deploy/compose.yml) says, and waits until both are healthy.
 #   maia-api-up <commit>-<time>
 set -eu
 release=${1:-}

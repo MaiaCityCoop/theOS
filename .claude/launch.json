@@ -36,7 +36,7 @@
       "runtimeExecutable": "bash",
       "runtimeArgs": [
         "-c",
-        "cd OS && VITE_GAME=http://localhost:5174 exec bunx --bun vite --port 5181 --strictPort"
+        "cd Website && VITE_GAME=http://localhost:5174 exec bunx --bun vite --port 5181 --strictPort"
       ],
       "port": 5181
     }

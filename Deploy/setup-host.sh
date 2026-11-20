@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Prepares an Ubuntu 24.04 or 26.04 LTS host to serve the website and the game, or brings one up to date. Run it from
-# your own machine with root SSH access to the host; it is safe to run again (deploy/README.md):
-#   deploy/setup-host.sh root@<host> <environment.json> <deploy-key.pub>
+# your own machine with root SSH access to the host; it is safe to run again (Deploy/README.md):
+#   Deploy/setup-host.sh root@<host> <environment.json> <deploy-key.pub>
 # It installs Caddy from Caddy's own apt repository and Docker from Ubuntu's, creates the `deploy` user whose key can only
 # run /usr/local/bin/maia-deploy (and that user may run only /usr/local/bin/maia-api-up as root), writes
 # /etc/caddy/Caddyfile for the environment's two host names and /etc/maia-city/ for the game's API, and turns on the
@@ -54,7 +54,7 @@ echo 'deb [signed-by=/etc/apt/keyrings/caddy-stable.gpg] https://dl.cloudsmith.i
 apt-get update -qq
 apt-get install -y -qq caddy >/dev/null
 
-# Docker from Ubuntu's own archive, for the game's API and its Postgres (deploy/compose.yml). The ports it publishes
+# Docker from Ubuntu's own archive, for the game's API and its Postgres (Deploy/compose.yml). The ports it publishes
 # are on 127.0.0.1 only, so ufw's rules below are not bypassed.
 apt-get install -y -qq docker.io docker-compose-v2 sudo openssl >/dev/null
 systemctl enable --now docker >/dev/null 2>&1
@@ -70,7 +70,7 @@ visudo -cqf "$incoming/sudoers"
 install -o root -g root -m 440 "$incoming/sudoers" /etc/sudoers.d/maia-deploy
 
 # The API's settings: only root reads them. The database password is made once and kept, and so is the secret for
-# aven.id's roles back channel once it has been put there (deploy/README.md); the rest follows the environment.
+# aven.id's roles back channel once it has been put there (Deploy/README.md); the rest follows the environment.
 install -d -o root -g root -m 755 /etc/maia-city
 install -o root -g root -m 644 "$incoming/compose.yml" /etc/maia-city/compose.yml
 password=$(sed -n 's/^POSTGRES_PASSWORD=//p' /etc/maia-city/api.env 2>/dev/null || true)

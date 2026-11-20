@@ -1,14 +1,14 @@
 // OS reads the repository as it is: the intents (../Intents/*.md), the stories (../Stories/*), the story ideas
-// (../Stories/ideas/*.md), the compass and the scenes, answered by ../server/repo.js, which the game's server shares.
+// (../Stories/ideas/*.md), the compass and the scenes, answered by ../Server/repo.js, which the game's server shares.
 // Nothing is copied or cached: the files are the one source.
 import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
 import { createServer } from 'vite';
-import * as repo from '../server/repo.js';
+import * as repo from '../Server/repo.js';
 
 // The deployed website has no server: a build writes what the dev server answers as files (a list as <path>/index.json,
-// as a list's path is also the folder of its items), with the brand (../brand). Caddy serves them as they are
-// (deploy/Caddyfile). /api/me names no one (a host has no repository author: the welcome has no name), and a scene's
+// as a list's path is also the folder of its items), with the brand (../Brand). Caddy serves them as they are
+// (Deploy/Caddyfile). /api/me names no one (a host has no repository author: the welcome has no name), and a scene's
 // media (Stories/objects/) is not in git, so a build has none.
 const publish = {
   name: 'publish',

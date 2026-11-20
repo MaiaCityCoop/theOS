@@ -1,6 +1,6 @@
 # Deploying the website, the game and its API
 
-- **The website** (`OS/`): the front page and the dashboard of intents and stories. Static.
+- **The website** (`Website/`): the front page and the dashboard of intents and stories. Static.
 - **The game** (`TheGame/`): its pages, and the way back from aven.id. Static.
 - **The game's API** (`API/`): who is signed in and each person's avatar. Bun and Postgres, in Docker Compose.
 
@@ -16,15 +16,15 @@ paths on the game's name to the API.
 `environments/<name>.json` holds the two origins and the aven.id `Issuer`:
 
 - The game is built with `VITE_AVEN_ISSUER`, which `TheGame/src/account/config.js` reads.
-- The website is built with `VITE_GAME`, the game origin it frames (`OS/src/main.js`).
+- The website is built with `VITE_GAME`, the game origin it frames (`Website/src/main.js`).
 - The issuer must have the client `maia-city` registered with the redirect URI `<Game>/callback`.
 
 ## What a build holds
 
 Neither site has a server once deployed. Each build writes what the dev servers answer from the repository as files
-(`server/repo.js`, which both dev servers share):
+(`Server/repo.js`, which both dev servers share):
 
-- **The website** (`OS/vite.config.js`):
+- **The website** (`Website/vite.config.js`):
   - `/api/intents`, `/api/ideas`, `/api/scenes` and `/api/stories`, each a list at `<path>/index.json`;
   - each intent, scene and story file;
   - story shots and previews;
@@ -34,7 +34,7 @@ Neither site has a server once deployed. Each build writes what the dev servers 
   - `/story/list` and `/story/<id>/timeline.json`;
   - `/cine/list` and `/cine/timelines/*`;
   - `/api/scenes/<id>/scene.json`, which the film pages read.
-- **Both:** `brand/`, without the drafts it was chosen from (`brand/sheets/`).
+- **Both:** `Brand/`, without the drafts it was chosen from (`Brand/sheets/`).
 
 Two things are missing from both builds:
 
@@ -45,7 +45,7 @@ Two things are missing from both builds:
 
 `API/README.md` describes the calls. On the host:
 
-- **`/etc/maia-city/compose.yml`** (`deploy/compose.yml`, owned by root) runs the API and Postgres 18:
+- **`/etc/maia-city/compose.yml`** (`Deploy/compose.yml`, owned by root) runs the API and Postgres 18:
   - Postgres sits on an internal network with no way out, and its data lives in the volume `maia-city_pgdata`.
   - The API listens on `127.0.0.1:8083` only. It runs as uid 1000 on a read-only filesystem, with no capabilities,
     and reaches out only for aven.id's keys.
@@ -58,7 +58,7 @@ Two things are missing from both builds:
   - the host setup keeps it from then on.
 
   Without it, a citizenship bought at aven.id shows only at the next sign-in.
-- **`/usr/local/bin/maia-api-up <release>`** (`deploy/api-up.sh`) builds one release's API image and starts it.
+- **`/usr/local/bin/maia-api-up <release>`** (`Deploy/api-up.sh`) builds one release's API image and starts it.
   It waits until the API and Postgres are healthy, then removes the images of releases no longer kept. It is the
   only command the `deploy` user may run as root.
 
@@ -74,18 +74,18 @@ There are no backups of the database yet.
    full commit SHA on `main`, finds the CI run that passed for that commit's push, and ships its release. A release
    is built for one environment (its origins and issuer are in it), so `prod`, which has no host yet, will need its
    own from CI, and is deployed by hand only.
-3. `deploy/bundle.sh` builds both sites for the environment. It adds `version.json` (commit, origins, issuer) to each
+3. `Deploy/bundle.sh` builds both sites for the environment. It adds `version.json` (commit, origins, issuer) to each
    and packs them as `website/` and `game/` in one tar, with the API's source as `api/`. The deploy checks that the
    release's `version.json` names the commit it ships.
 4. The tar goes over SSH to the `deploy` user. That key can only run `/usr/local/bin/maia-deploy`
-   (`deploy/deploy.sh`). The script:
+   (`Deploy/deploy.sh`). The script:
    - refuses anything but plain files and directories under `website/`, `game/` and `api/`;
    - unpacks the release into `/srv/maia-city/releases/<commit>-<time>`;
    - serves the build before it too: the previous release's own hashed files are hard-linked into the new one's
      `assets/` (nothing copied), so a page that loaded before the switch still finds its own chunks and workers.
      `<site>.assets` beside each site lists the release's own, so the next deploy carries only those: one build back,
      never more. A page that still loses one (two deploys while it was open) reloads into the build served, once, or
-     says so on its veil (`brand/loading.js`);
+     says so on its veil (`Brand/loading.js`);
    - builds and starts the release's API (`sudo maia-api-up`), and stops there if it doesn't come up;
    - switches the `/srv/maia-city/current` link, so both sites change at once;
    - checks on `127.0.0.1:8081` (website) and `127.0.0.1:8082` (game and API) that Caddy serves the new release and
@@ -102,7 +102,7 @@ says which commit the API runs.
 
 ## Caddy
 
-`deploy/Caddyfile`:
+`Deploy/Caddyfile`:
 
 - **Paths:** `/callback` serves `callback.html` and `/api/stories` serves `api/stories/index.json`. Anything that is
   not a file gets a 404, never a page.
@@ -129,7 +129,7 @@ On a fresh Ubuntu 24.04 or 26.04 host that your own SSH key reaches as root:
 
 ```sh
 ssh-keygen -t ed25519 -N '' -C 'github-actions deploy MaiaCityCoop/theOS next' -f ./maia-next-deploy
-deploy/setup-host.sh root@<host> deploy/environments/next.json ./maia-next-deploy.pub
+Deploy/setup-host.sh root@<host> Deploy/environments/next.json ./maia-next-deploy.pub
 ```
 
 The setup is safe to run again. It:

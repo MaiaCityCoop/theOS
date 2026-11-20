@@ -17,7 +17,7 @@ TheOS. A second checkout (a worktree) runs on the next ports up.
 
 | | |
 | --- | --- |
-| `http://localhost:5180` | the dashboard, this folder (`OS/`), with the game under `/game/` |
+| `http://localhost:5180` | the dashboard, this folder (`Website/`), with the game under `/game/` |
 | `http://localhost:5173` | the game on its own, `bun run game` at the root (`TheGame/`) |
 
 **Everything points at TheOS's own world.** Sign in, on the pill and at the foot of the way in, walks into the game
@@ -28,4 +28,4 @@ VITE_GAME=http://localhost:5174 bun run dev
 ```
 
 `bun run build` makes the deployed website (`dist/`): the dashboard with every `/api` answer written as a file
-(`deploy/README.md`). The game it frames is at `VITE_GAME`, e.g. `https://play.next.maia.city`.
+(`Deploy/README.md`). The game it frames is at `VITE_GAME`, e.g. `https://play.next.maia.city`.

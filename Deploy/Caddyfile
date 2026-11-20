@@ -1,4 +1,4 @@
-# The website (OS/) and the game (TheGame/) over HTTPS, each on its own name. setup-host.sh writes this file to
+# The website (Website/) and the game (TheGame/) over HTTPS, each on its own name. setup-host.sh writes this file to
 # /etc/caddy/Caddyfile with the environment's two names put in. Caddy obtains and renews each certificate once
 # that name's DNS record points here, and redirects HTTP to HTTPS.
 # The release being served is the directory /srv/maia-city/current links to (deploy.sh switches it).
@@ -15,7 +15,7 @@
 	}
 }
 
-# The game's API (API/, run by deploy/compose.yml on 127.0.0.1:8083): only its own paths, on the game's own name, so the
+# The game's API (API/, run by Deploy/compose.yml on 127.0.0.1:8083): only its own paths, on the game's own name, so the
 # game calls it on its own origin and its session cookie belongs to that name alone. Every other /api/ path of the game
 # (its scenes) stays a file.
 (api) {

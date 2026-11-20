@@ -1,7 +1,7 @@
 # The game's API
 
 Who is signed in to the game, and each person's avatar (intent 0024). Bun and Postgres only: `Bun.sql` and WebCrypto,
-no packages. Deployed with Docker Compose beside the static sites (`deploy/compose.yml`, `deploy/README.md`).
+no packages. Deployed with Docker Compose beside the static sites (`Deploy/compose.yml`, `Deploy/README.md`).
 
 | Call | What |
 | --- | --- |
