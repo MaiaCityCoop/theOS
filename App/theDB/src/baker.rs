@@ -10,6 +10,10 @@ use std::path::{Path, PathBuf};
 /// The doc kind the baker watches: the Library's assets.
 pub const KIND: &str = "asset";
 
+/// And the engine: a newly pinned build may bake differently (its bake code is part of every bake's key), so every
+/// asset is checked again.
+pub const ENGINE: &str = "engine";
+
 /// The baker, as a plugin of the kernel: its bakes wait in the GPU queue in `gpu`.
 pub struct Baker {
     pub gpu: PathBuf,
@@ -33,10 +37,21 @@ impl crate::plugin::Plugin for Baker {
         "baker"
     }
     fn kinds(&self) -> &[&str] {
-        &[KIND]
+        &[KIND, ENGINE]
     }
     fn changed(&self, db: &TheDB, id: &str) -> Result<()> {
-        bake_in(db, id, &self.gpu)
+        if db.meta(id)?.0 != ENGINE {
+            return bake_in(db, id, &self.gpu);
+        }
+        // a new build: each asset in turn (one that is current ends at once); a failure is logged and the rest go on
+        for (asset, _) in db.docs()? {
+            if db.meta(&asset).map(|m| m.0).unwrap_or_default() == KIND
+                && let Err(e) = bake_in(db, &asset, &self.gpu)
+            {
+                eprintln!("baker: {e}");
+            }
+        }
+        Ok(())
     }
 }
 

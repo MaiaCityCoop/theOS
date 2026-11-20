@@ -23,12 +23,15 @@ pub enum Spec {
     Box(Boxed),
 }
 
-/// A list made from the library: an item for each asset, a heading where the kind changes. In the templates, `{name}`
-/// is the asset's name and `{kind}` its kind (upper case in a heading).
+/// A list made from live data. `library`: an item for each asset, a heading where the kind changes; in the templates,
+/// `{name}` is the asset's name and `{kind}` its kind (upper case in a heading). `cover`: an item for each land cover
+/// class in the open place, the largest first; `{name}` is the class's name, `{share}` its share of the area and
+/// `{colour}` its legend colour (for a box's `bg`). It is made again when another place opens.
 #[derive(Deserialize, Clone, Debug)]
 pub struct Each {
     pub each: String,
-    pub heading: Box<Spec>,
+    #[serde(default)]
+    pub heading: Option<Box<Spec>>,
     pub item: Box<Spec>,
 }
 
@@ -48,7 +51,7 @@ pub struct Words {
     pub margin_y: f32,
     /// A live value the words show instead: `frame` (the frame time and the hour), `caption` (the Library's asset),
     /// `playhead` (the Studio's time), `play` (Play or Pause), `title` (the shot list's title), `far` (the Library's
-    /// toggle: what it shows now).
+    /// toggle: what it shows now), `cover` (the Place's toggle: natural colours or land cover).
     #[serde(default)]
     pub bind: Option<String>,
 }
@@ -80,7 +83,7 @@ pub struct Boxed {
     pub gap: f32,
     #[serde(default)]
     pub radius: f32,
-    /// A colour of the brand by its token (paper, cream, sand, forest, forest2, clay, sun, glass).
+    /// A colour of the brand by its token (paper, cream, sand, forest, forest2, clay, sun, glass), or `#rrggbb`.
     #[serde(default)]
     pub bg: Option<String>,
     #[serde(default)]
@@ -93,7 +96,8 @@ pub struct Boxed {
     /// What a click does: opens this doc, by id.
     #[serde(default)]
     pub open: Option<String>,
-    /// Or: `home`, `play`, `anchors`, `new_shots`, `far_view` (the Library: full mesh or far view).
+    /// Or: `home`, `play`, `anchors`, `new_shots`, `far_view` (the Library: full mesh or far view), `cover_view` (the
+    /// Place: natural colours or land cover).
     #[serde(default)]
     pub act: Option<String>,
     /// Where a layer sits over the world: its distances from the window's edges, in pixels.
@@ -109,6 +113,9 @@ pub struct Boxed {
     /// A live part only code draws: `strip` (the Studio's shots and playhead).
     #[serde(default)]
     pub widget: Option<String>,
+    /// Shown only while: `cover` (the Place's terrain wears the land cover classes).
+    #[serde(default)]
+    pub when: Option<String>,
     #[serde(default)]
     pub children: Vec<Spec>,
 }
@@ -137,6 +144,9 @@ pub struct Drawn;
 
 pub fn colour(token: &str) -> Color {
     use crate::ui::*;
+    if let Some(hex) = token.strip_prefix('#') {
+        return Srgba::hex(hex).map(Color::from).unwrap_or(FOREST);
+    }
     match token {
         "paper" => PAPER,
         "cream" => CREAM,
@@ -181,15 +191,22 @@ pub fn draw(commands: &mut Commands, fonts: &crate::ui::Fonts, spec: &Spec, pare
         Spec::Slider { slider, label } => slider_node(commands, fonts, slider, label),
         Spec::Each(each) => {
             let list = commands.spawn(Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(4.0), ..default() }).id();
+            if each.each == "cover" {
+                // its items come with the place (`cover_list`)
+                commands.entity(list).insert(CoverList(each.clone()));
+                return finish(commands, list, parent);
+            }
             let mut kind = String::new();
             let items = if each.each == "library" { crate::library::shelf() } else { vec![] };
             for (k, a) in items.iter().enumerate() {
                 if a.kind != kind {
                     kind = a.kind.clone();
-                    let h = fill(&each.heading, &a.name, &format!("{}S", kind.to_uppercase()));
-                    draw(commands, fonts, &h, Some(list));
+                    if let Some(heading) = &each.heading {
+                        let h = fill(heading, &[("{name}", &a.name), ("{kind}", &format!("{}S", kind.to_uppercase()))]);
+                        draw(commands, fonts, &h, Some(list));
+                    }
                 }
-                let it = draw(commands, fonts, &fill(&each.item, &a.name, &a.kind), Some(list));
+                let it = draw(commands, fonts, &fill(&each.item, &[("{name}", &a.name), ("{kind}", &a.kind)]), Some(list));
                 commands.entity(it).insert((Hovered::default(), crate::ui::Act::Pick(k), crate::ui::ShelfItem(k)));
             }
             list
@@ -226,6 +243,9 @@ pub fn draw(commands: &mut Commands, fonts: &crate::ui::Fonts, spec: &Spec, pare
                 }
                 Some("far") => {
                     ec.insert(crate::workshop::FarLabel);
+                }
+                Some("cover") => {
+                    ec.insert(crate::place::CoverLabel);
                 }
                 _ => {}
             }
@@ -274,6 +294,7 @@ pub fn draw(commands: &mut Commands, fonts: &crate::ui::Fonts, spec: &Spec, pare
                 Some("anchors") => Some(crate::ui::Act::Anchors),
                 Some("new_shots") => Some(crate::ui::Act::NewShots),
                 Some("far_view") => Some(crate::ui::Act::FarView),
+                Some("cover_view") => Some(crate::ui::Act::CoverView),
                 _ => None,
             };
             if let Some(a) = act {
@@ -282,6 +303,10 @@ pub fn draw(commands: &mut Commands, fonts: &crate::ui::Fonts, spec: &Spec, pare
             if b.widget.as_deref() == Some("strip") {
                 ec.insert(crate::ui::Strip);
             }
+            if b.when.as_deref() == Some("cover") {
+                // hidden until the view is on; `place::cover_look` keeps it in step
+                ec.insert((crate::place::CoverOnly, Visibility::Hidden));
+            }
             let e = ec.id();
             for c in &b.children {
                 draw(commands, fonts, c, Some(e));
@@ -289,18 +314,50 @@ pub fn draw(commands: &mut Commands, fonts: &crate::ui::Fonts, spec: &Spec, pare
             e
         }
     };
+    finish(commands, e, parent)
+}
+
+/// A drawn node hung under its parent, if it has one.
+fn finish(commands: &mut Commands, e: Entity, parent: Option<Entity>) -> Entity {
     if let Some(p) = parent {
         commands.entity(p).add_child(e);
     }
     e
 }
 
-/// A template filled: `{name}` and `{kind}` in its words.
-fn fill(spec: &Spec, name: &str, kind: &str) -> Spec {
+/// A template filled: each `(key, value)` in its words and in a box's colour.
+fn fill(spec: &Spec, with: &[(&str, &str)]) -> Spec {
+    let put = |t: &str| with.iter().fold(t.to_string(), |t, (k, v)| t.replace(k, v));
     match spec {
-        Spec::Words(w) => Spec::Words(Words { text: w.text.replace("{name}", name).replace("{kind}", kind), ..w.clone() }),
-        Spec::Box(b) => Spec::Box(Boxed { children: b.children.iter().map(|c| fill(c, name, kind)).collect(), ..b.clone() }),
+        Spec::Words(w) => Spec::Words(Words { text: put(&w.text), ..w.clone() }),
+        Spec::Box(b) => Spec::Box(Boxed { bg: b.bg.as_deref().map(put), children: b.children.iter().map(|c| fill(c, with)).collect(), ..b.clone() }),
         other => other.clone(),
+    }
+}
+
+/// A list of the open place's land cover classes (`"each": "cover"`): its templates.
+#[derive(Component)]
+pub struct CoverList(Each);
+
+/// Fills each land cover list with the open place's classes when it is drawn and whenever another place opens.
+fn cover_list(mut commands: Commands, fonts: Res<crate::ui::Fonts>, ground: Option<Res<crate::place::Ground>>, lists: Query<(Entity, Ref<CoverList>)>) {
+    let changed = ground.as_ref().is_some_and(|g| g.is_changed());
+    for (e, list) in &lists {
+        if !changed && !list.is_added() {
+            continue;
+        }
+        commands.entity(e).despawn_children();
+        let Some(ground) = &ground else { continue };
+        for (class, share) in crate::place::shares(&ground.cover) {
+            let [r, g, b] = class.legend;
+            let share = match share {
+                s if s < 0.05 => "<0.1 %".to_string(),
+                s if s < 9.95 => format!("{s:.1} %"),
+                s => format!("{s:.0} %"),
+            };
+            let item = fill(&list.0.item, &[("{name}", class.name), ("{share}", &share), ("{colour}", &format!("#{r:02x}{g:02x}{b:02x}"))]);
+            draw(&mut commands, &fonts, &item, Some(e));
+        }
     }
 }
 
@@ -356,7 +413,7 @@ pub fn plugin(app: &mut App) {
         .add_systems(OnEnter(World::Interface), film)
         .add_systems(Update, shot_layers.run_if(in_state(View::Studio)))
         // the live values a layer shows, wherever it is drawn (in the app and in a film)
-        .add_systems(Update, (crate::ui::frame_time, crate::ui::slide_show, crate::ui::shelf_marks, crate::ui::strip_follows, crate::ui::playhead))
+        .add_systems(Update, (crate::ui::frame_time, crate::ui::slide_show, crate::ui::shelf_marks, crate::ui::strip_follows, crate::ui::playhead, cover_list))
         .add_systems(Update, (pointer, pointed).chain().run_if(in_state(World::Interface)));
 }
 

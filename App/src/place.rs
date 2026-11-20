@@ -272,9 +272,7 @@ pub fn bake(site: &Site) -> Result<String, String> {
     // the manifest last: a package without one is unfinished
     site.write("place.json", (serde_json::to_string_pretty(&manifest).unwrap() + "\n").as_bytes())?;
     let (lo, hi) = height.iter().fold((f32::MAX, f32::MIN), |(a, b), &h| (a.min(h), b.max(h)));
-    let mut counts = [0usize; 256];
-    classes.iter().for_each(|&c| counts[c as usize] += 1);
-    let shares: Vec<String> = (0..256).filter(|&c| counts[c] > 0).map(|c| format!("{c}:{:.0}%", counts[c] as f32 * 100.0 / classes.len() as f32)).collect();
+    let shares: Vec<String> = shares(&classes).iter().map(|(c, s)| format!("{}:{s:.0}%", c.code)).collect();
     Ok(format!("baked {}: height {lo:.0}..{hi:.0} m, {} trees, cover {}", site.docs, trees.len(), shares.join(" ")))
 }
 
@@ -312,7 +310,9 @@ impl Ground {
 pub fn plugin(app: &mut App) {
     app.insert_resource(Site::mertola())
         .add_systems(OnEnter(World::Place), (stage, enter).chain())
-        .add_systems(OnExit(World::Place), (leave, unstage));
+        .add_systems(OnExit(World::Place), (leave, unstage))
+        .init_resource::<CoverView>()
+        .add_systems(Update, (cover_key.run_if(in_state(crate::View::Place)).run_if(in_state(World::Place)), cover_look).chain());
 }
 
 /// The real place's own eye: a 3D camera with its haze, made when the place opens and gone when it closes (the
@@ -362,18 +362,118 @@ pub fn hash(x: u32, y: u32, salt: u32) -> f32 {
     ((h ^ (h >> 13)).wrapping_mul(0x85eb_ca6b) >> 8) as f32 / (1u32 << 24) as f32
 }
 
-/// The colour of a WorldCover class in late autumn, after the first rains.
-pub fn colour(class: u8) -> [f32; 3] {
-    match class {
-        10 => [0.30, 0.29, 0.17], // tree cover: the ground under the cork and holm oaks, dry grass
-        20 => [0.22, 0.24, 0.14], // shrubland: cistus and broom, grey green
-        30 => [0.34, 0.34, 0.18], // grassland, half green again
-        40 => [0.36, 0.27, 0.17], // cropland, ploughed
-        50 => [0.62, 0.58, 0.52], // built up: white walls, red roofs show as light
-        60 => [0.40, 0.33, 0.24], // bare schist and soil
-        80 => [0.06, 0.12, 0.14], // water: the Guadiana
-        90 => [0.18, 0.24, 0.13], // wetland
-        _ => [0.32, 0.31, 0.20],
+/// A land cover class of ESA WorldCover, as cover.bin holds it: its code, its name, its colour in the natural view
+/// (linear, as the ground looks in late autumn after the first rains) and its colour in WorldCover's own legend (sRGB).
+/// The terrain, the map and the legend all read their colours and names from `CLASSES`, so there is no second copy.
+pub struct Class {
+    pub code: u8,
+    pub name: &'static str,
+    pub natural: [f32; 3],
+    pub legend: [u8; 3],
+}
+
+/// WorldCover's eleven classes. The legend colours are the product's published palette: ESA WorldCover 10 m 2021 v200,
+/// Product User Manual v2.0, table 1 (https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/docs/WorldCover_PUM_V2.0.pdf),
+/// the same values Earth Engine's catalog gives for ESA/WorldCover/v200. WorldCover does not tell sea, lakes and rivers
+/// apart: all are its permanent water.
+pub const CLASSES: [Class; 11] = [
+    // the ground under the cork and holm oaks, dry grass
+    Class { code: 10, name: "Tree cover", natural: [0.30, 0.29, 0.17], legend: [0x00, 0x64, 0x00] },
+    // cistus and broom, grey green
+    Class { code: 20, name: "Shrubland", natural: [0.22, 0.24, 0.14], legend: [0xff, 0xbb, 0x22] },
+    // half green again
+    Class { code: 30, name: "Grassland", natural: [0.34, 0.34, 0.18], legend: [0xff, 0xff, 0x4c] },
+    // ploughed
+    Class { code: 40, name: "Cropland", natural: [0.36, 0.27, 0.17], legend: [0xf0, 0x96, 0xff] },
+    // white walls, red roofs show as light
+    Class { code: 50, name: "Built-up", natural: [0.62, 0.58, 0.52], legend: [0xfa, 0x00, 0x00] },
+    // bare schist and soil
+    Class { code: 60, name: "Bare / sparse vegetation", natural: [0.40, 0.33, 0.24], legend: [0xb4, 0xb4, 0xb4] },
+    // old snow, a little grey
+    Class { code: 70, name: "Snow and ice", natural: [0.80, 0.82, 0.85], legend: [0xf0, 0xf0, 0xf0] },
+    // the Guadiana
+    Class { code: 80, name: "Permanent water", natural: [0.06, 0.12, 0.14], legend: [0x00, 0x64, 0xc8] },
+    Class { code: 90, name: "Herbaceous wetland", natural: [0.18, 0.24, 0.13], legend: [0x00, 0x96, 0xa0] },
+    Class { code: 95, name: "Mangroves", natural: [0.10, 0.16, 0.09], legend: [0x00, 0xcf, 0x75] },
+    Class { code: 100, name: "Moss and lichen", natural: [0.36, 0.34, 0.24], legend: [0xfa, 0xe6, 0xa0] },
+];
+
+/// A code WorldCover does not define (its no-data value is 0): the natural view's average ground, black in the legend.
+pub const NO_DATA: Class = Class { code: 0, name: "No data", natural: [0.32, 0.31, 0.20], legend: [0x00, 0x00, 0x00] };
+
+/// The class of a code.
+pub fn class(code: u8) -> &'static Class {
+    CLASSES.iter().find(|c| c.code == code).unwrap_or(&NO_DATA)
+}
+
+/// The colour of a WorldCover class in the natural view.
+pub fn colour(code: u8) -> [f32; 3] {
+    class(code).natural
+}
+
+/// The classes in a cover grid, each with its share of the area in percent, the largest first.
+pub fn shares(cover: &[u8]) -> Vec<(&'static Class, f32)> {
+    let mut counts = [0usize; 256];
+    cover.iter().for_each(|&c| counts[c as usize] += 1);
+    let mut out: Vec<(&'static Class, f32)> =
+        (0..256).filter(|&c| counts[c] > 0).map(|c| (class(c as u8), counts[c] as f32 * 100.0 / cover.len().max(1) as f32)).collect();
+    out.sort_by(|a, b| b.1.total_cmp(&a.1));
+    out
+}
+
+/// Which colours the terrain wears: the natural ones (false, the default) or WorldCover's legend (true). It outlives a
+/// place, so a square opened from the map keeps the view.
+#[derive(Resource, Default)]
+pub struct CoverView(pub bool);
+
+/// The terrain's material and its two pictures, to swap when the view changes.
+#[derive(Resource)]
+pub struct GroundLook {
+    material: Handle<StandardMaterial>,
+    natural: Handle<Image>,
+    classes: Handle<Image>,
+}
+
+/// The toggle's words: which colours the terrain wears now.
+#[derive(Component)]
+pub struct CoverLabel;
+
+/// A layer shown only while the terrain wears the land cover classes (the legend).
+#[derive(Component)]
+pub struct CoverOnly;
+
+/// L switches the terrain between its natural colours and the land cover classes.
+fn cover_key(keys: Res<ButtonInput<KeyCode>>, mut view: ResMut<CoverView>) {
+    if keys.just_pressed(KeyCode::KeyL) {
+        view.0 = !view.0;
+    }
+}
+
+/// Puts the chosen picture on the terrain, names it on the toggle and shows or hides the legend.
+fn cover_look(
+    view: Res<CoverView>,
+    look: Option<Res<GroundLook>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut labels: Query<&mut Text, With<CoverLabel>>,
+    mut only: Query<&mut Visibility, With<CoverOnly>>,
+) {
+    if let Some(look) = &look
+        && (view.is_changed() || look.is_changed())
+        && let Some(mut m) = materials.get_mut(&look.material)
+    {
+        m.base_color_texture = Some(if view.0 { look.classes.clone() } else { look.natural.clone() });
+    }
+    let want = if view.0 { "land cover · L" } else { "natural · L" };
+    for mut t in &mut labels {
+        if t.0 != want {
+            t.0 = want.into();
+        }
+    }
+    let shown = if view.0 { Visibility::Inherited } else { Visibility::Hidden };
+    for mut v in &mut only {
+        if *v != shown {
+            *v = shown;
+        }
     }
 }
 
@@ -392,6 +492,7 @@ pub fn enter(
     mut plain: Query<&mut Visibility, With<Plain>>,
     mut walker: ResMut<Walker>,
     site: Res<Site>,
+    view: Res<CoverView>,
 ) {
     let Some((_, h, cover)) = read_package(&site) else {
         error!("no place package in theDB at {}; run `cargo run -- --bake-place` once", site.docs);
@@ -431,15 +532,15 @@ pub fn enter(
         .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, nor)
         .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uv)
         .with_inserted_indices(Indices::U32(idx));
-    commands.spawn((
-        DespawnOnExit(World::Place),
-        Mesh3d(meshes.add(terrain)),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color_texture: Some(images.add(ground_image(&cover))),
-            perceptual_roughness: 1.0,
-            ..default()
-        })),
-    ));
+    // its picture: the natural colours, or the land cover classes (L), whichever the view wears
+    let (natural, classes) = (images.add(ground_image(&cover)), images.add(classes_image(&cover)));
+    let material = materials.add(StandardMaterial {
+        base_color_texture: Some(if view.0 { classes.clone() } else { natural.clone() }),
+        perceptual_roughness: 1.0,
+        ..default()
+    });
+    commands.spawn((DespawnOnExit(World::Place), Mesh3d(meshes.add(terrain)), MeshMaterial3d(material.clone())));
+    commands.insert_resource(GroundLook { material, natural, classes });
 
     // the land beyond the site, just under its lowest point (the river), so it never floods a valley
     commands.spawn((
@@ -582,6 +683,7 @@ fn leave(mut commands: Commands, mut plain: Query<&mut Visibility, With<Plain>>)
         *v = Visibility::Inherited;
     }
     commands.remove_resource::<Ground>();
+    commands.remove_resource::<GroundLook>();
 }
 
 /// The ground's picture: each cover class's colour, a little noise so no two pixels match, softened over its
@@ -627,4 +729,48 @@ fn ground_image(cover: &[u8]) -> Image {
         ..default()
     });
     img
+}
+
+/// The ground's picture in WorldCover's legend colours: one texel a cover cell, flat and unblended, so each class shows
+/// exactly where the map has it.
+fn classes_image(cover: &[u8]) -> Image {
+    use bevy::image::{ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
+    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+    let data: Vec<u8> = cover.iter().flat_map(|&c| {
+        let [r, g, b] = class(c).legend;
+        [r, g, b, 255]
+    }).collect();
+    let mut img = Image::new(
+        Extent3d { width: CN as u32, height: CN as u32, depth_or_array_layers: 1 },
+        TextureDimension::D2,
+        data,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::default(),
+    );
+    img.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+        mag_filter: ImageFilterMode::Nearest,
+        min_filter: ImageFilterMode::Linear,
+        ..default()
+    });
+    img
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn classes_are_worldcovers_eleven_once_each() {
+        let codes: Vec<u8> = CLASSES.iter().map(|c| c.code).collect();
+        assert_eq!(codes, [10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100]);
+        assert_eq!(class(80).legend, [0x00, 0x64, 0xc8]);
+        assert_eq!(class(7).name, NO_DATA.name);
+    }
+
+    #[test]
+    fn shares_sum_to_the_whole_largest_first() {
+        let s = shares(&[10, 10, 10, 80, 50, 10, 80, 10]);
+        assert_eq!(s.iter().map(|(c, _)| c.code).collect::<Vec<_>>(), [10, 80, 50]);
+        assert!((s.iter().map(|(_, p)| p).sum::<f32>() - 100.0).abs() < 1e-3);
+    }
 }

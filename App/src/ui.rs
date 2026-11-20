@@ -36,6 +36,8 @@ pub enum Act {
     Pick(usize),
     /// The Library: the asset as its full mesh, or as its far view.
     FarView,
+    /// The Place: the terrain in its natural colours, or in its land cover classes.
+    CoverView,
 }
 
 /// When the current view opened, in real seconds since the start.
@@ -275,6 +277,7 @@ fn press(
     mut next: ResMut<NextState<View>>,
     mut s: ResMut<Studio>,
     shelf: Option<ResMut<crate::workshop::Shelf>>,
+    cover: Option<ResMut<crate::place::CoverView>>,
 ) {
     let Ok(act) = acts.get(click.entity) else { return };
     // a box that opens a doc: a shot list opens in the Studio
@@ -303,6 +306,11 @@ fn press(
         Act::FarView => {
             if let Some(mut shelf) = shelf {
                 shelf.far = !shelf.far;
+            }
+        }
+        Act::CoverView => {
+            if let Some(mut c) = cover {
+                c.0 = !c.0;
             }
         }
         Act::PlayPause => {

@@ -12,20 +12,16 @@
 //! `terrain.rs`). At full detail it has a few hundred thousand triangles; its far views are made from it.
 
 use bevy::asset::RenderAssetUsages;
-use bevy::mesh::{Indices, MeshVertexAttribute, PrimitiveTopology, VertexFormat};
+use crate::library::ATTRIBUTE_WIND;
+use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::prelude::*;
 use std::f32::consts::{PI, TAU};
 
-/// How much a vertex moves in the wind, 0 to 1, one Float32 per vertex. It follows the branch hierarchy: 0 at the
-/// trunk's foot, rising along every branch by the length walked from the root, faster the higher the branch's order
-/// (a twig bends more per metre than a limb), so a twig's tip is near 1 and a leaf's tip a little more than its
-/// twig. It is continuous at every fork: a branch starts with its parent's weight where it leaves it, so the wood
-/// never tears apart when it sways. The whole tree is scaled so its largest weight is 1. Nothing draws it yet: it is
-/// for the wind shader and the impostor's wind channel.
-pub const ATTRIBUTE_WIND: MeshVertexAttribute = MeshVertexAttribute::new("Wind", 0x7EE0_0050_0000_0001, VertexFormat::Float32);
-
-/// The tree's height range, metres: the same as the `broadleaf` asset's size in `library.rs`.
-pub const HEIGHT: [f32; 2] = [8.0, 16.0];
+// The tree's wind weight (`library::ATTRIBUTE_WIND`) follows the branch hierarchy: 0 at the trunk's foot, rising
+// along every branch by the length walked from the root, faster the higher the branch's order (a twig bends more per
+// metre than a limb), so a twig's tip is near 1 and a leaf's tip a little more than its twig. It is continuous at
+// every fork: a branch starts with its parent's weight where it leaves it, so the wood never tears apart when it
+// sways. The whole tree is scaled so its largest weight is 1.
 
 /// Per branch order (0 the trunk, 1 the limbs, 2 the branches, 3 the small branches, 4 the twigs): sides around a
 /// ring, points along the branch, the radius at its tip (metres), how strongly it turns up towards the light (per
@@ -284,10 +280,11 @@ fn leaf_shape() -> (Vec<Vec3>, Vec<Vec3>, Vec<[u32; 3]>) {
     (pts, nrm, tris)
 }
 
-/// The master of the broadleaf tree: the full-detail individual `seed`, its foot at the origin, its leaves `col`.
-pub fn tree_master(seed: u32, col: Vec3) -> Mesh {
+/// The master of the broadleaf tree (a generator, `library::GENERATORS`): the full-detail individual `seed`, `size`
+/// metres tall, its foot at the origin, its leaves `col`.
+pub fn tree_master(_: &crate::library::Asset, seed: u32, size: f32, col: Vec3) -> Mesh {
     let mut rng = Rng::new(seed);
-    let height = rng.range(HEIGHT[0], HEIGHT[1]);
+    let height = size;
     let spread = rng.f();
     let mut grow = Grow { rng, limbs: Vec::new(), height, spread };
 
@@ -386,10 +383,11 @@ pub fn tree_master(seed: u32, col: Vec3) -> Mesh {
     }
 
     // the leaves: one shape, copied along every leafy branch's outer part and clustered at its tip, each turned to
-    // face the sky more or less, its own size and shade; about fourteen to twenty-six thousand on a tree
+    // face the sky more or less, its own size and shade; about fourteen thousand on a tree 8 m tall, twenty-six
+    // thousand at 16 m
     let (shape, shape_nrm, shape_tris) = leaf_shape();
     let leafy: Vec<&Limb> = limbs.iter().filter(|l| l.leafy).collect();
-    let wanted = 14_000.0 + 12_000.0 * (height - HEIGHT[0]) / (HEIGHT[1] - HEIGHT[0]);
+    let wanted = 2_000.0 + 1_500.0 * height;
     let per = (wanted / leafy.len().max(1) as f32).clamp(4.0, 24.0);
     let centre = Vec3::new(0.0, height * 0.6, 0.0);
     for l in leafy {
@@ -443,8 +441,6 @@ mod tests {
     use super::*;
     use bevy::mesh::VertexAttributeValues;
 
-    const LEAF: Vec3 = Vec3::new(0.06, 0.13, 0.03);
-
     fn positions(m: &Mesh) -> &Vec<[f32; 3]> {
         match m.attribute(Mesh::ATTRIBUTE_POSITION) {
             Some(VertexAttributeValues::Float32x3(p)) => p,
@@ -452,11 +448,14 @@ mod tests {
         }
     }
 
+    /// The broadleaf's masters: the same tree from a seed, in budget, wind weights from the foot up, a new tree for a
+    /// new seed. Their size is `library`'s test.
     #[test]
-    fn tree_grows_the_same_from_a_seed_in_budget_and_size() {
+    fn tree_grows_the_same_from_a_seed_in_budget() {
+        let broadleaf = crate::library::builtin().into_iter().find(|a| a.generator == "tree").unwrap();
         let mut tops = Vec::new();
         for seed in 1..=4 {
-            let (a, b) = (tree_master(seed, LEAF), tree_master(seed, LEAF));
+            let (a, b) = (crate::library::master(&broadleaf, seed), crate::library::master(&broadleaf, seed));
             assert_eq!(positions(&a), positions(&b), "seed {seed} grows the same tree twice");
             let tris = crate::library::triangles(&a);
             let width = positions(&a).iter().fold(0.0f32, |m, p| m.max(2.0 * p[0].hypot(p[2])));
@@ -468,8 +467,6 @@ mod tests {
             assert!(wind.iter().all(|w| (0.0..=1.0).contains(w)), "wind weights in [0, 1]");
             let lowest = positions(&a).iter().zip(wind).min_by(|x, y| x.0[1].total_cmp(&y.0[1])).unwrap();
             assert!(*lowest.1 < 0.01, "the trunk's foot does not move");
-            let top = positions(&a).iter().fold(f32::MIN, |m, p| m.max(p[1]));
-            assert!(top >= HEIGHT[0] && top <= HEIGHT[1] + 0.2, "seed {seed}: {top} m tall");
             tops.push(top);
         }
         assert!(tops.windows(2).any(|w| (w[0] - w[1]).abs() > 0.1), "seeds grow different trees");
