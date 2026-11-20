@@ -5,12 +5,15 @@
 use bevy::mesh::{Indices, Mesh};
 
 /// The bake code itself (intent 0050): the source of every file a bake's result depends on, so a change to how a
-/// master is grown or photographed makes new keys by itself; no version to remember to raise.
+/// master is grown or photographed makes new keys by itself; no version to remember to raise. The bakes' own files are
+/// named here; the generators' come from `library::GENERATORS`, the list `library::master` grows through, so every
+/// generator's code is in the key without being listed twice.
 fn code() -> &'static [u8] {
     static CODE: std::sync::OnceLock<Vec<u8>> = std::sync::OnceLock::new();
     CODE.get_or_init(|| {
-        [include_str!("bakes.rs"), include_str!("impostor.rs"), include_str!("library.rs"), include_str!("grass.rs"), include_str!("terrain.rs"), include_str!("lawn.rs")]
-            .iter()
+        [include_str!("bakes.rs"), include_str!("impostor.rs"), include_str!("library.rs"), include_str!("lawn.rs")]
+            .into_iter()
+            .chain(crate::library::GENERATORS.iter().map(|g| g.2))
             .flat_map(|s| s.as_bytes().iter().copied())
             .collect()
     })
@@ -32,10 +35,10 @@ pub fn key(kind: &str, inputs: &[&[u8]], shaders: &[&str]) -> String {
     thedb::Hash::new(&all).to_hex().to_string()
 }
 
-/// A mesh's bytes: its positions, normals, colours, UVs and indices, for a key.
+/// A mesh's bytes: its positions, normals, colours, UVs, wind weights and indices, for a key.
 pub fn mesh_bytes(mesh: &Mesh) -> Vec<u8> {
     let mut b = Vec::new();
-    for a in [Mesh::ATTRIBUTE_POSITION, Mesh::ATTRIBUTE_NORMAL, Mesh::ATTRIBUTE_COLOR, Mesh::ATTRIBUTE_UV_0] {
+    for a in [Mesh::ATTRIBUTE_POSITION, Mesh::ATTRIBUTE_NORMAL, Mesh::ATTRIBUTE_COLOR, Mesh::ATTRIBUTE_UV_0, crate::library::ATTRIBUTE_WIND] {
         if let Some(v) = mesh.attribute(a) {
             b.extend(v.get_bytes());
         }

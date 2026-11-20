@@ -463,12 +463,13 @@ pub fn far(cx: f32, cz: f32, hole: Option<[f32; 4]>) -> Mesh {
     g.mesh()
 }
 
-/// The master of a library rock: the full-detail individual `seed`, resting on flat ground at the origin.
-pub fn rock_master(generator: &str, size: f32, colour: Vec3, flatness: f32, seed: u32) -> Mesh {
+/// The master of a library rock (a generator, `library::GENERATORS`): the full-detail individual `seed`, `size`
+/// metres across, resting on flat ground at the origin.
+pub fn rock_master(a: &crate::library::Asset, seed: u32, size: f32, colour: Vec3) -> Mesh {
     let mut g = Geo::default();
-    match generator {
-        "clod" => g.clod(0.0, 0.0, size, seed, colour, flatness),
-        _ => g.stone(0.0, 0.0, size, seed, colour, flatness),
+    match a.generator.as_str() {
+        "clod" => g.clod(0.0, 0.0, size, seed, colour, a.flatness),
+        _ => g.stone(0.0, 0.0, size, seed, colour, a.flatness),
     }
     // built on the land's height there: brought down to y = 0
     let ground = height(0.0, 0.0);

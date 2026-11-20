@@ -1,8 +1,10 @@
 //! Impostors: an asset's master seen from far off, without drawing it. Its master is photographed once by the GPU
-//! from 8 × 8 directions over the upper hemisphere (a hemi-octahedral grid), into two atlases: its colour with its
-//! coverage, and its surface normal. A far copy is then a single quad that turns to face the eye, shows the frame
-//! nearest the eye's direction, and is lit like a surface with the baked normals. Generic: any mesh with vertex
-//! colours bakes the same way (plants, rocks, later bushes and trees).
+//! from 8 × 8 directions over the upper hemisphere (a hemi-octahedral grid), into three atlases: its colour with its
+//! coverage; its surface normal; and its other channels (depth along the view, wind weight, sky visibility, coverage:
+//! `bake_normal.wesl`'s `extra`). A far copy is then a single quad that turns to face the eye, shows the frame nearest
+//! the eye's direction, is lit like a surface with the baked normals, and sways with the master's own wind function
+//! (`wind.wesl`'s `bend`) by its baked wind weights. Generic: any mesh with vertex colours bakes the same way (plants,
+//! rocks, trees); one without wind weights bakes as still.
 
 use bevy::camera::visibility::RenderLayers;
 use bevy::camera::{RenderTarget, ScalingMode};
@@ -19,14 +21,16 @@ pub const RES: u32 = 128;
 /// Ticks a bake waits on its first view before it starts, for its shaders to compile.
 const WARM: i32 = 90;
 
-/// The render layers bakes draw on: each bake its own pair, so two bakes running at once (the grass patch's at startup
-/// and the Library's first asset) never photograph each other's copies.
+/// The render layers bakes draw on: each bake its own set (one layer a pass), so two bakes running at once (the grass
+/// patch's at startup and the Library's first asset) never photograph each other's copies.
 const FIRST_LAYER: usize = 8;
-const PAIRS: usize = 24;
+const SETS: usize = 24;
+/// The pictures a master is photographed into: its colour, its normal, its other channels.
+const PASSES: usize = 3;
 static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 pub fn plugin(app: &mut App) {
-    app.add_plugins((MaterialPlugin::<NormalBake>::default(), MaterialPlugin::<Impostor>::default())).add_systems(Update, (shoot, finish).chain());
+    app.add_plugins((MaterialPlugin::<BakePass>::default(), MaterialPlugin::<Impostor>::default())).add_systems(Update, ((shoot, finish).chain(), blow));
 }
 
 /// The direction of frame (i, j): the hemi-octahedral grid decoded at the frame's centre (also in `impostor.wesl`).
@@ -42,13 +46,24 @@ fn frame_up(f: Vec3) -> Vec3 {
     if f.y.abs() > 0.999 { -Vec3::Z } else { Vec3::Y }
 }
 
-/// An asset's far view: for each of its variants two atlases (colour, normal), and the sphere around them all that
-/// each frame shows.
+/// An asset's far view: for each of its variants its atlases, the sphere around them all that each frame shows, and
+/// the largest wind weight in them (0 for a master that does not sway).
 #[derive(Clone)]
 pub struct Baked {
-    pub variants: Vec<(Handle<Image>, Handle<Image>)>,
+    pub variants: Vec<Atlases>,
     pub centre: Vec3,
     pub radius: f32,
+    pub wind: f32,
+}
+
+/// One variant's atlases: its colour with its coverage (sRGB); its normal in the master's own space; and its other
+/// channels: r its depth along the frame's view (−1 to 1 across its sphere), g its wind weight, b its sky visibility,
+/// a its coverage.
+#[derive(Clone)]
+pub struct Atlases {
+    pub albedo: Handle<Image>,
+    pub normal: Handle<Image>,
+    pub extra: Handle<Image>,
 }
 
 /// What a finished bake is kept as: the asset, the key, its parameters, and how many parts are still to come.
@@ -79,13 +94,61 @@ struct Shooting {
     keep: (std::sync::Arc<Keep>, String),
 }
 
-/// Writes a surface's normal as its colour.
+/// The bake's own passes (`bake_normal.wesl`): a surface's normal as its colour, or (`extra`) its other channels. Both
+/// read the master's wind weights (`library::ATTRIBUTE_WIND`; a master without them is given zeros before it is baked).
 #[derive(Asset, TypePath, AsBindGroup, Clone, Debug, Default)]
-pub struct NormalBake {}
+#[bind_group_data(BakePassKey)]
+pub struct BakePass {
+    /// xyz: the master's centre, w: the radius of its sphere (the depth and the sky are measured in it).
+    #[uniform(0)]
+    pub sphere: Vec4,
+    /// The other channels' pass, not the normal's.
+    pub extra: bool,
+}
 
-impl Material for NormalBake {
+#[repr(C)]
+#[derive(Eq, PartialEq, Hash, Copy, Clone)]
+pub struct BakePassKey {
+    extra: bool,
+}
+
+impl From<&BakePass> for BakePassKey {
+    fn from(m: &BakePass) -> Self {
+        BakePassKey { extra: m.extra }
+    }
+}
+
+impl Material for BakePass {
+    fn vertex_shader() -> ShaderRef {
+        ShaderRef::Path(crate::root::shader(&crate::root::root().shaders.bake_normal).into())
+    }
     fn fragment_shader() -> ShaderRef {
         ShaderRef::Path(crate::root::shader(&crate::root::root().shaders.bake_normal).into())
+    }
+    // drawn only by the bake's cameras: no prepass and no shadows (their pipelines would not know the wind attribute)
+    fn enable_prepass() -> bool {
+        false
+    }
+    fn enable_shadows() -> bool {
+        false
+    }
+    fn specialize(
+        _pipeline: &bevy::pbr::MaterialPipeline,
+        descriptor: &mut bevy::render::render_resource::RenderPipelineDescriptor,
+        layout: &bevy::mesh::MeshVertexBufferLayoutRef,
+        key: bevy::pbr::MaterialPipelineKey<Self>,
+    ) -> Result<(), bevy::render::render_resource::SpecializedMeshPipelineError> {
+        descriptor.vertex.buffers = vec![layout.0.get_layout(&[
+            Mesh::ATTRIBUTE_POSITION.at_shader_location(0),
+            Mesh::ATTRIBUTE_NORMAL.at_shader_location(1),
+            crate::library::ATTRIBUTE_WIND.at_shader_location(8),
+        ])?];
+        // the bake doc holds both passes: each pipeline names its own fragment (left unnamed, a module with two
+        // fragment entry points is refused by the GPU's validation)
+        if let Some(f) = descriptor.fragment.as_mut() {
+            f.entry_point = Some(if key.bind_group_data.extra { "extra" } else { "fragment" }.into());
+        }
+        Ok(())
     }
 }
 
@@ -93,7 +156,8 @@ impl Material for NormalBake {
 pub struct ImpostorParams {
     /// xyz: the master's centre, w: the radius of its sphere.
     pub sphere: Vec4,
-    /// x: frames along a side.
+    /// x: frames along a side; y: the patch field's start (`patches.rs`); z: the bake's largest wind weight (0: it does
+    /// not sway, and its quad does not grow).
     pub grid: Vec4,
 }
 
@@ -108,6 +172,12 @@ pub struct Impostor {
     #[texture(3)]
     #[sampler(4)]
     pub normal: Handle<Image>,
+    #[texture(5)]
+    #[sampler(6)]
+    pub extra: Handle<Image>,
+    /// The wind as the grass has it (`wind.rs`): the same uniforms, so a far copy sways as its master.
+    #[uniform(7)]
+    pub wind: crate::wind::WindParams,
 }
 
 impl Material for Impostor {
@@ -130,19 +200,31 @@ impl Material for Impostor {
 impl Impostor {
     /// A far copy drawn as variant `v` of the bake.
     pub fn of(b: &Baked, v: u32) -> Self {
-        let (albedo, normal) = b.variants[v as usize % b.variants.len()].clone();
-        Impostor { params: ImpostorParams { sphere: b.centre.extend(b.radius), grid: Vec4::new(FRAMES as f32, 0.0, 0.0, 0.0) }, albedo, normal }
+        let Atlases { albedo, normal, extra } = b.variants[v as usize % b.variants.len()].clone();
+        Impostor {
+            params: ImpostorParams { sphere: b.centre.extend(b.radius), grid: Vec4::new(FRAMES as f32, 0.0, b.wind, 0.0) },
+            albedo,
+            normal,
+            extra,
+            wind: default(),
+        }
     }
 }
 
-/// The quad a far copy is drawn on: its corners in [-1, 1]; the shader turns and sizes it. It carries tangents only so
-/// the shader can hand the frame's axes in the world to the fragment (the baked normals are in the master's own space
-/// and must turn with the copy).
-pub fn quad() -> Mesh {
-    Rectangle::new(2.0, 2.0).mesh().build().with_generated_tangents().expect("a rectangle has normals and UVs")
+/// Gives every far copy the wind of this frame, as `wind.rs` gives the grass.
+fn blow(time: Res<Time>, strength: Res<crate::wind::Strength>, mut impostors: ResMut<Assets<Impostor>>) {
+    let now = crate::wind::now(&time, &strength);
+    for (_, m) in impostors.iter_mut() {
+        m.wind.params = now;
+    }
 }
 
-/// Bakes `mesh` (its vertex colours its albedo): spawns the copies and 2 × 64 cameras that each photograph one frame
+/// The quad a far copy is drawn on: its corners in [-1, 1]; the shader turns and sizes it.
+pub fn quad() -> Mesh {
+    Rectangle::new(2.0, 2.0).mesh().build()
+}
+
+/// Bakes `mesh` (its vertex colours its albedo): spawns the copies and 3 × 64 cameras that each photograph one frame
 /// into the atlases, once; they are removed a few frames later.
 pub fn bake(
     commands: &mut Commands,
@@ -150,7 +232,7 @@ pub fn bake(
     meshes: &mut Assets<Mesh>,
     images: &mut Assets<Image>,
     colours: &mut Assets<StandardMaterial>,
-    normals: &mut Assets<NormalBake>,
+    passes: &mut Assets<BakePass>,
 ) -> Baked {
     let side = FRAMES * RES;
     let atlas = |format: TextureFormat, data: Option<Vec<u8>>| {
@@ -175,26 +257,36 @@ pub fn bake(
         && let Some(params) = crate::bakes::valid(id, "impostor", &key)
     {
         let parts: Option<Vec<_>> = (0..n)
-            .map(|v| Some((crate::bakes::part(id, "impostor", &format!("albedo {v}"))?, crate::bakes::part(id, "impostor", &format!("normal {v}"))?)))
+            .map(|v| {
+                let p = |name: &str| crate::bakes::part(id, "impostor", &format!("{name} {v}"));
+                Some((p("albedo")?, p("normal")?, p("extra")?))
+            })
             .collect();
         if let Some(parts) = parts {
             let f = |k: &str| params.get(k).and_then(|x| x.as_f64()).unwrap_or(0.0) as f32;
             let variants = parts
                 .into_iter()
-                .map(|(a, nm)| (images.add(atlas(TextureFormat::Rgba8UnormSrgb, Some(a))), images.add(atlas(TextureFormat::Rgba8Unorm, Some(nm)))))
+                .map(|(a, nm, x)| Atlases {
+                    albedo: images.add(atlas(TextureFormat::Rgba8UnormSrgb, Some(a))),
+                    normal: images.add(atlas(TextureFormat::Rgba8Unorm, Some(nm))),
+                    extra: images.add(atlas(TextureFormat::Rgba8Unorm, Some(x))),
+                })
                 .collect();
-            return Baked { variants, centre: Vec3::new(f("x"), f("y"), f("z")), radius: f("radius") };
+            return Baked { variants, centre: Vec3::new(f("x"), f("y"), f("z")), radius: f("radius"), wind: f("wind") };
         }
     }
     // not made yet, or made from something else: grow each variant's master and photograph it
-    let masters: Vec<Mesh> = (0..n).map(|v| crate::library::master(asset, crate::library::variant_seed(v))).collect();
-    let (mut lo, mut hi) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
+    let masters: Vec<Mesh> = (0..n).map(|v| with_wind(crate::library::master(asset, crate::library::variant_seed(v)))).collect();
+    let (mut lo, mut hi, mut wind) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN), 0.0f32);
     for m in &masters {
         if let Some(bevy::mesh::VertexAttributeValues::Float32x3(pos)) = m.attribute(Mesh::ATTRIBUTE_POSITION) {
             for p in pos {
                 lo = lo.min(Vec3::from(*p));
                 hi = hi.max(Vec3::from(*p));
             }
+        }
+        if let Some(bevy::mesh::VertexAttributeValues::Float32(w)) = m.attribute(crate::library::ATTRIBUTE_WIND) {
+            wind = w.iter().fold(wind, |a, &b| a.max(b));
         }
     }
     if lo.x > hi.x {
@@ -205,17 +297,29 @@ pub fn bake(
     let keep = std::sync::Arc::new(Keep {
         asset: asset.id.clone(),
         key,
-        params: serde_json::json!({ "x": centre.x, "y": centre.y, "z": centre.z, "radius": radius, "variants": n, "frames": FRAMES, "res": RES }),
-        left: std::sync::Mutex::new(2 * n),
+        params: serde_json::json!({ "x": centre.x, "y": centre.y, "z": centre.z, "radius": radius, "wind": wind, "variants": n, "frames": FRAMES, "res": RES }),
+        left: std::sync::Mutex::new(PASSES as u32 * n),
     });
     let mut variants = Vec::new();
     for (v, mesh) in masters.into_iter().enumerate() {
-        let albedo = images.add(atlas(TextureFormat::Rgba8UnormSrgb, None));
-        let normal = images.add(atlas(TextureFormat::Rgba8Unorm, None));
-        shoot_master(commands, mesh, centre, radius, [(&albedo, format!("albedo {v}")), (&normal, format!("normal {v}"))], &keep, meshes, images, colours, normals);
-        variants.push((albedo, normal));
+        let a = Atlases {
+            albedo: images.add(atlas(TextureFormat::Rgba8UnormSrgb, None)),
+            normal: images.add(atlas(TextureFormat::Rgba8Unorm, None)),
+            extra: images.add(atlas(TextureFormat::Rgba8Unorm, None)),
+        };
+        shoot_master(commands, mesh, centre, radius, v, &a, &keep, meshes, images, colours, passes);
+        variants.push(a);
     }
-    Baked { variants, centre, radius }
+    Baked { variants, centre, radius, wind }
+}
+
+/// A master as the bake's passes read it: with its wind weights, zeros where it has none (it bakes as still).
+fn with_wind(mut mesh: Mesh) -> Mesh {
+    if mesh.attribute(crate::library::ATTRIBUTE_WIND).is_none() {
+        let n = mesh.count_vertices();
+        mesh.insert_attribute(crate::library::ATTRIBUTE_WIND, vec![0.0f32; n]);
+    }
+    mesh
 }
 
 /// The key of an asset's impostor: its recipe, the bake's settings, its shader and the bake code (`bakes::key`).
@@ -243,7 +347,7 @@ pub fn bake_one(
     mut meshes: ResMut<Assets<Mesh>>,
     mut images: ResMut<Assets<Image>>,
     mut colours: ResMut<Assets<StandardMaterial>>,
-    mut normals: ResMut<Assets<NormalBake>>,
+    mut passes: ResMut<Assets<BakePass>>,
     mut exit: MessageWriter<AppExit>,
 ) {
     let Some(asset) = crate::library::load().into_values().find(|a| a.id.as_deref() == Some(job.asset.as_str())) else {
@@ -258,7 +362,7 @@ pub fn bake_one(
     }
     if job.frames == 0 {
         info!("--bake: {} ({} variants)", asset.name, asset.variants.max(1));
-        bake(&mut commands, &asset, &mut meshes, &mut images, &mut colours, &mut normals);
+        bake(&mut commands, &asset, &mut meshes, &mut images, &mut colours, &mut passes);
     }
     job.frames += 1;
     // a bake takes about 160 frames and its read-backs a few more; one that has not finished in ten times that failed
@@ -268,29 +372,37 @@ pub fn bake_one(
     }
 }
 
-/// Sets up the cameras and copies that photograph one master into its two atlases.
+/// Sets up the cameras and copies that photograph variant `v`'s master into its three atlases, a layer each.
 #[allow(clippy::too_many_arguments)]
 fn shoot_master(
     commands: &mut Commands,
     mesh: Mesh,
     centre: Vec3,
     radius: f32,
-    targets: [(&Handle<Image>, String); 2],
+    v: usize,
+    targets: &Atlases,
     keep: &std::sync::Arc<Keep>,
     meshes: &mut Assets<Mesh>,
     images: &mut Assets<Image>,
     colours: &mut Assets<StandardMaterial>,
-    normals: &mut Assets<NormalBake>,
+    passes: &mut Assets<BakePass>,
 ) {
     let m = meshes.add(mesh);
-    let flat = colours.add(StandardMaterial { base_color: Color::WHITE, unlit: true, double_sided: true, cull_mode: None, ..default() });
     let ticks = FRAMES * FRAMES + 8 + WARM as u32;
-    let pair = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % PAIRS;
-    let (albedo_layer, normal_layer) = (FIRST_LAYER + 2 * pair, FIRST_LAYER + 2 * pair + 1);
-    commands.spawn((Baking(ticks), Mesh3d(m.clone()), MeshMaterial3d(flat), RenderLayers::layer(albedo_layer), Transform::default()));
-    commands.spawn((Baking(ticks), Mesh3d(m), MeshMaterial3d(normals.add(NormalBake {})), RenderLayers::layer(normal_layer), Transform::default()));
-    let [(albedo, a_part), (normal, n_part)] = targets;
-    for (layer, target, format, part) in [(albedo_layer, albedo, TextureFormat::Rgba8UnormSrgb, a_part), (normal_layer, normal, TextureFormat::Rgba8Unorm, n_part)] {
+    let first = FIRST_LAYER + PASSES * (NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % SETS);
+    let sphere = centre.extend(radius);
+    let flat = colours.add(StandardMaterial { base_color: Color::WHITE, unlit: true, double_sided: true, cull_mode: None, ..default() });
+    commands.spawn((Baking(ticks), Mesh3d(m.clone()), MeshMaterial3d(flat), RenderLayers::layer(first), Transform::default()));
+    for (k, extra) in [(1, false), (2, true)] {
+        let pass = passes.add(BakePass { sphere, extra });
+        commands.spawn((Baking(ticks), Mesh3d(m.clone()), MeshMaterial3d(pass), RenderLayers::layer(first + k), Transform::default()));
+    }
+    let shots = [
+        (&targets.albedo, TextureFormat::Rgba8UnormSrgb, "albedo"),
+        (&targets.normal, TextureFormat::Rgba8Unorm, "normal"),
+        (&targets.extra, TextureFormat::Rgba8Unorm, "extra"),
+    ];
+    for (k, (target, format, name)) in shots.into_iter().enumerate() {
         let views: Vec<Handle<Image>> = (0..FRAMES * FRAMES)
             .map(|_| {
                 let mut img = Image::new_target_texture(RES, RES, format, None);
@@ -299,13 +411,13 @@ fn shoot_master(
                 images.add(img)
             })
             .collect();
-        let first = views[0].clone();
+        let first_view = views[0].clone();
         commands.spawn((
             Baking(ticks + 200),
-            Shooting { k: -WARM, centre, radius, views, atlas: target.clone(), got: Default::default(), keep: (keep.clone(), part) },
+            Shooting { k: -WARM, centre, radius, views, atlas: target.clone(), got: Default::default(), keep: (keep.clone(), format!("{name} {v}")) },
             Camera3d::default(),
             Camera { order: -100, clear_color: ClearColorConfig::Custom(Color::NONE), ..default() },
-            RenderTarget::Image(first.into()),
+            RenderTarget::Image(first_view.into()),
             Projection::Orthographic(OrthographicProjection {
                 scaling_mode: ScalingMode::Fixed { width: radius * 2.0, height: radius * 2.0 },
                 near: 0.0,
@@ -314,7 +426,7 @@ fn shoot_master(
             }),
             Tonemapping::None,
             Msaa::Off,
-            RenderLayers::layer(layer),
+            RenderLayers::layer(first + k),
             Transform::default(),
         ));
     }

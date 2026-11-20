@@ -155,6 +155,16 @@ The tree adds lines (its recipe); it is counted apart from the size gate, which 
   `broadleaf` with 4 variants. Found on the way, for deliverable 1: plant generators are not given the asset's
   size; `size` means "across" for rocks and height for the tree; the wind weight is not in any bake key.
 - **The Library (Samuel):** one turntable, the full mesh or the far view in the same place: F or the toggle chip.
+- **The asset contract (1):** one list of generators (`library::GENERATORS`), one signature `fn(&Asset, seed, size,
+  colour)`, the size from the recipe for every kind; `size` is the longest side of an individual's bounding box, and
+  `master` fits every individual to it; every generator's source is in the bake key; the wind weight
+  (`library::ATTRIBUTE_WIND`) is part of the master's attributes, 0 where a generator gives none.
+- **The texel channels (5):** a third atlas per variant: depth, wind weight, sky visibility, coverage. Far copies
+  sway with the same `bend` the grass uses (`wind.wesl`), at the same time and strength. On the GPU the first run was
+  refused: the bake doc has two fragment entry points and one pipeline named none; each pipeline names its own now.
+  Masters do not sway yet: the far copy of the broadleaf moves, its full mesh does not.
+- **The baker on a new build:** it also watches the engine doc, so a new build (whose bake code is in every key)
+  checks every asset in the background: all eleven in about 35 s after the first publish with the texel channels.
 
 ## Propose
 
@@ -175,11 +185,12 @@ _accepted or rejected, the date, the reason in a line._
 - [x] Samuel answers the two open questions (variants per asset, default 1; the kernel bakes, as a plugin)
 - [x] Samuel approves the definition
 - [ ] Measure the missing code gates on `main`
-- [ ] 1 The asset contract (size to every generator; one meaning of size; wind weight in the key)
+- [x] 1 The asset contract (size to every generator; one meaning of size; wind weight in the key)
 - [x] 2 Bakes linked from the asset (first cut)
 - [x] 3 The baker, a kernel plugin
 - [x] 4 One impostor per asset
-- [ ] 5 Texel channels and wind on impostors
+- [x] 5 Texel channels and wind on impostors (looked at on screen: still to do)
+- [ ] Masters sway with the same `bend` (the tree, the plants)
 - [ ] 6 One measure, one switch
 - [ ] 7 The seven schemes collapsed
 - [x] 8 One source for shared functions (the biome doc's bare numbers left)

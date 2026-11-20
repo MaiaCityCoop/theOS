@@ -197,6 +197,8 @@ fn blades(cx: i32, cz: i32, share: f32, fine: bool) -> Mesh {
     let count = (full as f32 * share) as u32;
     let segs = if share >= 1.0 { SEGS } else { SEGS - 1 };
     let detail = share >= 1.0 && !fine; // seed heads, thatch and low plants only near the eye
+    // the seed heads' heights: the library's seed head
+    let heads = crate::library::load().get("seed head").cloned();
     let fold = fine; // the close blades fold along the midrib, as real ones do (only near the eye, where it shows)
     let count = if fine { count * 3 / 2 } else { count };
 
@@ -221,13 +223,13 @@ fn blades(cx: i32, cz: i32, share: f32, fine: bool) -> Mesh {
         }
         // about one in forty goes to seed: a flowering stem with a head, in drier spots more often
         if !fine && r(8) < seed_share * (1.0 + 2.0 * dry) {
-            if detail {
+            if detail && let Some(head) = &heads {
                 let kind = match (r(12) * 3.0) as u32 {
                     0 => Head::Spike,
                     1 => Head::Panicle,
                     _ => Head::Plume,
                 };
-                flowering_stem(&mut g, Vec3::new(x, terrain::height(x, z), z), 0.55 + 0.4 * r(3), yaw, kind, &r);
+                flowering_stem(&mut g, Vec3::new(x, terrain::height(x, z), z), crate::library::size(head, r(3)), yaw, kind, &r);
             }
             continue;
         }
@@ -347,7 +349,9 @@ fn low_plants(g: &mut Geo, cx: i32, cz: i32, share: f32) {
         let which = if pick < kinds[0] { 0 } else if pick < kinds[0] + kinds[1] { 5 } else if pick < kinds[0] + kinds[1] + kinds[2] { 7 } else { 9 };
         let kind = match which { 0..=4 => "clover", 5..=6 => "plantain", 7..=8 => "dandelion", _ => "moss" };
         let col = tint(kind, r(5)).unwrap_or(Vec3::new(0.04, 0.1, 0.03)) * (0.8 + 0.4 * r(6));
-        plant(g, kind, at, a0, col, &r);
+        // its size from the asset's range (only the moss's cushion grows to it here; nothing fits the field's plants)
+        let size = library.get(kind).map_or(0.0, |a| crate::library::size(a, r(6)));
+        plant(g, kind, at, a0, size, col, &r);
     }
 }
 
@@ -449,7 +453,7 @@ pub fn tile(segs: u32) -> Mesh {
 
 /// A low plant of `kind` (`clover`, `plantain`, `dandelion`, `moss`) at `at`, turned by `a0`, in `col`; `r` is its
 /// own random numbers. The one generator for the field and for the library's masters.
-fn plant(g: &mut Geo, kind: &str, at: Vec3, a0: f32, col: Vec3, r: &dyn Fn(u32) -> f32) {
+fn plant(g: &mut Geo, kind: &str, at: Vec3, a0: f32, size: f32, col: Vec3, r: &dyn Fn(u32) -> f32) {
     match kind {
             // clover: a small patch of trifoliate leaves on short stalks (linear reflectance: a cool mid green)
             "clover" => {
@@ -481,7 +485,7 @@ fn plant(g: &mut Geo, kind: &str, at: Vec3, a0: f32, col: Vec3, r: &dyn Fn(u32) 
             }
             // moss: a low cushion of tiny pointed shoots, deep green to yellow-green
             _ => {
-                let radius = 0.06 + 0.1 * r(6);
+                let radius = size * 0.5;
                 for k in 0..40 {
                     let ka = a0 + k as f32 * 2.4;
                     let d = radius * r(7 + k).sqrt();
@@ -493,17 +497,20 @@ fn plant(g: &mut Geo, kind: &str, at: Vec3, a0: f32, col: Vec3, r: &dyn Fn(u32) 
     }
 }
 
-/// The master of a library plant: the full-detail individual `seed`, standing at the origin.
-pub fn plant_master(generator: &str, seed: u32, col: Vec3) -> Mesh {
+/// The master of a library plant (a generator, `library::GENERATORS`): the full-detail individual `seed`, standing
+/// at the origin, `size` metres tall or across: a seed head's stem and a moss cushion grow to it; the others grow their
+/// own form, which `library::master` fits to it.
+pub fn plant_master(asset: &crate::library::Asset, seed: u32, size: f32, col: Vec3) -> Mesh {
     let mut g = Geo::default();
     let r = |k: u32| h(seed, 0x51A7, k);
+    let generator = asset.generator.as_str();
     if generator == "seed_head" {
         let kind = match (r(12) * 3.0) as u32 {
             0 => Head::Spike,
             1 => Head::Panicle,
             _ => Head::Plume,
         };
-        flowering_stem(&mut g, Vec3::ZERO, 0.55 + 0.4 * r(3), r(5) * std::f32::consts::TAU, kind, &r);
+        flowering_stem(&mut g, Vec3::ZERO, size, r(5) * std::f32::consts::TAU, kind, &r);
     } else if generator == "grass_patch" {
         // a square metre of the meadow's sward, as dense as the near blades: the master its far views are baked from
         // 1600 blades: the near field's 625 blades a square metre and the fine ones among them, so the lawn baked from
@@ -511,7 +518,7 @@ pub fn plant_master(generator: &str, seed: u32, col: Vec3) -> Mesh {
         for k in 0..1600 {
             let base = Vec3::new(r(1000 + k) - 0.5, 0.0, r(2000 + k) - 0.5);
             let a = r(3000 + k) * std::f32::consts::TAU;
-            let shade = Vec3::new(0.045, 0.120, 0.018).lerp(Vec3::new(0.100, 0.230, 0.035), r(4000 + k));
+            let shade = crate::library::colour(asset, r(4000 + k));
             leaf(&mut g, base, Vec3::new(a.cos(), 0.0, a.sin()), 0.82 + 0.15 * r(5000 + k), 0.14 + 0.24 * r(6000 + k) * r(6000 + k), 0.004, shade, false);
         }
     } else if generator == "grass_tuft" {
@@ -524,7 +531,7 @@ pub fn plant_master(generator: &str, seed: u32, col: Vec3) -> Mesh {
             leaf(&mut g, base, tip_dir, 0.8 + 0.18 * r(300 + k), 0.18 + 0.2 * r(400 + k), 0.003, col * (0.8 + 0.4 * r(500 + k)), false);
         }
     } else {
-        plant(&mut g, generator, Vec3::ZERO, r(3) * std::f32::consts::TAU, col, &r);
+        plant(&mut g, generator, Vec3::ZERO, r(3) * std::f32::consts::TAU, size, col, &r);
     }
     g.mesh()
 }

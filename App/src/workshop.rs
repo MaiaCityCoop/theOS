@@ -113,7 +113,7 @@ fn show(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
-    mut bakes: ResMut<Assets<crate::impostor::NormalBake>>,
+    mut bakes: ResMut<Assets<crate::impostor::BakePass>>,
     mut impostors: ResMut<Assets<crate::impostor::Impostor>>,
     turn: Query<Entity, With<Turn>>,
     old: Query<Entity, With<Specimen>>,
@@ -187,7 +187,7 @@ fn show(
         Specimen,
         Shows(true),
         DespawnOnExit(World::Library), // it stayed over the Game after leaving
-        ImageNode::new(baked.variants[variant as usize % baked.variants.len()].0.clone()),
+        ImageNode::new(baked.variants[variant as usize % baked.variants.len()].albedo.clone()),
         Node { position_type: PositionType::Absolute, right: Val::Px(12.0), bottom: Val::Px(12.0), width: Val::Px(256.0), height: Val::Px(256.0), ..default() },
         BackgroundColor(Color::srgb(0.15, 0.15, 0.15)),
     ));

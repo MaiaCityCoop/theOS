@@ -33,6 +33,9 @@ fn err(e: impl std::fmt::Display) -> String {
 /// The doc ids' tags in the store: `doc/<id>` → the doc's latest snapshot.
 const DOC: &str = "doc/";
 
+/// How large a piece of a blob another process sends to the store's owner at a time.
+const PIECE: usize = 256 * 1024;
+
 /// The store's one entry point: the tag naming the blob that holds the root doc's id.
 const ROOT: &str = "root";
 
@@ -171,7 +174,17 @@ impl TheDB {
     /// Keeps `bytes`; returns their hash. The same bytes give the same hash, kept once.
     pub fn put(&self, bytes: impl Into<Bytes>) -> Result<Hash> {
         let bytes = bytes.into();
-        self.rt.block_on(async { self.store.blobs().add_bytes(bytes).await.map(|t| t.hash).map_err(err) })
+        // the owner keeps them at once; another process sends large ones to it as a stream of pieces, since one
+        // message over the store's connection is limited (a 224 MB build, a lawn's 14 MB atlas did not pass)
+        if self.owner.is_some() || bytes.len() <= PIECE {
+            return self.rt.block_on(async { self.store.blobs().add_bytes(bytes).await.map(|t| t.hash).map_err(err) });
+        }
+        let pieces: Vec<std::io::Result<Bytes>> = (0..bytes.len()).step_by(PIECE).map(|at| Ok(bytes.slice(at..(at + PIECE).min(bytes.len())))).collect();
+        let hash = self.rt.block_on(async { self.store.blobs().add_stream(n0_future::stream::iter(pieces)).await.await.map(|t| t.hash).map_err(err) })?;
+        if hash != Hash::new(&bytes) {
+            return Err("a blob sent in pieces came back under another hash".into());
+        }
+        Ok(hash)
     }
 
     /// The bytes of `hash`, if the store has them.
@@ -569,8 +582,9 @@ pub struct Pinned {
 }
 
 impl TheDB {
-    /// The engine the root names, at its pinned build: the binary is written once beside the store under its hash
-    /// (`run/<hash>`) and checked against that hash every time, so what runs is what the build names.
+    /// The engine the root names, at its pinned build: the binary is written once beside the store under its hash,
+    /// as the app theOS (`cache/run/<hash>/theOS.app`, so the system shows its name, not a hash), and checked against
+    /// that hash every time, so what runs is what the build names.
     pub fn pinned_engine(&self) -> Result<Pinned> {
         use std::os::unix::fs::PermissionsExt;
         let root = self.root()?.ok_or("theDB has no root")?;
@@ -579,8 +593,13 @@ impl TheDB {
         let pinned = self.engine(&engine)?.pinned.ok_or("the engine pins no build")?;
         let build = self.build(&pinned)?;
         let hash: Hash = build.binary.parse().map_err(|_| "the build's binary is no hash")?;
-        let run = self.dir.join("cache").join("run");
-        let path = run.join(hash.to_hex().as_str());
+        let app = self.dir.join("cache").join("run").join(hash.to_hex().as_str());
+        if app.is_file() {
+            // a build written out before the app bundle: a bare file under the hash
+            std::fs::remove_file(&app).map_err(err)?;
+        }
+        let run = app.join("theOS.app").join("Contents").join("MacOS");
+        let path = run.join("theOS");
         let good = |p: &Path| std::fs::read(p).is_ok_and(|b| Hash::new(&b) == hash);
         if !good(&path) {
             if path.exists() {
@@ -592,9 +611,14 @@ impl TheDB {
             }
             // written beside and moved in, so a process starting it meanwhile never sees half a binary
             std::fs::create_dir_all(&run).map_err(err)?;
+            let plist = format!(
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict>\n<key>CFBundleName</key><string>theOS</string>\n<key>CFBundleDisplayName</key><string>theOS</string>\n<key>CFBundleExecutable</key><string>theOS</string>\n<key>CFBundleIdentifier</key><string>city.maia.theos</string>\n<key>CFBundlePackageType</key><string>APPL</string>\n<key>CFBundleVersion</key><string>{}</string>\n<key>NSHighResolutionCapable</key><true/>\n</dict></plist>\n",
+                &hash.to_hex()[..12]
+            );
+            std::fs::write(app.join("theOS.app").join("Contents").join("Info.plist"), plist).map_err(err)?;
             static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
             let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            let part = run.join(format!("{}.{}.{n}", hash.to_hex(), std::process::id()));
+            let part = run.join(format!("theOS.{}.{n}", std::process::id()));
             std::fs::write(&part, &bytes).map_err(err)?;
             std::fs::set_permissions(&part, std::fs::Permissions::from_mode(0o755)).map_err(err)?;
             std::fs::rename(&part, &path).map_err(err)?;

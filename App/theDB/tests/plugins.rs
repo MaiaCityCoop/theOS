@@ -156,13 +156,15 @@ fn the_baker_bakes_one_at_a_time() {
 fn the_baker_as_a_plugin_bakes_the_changed_asset_and_reports_a_failure() {
     let (db, dir) = with_stub_engine("plugin");
     let stone = db.new("asset", "stone").unwrap();
-    let _wind = db.new("shader", "wind").unwrap();
+    let wind = db.new("shader", "wind").unwrap();
     let mut w = Watcher::new(&db, vec![Box::new(thedb::baker::Baker { gpu: dir.join("gpu") })]).unwrap();
-    assert_eq!(w.pass(&db).unwrap(), vec![("baker".to_string(), stone.clone())], "the asset only, not the shader or the engine");
+    // the asset, and the engine (a new build checks every asset again); never the shader
+    let called: Vec<String> = w.pass(&db).unwrap().into_iter().map(|(_, id)| id).collect();
+    assert!(called.contains(&stone) && !called.contains(&wind) && called.len() == 2, "{called:?}");
     db.set_text(&stone, "{\"size\": 2}").unwrap();
     assert_eq!(w.pass(&db).unwrap().len(), 1);
     let log = std::fs::read_to_string(dir.join("bake.log")).unwrap();
-    assert_eq!(log.matches(&format!("start {stone}")).count(), 2, "{log}");
+    assert_eq!(log.matches(&format!("start {stone}")).count(), 3, "once for itself, once for the engine, once for its edit: {log}");
     // a failing engine: the bake says so
     std::fs::write(dir.join("broken"), &stone).unwrap();
     let e = thedb::baker::bake_in(&db, &stone, &dir.join("gpu")).unwrap_err();

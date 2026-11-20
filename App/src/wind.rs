@@ -59,11 +59,17 @@ fn blow(
     if keys.pressed(KeyCode::Minus) {
         strength.0 = (strength.0 - time.delta_secs()).max(0.0);
     }
-    let (now, before) = (time.elapsed_secs(), time.elapsed_secs() - time.delta_secs());
+    let now = now(&time, &strength);
     for (_, m) in grass.iter_mut() {
-        m.extension.params.params = Vec4::new(now, before, strength.0, 0.0);
+        m.extension.params.params = now;
         m.extension.params.eye = at.extend(m.extension.params.eye.w);
     }
+}
+
+/// The wind's `params` this frame: the time, the time a frame ago, the strength. The grass and the far copies
+/// (`impostor.rs`) take the same, so they sway together.
+pub fn now(time: &Time, strength: &Strength) -> Vec4 {
+    Vec4::new(time.elapsed_secs(), time.elapsed_secs() - time.delta_secs(), strength.0, 0.0)
 }
 
 /// The ground's material: Bevy's standard one, its colour composed per pixel from the biome (`ground.wesl`).
