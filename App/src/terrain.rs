@@ -111,13 +111,20 @@ pub fn fbm(x: f32, z: f32, cell: f32, seed: u32) -> f32 {
 
 /// The bare ground: its noise's cell and first seed, and where that noise rises from 0 to 1 bare. The meadow's
 /// recipe lays its open-ground layer by the same (`biome.rs`).
-pub const BARE_CELL: f32 = 16.0;
-pub const BARE_SEED: u32 = 20;
-pub const BARE_FROM: f32 = 0.74;
-pub const BARE_SOFT: f32 = 0.06;
+/// Where the ground is bare: the biome's first layer the grass leaves out, its cell, threshold and softness, and the
+/// seed the ground shader gives that layer's noise (`ground.wesl`: layer k, seed 3k + 2). One source: the biome.
+pub fn bare_rule() -> (f32, u32, f32, f32) {
+    let b = crate::biome::current();
+    match b.layers.iter().position(|l| !l.grass) {
+        Some(k) => (b.layers[k].cell, k as u32 * 3 + 2, b.layers[k].threshold, b.layers[k].softness.max(1e-6)),
+        // no bare layer: nowhere bare
+        None => (1.0, 0, 2.0, 1.0),
+    }
+}
 
 /// The shaders' twins of the functions above, written from the same data (the WGSL of `shared.rs`'s module).
 pub fn wgsl() -> String {
+    let (bare_cell, bare_seed, bare_from, bare_soft) = bare_rule();
     let big = BIG
         .iter()
         .map(|t| std::iter::once(format!("{:?}", t.0)).chain(t.1.iter().map(Factor::wgsl)).collect::<Vec<_>>().join(" * "))
@@ -172,7 +179,7 @@ fn fbm(p: vec2<f32>, cell: f32, seed: u32) -> f32 {{
 
 // `terrain::bare`: where the ground is bare, no grass grows.
 fn bare(p: vec2<f32>) -> f32 {{
-    return smoothstep(0.0, 1.0, clamp((fbm(p, {BARE_CELL:?}, {BARE_SEED}u) - {BARE_FROM:?}) / {BARE_SOFT:?}, 0.0, 1.0));
+    return smoothstep(0.0, 1.0, clamp((fbm(p, {bare_cell:?}, {bare_seed}u) - {bare_from:?}) / {bare_soft:?}, 0.0, 1.0));
 }}
 "
     )
@@ -212,7 +219,8 @@ fn sward(x: f32, z: f32) -> Vec3 {
 /// How bare the ground is at (x, z), 0 under a full sward to 1 in a bare patch: irregular patches of earth and gravel,
 /// a few metres across, as a grazed or trodden meadow has them. The grass leaves them out.
 pub fn bare(x: f32, z: f32) -> f32 {
-    let t = ((fbm(x, z, BARE_CELL, BARE_SEED) - BARE_FROM) / BARE_SOFT).clamp(0.0, 1.0); // rarer: a few patches, not a mottled field
+    let (cell, seed, from, soft) = bare_rule();
+    let t = ((fbm(x, z, cell, seed) - from) / soft).clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
 }
 

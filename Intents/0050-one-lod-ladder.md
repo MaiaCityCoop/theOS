@@ -163,6 +163,12 @@ The tree adds lines (its recipe); it is counted apart from the size gate, which 
   sway with the same `bend` the grass uses (`wind.wesl`), at the same time and strength. On the GPU the first run was
   refused: the bake doc has two fragment entry points and one pipeline named none; each pipeline names its own now.
   Masters do not sway yet: the far copy of the broadleaf moves, its full mesh does not.
+- **The bare ground (8):** its cell, threshold and softness were in `terrain.rs` and in the biome doc; now only the
+  biome holds them (its first layer the grass leaves out), Rust reads them there and the shared shader module is
+  written again when a scene sets another biome.
+- **Seen on screen (Samuel):** the broadleaf's far view was unusable: a dark trunk, the crown gone. Our bake was a
+  simplified one (128 px frames for every size, one sample per texel, a hard cut at half coverage). Samuel: reuse
+  SmartImposter's method exactly, as proven at scale; no experiments of our own. Being ported.
 - **The baker on a new build:** it also watches the engine doc, so a new build (whose bake code is in every key)
   checks every asset in the background: all eleven in about 35 s after the first publish with the texel channels.
 
@@ -193,7 +199,7 @@ _accepted or rejected, the date, the reason in a line._
 - [ ] Masters sway with the same `bend` (the tree, the plants)
 - [ ] 6 One measure, one switch
 - [ ] 7 The seven schemes collapsed
-- [x] 8 One source for shared functions (the biome doc's bare numbers left)
+- [x] 8 One source for shared functions (the bare ground now read from the biome only)
 - [ ] 9 The stress test: a procedural tree (the tree is in; its run through the whole ladder waits for 5–7)
 
 ## Changelog
