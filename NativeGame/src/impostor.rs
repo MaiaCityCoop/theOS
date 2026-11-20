@@ -67,6 +67,8 @@ struct Shooting {
     views: Vec<Handle<Image>>,
     atlas: Handle<Image>,
     got: std::sync::Arc<std::sync::Mutex<(Vec<u8>, u32)>>,
+    /// What the atlas is kept under once made: the bake's key and the part's name.
+    keep: (String, &'static str),
 }
 
 /// Writes a surface's normal as its colour.
@@ -170,6 +172,18 @@ pub fn bake(
         img.sampler = bevy::image::ImageSampler::linear();
         img
     };
+    // made once: the same master and settings give the same atlases, kept in avenDB
+    let r = crate::root::root();
+    let key = crate::bakes::key("impostor", &[&crate::bakes::mesh_bytes(&mesh), format!("{FRAMES} {RES}").as_bytes()], &[&r.shaders.bake_normal]);
+    if let (Some(a), Some(n)) = (crate::bakes::get(&key, "albedo"), crate::bakes::get(&key, "normal")) {
+        let kept = |data: Vec<u8>, format| {
+            let mut img = atlas(format);
+            img.data = Some(data);
+            img
+        };
+        let (albedo, normal) = (images.add(kept(a, TextureFormat::Rgba8UnormSrgb)), images.add(kept(n, TextureFormat::Rgba8Unorm)));
+        return Baked { albedo, normal, centre, radius };
+    }
     let albedo = images.add(atlas(TextureFormat::Rgba8UnormSrgb));
     let normal = images.add(atlas(TextureFormat::Rgba8Unorm));
     let m = meshes.add(mesh);
@@ -179,7 +193,7 @@ pub fn bake(
     let (albedo_layer, normal_layer) = (FIRST_LAYER + 2 * pair, FIRST_LAYER + 2 * pair + 1);
     commands.spawn((Baking(ticks), Mesh3d(m.clone()), MeshMaterial3d(flat), RenderLayers::layer(albedo_layer), Transform::default()));
     commands.spawn((Baking(ticks), Mesh3d(m), MeshMaterial3d(normals.add(NormalBake {})), RenderLayers::layer(normal_layer), Transform::default()));
-    for (layer, target, format) in [(albedo_layer, &albedo, TextureFormat::Rgba8UnormSrgb), (normal_layer, &normal, TextureFormat::Rgba8Unorm)] {
+    for (layer, target, format, part) in [(albedo_layer, &albedo, TextureFormat::Rgba8UnormSrgb, "albedo"), (normal_layer, &normal, TextureFormat::Rgba8Unorm, "normal")] {
         let views: Vec<Handle<Image>> = (0..FRAMES * FRAMES)
             .map(|_| {
                 let mut img = Image::new_target_texture(RES, RES, format, None);
@@ -191,7 +205,7 @@ pub fn bake(
         let first = views[0].clone();
         commands.spawn((
             Baking(ticks + 200),
-            Shooting { k: -WARM, centre, radius, views, atlas: target.clone(), got: Default::default() },
+            Shooting { k: -WARM, centre, radius, views, atlas: target.clone(), got: Default::default(), keep: (key.clone(), part) },
             Camera3d::default(),
             Camera { order: -100, clear_color: ClearColorConfig::Custom(Color::NONE), ..default() },
             RenderTarget::Image(first.into()),
@@ -227,7 +241,7 @@ fn shoot(mut commands: Commands, mut cams: Query<(&mut Shooting, &mut RenderTarg
             let got = s.got.clone();
             for (k, view) in s.views.iter().enumerate() {
                 let (i, j) = (k as u32 % FRAMES, k as u32 / FRAMES);
-                let (got, atlas) = (got.clone(), s.atlas.clone());
+                let (got, atlas, keep) = (got.clone(), s.atlas.clone(), s.keep.clone());
                 commands.spawn(bevy::render::gpu_readback::ReadbackOnce::texture(view.clone())).observe(
                     move |ev: On<bevy::render::gpu_readback::ReadbackComplete>, mut images: ResMut<Assets<Image>>| {
                         let Ok(mut g) = got.lock() else { return };
@@ -245,7 +259,9 @@ fn shoot(mut commands: Commands, mut cams: Query<(&mut Shooting, &mut RenderTarg
                         if g.1 == FRAMES * FRAMES
                             && let Some(mut img) = images.get_mut(&atlas)
                         {
-                            img.data = Some(std::mem::take(&mut g.0));
+                            let data = std::mem::take(&mut g.0);
+                            crate::bakes::put(&keep.0, keep.1, &data);
+                            img.data = Some(data);
                         }
                     },
                 );

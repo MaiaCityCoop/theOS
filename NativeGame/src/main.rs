@@ -7,6 +7,7 @@
 //!     cargo run -- --bake-place [lat lon]         a real place's package (Mértola's by default), from open data
 //!     cargo run -- --place-still <out.png> [km] [hour]  an agent's still of the real place, the map that many km across, at a solar hour
 
+mod bakes;
 mod biome;
 mod camera;
 mod canopy;

@@ -19,6 +19,8 @@ pub struct Root {
     /// The Earth: every open-data file fetched, a part of this doc by its source URL; and the places baked on a
     /// map's click, by where they are.
     pub earth: String,
+    /// Bakes made once: each result a part of this doc, under the hash of what it was made from.
+    pub bakes: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
