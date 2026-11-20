@@ -4,7 +4,7 @@
 //! key, and an agent, which has only its line's key, cannot.
 
 use crate::View;
-use crate::ui::{CLAY, CREAM, FOREST, FOREST2, Fonts, PAPER, SAND, SUN};
+use crate::ui::Fonts;
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
 use bevy::picking::events::PointerClick;
@@ -88,7 +88,7 @@ fn spawn(mut commands: Commands, icons: Res<Icons>, fonts: Res<Fonts>) {
                     PillAct::Proposals,
                     Hover,
                     Node { width: Val::Px(50.0), height: Val::Px(50.0), margin: UiRect::vertical(Val::Px(-6.0)), border_radius: BorderRadius::all(Val::Percent(50.0)), border: UiRect::all(Val::Px(3.0)), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
-                    BackgroundColor(FOREST),
+                    BackgroundColor(crate::theme::colour("forest")),
                     BorderColor::all(Color::srgba(0.949, 0.710, 0.267, 0.55)),
                     BoxShadow::new(Color::srgba(0.047, 0.094, 0.149, 0.35), Val::Px(0.0), Val::Px(8.0), Val::Px(0.0), Val::Px(20.0)),
                     children![(ImageNode::new(icons.star.clone()), Node { width: Val::Px(30.0), height: Val::Px(30.0), ..default() }, Pickable::IGNORE)],
@@ -96,7 +96,7 @@ fn spawn(mut commands: Commands, icons: Res<Icons>, fonts: Res<Fonts>) {
                 p.spawn((
                     Node { width: Val::Px(30.0), height: Val::Px(27.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
                     ImageNode::new(icons.hexagon.clone()),
-                    children![(Text::new("MC"), TextFont { font: fonts.sans.clone().into(), font_size: FontSize::Px(11.0), weight: FontWeight::BOLD, ..default() }, TextColor(FOREST), Pickable::IGNORE)],
+                    children![(Text::new("MC"), TextFont { font: fonts.sans.clone().into(), font_size: FontSize::Px(11.0), weight: FontWeight::BOLD, ..default() }, TextColor(crate::theme::colour("forest")), Pickable::IGNORE)],
                 ));
             });
         });
@@ -178,13 +178,13 @@ fn draw(mut commands: Commands, fonts: Res<Fonts>, overlay: Res<Overlay>, mut mo
             cam.clone(),
             GlobalZIndex(31),
             Node { position_type: PositionType::Absolute, left: Val::Px(14.0), right: Val::Px(14.0), top: Val::Px(14.0), bottom: Val::Px(46.0), flex_direction: FlexDirection::Column, border_radius: BorderRadius::all(Val::Px(34.0)), overflow: Overflow::clip(), ..default() },
-            BackgroundColor(PAPER),
+            BackgroundColor(crate::theme::colour("paper")),
             BoxShadow::new(Color::srgba(0.047, 0.094, 0.149, 0.25), Val::Px(0.0), Val::Px(30.0), Val::Px(0.0), Val::Px(80.0)),
         ))
         .with_children(|sheet| {
             sheet.spawn(Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(6.0), padding: UiRect::new(Val::Px(44.0), Val::Px(44.0), Val::Px(28.0), Val::Px(12.0)), ..default() }).with_children(|h| {
-                h.spawn(text(&f.serif, 46.0, FOREST, "Proposals".into()));
-                h.spawn(text(&f.sans, 16.0, FOREST2, "What agents propose from their lines. Nothing reaches main until you accept it here.".into()));
+                h.spawn(text(&f.serif, 46.0, crate::theme::colour("forest"), "Proposals".into()));
+                h.spawn(text(&f.sans, 16.0, crate::theme::colour("forest2"), "What agents propose from their lines. Nothing reaches main until you accept it here.".into()));
                 if let Some(e) = &modal.error {
                     h.spawn(text(&f.sans, 15.0, Color::srgb(0.7, 0.2, 0.15), e.clone()));
                 }
@@ -193,14 +193,14 @@ fn draw(mut commands: Commands, fonts: Res<Fonts>, overlay: Res<Overlay>, mut mo
                 .spawn(Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(14.0), padding: UiRect::new(Val::Px(44.0), Val::Px(44.0), Val::Px(8.0), Val::Px(28.0)), overflow: Overflow::scroll_y(), flex_grow: 1.0, min_height: Val::Px(0.0), ..default() })
                 .with_children(|list| {
                     if modal.list.is_empty() {
-                        list.spawn(text(&f.sans, 17.0, FOREST2, "No proposals. An agent proposes with `theDB propose line-<agent> \"<note>\"`.".into()));
+                        list.spawn(text(&f.sans, 17.0, crate::theme::colour("forest2"), "No proposals. An agent proposes with `theDB propose line-<agent> \"<note>\"`.".into()));
                     }
                     for (id, p) in &modal.list {
                         let open = p.state == thedb::proposals::State::Open;
                         list.spawn((
                             Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(8.0), padding: UiRect::all(Val::Px(24.0)), border_radius: BorderRadius::all(Val::Px(24.0)), border: UiRect::left(Val::Px(4.0)), max_width: Val::Px(760.0), ..default() },
-                            BackgroundColor(CREAM),
-                            BorderColor::all(if open { SUN } else { SAND }),
+                            BackgroundColor(crate::theme::colour("cream")),
+                            BorderColor::all(if open { crate::theme::colour("sun") } else { crate::theme::colour("sand") }),
                         ))
                         .with_children(|card| {
                             let state = match p.state {
@@ -208,14 +208,14 @@ fn draw(mut commands: Commands, fonts: Res<Fonts>, overlay: Res<Overlay>, mut mo
                                 thedb::proposals::State::Merged => "ACCEPTED",
                                 thedb::proposals::State::Refused => "REFUSED",
                             };
-                            card.spawn(text(&f.sans, 13.0, FOREST2, format!("PROPOSAL · {state} · from {}", p.branch)));
-                            card.spawn(text(&f.sans, 22.0, FOREST, p.note.clone()));
+                            card.spawn(text(&f.sans, 13.0, crate::theme::colour("forest2"), format!("PROPOSAL · {state} · from {}", p.branch)));
+                            card.spawn(text(&f.sans, 22.0, crate::theme::colour("forest"), p.note.clone()));
                             let docs: Vec<String> = p.docs.keys().map(|d| crate::db().meta(d).map(|m| format!("{} {}", m.0, m.1)).unwrap_or_else(|_| d.clone())).collect();
-                            card.spawn(text(&f.mono, 13.0, FOREST2, format!("changes {}", docs.join(", "))));
+                            card.spawn(text(&f.mono, 13.0, crate::theme::colour("forest2"), format!("changes {}", docs.join(", "))));
                             if open {
                                 card.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(10.0), margin: UiRect::top(Val::Px(6.0)), ..default() }).with_children(|row| {
-                                    row.spawn(button("Accept", PillAct::Accept(id.clone()), CLAY, CREAM));
-                                    row.spawn(button("Refuse", PillAct::Refuse(id.clone()), SAND, FOREST));
+                                    row.spawn(button("Accept", PillAct::Accept(id.clone()), crate::theme::colour("clay"), crate::theme::colour("cream")));
+                                    row.spawn(button("Refuse", PillAct::Refuse(id.clone()), crate::theme::colour("sand"), crate::theme::colour("forest")));
                                 });
                             }
                         });
@@ -228,7 +228,7 @@ fn draw(mut commands: Commands, fonts: Res<Fonts>, overlay: Res<Overlay>, mut mo
         PillAct::Close,
         GlobalZIndex(32),
         Node { position_type: PositionType::Absolute, left: Val::Percent(50.0), bottom: Val::Px(10.0), margin: UiRect::left(Val::Px(-36.0)), width: Val::Px(72.0), height: Val::Px(36.0), border_radius: BorderRadius::bottom(Val::Px(36.0)), justify_content: JustifyContent::Center, align_items: AlignItems::FlexStart, ..default() },
-        BackgroundColor(PAPER),
-        children![(Text::new("×"), TextFont { font: f.sans.clone().into(), font_size: FontSize::Px(24.0), ..default() }, TextColor(FOREST), Pickable::IGNORE)],
+        BackgroundColor(crate::theme::colour("paper")),
+        children![(Text::new("×"), TextFont { font: f.sans.clone().into(), font_size: FontSize::Px(24.0), ..default() }, TextColor(crate::theme::colour("forest")), Pickable::IGNORE)],
     ));
 }

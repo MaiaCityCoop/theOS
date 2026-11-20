@@ -8,7 +8,7 @@
 //! (`thedb::inventory`); the blobs' facts follow one by one, each read once per hash. Nothing here writes.
 
 use crate::View;
-use crate::ui::{CLAY, CREAM, FOREST, FOREST2, Fonts, PAPER, SAND, SUN};
+use crate::ui::Fonts;
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
@@ -21,8 +21,6 @@ use std::sync::{Arc, Mutex, mpsc};
 use thedb::Hash;
 use thedb::inventory::{self, BlobRow, Facts, Inventory, Names, Version};
 
-/// A lighter sand for rows and tiles under the pointer or chosen.
-const PICKED: Color = Color::srgb(0.957, 0.886, 0.722);
 /// How many rows, tiles and lines one pane draws at most (the filter narrows the rest).
 const MAX_ROWS: usize = 400;
 const MAX_LINES: usize = 400;
@@ -473,7 +471,7 @@ fn on_scroll(mut s: On<Scroll>, mut q: Query<(&mut ScrollPosition, &Node, &Compu
 /// Rows and tiles rise to a lighter sand under the pointer.
 fn hover(mut q: Query<(&Hovered, &Base, &mut BackgroundColor), Changed<Hovered>>) {
     for (h, base, mut bg) in &mut q {
-        bg.0 = if h.get() { PICKED } else { base.0 };
+        bg.0 = if h.get() { crate::theme::colour("picked") } else { base.0 };
     }
 }
 
@@ -540,26 +538,26 @@ fn layout(mut commands: Commands, mut db: ResMut<Db>) {
             DespawnOnExit(View::TheDB),
             // pinned to the window's four edges, so no content can make the view wider than the window
             Node { position_type: PositionType::Absolute, left: Val::Px(0.0), right: Val::Px(0.0), top: Val::Px(0.0), bottom: Val::Px(0.0), flex_direction: FlexDirection::Column, padding: UiRect::new(Val::Px(24.0), Val::Px(24.0), Val::Px(24.0), Val::Px(72.0)), row_gap: Val::Px(16.0), overflow: Overflow::clip(), ..default() },
-            BackgroundColor(PAPER),
+            BackgroundColor(crate::theme::colour("paper")),
         ))
         .with_children(|root| {
             root.spawn((
                 Head,
                 Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(16.0), padding: UiRect::axes(Val::Px(24.0), Val::Px(12.0)), border_radius: BorderRadius::all(Val::Px(24.0)), ..default() },
-                BackgroundColor(CREAM),
+                BackgroundColor(crate::theme::colour("cream")),
             ));
             root.spawn(Node { flex_direction: FlexDirection::Row, flex_grow: 1.0, flex_basis: Val::Px(0.0), min_height: Val::Px(0.0), min_width: Val::Px(0.0), column_gap: Val::Px(16.0), ..default() }).with_children(|body| {
-                body.spawn((Left, pane(0.0, Val::Px(250.0)), BackgroundColor(CREAM)));
+                body.spawn((Left, pane(0.0, Val::Px(250.0)), BackgroundColor(crate::theme::colour("cream"))));
                 // the docs and the chosen doc share what the left column leaves, half each
-                body.spawn((pane(1.0, Val::Auto), BackgroundColor(CREAM))).with_children(|mid| {
+                body.spawn((pane(1.0, Val::Auto), BackgroundColor(crate::theme::colour("cream")))).with_children(|mid| {
                     mid.spawn((MidHead, Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(10.0), ..default() }));
                     mid.spawn((MidList, scroller(grow())));
                 });
-                body.spawn((pane(1.0, Val::Auto), BackgroundColor(CREAM))).with_children(|right| {
+                body.spawn((pane(1.0, Val::Auto), BackgroundColor(crate::theme::colour("cream")))).with_children(|right| {
                     right.spawn(Node { flex_direction: FlexDirection::Row, flex_grow: 1.0, flex_basis: Val::Px(0.0), min_height: Val::Px(0.0), min_width: Val::Px(0.0), column_gap: Val::Px(14.0), ..default() }).with_children(|split| {
                         // the doc itself on the left, its history in a narrow column on the right
                         split.spawn((Right, scroller(grow())));
-                        split.spawn((RightHistory, scroller(Node { width: Val::Px(220.0), flex_shrink: 0.0, padding: UiRect::left(Val::Px(12.0)), border: UiRect::left(Val::Px(1.5)), ..default() }), BorderColor::all(PICKED)));
+                        split.spawn((RightHistory, scroller(Node { width: Val::Px(220.0), flex_shrink: 0.0, padding: UiRect::left(Val::Px(12.0)), border: UiRect::left(Val::Px(1.5)), ..default() }), BorderColor::all(crate::theme::colour("picked"))));
                     });
                 });
             });
@@ -655,11 +653,11 @@ fn kind_order(k: &str) -> (usize, String) {
 }
 
 fn draw_head(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
-    p.spawn(words(f, "serif", 34.0, FOREST, "theDB"));
-    p.spawn(words(f, "sans", 16.0, FOREST2, "docs and blobs · read only"));
+    p.spawn(words(f, "serif", 34.0, crate::theme::colour("forest"), "theDB"));
+    p.spawn(words(f, "sans", 16.0, crate::theme::colour("forest2"), "docs and blobs · read only"));
     p.spawn(Node { flex_grow: 1.0, ..default() });
-    p.spawn((words(f, "mono", 13.0, FOREST2, status(db)), Status));
-    p.spawn((button(f, "Refresh", SAND, FOREST), DbAct::Refresh));
+    p.spawn((words(f, "mono", 13.0, crate::theme::colour("forest2"), status(db)), Status));
+    p.spawn((button(f, "Refresh", crate::theme::colour("sand"), crate::theme::colour("forest")), DbAct::Refresh));
 }
 
 /// The header's status: reading, or what was read and how many blobs' facts are known.
@@ -692,10 +690,10 @@ enum Fact {
 
 fn swatch_colour(word: &str) -> Color {
     match word {
-        "PNG" | "JPEG" | "GIF" | "TIFF" | "WEBP" => CLAY,
-        "DOC" | "JSON" | "TEXT" => FOREST2,
-        "FONT" => SUN,
-        _ => FOREST,
+        "PNG" | "JPEG" | "GIF" | "TIFF" | "WEBP" => crate::theme::colour("clay"),
+        "DOC" | "JSON" | "TEXT" => crate::theme::colour("forest2"),
+        "FONT" => crate::theme::colour("sun"),
+        _ => crate::theme::colour("forest"),
     }
 }
 
@@ -756,7 +754,7 @@ fn facts_shown(
 }
 
 fn label(p: &mut ChildSpawnerCommands, f: &Fonts, text: &str) {
-    p.spawn((words(f, "mono", 12.0, CLAY, text.to_string()), Node { margin: UiRect::top(Val::Px(8.0)), ..default() }));
+    p.spawn((words(f, "mono", 12.0, crate::theme::colour("clay"), text.to_string()), Node { margin: UiRect::top(Val::Px(8.0)), ..default() }));
 }
 
 fn row_node(gap: f32) -> Node {
@@ -770,13 +768,13 @@ fn draw_left(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
     p.spawn((
         DbAct::Select,
         Hovered::default(),
-        Base(PAPER),
+        Base(crate::theme::colour("paper")),
         Node { border: UiRect::all(Val::Px(1.5)), ..row_node(8.0) },
-        BackgroundColor(PAPER),
-        BorderColor::all(SAND),
-        children![cell(f, "sans", 15.0, FOREST, seen, Val::Auto, 1.0), words(f, "sans", 14.0, FOREST2, if db.menu { "^" } else { "v" })],
+        BackgroundColor(crate::theme::colour("paper")),
+        BorderColor::all(crate::theme::colour("sand")),
+        children![cell(f, "sans", 15.0, crate::theme::colour("forest"), seen, Val::Auto, 1.0), words(f, "sans", 14.0, crate::theme::colour("forest2"), if db.menu { "^" } else { "v" })],
     ));
-    p.spawn(words(f, "sans", 12.0, FOREST2, "what this view shows; theOS runs on as it is"));
+    p.spawn(words(f, "sans", 12.0, crate::theme::colour("forest2"), "what this view shows; theOS runs on as it is"));
     if db.menu {
         let branches = db.inv.as_ref().map(|i| i.branches.clone()).unwrap_or_default();
         let own: BTreeMap<String, usize> = db.inv.as_ref().map(|i| i.docs.iter().flat_map(|d| d.own.iter().cloned()).fold(BTreeMap::new(), |mut m, b| {
@@ -787,20 +785,20 @@ fn draw_left(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
             Menu,
             Node { position_type: PositionType::Absolute, top: Val::Px(84.0), left: Val::Px(18.0), right: Val::Px(18.0), max_height: Val::Px(560.0), flex_direction: FlexDirection::Column, overflow: Overflow::scroll_y(), padding: UiRect::all(Val::Px(6.0)), border_radius: BorderRadius::all(Val::Px(12.0)), border: UiRect::all(Val::Px(1.5)), ..default() },
             ScrollPosition::default(),
-            BackgroundColor(PAPER),
-            BorderColor::all(SAND),
+            BackgroundColor(crate::theme::colour("paper")),
+            BorderColor::all(crate::theme::colour("sand")),
             BoxShadow::new(Color::srgba(0.09, 0.21, 0.33, 0.18), Val::Px(0.0), Val::Px(8.0), Val::Px(0.0), Val::Px(20.0)),
             GlobalZIndex(20),
         ))
         .with_children(|m| {
             for b in std::iter::once(None).chain(branches.into_iter().map(Some)) {
                 let name = b.clone().unwrap_or_else(|| "main".into());
-                let bg = if b == db.seen { PICKED } else { PAPER };
+                let bg = if b == db.seen { crate::theme::colour("picked") } else { crate::theme::colour("paper") };
                 let n = b.as_ref().and_then(|b| own.get(b)).copied();
                 m.spawn((DbAct::Branch(b), Hovered::default(), Base(bg), row_node(8.0), BackgroundColor(bg))).with_children(|r| {
-                    r.spawn(cell(f, "sans", 14.0, FOREST, name, Val::Auto, 1.0));
+                    r.spawn(cell(f, "sans", 14.0, crate::theme::colour("forest"), name, Val::Auto, 1.0));
                     if let Some(n) = n {
-                        r.spawn(words(f, "mono", 11.0, FOREST2, format!("{n}")));
+                        r.spawn(words(f, "mono", 11.0, crate::theme::colour("forest2"), format!("{n}")));
                     }
                 });
             }
@@ -808,7 +806,7 @@ fn draw_left(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
     }
     label(p, f, "DOCS");
     let Some(inv) = &db.inv else {
-        p.spawn(words(f, "sans", 14.0, FOREST2, if db.reading { "reading…" } else { "" }));
+        p.spawn(words(f, "sans", 14.0, crate::theme::colour("forest2"), if db.reading { "reading…" } else { "" }));
         return;
     };
     let mut kinds: BTreeMap<(usize, String), usize> = BTreeMap::new();
@@ -819,20 +817,20 @@ fn draw_left(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
         .with_children(|list| {
             for ((_, k), n) in kinds {
                 let on = db.pick == Pick::Kind(k.clone());
-                let bg = if on { PICKED } else { CREAM };
+                let bg = if on { crate::theme::colour("picked") } else { crate::theme::colour("cream") };
                 list.spawn((DbAct::Kind(k.clone()), Hovered::default(), Base(bg), row_node(8.0), BackgroundColor(bg))).with_children(|r| {
-                    r.spawn(cell(f, "sans", 15.0, FOREST, if k.is_empty() { "(no kind)".to_string() } else { k }, Val::Auto, 1.0));
-                    r.spawn(words(f, "mono", 12.0, FOREST2, n.to_string()));
+                    r.spawn(cell(f, "sans", 15.0, crate::theme::colour("forest"), if k.is_empty() { "(no kind)".to_string() } else { k }, Val::Auto, 1.0));
+                    r.spawn(words(f, "mono", 12.0, crate::theme::colour("forest2"), n.to_string()));
                 });
             }
         });
     label(p, f, "BLOBS");
     let on = db.pick == Pick::Blobs;
-    let bg = if on { PICKED } else { CREAM };
+    let bg = if on { crate::theme::colour("picked") } else { crate::theme::colour("cream") };
     let unref = inv.blobs.iter().filter(|b| b.unreferenced()).count();
     p.spawn((DbAct::Blobs, Hovered::default(), Base(bg), row_node(8.0), BackgroundColor(bg))).with_children(|r| {
-        r.spawn(cell(f, "sans", 15.0, FOREST, "Library", Val::Auto, 1.0));
-        r.spawn(words(f, "mono", 12.0, FOREST2, if unref > 0 { format!("{} · {unref} unref.", inv.blobs.len()) } else { inv.blobs.len().to_string() }));
+        r.spawn(cell(f, "sans", 15.0, crate::theme::colour("forest"), "Library", Val::Auto, 1.0));
+        r.spawn(words(f, "mono", 12.0, crate::theme::colour("forest2"), if unref > 0 { format!("{} · {unref} unref.", inv.blobs.len()) } else { inv.blobs.len().to_string() }));
     });
 }
 
@@ -923,20 +921,20 @@ fn draw_mid_head(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
         Pick::Blobs => ("Blobs".into(), vec![("Name", Col::Name, Val::Auto, 1.0), ("Hash", Col::Id, Val::Px(100.0), 0.0), ("Type", Col::Head, Val::Px(150.0), 0.0), ("Size", Col::Size, Val::Px(80.0), 0.0)]),
     };
     p.spawn(Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(12.0), ..default() }).with_children(|r| {
-        r.spawn(words(f, "serif", 26.0, FOREST, title));
+        r.spawn(words(f, "serif", 26.0, crate::theme::colour("forest"), title));
         r.spawn(Node { flex_grow: 1.0, ..default() });
         if db.pick == Pick::Blobs {
-            r.spawn((button(f, "Tiles", if db.grid { FOREST } else { SAND }, if db.grid { CREAM } else { FOREST }), DbAct::Grid(true)));
-            r.spawn((button(f, "List", if db.grid { SAND } else { FOREST }, if db.grid { FOREST } else { CREAM }), DbAct::Grid(false)));
+            r.spawn((button(f, "Tiles", if db.grid { crate::theme::colour("forest") } else { crate::theme::colour("sand") }, if db.grid { crate::theme::colour("cream") } else { crate::theme::colour("forest") }), DbAct::Grid(true)));
+            r.spawn((button(f, "List", if db.grid { crate::theme::colour("sand") } else { crate::theme::colour("forest") }, if db.grid { crate::theme::colour("forest") } else { crate::theme::colour("cream") }), DbAct::Grid(false)));
         }
     });
     // the filter: what is typed while the view is open
     let typed = if db.filter.is_empty() { "type to filter…".to_string() } else { format!("{}|", db.filter) };
     p.spawn((
         Node { padding: UiRect::axes(Val::Px(12.0), Val::Px(8.0)), border_radius: BorderRadius::all(Val::Px(12.0)), border: UiRect::all(Val::Px(1.5)), ..default() },
-        BackgroundColor(PAPER),
-        BorderColor::all(SAND),
-        children![words(f, "mono", 14.0, if db.filter.is_empty() { FOREST2 } else { FOREST }, typed)],
+        BackgroundColor(crate::theme::colour("paper")),
+        BorderColor::all(crate::theme::colour("sand")),
+        children![words(f, "mono", 14.0, if db.filter.is_empty() { crate::theme::colour("forest2") } else { crate::theme::colour("forest") }, typed)],
     ));
     if db.pick == Pick::Blobs && db.grid {
         return;
@@ -950,7 +948,7 @@ fn draw_mid_head(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
                 Base(Color::NONE),
                 BackgroundColor(Color::NONE),
                 Node { width: w, flex_grow: grow, flex_basis: if grow > 0.0 { Val::Px(0.0) } else { Val::Auto }, overflow: Overflow::clip(), ..default() },
-                children![(words(f, "mono", 12.0, CLAY, format!("{}{arrow}", name.to_uppercase())), TextLayout::no_wrap())],
+                children![(words(f, "mono", 12.0, crate::theme::colour("clay"), format!("{}{arrow}", name.to_uppercase())), TextLayout::no_wrap())],
             ));
         }
     });
@@ -958,22 +956,22 @@ fn draw_mid_head(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
 
 fn draw_mid(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
     let Some(inv) = &db.inv else {
-        p.spawn(words(f, "sans", 16.0, FOREST2, if db.reading { "reading…" } else { "" }));
+        p.spawn(words(f, "sans", 16.0, crate::theme::colour("forest2"), if db.reading { "reading…" } else { "" }));
         return;
     };
     match &db.pick {
         Pick::Kind(k) => {
             let rows = doc_rows(db, k);
             for d in rows.iter().take(MAX_ROWS) {
-                let bg = if db.doc.as_deref() == Some(&d.id) { PICKED } else { CREAM };
+                let bg = if db.doc.as_deref() == Some(&d.id) { crate::theme::colour("picked") } else { crate::theme::colour("cream") };
                 p.spawn((DbAct::Doc(d.id.clone()), Hovered::default(), Base(bg), row_node(10.0), BackgroundColor(bg))).with_children(|r| {
-                    r.spawn(cell(f, "sans", 15.0, FOREST, if d.name.is_empty() { "(no name)".to_string() } else { d.name.clone() }, Val::Auto, 1.0));
-                    r.spawn(cell(f, "mono", 12.0, FOREST2, d.id[..10].to_string(), Val::Px(100.0), 0.0));
+                    r.spawn(cell(f, "sans", 15.0, crate::theme::colour("forest"), if d.name.is_empty() { "(no name)".to_string() } else { d.name.clone() }, Val::Auto, 1.0));
+                    r.spawn(cell(f, "mono", 12.0, crate::theme::colour("forest2"), d.id[..10].to_string(), Val::Px(100.0), 0.0));
                     let own = db.seen.as_ref().is_some_and(|b| d.own.contains(b));
-                    r.spawn(cell(f, "mono", 12.0, if own { CLAY } else { FOREST2 }, short(&d.head), Val::Px(100.0), 0.0));
-                    r.spawn(cell(f, "mono", 12.0, FOREST2, d.versions.to_string(), Val::Px(76.0), 0.0));
-                    r.spawn(cell(f, "mono", 12.0, FOREST2, bytes(d.size as u64), Val::Px(76.0), 0.0));
-                    r.spawn(cell(f, "mono", 12.0, FOREST2, when(d.last), Val::Px(120.0), 0.0));
+                    r.spawn(cell(f, "mono", 12.0, if own { crate::theme::colour("clay") } else { crate::theme::colour("forest2") }, short(&d.head), Val::Px(100.0), 0.0));
+                    r.spawn(cell(f, "mono", 12.0, crate::theme::colour("forest2"), d.versions.to_string(), Val::Px(76.0), 0.0));
+                    r.spawn(cell(f, "mono", 12.0, crate::theme::colour("forest2"), bytes(d.size as u64), Val::Px(76.0), 0.0));
+                    r.spawn(cell(f, "mono", 12.0, crate::theme::colour("forest2"), when(d.last), Val::Px(120.0), 0.0));
                 });
             }
             more(p, f, rows.len());
@@ -989,13 +987,13 @@ fn draw_mid(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
             } else {
                 for b in rows.iter().take(MAX_ROWS) {
                     let facts = db.facts.get(&b.hash).cloned().flatten();
-                    let bg = if db.blob == Some(b.hash) { PICKED } else { CREAM };
+                    let bg = if db.blob == Some(b.hash) { crate::theme::colour("picked") } else { crate::theme::colour("cream") };
                     p.spawn((DbAct::Blob(b.hash), Hovered::default(), Base(bg), row_node(10.0), BackgroundColor(bg))).with_children(|r| {
                         let name = blob_name(inv, b);
-                        r.spawn(cell(f, "sans", 14.0, if b.unreferenced() { SUN } else { FOREST }, if b.unreferenced() { format!("unreferenced · {name}") } else { name }, Val::Auto, 1.0));
-                        r.spawn(cell(f, "mono", 12.0, FOREST2, short(&b.hash), Val::Px(100.0), 0.0));
-                        r.spawn(cell(f, "mono", 12.0, FOREST2, "", Val::Px(150.0), 0.0)).with_child((words(f, "mono", 12.0, FOREST2, facts.as_ref().map(|f| f.media.to_string()).unwrap_or_else(|| "…".into())), TextLayout::no_wrap(), Fact::Media(b.hash)));
-                        r.spawn(cell(f, "mono", 12.0, FOREST2, "", Val::Px(80.0), 0.0)).with_child((words(f, "mono", 12.0, FOREST2, facts.as_ref().map(|f| bytes(f.size)).unwrap_or_else(|| "…".into())), TextLayout::no_wrap(), Fact::Size(b.hash)));
+                        r.spawn(cell(f, "sans", 14.0, if b.unreferenced() { crate::theme::colour("sun") } else { crate::theme::colour("forest") }, if b.unreferenced() { format!("unreferenced · {name}") } else { name }, Val::Auto, 1.0));
+                        r.spawn(cell(f, "mono", 12.0, crate::theme::colour("forest2"), short(&b.hash), Val::Px(100.0), 0.0));
+                        r.spawn(cell(f, "mono", 12.0, crate::theme::colour("forest2"), "", Val::Px(150.0), 0.0)).with_child((words(f, "mono", 12.0, crate::theme::colour("forest2"), facts.as_ref().map(|f| f.media.to_string()).unwrap_or_else(|| "…".into())), TextLayout::no_wrap(), Fact::Media(b.hash)));
+                        r.spawn(cell(f, "mono", 12.0, crate::theme::colour("forest2"), "", Val::Px(80.0), 0.0)).with_child((words(f, "mono", 12.0, crate::theme::colour("forest2"), facts.as_ref().map(|f| bytes(f.size)).unwrap_or_else(|| "…".into())), TextLayout::no_wrap(), Fact::Size(b.hash)));
                     });
                 }
             }
@@ -1010,13 +1008,13 @@ fn more(p: &mut ChildSpawnerCommands, f: &Fonts, n: usize) {
         n if n > MAX_ROWS => format!("the first {MAX_ROWS} of {n}: type to narrow"),
         n => format!("{n} in all"),
     };
-    p.spawn((words(f, "mono", 12.0, FOREST2, text), Node { margin: UiRect::all(Val::Px(10.0)), ..default() }));
+    p.spawn((words(f, "mono", 12.0, crate::theme::colour("forest2"), text), Node { margin: UiRect::all(Val::Px(10.0)), ..default() }));
 }
 
 /// A blob as a tile: its type big (or the image itself), its name, its type, size and an image's dimensions.
 fn tile(g: &mut ChildSpawnerCommands, f: &Fonts, db: &Db, inv: &Inventory, b: &BlobRow) {
     let facts = db.facts.get(&b.hash).cloned().flatten();
-    let bg = if db.blob == Some(b.hash) { PICKED } else { PAPER };
+    let bg = if db.blob == Some(b.hash) { crate::theme::colour("picked") } else { crate::theme::colour("paper") };
     let media = facts.as_ref().map(|f| f.media).unwrap_or("");
     let word = if facts.is_some() { type_word(media) } else { "…" };
     let image = matches!(media, "image/png" | "image/jpeg") && facts.as_ref().is_some_and(|f| f.size < 16 << 20);
@@ -1026,13 +1024,13 @@ fn tile(g: &mut ChildSpawnerCommands, f: &Fonts, db: &Db, inv: &Inventory, b: &B
         Hovered::default(),
         Base(bg),
         BackgroundColor(bg),
-        BorderColor::all(if b.unreferenced() { SUN } else { SAND }),
+        BorderColor::all(if b.unreferenced() { crate::theme::colour("sun") } else { crate::theme::colour("sand") }),
         Node { width: Val::Px(132.0), flex_direction: FlexDirection::Column, padding: UiRect::all(Val::Px(8.0)), row_gap: Val::Px(4.0), border: UiRect::all(Val::Px(2.0)), border_radius: BorderRadius::all(Val::Px(14.0)), ..default() },
     ))
     .with_children(|t| {
         t.spawn((
             Node { height: Val::Px(80.0), align_items: AlignItems::Center, justify_content: JustifyContent::Center, border_radius: BorderRadius::all(Val::Px(10.0)), overflow: Overflow::clip(), ..default() },
-            BackgroundColor(if facts.is_some() { swatch_colour(word) } else { SAND }),
+            BackgroundColor(if facts.is_some() { swatch_colour(word) } else { crate::theme::colour("sand") }),
             Fact::Swatch(h),
             Pickable::IGNORE,
         ))
@@ -1040,13 +1038,13 @@ fn tile(g: &mut ChildSpawnerCommands, f: &Fonts, db: &Db, inv: &Inventory, b: &B
             if image {
                 s.spawn((ImageNode::new(Handle::default()), Node { width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() }, Pickable::IGNORE, Thumb(h)));
             } else {
-                s.spawn((words(f, "mono", 22.0, CREAM, word), Fact::Word(h)));
+                s.spawn((words(f, "mono", 22.0, crate::theme::colour("cream"), word), Fact::Word(h)));
             }
         });
-        t.spawn(cell(f, "sans", 13.0, FOREST, blob_name(inv, b), Val::Percent(100.0), 0.0));
-        t.spawn((words(f, "mono", 11.0, FOREST2, tile_line(facts.as_ref())), Fact::Line(h)));
+        t.spawn(cell(f, "sans", 13.0, crate::theme::colour("forest"), blob_name(inv, b), Val::Percent(100.0), 0.0));
+        t.spawn((words(f, "mono", 11.0, crate::theme::colour("forest2"), tile_line(facts.as_ref())), Fact::Line(h)));
         if b.unreferenced() {
-            t.spawn(words(f, "mono", 11.0, SUN, "unreferenced"));
+            t.spawn(words(f, "mono", 11.0, crate::theme::colour("sun"), "unreferenced"));
         }
     });
 }
@@ -1066,13 +1064,13 @@ pub fn thumbs(mut q: Query<(&Thumb, &mut ImageNode), Added<Thumb>>, assets: Res<
 }
 
 fn section(p: &mut ChildSpawnerCommands, f: &Fonts, text: &str) {
-    p.spawn((words(f, "mono", 12.0, CLAY, text.to_uppercase()), Node { margin: UiRect::top(Val::Px(14.0)), ..default() }));
+    p.spawn((words(f, "mono", 12.0, crate::theme::colour("clay"), text.to_uppercase()), Node { margin: UiRect::top(Val::Px(14.0)), ..default() }));
 }
 
 fn link(p: &mut ChildSpawnerCommands, f: &Fonts, act: DbAct, main: String, side: String) {
-    p.spawn((act, Hovered::default(), Base(CREAM), BackgroundColor(CREAM), row_node(8.0))).with_children(|r| {
-        r.spawn(cell(f, "sans", 14.0, FOREST, main, Val::Auto, 1.0));
-        r.spawn(words(f, "mono", 11.0, FOREST2, side));
+    p.spawn((act, Hovered::default(), Base(crate::theme::colour("cream")), BackgroundColor(crate::theme::colour("cream")), row_node(8.0))).with_children(|r| {
+        r.spawn(cell(f, "sans", 14.0, crate::theme::colour("forest"), main, Val::Auto, 1.0));
+        r.spawn(words(f, "mono", 11.0, crate::theme::colour("forest2"), side));
     });
 }
 
@@ -1082,29 +1080,29 @@ fn lines(p: &mut ChildSpawnerCommands, f: &Fonts, text: &str) {
     let shown = all.iter().take(MAX_LINES).copied().collect::<Vec<_>>().join("\n");
     p.spawn((
         Node { padding: UiRect::all(Val::Px(12.0)), border_radius: BorderRadius::all(Val::Px(12.0)), ..default() },
-        BackgroundColor(PAPER),
+        BackgroundColor(crate::theme::colour("paper")),
         Pickable::IGNORE,
-        children![(words(f, "mono", 12.0, FOREST, if shown.is_empty() { "(empty)".to_string() } else { shown }), TextLayout::linebreak(LineBreak::WordOrCharacter))],
+        children![(words(f, "mono", 12.0, crate::theme::colour("forest"), if shown.is_empty() { "(empty)".to_string() } else { shown }), TextLayout::linebreak(LineBreak::WordOrCharacter))],
     ));
     if all.len() > MAX_LINES {
-        p.spawn(words(f, "mono", 11.0, FOREST2, format!("… and {} lines more", all.len() - MAX_LINES)));
+        p.spawn(words(f, "mono", 11.0, crate::theme::colour("forest2"), format!("… and {} lines more", all.len() - MAX_LINES)));
     }
 }
 
 /// The changed lines with two lines around each, long unchanged runs folded.
 fn diff_lines(p: &mut ChildSpawnerCommands, f: &Fonts, before: &str, now: &str) {
     let Some(d) = inventory::diff(before, now, 3000) else {
-        p.spawn(words(f, "sans", 13.0, FOREST2, "too long to compare line by line"));
+        p.spawn(words(f, "sans", 13.0, crate::theme::colour("forest2"), "too long to compare line by line"));
         return;
     };
     let near: Vec<bool> = (0..d.len()).map(|i| d[i.saturating_sub(2)..(i + 3).min(d.len())].iter().any(|(c, _)| *c != ' ')).collect();
     if !d.iter().any(|(c, _)| *c != ' ') {
-        p.spawn(words(f, "sans", 13.0, FOREST2, "the same content as the version before (a change elsewhere in the doc: its name, its kind, a part)"));
+        p.spawn(words(f, "sans", 13.0, crate::theme::colour("forest2"), "the same content as the version before (a change elsewhere in the doc: its name, its kind, a part)"));
         return;
     }
     let mut text = p.spawn((
         Node { padding: UiRect::all(Val::Px(12.0)), border_radius: BorderRadius::all(Val::Px(12.0)), ..default() },
-        BackgroundColor(PAPER),
+        BackgroundColor(crate::theme::colour("paper")),
         Pickable::IGNORE,
     ));
     let font = f.mono.clone();
@@ -1121,19 +1119,19 @@ fn diff_lines(p: &mut ChildSpawnerCommands, f: &Fonts, before: &str, now: &str) 
                     continue;
                 }
                 if folded > 0 {
-                    s.spawn((TextSpan::new(format!("   … {folded} lines the same\n")), TextFont { font: font.clone().into(), font_size: FontSize::Px(12.0), ..default() }, TextColor(FOREST2)));
+                    s.spawn((TextSpan::new(format!("   … {folded} lines the same\n")), TextFont { font: font.clone().into(), font_size: FontSize::Px(12.0), ..default() }, TextColor(crate::theme::colour("forest2"))));
                     folded = 0;
                 }
                 let color = match c {
-                    '+' => CLAY,
+                    '+' => crate::theme::colour("clay"),
                     '-' => Color::srgb(0.75, 0.30, 0.20),
-                    _ => FOREST2,
+                    _ => crate::theme::colour("forest2"),
                 };
                 s.spawn((TextSpan::new(format!("{c} {l}\n")), TextFont { font: font.clone().into(), font_size: FontSize::Px(12.0), ..default() }, TextColor(color)));
                 shown += 1;
             }
             if folded > 0 {
-                s.spawn((TextSpan::new(format!("   … {folded} lines the same\n")), TextFont { font: font.clone().into(), font_size: FontSize::Px(12.0), ..default() }, TextColor(FOREST2)));
+                s.spawn((TextSpan::new(format!("   … {folded} lines the same\n")), TextFont { font: font.clone().into(), font_size: FontSize::Px(12.0), ..default() }, TextColor(crate::theme::colour("forest2"))));
             }
         });
     });
@@ -1147,11 +1145,11 @@ fn draw_history(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
     let at = db.version.unwrap_or(0);
     section(p, f, &format!("history · {}", det.versions.len()));
     for (i, v) in det.versions.iter().enumerate().rev().take(MAX_ROWS) {
-        let bg = if i == at { PICKED } else { CREAM };
+        let bg = if i == at { crate::theme::colour("picked") } else { crate::theme::colour("cream") };
         p.spawn((DbAct::Version(i), Hovered::default(), Base(bg), BackgroundColor(bg), Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(2.0), ..row_node(0.0) })).with_children(|r| {
-            r.spawn(cell(f, "mono", 12.0, FOREST, format!("{}  {}", i + 1, v.label()), Val::Percent(100.0), 0.0));
+            r.spawn(cell(f, "mono", 12.0, crate::theme::colour("forest"), format!("{}  {}", i + 1, v.label()), Val::Percent(100.0), 0.0));
             let size = det.sizes.get(i).copied().flatten().map(|s| bytes(s as u64)).unwrap_or_else(|| "—".into());
-            r.spawn(cell(f, "mono", 11.0, FOREST2, format!("{} · {size}", when(v.time)), Val::Percent(100.0), 0.0));
+            r.spawn(cell(f, "mono", 11.0, crate::theme::colour("forest2"), format!("{} · {size}", when(v.time)), Val::Percent(100.0), 0.0));
         });
     }
 }
@@ -1161,19 +1159,19 @@ fn draw_right(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
     match &db.pick {
         Pick::Kind(_) => {
             let Some(d) = db.doc.as_ref().and_then(|id| inv.docs.iter().find(|d| &d.id == id)) else {
-                p.spawn(words(f, "sans", 15.0, FOREST2, "Choose a doc to see its content, its history and what it names."));
+                p.spawn(words(f, "sans", 15.0, crate::theme::colour("forest2"), "Choose a doc to see its content, its history and what it names."));
                 return;
             };
-            p.spawn(words(f, "serif", 26.0, FOREST, if d.name.is_empty() { "(no name)".to_string() } else { d.name.clone() }));
-            p.spawn(words(f, "mono", 12.0, FOREST2, format!("{} · {}", d.kind, d.id)));
-            p.spawn((words(f, "mono", 12.0, FOREST2, format!("head {}", d.head.to_hex())), TextLayout::linebreak(LineBreak::AnyCharacter)));
+            p.spawn(words(f, "serif", 26.0, crate::theme::colour("forest"), if d.name.is_empty() { "(no name)".to_string() } else { d.name.clone() }));
+            p.spawn(words(f, "mono", 12.0, crate::theme::colour("forest2"), format!("{} · {}", d.kind, d.id)));
+            p.spawn((words(f, "mono", 12.0, crate::theme::colour("forest2"), format!("head {}", d.head.to_hex())), TextLayout::linebreak(LineBreak::AnyCharacter)));
             if d.main != Some(d.head) {
-                p.spawn(words(f, "mono", 12.0, CLAY, match d.main {
+                p.spawn(words(f, "mono", 12.0, crate::theme::colour("clay"), match d.main {
                     Some(m) => format!("main has {}", short(&m)),
                     None => "only on this branch".to_string(),
                 }));
             }
-            p.spawn(words(f, "sans", 13.0, FOREST2, if d.own.is_empty() { "no branch has its own head for it".to_string() } else { format!("own heads on: {}", d.own.join(", ")) }));
+            p.spawn(words(f, "sans", 13.0, crate::theme::colour("forest2"), if d.own.is_empty() { "no branch has its own head for it".to_string() } else { format!("own heads on: {}", d.own.join(", ")) }));
             let Some(det) = db.detail.as_ref().filter(|x| x.id == d.id) else { return };
             let at = db.version.unwrap_or(0);
             let label = det.versions.get(at).map(|v| v.label()).unwrap_or_default();
@@ -1193,7 +1191,7 @@ fn draw_right(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
             }
             section(p, f, "names");
             if d.names.docs.is_empty() && d.names.blobs.is_empty() {
-                p.spawn(words(f, "sans", 13.0, FOREST2, "no doc and no blob"));
+                p.spawn(words(f, "sans", 13.0, crate::theme::colour("forest2"), "no doc and no blob"));
             }
             for (id, place) in &d.names.docs {
                 let name = inv.docs.iter().find(|x| &x.id == id).map(|x| format!("{} ({})", x.name, x.kind)).unwrap_or_else(|| format!("{id} (not on this branch)"));
@@ -1204,7 +1202,7 @@ fn draw_right(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
             }
             section(p, f, "named by");
             if d.named_by.is_empty() {
-                p.spawn(words(f, "sans", 13.0, FOREST2, "no doc on this branch"));
+                p.spawn(words(f, "sans", 13.0, crate::theme::colour("forest2"), "no doc on this branch"));
             }
             for id in &d.named_by {
                 let name = inv.docs.iter().find(|x| &x.id == id).map(|x| format!("{} ({})", x.name, x.kind)).unwrap_or_else(|| id.clone());
@@ -1213,27 +1211,27 @@ fn draw_right(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
         }
         Pick::Blobs => {
             let Some(b) = db.blob.and_then(|h| inv.blobs.iter().find(|b| b.hash == h)) else {
-                p.spawn(words(f, "sans", 15.0, FOREST2, "Choose a blob to see it, its facts and who names it."));
+                p.spawn(words(f, "sans", 15.0, crate::theme::colour("forest2"), "Choose a blob to see it, its facts and who names it."));
                 return;
             };
             let facts = db.facts.get(&b.hash).cloned().flatten();
-            p.spawn(words(f, "serif", 24.0, FOREST, blob_name(inv, b)));
-            p.spawn((words(f, "mono", 12.0, FOREST2, b.hash.to_hex().to_string()), TextLayout::linebreak(LineBreak::AnyCharacter)));
+            p.spawn(words(f, "serif", 24.0, crate::theme::colour("forest"), blob_name(inv, b)));
+            p.spawn((words(f, "mono", 12.0, crate::theme::colour("forest2"), b.hash.to_hex().to_string()), TextLayout::linebreak(LineBreak::AnyCharacter)));
             match &facts {
                 Some(x) => {
                     let dims = x.dims.map(|(w, h)| format!(" · {w}×{h} px")).unwrap_or_default();
-                    p.spawn(words(f, "mono", 13.0, FOREST, format!("{} · {}{dims}", x.media, bytes(x.size))));
+                    p.spawn(words(f, "mono", 13.0, crate::theme::colour("forest"), format!("{} · {}{dims}", x.media, bytes(x.size))));
                 }
                 None if db.facts.contains_key(&b.hash) => {
-                    p.spawn(words(f, "mono", 13.0, SUN, "the store does not have this blob"));
+                    p.spawn(words(f, "mono", 13.0, crate::theme::colour("sun"), "the store does not have this blob"));
                 }
                 None => {
-                    p.spawn(words(f, "mono", 13.0, FOREST2, "reading its facts…"));
+                    p.spawn(words(f, "mono", 13.0, crate::theme::colour("forest2"), "reading its facts…"));
                 }
             }
             section(p, f, "named by");
             if b.unreferenced() {
-                p.spawn(words(f, "sans", 13.0, SUN, if b.elsewhere.is_empty() { "unreferenced".to_string() } else { format!("unreferenced on this branch; named on {}", b.elsewhere.join(", ")) }));
+                p.spawn(words(f, "sans", 13.0, crate::theme::colour("sun"), if b.elsewhere.is_empty() { "unreferenced".to_string() } else { format!("unreferenced on this branch; named on {}", b.elsewhere.join(", ")) }));
             }
             for (by, place) in &b.named_by {
                 match by.strip_prefix("blob:") {
@@ -1261,12 +1259,12 @@ fn draw_right(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
                     lines(p, f, &pretty(&text));
                 }
                 "application/x-loro-snapshot" if x.size <= 4 << 20 => {
-                    p.spawn(words(f, "sans", 13.0, FOREST2, "a version of a doc; its content then:"));
+                    p.spawn(words(f, "sans", 13.0, crate::theme::colour("forest2"), "a version of a doc; its content then:"));
                     let text = crate::db().file_at(b.hash).map(|b| String::from_utf8_lossy(&b).into_owned()).unwrap_or_default();
                     lines(p, f, &pretty(&text));
                 }
                 _ => {
-                    p.spawn(words(f, "sans", 13.0, FOREST2, format!("{}: no preview; its facts above", type_word(x.media).to_lowercase())));
+                    p.spawn(words(f, "sans", 13.0, crate::theme::colour("forest2"), format!("{}: no preview; its facts above", type_word(x.media).to_lowercase())));
                 }
             }
         }

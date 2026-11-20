@@ -5,7 +5,7 @@
 //! memory only until "I have saved it" is pressed, then forgotten; it never goes to a file, a log or the store.
 
 use crate::View;
-use crate::ui::{CLAY, CREAM, FOREST, FOREST2, Fonts, PAPER, SAND};
+use crate::ui::Fonts;
 use bevy::picking::events::PointerClick;
 use bevy::prelude::*;
 
@@ -140,8 +140,8 @@ fn draw(mut commands: Commands, fonts: Res<Fonts>, mut s: ResMut<Setup>, old: Qu
         (
             act,
             Node { padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)), border_radius: BorderRadius::all(Val::Px(12.0)), flex_shrink: 0.0, ..default() },
-            BackgroundColor(SAND),
-            children![(Text::new(label), TextFont { font: f.sans.clone().into(), font_size: FontSize::Px(14.0), ..default() }, TextColor(FOREST), Pickable::IGNORE)],
+            BackgroundColor(crate::theme::colour("sand")),
+            children![(Text::new(label), TextFont { font: f.sans.clone().into(), font_size: FontSize::Px(14.0), ..default() }, TextColor(crate::theme::colour("forest")), Pickable::IGNORE)],
         )
     };
     let button = |label: &str, act: SetupAct, bg: Color, fg: Color| {
@@ -157,44 +157,44 @@ fn draw(mut commands: Commands, fonts: Res<Fonts>, mut s: ResMut<Setup>, old: Qu
             Screen,
             DespawnOnExit(View::Setup),
             Node { position_type: PositionType::Absolute, left: Val::Px(0.0), right: Val::Px(0.0), top: Val::Px(0.0), bottom: Val::Px(0.0), align_items: AlignItems::Center, justify_content: JustifyContent::Center, ..default() },
-            BackgroundColor(PAPER),
+            BackgroundColor(crate::theme::colour("paper")),
         ))
         .with_children(|root| {
             root.spawn((
                 Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(18.0), width: Val::Px(680.0), padding: UiRect::all(Val::Px(40.0)), border_radius: BorderRadius::all(Val::Px(28.0)), ..default() },
-                BackgroundColor(CREAM),
+                BackgroundColor(crate::theme::colour("cream")),
             ))
             .with_children(|card| {
-                card.spawn(text(&f.serif, 44.0, FOREST, "Your master key".into()));
+                card.spawn(text(&f.serif, 44.0, crate::theme::colour("forest"), "Your master key".into()));
                 match (&s.secret, &s.master) {
                     (Some(secret), Some(master)) => {
-                        card.spawn(text(&f.sans, 18.0, FOREST2, "This is the key that signs everything theOS keeps, and the only one that merges into main. It is shown this once. Put it in your password manager now; this Mac's Keychain holds it too.".into()));
+                        card.spawn(text(&f.sans, 18.0, crate::theme::colour("forest2"), "This is the key that signs everything theOS keeps, and the only one that merges into main. It is shown this once. Put it in your password manager now; this Mac's Keychain holds it too.".into()));
                         card.spawn((
                             Node { padding: UiRect::all(Val::Px(24.0)), border_radius: BorderRadius::all(Val::Px(18.0)), ..default() },
-                            BackgroundColor(SAND),
-                            children![text(&f.mono, 24.0, FOREST, grouped(secret))],
+                            BackgroundColor(crate::theme::colour("sand")),
+                            children![text(&f.mono, 24.0, crate::theme::colour("forest"), grouped(secret))],
                         ));
                         card.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(12.0), align_items: AlignItems::Center, ..default() }).with_children(|row| {
-                            row.spawn(text(&f.mono, 13.0, FOREST2, format!("public key  {master}")));
+                            row.spawn(text(&f.mono, 13.0, crate::theme::colour("forest2"), format!("public key  {master}")));
                             row.spawn(small_button(if s.copied_public { "Copied" } else { "Copy" }, SetupAct::CopyPublic));
                         });
                         if let Some(e) = &s.error {
                             card.spawn(text(&f.sans, 16.0, Color::srgb(0.7, 0.2, 0.15), e.clone()));
                         }
-                        card.spawn(text(&f.sans, 15.0, FOREST2, "Never as a screenshot or in a chat: whoever sees it can sign as you.".into()));
+                        card.spawn(text(&f.sans, 15.0, crate::theme::colour("forest2"), "Never as a screenshot or in a chat: whoever sees it can sign as you.".into()));
                         card.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(12.0), ..default() }).with_children(|row| {
                             let copy = if s.copied { "Copied: off the clipboard in a minute" } else { "Copy" };
-                            row.spawn(button(copy, SetupAct::Copy, SAND, FOREST));
-                            row.spawn(button("I have saved it in my password manager", SetupAct::Saved, FOREST, CREAM));
+                            row.spawn(button(copy, SetupAct::Copy, crate::theme::colour("sand"), crate::theme::colour("forest")));
+                            row.spawn(button("I have saved it in my password manager", SetupAct::Saved, crate::theme::colour("forest"), crate::theme::colour("cream")));
                         });
                     }
                     _ => {
-                        card.spawn(text(&f.sans, 18.0, FOREST2, "theOS signs every change it keeps. One master key signs main and every merge; agents get keys of their own, for their own lines, by its grant. This store has no master yet.".into()));
-                        card.spawn(text(&f.sans, 18.0, FOREST2, "Make it now. Its secret is shown once, for you to keep in your password manager.".into()));
+                        card.spawn(text(&f.sans, 18.0, crate::theme::colour("forest2"), "theOS signs every change it keeps. One master key signs main and every merge; agents get keys of their own, for their own lines, by its grant. This store has no master yet.".into()));
+                        card.spawn(text(&f.sans, 18.0, crate::theme::colour("forest2"), "Make it now. Its secret is shown once, for you to keep in your password manager.".into()));
                         if let Some(e) = &s.error {
                             card.spawn(text(&f.sans, 16.0, Color::srgb(0.7, 0.2, 0.15), e.clone()));
                         }
-                        card.spawn(button("Make the master key", SetupAct::Make, CLAY, CREAM));
+                        card.spawn(button("Make the master key", SetupAct::Make, crate::theme::colour("clay"), crate::theme::colour("cream")));
                     }
                 }
             });

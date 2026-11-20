@@ -3,8 +3,11 @@
 //! in wasmi, sandboxed: a module touches nothing but the numbers it is given and returns.
 //!
 //! **The world contract.** A world doc names its module (`module`: the doc's id). The module exports, all `f32`:
-//! `eye_height()` (where the Game's eye starts above the ground), `near()` and `far()` (the camera's planes), and
-//! `ground_half(eye_y)` (how far the ground reaches to each side for an eye that high). theOS hard-sets none of them.
+//! `eye_height()` (where the Game's eye starts above the ground), `near()` and `far()` (the camera's planes),
+//! `ground_half(eye_y)` (how far the ground reaches to each side for an eye that high), and how one walks in it:
+//! `walk_speed(eye_y, running)` (metres a second; `running` is 0 or 1), `lowest()` and `highest()` (the eye's limits),
+//! `rise_per_notch()` (what a wheel notch multiplies the height by), `lens_mm()` (the walker's lens), `start_x()` and
+//! `start_z()` (where the walker starts). theOS hard-sets none of them; it only maps the keys and the mouse.
 
 use bevy::prelude::*;
 use std::sync::Mutex;
@@ -18,6 +21,13 @@ pub struct WorldModule {
     near: TypedFunc<(), f32>,
     far: TypedFunc<(), f32>,
     ground_half: TypedFunc<f32, f32>,
+    walk_speed: TypedFunc<(f32, i32), f32>,
+    lowest: TypedFunc<(), f32>,
+    highest: TypedFunc<(), f32>,
+    rise_per_notch: TypedFunc<(), f32>,
+    lens_mm: TypedFunc<(), f32>,
+    start_x: TypedFunc<(), f32>,
+    start_z: TypedFunc<(), f32>,
 }
 
 impl WorldModule {
@@ -35,6 +45,13 @@ impl WorldModule {
             near: f("near")?,
             far: f("far")?,
             ground_half: instance.get_typed_func::<f32, f32>(&store, "ground_half").map_err(|e| format!("the module {id} lacks ground_half: {e}"))?,
+            walk_speed: instance.get_typed_func::<(f32, i32), f32>(&store, "walk_speed").map_err(|e| format!("the module {id} lacks walk_speed: {e}"))?,
+            lowest: f("lowest")?,
+            highest: f("highest")?,
+            rise_per_notch: f("rise_per_notch")?,
+            lens_mm: f("lens_mm")?,
+            start_x: f("start_x")?,
+            start_z: f("start_z")?,
             store: Mutex::new(store),
         })
     }
@@ -51,6 +68,27 @@ impl WorldModule {
     }
     pub fn far(&self) -> f32 {
         self.call0(self.far)
+    }
+    pub fn walk_speed(&self, eye_y: f32, running: bool) -> f32 {
+        self.walk_speed.call(&mut *self.store.lock().unwrap_or_else(|e| e.into_inner()), (eye_y, running as i32)).unwrap_or(0.0)
+    }
+    pub fn lowest(&self) -> f32 {
+        self.call0(self.lowest)
+    }
+    pub fn highest(&self) -> f32 {
+        self.call0(self.highest)
+    }
+    pub fn rise_per_notch(&self) -> f32 {
+        self.call0(self.rise_per_notch)
+    }
+    pub fn lens_mm(&self) -> f32 {
+        self.call0(self.lens_mm)
+    }
+    pub fn start_x(&self) -> f32 {
+        self.call0(self.start_x)
+    }
+    pub fn start_z(&self) -> f32 {
+        self.call0(self.start_z)
     }
     pub fn ground_half(&self, eye_y: f32) -> f32 {
         self.ground_half.call(&mut *self.store.lock().unwrap_or_else(|e| e.into_inner()), eye_y).unwrap_or(f32::NAN)

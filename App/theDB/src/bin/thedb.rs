@@ -33,6 +33,11 @@
 //!     thedb agent <name> [days]         a new agent: its key in the Keychain, the master's grant of line-<name>
 //!     thedb verify                      every signature, and every head signed by whom its branch allows
 //!
+//! Locks: the system at a version (lock.rs). `THEDB_LOCK=<hash>` opens any process at one, read only.
+//!
+//!     thedb lock                        everything the root reaches, each doc at its version, signed: prints its hash
+//!     thedb lock <hash>                 what a lock pins, its signature checked
+//!
 //! Vibes: one manifest kind for everything opened as a whole (vibe.rs).
 //!
 //!     thedb vibe schema                 the vibe schema, kept as a blob; prints its hash (name it on every vibe)
@@ -131,6 +136,11 @@ fn main() {
         ["proposal", id] => {
             let p = db.proposal(id).unwrap_or_else(|e| fail(&e));
             println!("{:?}  {}  from {}  ({} docs)", p.state, p.note, p.branch, p.docs.len());
+        }
+        ["lock"] => println!("{}", db.lock().unwrap_or_else(|e| fail(&e))),
+        ["lock", hash] => {
+            let pins = db.read_lock(hash.parse().unwrap_or_else(|_| fail("not a hash"))).unwrap_or_else(|e| fail(&e));
+            println!("root {}\nvibe {}\n{} docs, {} blobs, signature good", pins.root, pins.vibe.unwrap_or_default(), pins.docs.len(), pins.blobs.len());
         }
         ["vibe", "schema"] => println!("{}", db.vibe_schema().unwrap_or_else(|e| fail(&e))),
         ["vibe", reference] => {

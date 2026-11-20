@@ -15,6 +15,9 @@ pub struct Root {
     pub home: String,
     /// The layers each view lays over the world: layer docs, in order.
     pub layers: Layers,
+    /// The palette (`theme.rs`): a theme doc.
+    #[serde(default)]
+    pub theme: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]

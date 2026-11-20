@@ -13,6 +13,7 @@ mod module;
 mod pill;
 mod root;
 mod setup;
+mod theme;
 mod thedb_view;
 mod ui;
 mod views;
