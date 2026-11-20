@@ -1,30 +1,26 @@
 // A rock by its recipe (an asset of kind rock: assets/boulder.js, stone.js): a ball pulled out of round by slow noise,
 // faces broken off it by planes (its look's `cuts`), left rough or worn round (`smooth`), then squashed and tipped over
 // as it came to lie. Each of an asset's shapes (placement.shapes, from its seed) is a kind of the heap
-// (src/scatter/heap.js): that shape as it is, a full mesh of 110 000 triangles with its lumps and pits; every coarser
-// version of it is the builder's, from that mesh alone (assets/kit/clusters.js: a cluster hierarchy, its levels as the
-// heap holds them: surface.js). Plain JS, no three: it runs in a worker (src/scatter/recipes.worker.js) and on the page.
+// (src/scatter/heap.js): that shape at every level of the ladder (ladder.js), from a full mesh of 110 000 triangles
+// with its lumps and pits down to a cube and a dot, each level the same shape, smoother. Plain JS, no three: it runs in
+// a worker (src/scatter/recipes.worker.js) and on the page.
 //
 // A kit: the families that bring a rock asset's shapes to the heap are assets/zoo/*.js (rockFamily, below).
 //
-//   rockMesh(asset, v, l) -> { index, verts }   level l of shape v's hierarchy, packed (surface.js; a vertex as solid.js
-//                                               packs a rock's: its place on its parent's surface, how dark it is where
-//                                               it meets the ground); rockFull(asset, v): the shape itself
-//   rockBody(asset, v) -> { span, sunk, rad, top, frame }   what who places it must know: shape v as it was grown
-//                                               (span: its largest side then, rad: how far it reaches from its middle,
-//                                               top: how high it stands), how much of its largest side lies under the
-//                                               ground, and its box as it is drawn (frame: its largest side 1)
-// A rock is drawn at its size: a rock of size s is s across, its largest side, metres (its asset's size.length, which
-// is the measure's: world/scale.js). No engine scales it by anything of its own.
+//   rockMesh(asset, v, l) -> { index, verts }   shape v at level l, packed (solid.js): each vertex with its place on the
+//                                               next coarser level's mesh, and how dark it is where it meets the ground
+//   rockBody(asset, v) -> { span, sunk, rad, top }   what who places it must know, for a rock of size 1 (its asset's
+//                                               size.length is that size): its largest side; how much of that lies
+//                                               under the ground; how far it reaches from its middle; how high it stands
 //   rockFamily(id, asset)                       the asset's shapes as a family of the zoo (assets/zoo/index.js)
+import { LADDER, FULLN, DOTN, underOf } from './ladder.js';
 import { ball, ballMesh, hash3, noise3, SWELL } from './blob.js';
-import { STILL_PER, stillOf } from './solid.js';
-import { hierarchyOf, packLevel } from './surface.js';
+import { dotMesh } from './solid.js';
 import { sstep } from './math.js';
 import { kindOf, kindRule, shapesOf } from '../kinds.js';
 
 /** squares along an edge of a rock's full mesh (12 n² triangles) */
-const FULL_ROCK = 96;
+export const FULL_ROCK = 96;
 /** how far under the ground a rock's middle lies, of its size: it is half buried */
 export const BURIED = 0.22;
 // how much of a ripple of frequency f a mesh of n squares an edge can carry (as blob.js: a coarse level is the same
@@ -85,28 +81,16 @@ const rockAt = (S, n) => {
     return 0.45 + 0.55 * sstep(-0.25, 0.35, ly);
   };
 };
-/** Shape v of a rock asset at its full detail, all its recipe makes: { V, pos, nor, shade, index } (assets/kit/blob.js:
-    ball), its own frame (its foot at 0, its largest side 1). */
-export const rockFull = (asset, v) => { const S = shapeOf(asset, v); return ball(FULL_ROCK, rockAt(S, FULL_ROCK), true); };
-// (a shape's hierarchy, from its full mesh alone (clusters.js), the last few kept: a worker asked for a shape's levels
-// one after another builds it once)
-const DAGS = new Map();
-/** Shape v's hierarchy (clusters.js build's): what tools/rooms.js measures its levels' rooms from. */
-export const rockHierarchy = (asset, v) => dagOf(asset, v);
-const dagOf = (asset, v) => {
-  const key = `${asset.uid}:${asset.placement.seed}:${v}`; let D = DAGS.get(key); if (D) return D;
-  if (DAGS.size >= 3) DAGS.delete(DAGS.keys().next().value);
-  const F = rockFull(asset, v);
-  DAGS.set(key, (D = hierarchyOf({ V: F.V, pos: F.pos, nor: F.nor, attr: Float32Array.from(F.shade), k: 1, index: F.index }))); return D;
-};
-/** Level l of shape v of a rock asset's hierarchy, packed for the heap (surface.js), no larger than room. */
-export function rockMesh(asset, v, l, room = null) { const D = dagOf(asset, v); return packLevel(D, l, STILL_PER, stillOf(D), room); }
-/** Shape v drawn coarser by its recipe, quickly, on the page: what the fingerprint reads. */
-export const rockSketch = (asset, v) => { const S = shapeOf(asset, v); return ballMesh((q) => rockAt(S, q), 8, 0, 0); };
-/** What who places shape v must know: { span (its largest side as it was grown), sunk (how much of its largest side
-    lies under the ground), rad (how far it reaches from its middle, level, as grown), top (how high it stands over the
-    ground, as grown), frame (its box in the frame it is drawn in: its foot at 0, its largest side 1) }. Drawn at size s,
-    it is s across. */
+/** Shape v of a rock asset at level l of the ladder. */
+export function rockMesh(asset, v, l) {
+  const n = LADDER[l].n;
+  if (n === DOTN) return dotMesh();
+  const S = shapeOf(asset, v);
+  return ballMesh((q) => rockAt(S, q), n === FULLN ? FULL_ROCK : n, underOf(l), LADDER[l].delta);
+}
+/** What who places shape v must know, for a rock of size 1: { span (its largest side), sunk (how much of that lies
+    under the ground), rad (how far it reaches from its middle, level), top (how high it stands over the ground),
+    frame (its box in the frame it is drawn in: its foot at 0, its largest side 1) }. */
 export const rockBody = (asset, v) => measure(shapeOf(asset, v)).body;
 
 /** A rock asset's shapes as a family of the zoo (assets/zoo/index.js): `id` its name there. The engine that places
@@ -114,14 +98,10 @@ export const rockBody = (asset, v) => measure(shapeOf(asset, v)).body;
     its tint, its moss, its relief. */
 export const rockFamily = (id, asset) => ({
   id, placed: 'rocks', asset: asset.uid, count: asset.placement.shapes ?? 1,
-  meshOf: (i, l, room) => rockMesh(asset, i, l, room),
-  // (what its fingerprint reads: the recipe drawn coarser, quick on the page, and which way its levels are made)
-  printOf: (i) => rockSketch(asset, i), print: () => 'clusters 2',
+  meshOf: (i, l) => rockMesh(asset, i, l),
   lookOf: (i) => {
-    // (size: its largest side as a stand that sizes its kinds by their look draws it, src/scatter/stress.js: the size
-    // the world draws most of them at, its asset's least to most by the cube of a die, as src/scatter/rocks.js does)
-    const B = rockBody(asset, i), L = asset.look ?? {}, [lo, hi] = asset.size.length, middle = lo + (hi - lo) * 0.125;
-    return { model: 'glossy', mean: L.tint ?? [1, 1, 1], c2: [0, 0, 0], material: L.material ?? null, cover: L.moss ?? 1, bump: L.relief ?? 1.1, relief: 0, scale: asset.placement.texture ?? 2, gloss: 0.2, sway: 0, snow: kindOf(asset, 'snow')?.clumps ?? 0.05, glow: 0, through: 0, size: middle, sunk: B.sunk };
+    const B = rockBody(asset, i), L = asset.look ?? {};
+    return { model: 'glossy', mean: L.tint ?? [1, 1, 1], c2: [0, 0, 0], material: L.material ?? null, cover: L.moss ?? 1, bump: L.relief ?? 1.1, relief: 0, scale: asset.placement.texture ?? 2, gloss: 0.2, sway: 0, snow: kindOf(asset, 'snow')?.clumps ?? 0.05, glow: 0, through: 0, size: B.span, sunk: B.sunk };
   },
   fullTris: () => 12 * FULL_ROCK * FULL_ROCK,
   // what of it is solid, and its box (src/world/bodies.js), in the frame it is drawn in: its kind's rule (assets/kinds.js:

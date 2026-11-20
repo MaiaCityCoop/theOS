@@ -1,47 +1,34 @@
-// The dev server answers the repository (the brand, the stories, the scenes and the kept timelines' names) as the
-// dashboard's does (../server/repo.js), and keeps timelines: POST /cine/keep?name=<name> with a timeline's JSON writes
+// The dev server serves the intents' stories (../Stories) and keeps timelines: POST /cine/keep?name=<name> with a timeline's JSON writes
 // cine/timelines/<name>.json, so a set of cameras an agent composed can be played back later by name; POST /story-preview keeps a story's picture.
-import { writeFileSync, appendFileSync, mkdirSync, readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
-import { resolve, join, extname } from 'node:path';
+import { writeFileSync, appendFileSync, mkdirSync, readdirSync, readFileSync, existsSync, cpSync, statSync } from 'node:fs';
+import { resolve, dirname, join, extname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { brotliCompressSync, gzipSync, constants as zlibConstants } from 'node:zlib';
-import { spawn, execFileSync } from 'node:child_process';
-import { buildRegistry, FOLDERS, SHARED, PAINTS, MEASURES } from './tools/registry.js';
-import * as repo from '../server/repo.js';
+import { buildRegistry, FOLDERS } from './tools/registry.js';
+import { listScenes, sceneFile } from '../Stories/scenes.js';
 
 const ROOT = import.meta.dirname;
-// the registry's manifest (registry.json, tools/registry.js): made at the start, and again whenever a recipe, or what
-// every recipe builds with (SHARED: the dice, the measure) or what paints a material (PAINTS: the painter's code too,
-// so no painting kept between starts outlives a change to it, src/materials/bake.js), changes; and after it what is
-// measured of the recipes, each in a process of its own: the solids' rooms (rooms.json, tools/rooms.js: measured from
-// their hierarchies, those whose version changed) and the plants' outlines (outlines.json, tools/outlines.js: what the
-// page must know of each plant before any of its meshes is made, and their crowds' measures, crowds.bin); one run at a
-// time (a change while one runs: one more after it). The tools are Bun's, as every tool of the game's is
-// (tools/glob.js), so Bun runs them whatever runs Vite: `bun run build` runs Vite by its own node where a machine has
-// node, as CI's does. And a tool that fails fails the build: a release never goes out without what the build measures
-// (next went out without outlines.json and crowds.bin until 2026-11-19: node could not run them, and nothing said so
-// but a line in the log)
-const BUN = process.versions.bun ? process.execPath : 'bun';
-let measuring = null, again = false;
-const measure = () => {
-  if (measuring) { again = true; return measuring; }
-  const run = (f) => new Promise((res, rej) => spawn(BUN, [resolve(ROOT, f)], { stdio: 'inherit' }).on('error', rej).on('exit', (code) => (code === 0 ? res() : rej(new Error(`${f} failed (exit ${code})`)))));
-  const next = () => { measuring = null; if (again) { again = false; return measure(); } };
-  return (measuring = Promise.all(MEASURES.map((m) => run(m.maker))).then(next, (e) => { next()?.catch(said); throw e; }));
-};
-const said = (e) => console.error('[registry]', e.message);   // (the dev server goes on without what failed: the page measures it as it did)
+// the registry's manifest (registry.json, tools/registry.js): made at the start, and again whenever a recipe changes
 const registry = {
   name: 'registry',
-  async buildStart() { buildRegistry(ROOT); await measure(); },
+  buildStart() { buildRegistry(ROOT); },
   configureServer(server) {
-    buildRegistry(ROOT); measure().catch(said);
-    server.watcher.on('all', (_, file) => { if (FOLDERS.some((d) => file.startsWith(resolve(ROOT, d) + '/')) || SHARED.some((f) => file === resolve(ROOT, f)) || PAINTS.has(file)) { try { buildRegistry(ROOT); measure().catch(said); } catch (e) { said(e); } } });
+    buildRegistry(ROOT);
+    server.watcher.on('all', (_, file) => { if (FOLDERS.some((d) => file.startsWith(resolve(ROOT, d) + '/'))) { try { buildRegistry(ROOT); } catch (e) { console.error('[registry]', e.message); } } });
   },
 };
 
-// The deployed game has no server: a build writes what the dev server answers from the repository as files beside the
-// pages (../server/repo.js): the brand, the stories' films, the kept timelines and the scenes. A scene's media
-// (Stories/objects/) is not in git, so a build has none. Caddy serves them as they are (deploy/Caddyfile).
+// What the dev server answers from the repository, read the same way for a build: the stories that have a film or an
+// arc (../Stories), and the kept timelines' names (cine/timelines).
+const STORIES = resolve(ROOT, '../Stories'), TIMELINES = resolve(ROOT, 'cine/timelines');
+const storyList = () => {
+  try { return readdirSync(STORIES).filter((d) => existsSync(resolve(STORIES, d, 'timeline.json')) || existsSync(resolve(STORIES, d, 'arc.json'))).sort().map((d) => { const f = ['timeline.json', 'arc.json'].map((n) => resolve(STORIES, d, n)).find(existsSync), j = JSON.parse(readFileSync(f, 'utf8')); let h = {}; try { h = JSON.parse(readFileSync(resolve(STORIES, d, 'hook.json'), 'utf8')); } catch {} return { id: d, title: h.title || j.title || d, day: j.day ?? null, inGame: j.inGame ?? null }; }); } catch { return []; }   // (a day's story may stand as an arc alone: its day and its citizens are there)
+};
+const timelineNames = () => { try { return readdirSync(TIMELINES).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5)).sort(); } catch { return []; } };
+
+// The deployed game has no server: a build writes those answers as files beside the pages, with the brand (../brand)
+// and the scenes (../Stories/scenes). A scene's media (Stories/objects/) is not in git, so a build has none.
+// Caddy serves them as they are (deploy/Caddyfile).
 // Two things for the start (intent 0026): the brand's files a page names are asked for by their content (?v=, the start
 // of their hash), so the host keeps them for good like the scripts, and a second visit asks for none of them; and every
 // file that compresses is written compressed beside itself as well (brotli at its best, .br), which the host sends
@@ -54,19 +41,18 @@ const publish = {
   apply: 'build',
   transformIndexHtml(html) { return html.replace(/(["'])\/brand\/(brand\.css|loading\.js|MaiaCity\.svg)\1/g, (m, q, f) => `${q}/brand/${f}?v=${versionOf(f)}${q}`); },
   closeBundle() { squeeze(resolve(ROOT, 'dist')); },
-  writeBundle({ dir }) { repo.write(dir, repo.game()); },
-};
-
-// Which build this is, at the top right of the game (brand/brand.css #os-build), so a screenshot says it: the commit's
-// short id and its time, by the commit's own clock ("8100cb4 · 09:13"), from git, written into the page itself, so it
-// is there from the first paint, over the loading veil too, where a start that dies is seen; the dev server writes
-// "dev". One source, read once. A build without git to ask fails: no release goes out saying it is another.
-const git = (...a) => execFileSync('git', a, { cwd: ROOT, encoding: 'utf8' }).trim();
-let stamp = 'dev';
-const version = {
-  name: 'version',
-  configResolved(c) { if (c.command === 'build') stamp = `${git('rev-parse', '--short=7', 'HEAD')} · ${git('show', '-s', '--format=%cI', 'HEAD').slice(11, 16)}`; },
-  transformIndexHtml: (html, { path }) => (path === '/index.html' ? html.replace(/<body[^>]*>/, (b) => `${b}\n<div id="os-build">${stamp}</div>`) : html),
+  writeBundle(options) {
+    const out = options.dir, put = (path, body) => { const f = resolve(out, path); mkdirSync(dirname(f), { recursive: true }); writeFileSync(f, body); };
+    cpSync(resolve(ROOT, '../brand'), resolve(out, 'brand'), { recursive: true });
+    const stories = storyList();
+    put('story/list', JSON.stringify(stories));
+    for (const { id } of stories) if (existsSync(resolve(STORIES, id, 'timeline.json'))) put(`story/${id}/timeline.json`, readFileSync(resolve(STORIES, id, 'timeline.json')));
+    const names = timelineNames();
+    put('cine/list', JSON.stringify(names));
+    for (const n of names) put(`cine/timelines/${n}.json`, readFileSync(resolve(TIMELINES, n + '.json')));
+    // the scenes a film page plays (cine/film.js, cine/view.js), at the path the website's server answers them on
+    for (const { id } of listScenes()) put(`api/scenes/${id}/scene.json`, readFileSync(sceneFile(id)));
+  },
 };
 
 // The dev server sends what compresses compressed (gzip, where the browser takes it): its modules come with their source
@@ -100,7 +86,7 @@ export default {
   // the pages a build makes: the game, the way back from aven.id (src/account/callback.js), and the views the website frames:
   // a story's film (timeline.html), the lenses and the library
   build: { rolldownOptions: { input: Object.fromEntries(['index', 'callback', 'timeline', 'lenses', 'library', 'me'].map((n) => [n, resolve(ROOT, n + '.html')])) } },
-  plugins: [registry, publish, squeezeDev, version, {
+  plugins: [registry, publish, squeezeDev, {
     name: 'cine-keep',
     configureServer(server) {
       const B = (server.config.base || '/').replace(/\/$/, '');   // '' on its own, '/game' inside the dashboard's server
@@ -120,9 +106,27 @@ export default {
           res.end(Buffer.from(await r.arrayBuffer()));
         } catch { res.statusCode = 502; res.setHeader('content-type', 'application/json'); res.end('{"error":"api_unreachable"}'); }
       });
-      // the repository, as the dashboard's server answers it: the brand, /story/list, /story/<id>/timeline.json,
-      // /cine/list, and the scenes and their media a film page plays (/api/scenes, /api/objects)
-      server.middlewares.use(repo.serve(B));
+      server.middlewares.use(B + '/cine/list', (req, res) => { // the kept timelines' names
+        const names = timelineNames();
+        res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(names));
+      });
+      // the brand, one file for every page of TheOS: ../brand
+      server.middlewares.use(B + '/brand', (req, res) => {
+        const f = resolve(server.config.root, '../brand', new URL(req.url, 'http://x').pathname.replace(/^\/+/, '').replace(/\.\./g, ''));
+        if (!existsSync(f)) { res.statusCode = 404; res.end(''); return; }
+        res.setHeader('content-type', f.endsWith('.css') ? 'text/css' : f.endsWith('.svg') ? 'image/svg+xml' : 'application/octet-stream'); res.end(readFileSync(f));
+      });
+      // the stories of the intents, from ../Stories: /story/list, /story/<id>/timeline.json
+      server.middlewares.use(B + '/story', (req, res) => {
+        const dir = resolve(server.config.root, '../Stories'), url = new URL(req.url, 'http://x').pathname;
+        res.setHeader('content-type', 'application/json');
+        if (url === '/list') {
+          res.end(JSON.stringify(storyList())); return;
+        }
+        const m = url.match(/^\/([a-z0-9][a-z0-9-]*)\/timeline\.json$/);
+        if (!m || !existsSync(resolve(dir, m[1], 'timeline.json'))) { res.statusCode = 404; res.end('{}'); return; }
+        res.end(readFileSync(resolve(dir, m[1], 'timeline.json')));
+      });
       // a story's preview picture, filmed in the game: POST /story-preview?id=<story> with a JPEG data URL writes ../Stories/<id>/preview.jpg
       server.middlewares.use(B + '/story-preview', (req, res) => {
         const id = new URL(req.url, 'http://x').searchParams.get('id') || '', dir = resolve(server.config.root, '../Stories', id);

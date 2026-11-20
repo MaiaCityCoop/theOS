@@ -1,17 +1,15 @@
-// Rockrose (Cistus): a low grey-green mound, knee to hip high, where the wood opens. Grown as one grows
-// (assets/kit/tree.js bush): many stems from its foot, branching close and low, each branch's end a card of its own
-// sprig (materials/rockroseleaf.js: soft grey-green leaves, a few white flowers). Two shapes, each a mesh whose levels
-// are first shares of it. An asset in the one recipe (assets/index.js), of kind `shrub` (assets/kinds.js), scattered by
-// the trees' engine in the pine forest's understory (biomes/pineforest.js `shrubs`), of which it takes its share.
-import { tree, builder, bush } from './kit/tree.js';
-import FAN from '../materials/holmoakleaf.twigs.js';
+// Rockrose (Cistus): a low grey-green mound, knee to hip high, where the wood opens. Its own sprig
+// (materials/rockroseleaf.js): soft grey-green leaves, a few white flowers.
+// Built with the tree kit's mound (assets/kit/tree.js): two shapes, two levels of its own (its base sprigs the same in both), its farthest the kit's. An
+// asset in the one recipe (assets/index.js), of kind `shrub` (assets/kinds.js), scattered by the trees' engine in the pine
+// forest's understory (biomes/pineforest.js `shrubs`), of which it takes its share.
+import { tree, builder, mound } from './kit/tree.js';
 
 const woodCol = [0.2, 0.17, 0.14], leafCol = [0.08, 0.11, 0.07];   // (for a picture without the textures)
-// the bush: its stems and branches, its branch ends; S its shape. As many cards as the mound it was (42 places, two
-// sprigs at each): its levels and their budgets as they were
-function grow(S) {
+// a level of it: q 0 near (its stems, its base and its fine sprigs), 1 further (its base alone, unchanged); S its shape
+function grow(q, S) {
   const b = builder({ ao: (p) => 0.45 + 0.4 * Math.min(1, p[1] / S.h), barkTile: 0.5, colours: [woodCol, leafCol] });
-  bush(b, { r: S.r, h: S.h, lobes: S.lobes, ragged: 0.2, shoots: 84, size: [0.34, 0.46], stems: 9, rise: 0.45, seed: S.seed });
+  mound(b, q, { r: S.r, h: S.h, lobes: S.lobes, ragged: 0.25, puffs: [42, 16], count: [2, 1], size: [0.42, 0.9], rise: 0.45, stems: 4, seed: S.seed });
   return b;
 }
 
@@ -20,23 +18,18 @@ export default tree({
   type: 'asset',
   name: 'Rockrose',
   kind: 'shrub',
-  about: 'A low grey-green mound, knee to hip high, at the edge of the wood.',
-  // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
-  measure: {
-    real: 'Cistus salviifolius, the sage-leaved rockrose: low, grey-green, white-flowered',
-    typical: [0.3, 1],
-    most: 1,
-    source: ['RHS (Cistus salviifolius): ultimate height 0.5 to 1 m; Easyscape: 0.3 to 0.6 m, now and then 1 m'],
-  },
+  about: 'A cistus: a low, grey-green mound to the knee or the hip, in the glades and at the wood’s edge.',
   colours: { wood: woodCol, leaves: leafCol },
   materials: { wood: 'fb5ce908-7437-45b6-879f-154de32d12b9' /* holm oak bark */, leaves: '4cdde33c-5114-41e7-badf-e9f69fcf42f5' /* rockrose sprig */ },
   foliage: { wrap: 0.45, through: 0.25, flutter: 0.6 },
-  // its finest laid out as its sprigs' twigs, each a card of one twig (assets/kit/tree.js splayOf), as a holm oak's is:
-  // seen close, a cluster with depth, not two crossed pictures (its sprig's fan the holm oak sprig's: rockroseleaf.js)
-  fine: { sprig: FAN, twig: '82945b8b-cc3f-48e4-8843-01708f2ecf82' /* rockrose twig */ },
   shapes: [{ r: 1.05, h: 0.9, lobes: 3, seed: 621 }, { r: 0.8, h: 0.65, lobes: 2, seed: 622 }],
   grow,
-  // where it grows (src/scatter/rule.js): the pine forest, where the sun reaches the ground (light: how thick in deep
-  // shade and in the open): the glades and the wood's edge
-  placement: { at: 'scatter', engine: 'trees', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, cover: 0.15, light: [0.08, 1], scale: [0.45, 0.85], lean: 0, seed: 620 },
+  // its levels of detail, near to far (src/detail): where each ends comes from its kind, shrub (assets/kinds.js)
+  levels: [{ P: 4, most: [780, 416] }, { P: 8, most: [140, 70] }],   // most: the most vertices and triangles a shape of it has at that level (its place in the heap: src/scatter/heap.js; a recipe that grows past it is told so)
+  // (its farthest, one body, darker than its sprigs' tops: a bush is mostly its own shade)
+  far: { P: 32, shade: 0.85, speck: false, sides: 5, shoulder: true, trunk: false },
+  // where it grows: the pine forest's understory, of which it takes its share
+  placement: { at: 'scatter', engine: 'trees', stand: 'shrubs', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, share: 0.25, scale: [0.5, 1.3], lean: 0,
+    // (it wants the sun: the glades and the wood's edge)
+    where: { field: 'glade', from: 0.15, to: 1 }, seed: 620 },
 });

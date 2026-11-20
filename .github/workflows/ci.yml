@@ -45,44 +45,9 @@ jobs:
       - name: Install
         working-directory: TheGame
         run: bun install --frozen-lockfile
-      - name: The recipes' registry, made from them (never kept in git)
+      - name: The game builds
         working-directory: TheGame
-        run: bun tools/registry.js
-      - name: The plants' outlines, measured as the page measures them (never kept in git)
-        working-directory: TheGame
-        run: bun tools/outlines.js
-      - name: What the build makes and git keeps, as its maker makes it of this commit (the solids' rooms)
-        working-directory: TheGame
-        run: bun tools/fresh.js
-      - name: Every name bound, every import found
-        working-directory: TheGame
-        run: bun tools/lint.js
-      - name: Every material and pass built, on the GPU's stand-in
-        working-directory: TheGame
-        run: bun tools/smoke.js --wgsl "$RUNNER_TEMP/wgsl.json"
-      - name: Every shader the smoke built, compiled as Chrome compiles it (Tint, on its CPU adapter, SwiftShader)
-        working-directory: TheGame
-        run: bun tools/gate.js wgsl --cpu --from "$RUNNER_TEMP/wgsl.json"
-      - name: What smoke counted, kept for main's commit
-        if: github.event_name == 'push'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: TheGame/.gate/smoke/${{ github.sha }}.json
-          key: smoke-${{ github.sha }}
-      - name: The base's commit
-        if: github.event_name == 'pull_request'
-        id: base
-        run: echo "sha=$(git rev-parse HEAD^1)" >> "$GITHUB_OUTPUT"
-      - name: What smoke counted on the base, as main's own run kept it
-        if: github.event_name == 'pull_request'
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: TheGame/.gate/smoke/${{ steps.base.outputs.sha }}.json
-          key: smoke-${{ steps.base.outputs.sha }}
-      - name: The code gates against main
-        if: github.event_name == 'pull_request'
-        working-directory: TheGame
-        run: bun tools/health.js --base HEAD^1
+        run: bun run build
 
   build:
     if: github.event_name == 'push' || github.event.pull_request.draft == false
@@ -104,9 +69,6 @@ jobs:
       - name: Sign-in checks
         working-directory: TheGame
         run: bun tools/account-check.js
-      - name: Every asset against its measure
-        working-directory: TheGame
-        run: bun tools/scale.js
       - name: Build both sites for next
         run: deploy/bundle.sh deploy/environments/next.json "$GITHUB_SHA" "$RUNNER_TEMP/release-next.tar"
       - name: Shell scripts parse

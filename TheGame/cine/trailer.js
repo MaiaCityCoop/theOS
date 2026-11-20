@@ -2,9 +2,9 @@
 // (where the river runs, how high the ground is) and sets a timeline of shots along the river:
 // wide, medium, close, a few unusual angles, a drone flight. Nothing is rendered ahead: the
 // timeline only moves the virtual camera through the real world.
-import * as W from '../src/world/land.js';
-import { rnd, rng } from '../src/core/hash.js';
-import { sstep as st } from '../assets/kit/math.js';
+import * as W from '/src/world/land.js';
+import { rnd, rng } from '/src/core/hash.js';
+import { sstep as st } from '/assets/kit/math.js';
 
 
 // a point of the river's line, with its tangent, its normal and its half-width

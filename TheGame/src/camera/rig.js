@@ -6,37 +6,18 @@
 // height is in camera/rig.js; here only the mechanics. Walls, rocks and the ground stop it (src/world/solids.js).
 import RIG from '../../camera/rig.js';
 import { heightAt } from '../world/land.js';
-import { pxThrough } from '../detail/measure.js';
 import { step, ceilingAt, clear, within } from '../world/solids.js';
 import { createTouch } from './touch.js';
-import { ANAMORPHIC } from '../../cine/lenses.js';
-
-// The walker's lens (intent 0034): each key's focal length (camera/rig.js: mm), or another schedule to try: ?lens=28,35,40,50,50
-// (a focal length a key), ?lens=today (the angles the walker saw before: 68° at the eyes to 40° at the top, as focal
-// lengths). Between keys the lens zooms, evenly in stops.
-const Q = typeof location === 'undefined' ? new URLSearchParams() : new URLSearchParams(location.search);
-const TODAY = [68, 64, 54, 44, 40];   // (degrees tall, as the walker saw before the lens: as a focal length on the kit's 16 : 9 frame)
-const mmOfFov = (deg) => ANAMORPHIC.w / 2 / (Math.tan((deg * Math.PI) / 360) * ANAMORPHIC.aspect);
-const ASKED = Q.get('lens') === 'today' ? TODAY.map(mmOfFov) : (Q.get('lens') ?? '').split(',').map(Number).filter((x) => x > 4 && x < 400);
-const KEYS = RIG.keys.map((k, i) => ({ ...k, mm: ASKED.length === RIG.keys.length ? ASKED[i] : k.mm }));
-const GLASS = Q.has('glass') ? Math.max(0, +Q.get('glass') || 0) : RIG.glass;
-/** How tall a picture a focal length shows on a screen of this shape, degrees (three's fov): the lens framed 16 : 9, its
-    height kept on a screen wider than square; on a taller one its width is kept at what it shows tall, so an upright
-    phone looks out wider, not through a slit. */
-export function fovOf(mm, aspect = ANAMORPHIC.aspect) {
-  const t = ANAMORPHIC.w / 2 / mm / ANAMORPHIC.aspect;   // (the tangent of half its height on its own frame)
-  return (2 * Math.atan(aspect >= 1 ? t : t / aspect) * 180) / Math.PI;
-}
 
 const L0 = Math.log(RIG.eye), L1 = Math.log(RIG.top);
 const ease = (t) => t * t * (3 - 2 * t);
 /** The rig's values at a height: each key's numbers, eased between keys over the height's logarithm. */
 export function at(h) {
-  const L = Math.log(h), K = KEYS; let i = 0;
+  const L = Math.log(h), K = RIG.keys; let i = 0;
   while (i < K.length - 2 && L > Math.log(K[i + 1].h)) i++;
   const a = K[i], b = K[i + 1], t = ease(Math.min(1, Math.max(0, (L - Math.log(a.h)) / (Math.log(b.h) - Math.log(a.h)))));
-  const mix = (k) => a[k] + (b[k] - a[k]) * t, mm = Math.exp(Math.log(a.mm) + (Math.log(b.mm) - Math.log(a.mm)) * t);   // (the lens: a zoom, evenly in stops)
-  return { band: t < 0.5 ? a.band : b.band, lock: t < 0.5 ? a.lock : b.lock, pitch: a.pitch === null ? (b.pitch ?? 0) : mix('pitch'), free: a.pitch === null ? 1 - t : 0, mm, fov: fovOf(mm), speed: mix('speed'), run: mix('run'), orbit: mix('orbit') };
+  const mix = (k) => a[k] + (b[k] - a[k]) * t;
+  return { band: t < 0.5 ? a.band : b.band, lock: t < 0.5 ? a.lock : b.lock, pitch: a.pitch === null ? (b.pitch ?? 0) : mix('pitch'), free: a.pitch === null ? 1 - t : 0, fov: mix('fov'), speed: mix('speed'), run: mix('run'), orbit: mix('orbit') };
 }
 
 /** The height's own pitch (where it looks when left alone: ahead at eye level, down from above), and the pitch with a
@@ -70,7 +51,7 @@ export function heightFor(x, z, yaw, dist) {
 
 /** The camera's height as words and a scale bar: '40 m · town', and how many metres a bar of px pixels spans. */
 export function scaleAt(camera, x, z, px = 48) {
-  const d = camera.position.distanceTo({ x, y: heightAt(x, z), z }), mPerPx = d / pxThrough(camera, innerHeight);   // (the window's own pixels, as a pointer moves by: the measure's, src/detail/measure.js)
+  const d = camera.position.distanceTo({ x, y: heightAt(x, z), z }), mPerPx = (2 * d * Math.tan((camera.fov * Math.PI) / 360)) / innerHeight;
   const raw = mPerPx * px, p10 = 10 ** Math.floor(Math.log10(raw)), nice = [1, 2, 5, 10].map((k) => k * p10).find((k) => k >= raw * 0.75) || 10 * p10;
   return { metres: nice, px: nice / mPerPx };
 }
@@ -158,11 +139,7 @@ export function createControls(camera, canvas, msg, stat) {
       eyeY = eyeY === null || h > 2 ? y : eyeY + (y - eyeY) * Math.min(1, dt * 14);   // at eye level the eyes follow the ground, eased
       camera.position.set(cx, eyeY, cz);
       camera.rotation.set(pitch, yaw, 0);
-      const fov = fovOf(v.mm, camera.aspect);   // (the lens on this screen: wider on an upright one)
-      if (Math.abs(camera.fov - fov) > 1e-3) { camera.fov = fov; camera.updateProjectionMatrix(); }
-      // the film camera's glass, the walker's too (its barrel falls away with focal length, as the films' does: cine/cine.js);
-      // while a film holds the camera, the film's own lens is drawn instead
-      camera.userData.glass = window.__cine?.active || !(GLASS > 0) ? null : { barrel: (window.__cine?.distortion ?? 0.045) * Math.min(1, (28 / v.mm) ** 1.5) * GLASS, picH: 1, dim: 0.16 * GLASS, firm: true };
+      if (Math.abs(camera.fov - v.fov) > 1e-3) { camera.fov = v.fov; camera.updateProjectionMatrix(); }
       if (stat) {   // the stat pill at the top: the height, its band, a scale bar
         const sc = scaleAt(camera, pivot.x, pivot.z), txt = `${fmt(h)} · ${band}|${fmt(sc.metres)}|${Math.round(sc.px)}`;
         if (txt !== shown) { shown = txt; stat.innerHTML = `<b>${fmt(h)}</b><span>${band}</span><i style="width:${Math.round(sc.px)}px"></i><span>${fmt(sc.metres)}</span>`; }

@@ -1,4 +1,4 @@
-//! The interface, drawn by Bevy in theOS's look (brand/brand.css: Meadow): the dashboard with its two tiles, the
+//! The interface, drawn by Bevy in theOS's look (brand/brand.css: Meadow): the dashboard with its three tiles, the
 //! Game's few words, and the Studio's shot strip.
 
 use crate::View;
@@ -9,14 +9,14 @@ use bevy::picking::hover::Hovered;
 use bevy::ui::UiGlobalTransform;
 
 // brand/brand.css, :root
-const PAPER: Color = Color::srgb(0.969, 0.941, 0.890); // --paper #f7f0e3
-const CREAM: Color = Color::srgb(0.984, 0.965, 0.918); // --cream #fbf6ea
-const SAND: Color = Color::srgb(0.925, 0.882, 0.800); // --sand #ece1cc
-const FOREST: Color = Color::srgb(0.090, 0.212, 0.333); // --forest #173655
-const FOREST2: Color = Color::srgb(0.275, 0.349, 0.431); // --forest2 #46596e
-const CLAY: Color = Color::srgb(0.310, 0.616, 0.204); // --clay #4f9d34
-const SUN: Color = Color::srgb(0.949, 0.710, 0.267); // --sun #f2b544
-const GLASS: Color = Color::srgba(0.984, 0.965, 0.918, 0.82);
+pub(crate) const PAPER: Color = Color::srgb(0.969, 0.941, 0.890); // --paper #f7f0e3
+pub(crate) const CREAM: Color = Color::srgb(0.984, 0.965, 0.918); // --cream #fbf6ea
+pub(crate) const SAND: Color = Color::srgb(0.925, 0.882, 0.800); // --sand #ece1cc
+pub(crate) const FOREST: Color = Color::srgb(0.090, 0.212, 0.333); // --forest #173655
+pub(crate) const FOREST2: Color = Color::srgb(0.275, 0.349, 0.431); // --forest2 #46596e
+pub(crate) const CLAY: Color = Color::srgb(0.310, 0.616, 0.204); // --clay #4f9d34
+pub(crate) const SUN: Color = Color::srgb(0.949, 0.710, 0.267); // --sun #f2b544
+pub(crate) const GLASS: Color = Color::srgba(0.984, 0.965, 0.918, 0.82);
 
 #[derive(Resource)]
 struct Fonts {
@@ -56,6 +56,7 @@ struct PlayLabel;
 pub fn plugin(app: &mut App) {
     app.init_resource::<Fonts>()
         .add_systems(OnEnter(View::Home), (home, release))
+        .add_systems(OnEnter(View::Place), place)
         .add_systems(OnEnter(View::Studio), studio)
         .add_systems(OnEnter(View::Meadow), meadow)
         .add_systems(OnEnter(View::Library), library)
@@ -161,8 +162,22 @@ fn home(mut commands: Commands, f: Res<Fonts>) {
                     tile(Act::Open(View::Meadow), true, "A · GAME", "Game", "The meadow: grass in wind, a physical sky, the sun. Click to look, W A S D, scroll to rise.", 2.0),
                     tile(Act::Open(View::Studio), false, "B · STUDIO", "Studio", "Shots played live through the world by the virtual camera.", 1.0),
                     tile(Act::Open(View::Library), false, "C · LIBRARY", "Library", "Every plant and rock, each a procedural master, beside its baked far view.", 1.0),
+                    tile(Act::Open(View::Place), false, "D · PLACE", "Mértola", "Walk 6 by 6 km of the real Alentejo: Copernicus 30 m elevation, ESA WorldCover ground.", 1.0),
                 ],
             ),
+        ],
+    ));
+}
+
+// ---- the real place: the walker on real ground, and a line of help ----
+
+fn place(mut commands: Commands, f: Res<Fonts>) {
+    commands.spawn((
+        DespawnOnExit(View::Place),
+        Node { position_type: PositionType::Absolute, top: Val::Px(12.0), left: Val::Px(12.0), column_gap: Val::Px(8.0), ..default() },
+        children![
+            (Hovered::default(), Act::Home, chip_node(), BackgroundColor(CREAM), children![text(&f.sans, CHIP_TEXT, FOREST, "Home")]),
+            (chip_node(), BackgroundColor(GLASS), children![text(&f.mono, CHIP_TEXT, FOREST, "WASD · hold the mouse to look · Shift runs · Q E turn · scroll rises · [ ] hours · map: scroll zooms, click goes")]),
         ],
     ));
 }
@@ -571,12 +586,14 @@ pub fn navtest(
     use bevy::camera::RenderTarget;
     use bevy::picking::pointer::{Location, PointerAction, PointerButton, PointerId, PointerInput};
     use bevy::window::WindowRef;
-    const STEPS: [(Act, View); 6] = [
+    const STEPS: [(Act, View); 8] = [
         (Act::Open(View::Library), View::Library),
         (Act::Home, View::Home),
         (Act::Open(View::Studio), View::Studio),
         (Act::Home, View::Home),
         (Act::Open(View::Meadow), View::Meadow),
+        (Act::Home, View::Home),
+        (Act::Open(View::Place), View::Place),
         (Act::Home, View::Home),
     ];
     // a pointer of its own, so the real mouse over the window cannot move it

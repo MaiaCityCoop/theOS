@@ -15,7 +15,7 @@ export default {
   type: 'material',
   name: 'River gravel',
   kind: 'ground',
-  about: 'Rounded pale cobbles packed over finer gravel and grey silt.',
+  about: "An alpine river's gravel bar: rounded, flattish cobbles, pale limestone grey and white with a few blue-grey, beige and rust ones, packed close over finer gravel and grey silt.",
   usedBy: "the river's gravel bars",
   swatch: [0.5, 0.49, 0.46],
   bump: 0.018,   // how deep its relief reads in the normals: larger is flatter

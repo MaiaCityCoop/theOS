@@ -80,7 +80,8 @@ job.
 
 These gates measure what a change does to the code, so they are measured against `main` by
 design. That is not the picture gate: a picture is judged on its own, never against `main`. They
-are one command, `bun tools/health.js --base origin/main` (in `TheGame/`), which measures the
+are one command, `bun tools/health.js --base origin/main` (in `TheGame/`; on `archive/0038-2026-11-19` since the
+restore of 2026-11-19, to come back as its own change), which measures the
 touched folders here and at the base and fails on anything worse. CI runs it on every pull request.
 
 ## Define: the 10 % gate
@@ -198,25 +199,46 @@ not waited out.
 Work ships as it is ready, one PR at a time: nothing waits to be tested together with anything else.
 
 1. **A draft until green.** A PR opens as a draft. Its worker codes on the CPU, merges `main` in,
-   and runs its own checks: the `pre-push` hook's `tools/lint.js` and `tools/smoke.js`, `bun
-   tools/scale.js`, `bun tools/health.js --base origin/main`, the builds. Once they pass, the worker
-   marks the PR ready, and ready means ship it.
-2. **Shipped on green.** CI runs on every ready PR. The master's merge watcher merges each one whose
-   CI is green, pinned to the head CI tested (`--match-head-commit`, the full SHA), with a merge
-   commit: never a rebase, never a force-push. "No checks reported" is not green.
-3. **The hourly gate measures `main`.** Once an hour the GPU machine runs the gate on `main` as it
-   stands: the views' stills against their truth, the per-class bench against the budgets, the
-   paths, motion, `real`. It measures `main`, never a branch.
-4. **Findings are the next round's work.** What the hourly gate finds goes to its owner by class and
-   view, as a task on the board, fixed at the root in a PR of its own. A PR that breaks `main`
-   outright (CI red on `main`, or `next` does not start) is reverted at once and comes back fixed in
-   a new PR; the code gates measure a revert against the state it restores.
+   and runs its own checks: the game builds (the `pre-push` hook), `bun tools/scale.js`, and, for a
+   change to `TheGame/`, **the walk** on a GPU machine (below). Once they pass, the worker marks the
+   PR ready, with the walk's line in its body, and ready means ship it.
+2. **Shipped on green and within the bar.** CI runs on every ready PR. Whoever merges merges each one
+   whose CI is green and, where it touches `TheGame/`, whose walk is within the bar, pinned to the
+   head CI tested (`--match-head-commit`, the full SHA), with a merge commit: never a rebase, never
+   a force-push. "No checks reported" is not green; a change to the game with no walk is not ready.
+3. **One change to the game at a time.** The walk measures one change against the bar, so changes to
+   `TheGame/` merge one after another, each walked on the `main` it lands on. A PR that breaks `main`
+   outright (CI red on `main`, `next` does not start, or `main`'s walk past the bar) is reverted at
+   once and comes back fixed in a new PR.
+
+### The walk is the bar
+
+Since 2026-11-19 (Samuel; #408): the game before intent 0038, 6ea75d6e, walked smoothly on a Mac and an
+iPhone, and 0038's rebuild of it did not (the same walk: p50 50 ms and 1254 hitches in 20 s against
+16.7 ms and 10 to 114). So `TheGame/` is 6ea75d6e's again, 0038 as it stood is on the branch
+`archive/0038-2026-11-19`, and every change to the game is held to that walk:
+
+    bun tools/gpu/lock.js take <who> -- bun tools/gate/play.js <url of the branch's game> --check
+
+- **What it walks:** the game in Chrome at 1920 × 1080, W held for 20 s from where the walker starts,
+  every frame timed by the page; nothing of the game's own is asked but its camera, so any build,
+  old or new, walks the same.
+- **The bar:** p50, p99 and hitches over 33 ms no more than the worst of the reference's own runs on
+  the same machine (`tools/gate/reference.json`: its noise, measured, so no tolerance is set by hand),
+  and the walker gone as far. A machine with no runs has no bar: walk 6ea75d6e there first, three
+  times, with `--reference`.
+- **Past the bar does not merge,** whatever else it brings. Bring things back from the archive one at a
+  time, each walked. What failed there (stores sized by reading the GPU back, regions kept between
+  frames, levels built at runtime, a start that waits to settle) comes back only with a walk that
+  shows it is no worse.
+- The iPhone is walked by hand on `next` after each merge to the game (Samuel), until it can be walked
+  by a tool.
 
 ### What every build is held to
 
-- **The gate is the definition's checks, and a branch is judged on its own:** against its own
-  reference, against photographs, against the budgets, in motion. Never against `main`: main is no
-  reference, and before/after pictures are no gate.
+- **The gate is the definition's checks, and a branch is judged on its own:** its picture against its
+  own reference and photographs; its speed and smoothness against the walk's bar (above).
+  Before/after pictures are no gate.
 - **Budget first.** Where the intent has hard performance gates, the hourly gate holds `main` to
   them, class by class of the frame (as `gate.js bench` measures them). A class over its budget is
   the next round's first work, and nothing new is added to it until the frame fits.
@@ -234,8 +256,8 @@ Work ships as it is ready, one PR at a time: nothing waits to be tested together
 
 - **Quiet CI.** CI runs only on PRs marked ready and on `main`, so work in progress never mails a
   failure to everyone. `bun install` turns on the repo's hook in every clone (TheGame's `prepare`
-  script: one place, no machine drifts): `pre-push` runs `tools/lint.js` and `tools/smoke.js` in
-  seconds, so nothing is pushed that breaks without `vite build` seeing it.
+  script: one place, no machine drifts): `pre-push` builds the game, as CI does, so nothing is
+  pushed that `vite build` would refuse.
 - **One writer for the intent's file: the master.** A PR's notes go in its body, and the master
   folds them in. A branch that merges `main` takes the intent's file from `main` afterwards.
 - A change outside CI's paths (`research_notes/`, `.claude/`) merges at once: no build, no deploy.

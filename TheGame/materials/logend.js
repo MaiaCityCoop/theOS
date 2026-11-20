@@ -8,8 +8,8 @@ export default {
   type: 'material',
   name: 'Pine log end',
   kind: 'wood',
-  about: 'A sawn log face: pale wood in tight rings, saw marks over it.',
-  usedBy: 'the tops of the log seats',
+  about: "A log's sawn face: pale cream wood in tight rings, darker late wood between them, rays across, saw marks over it.",
+  usedBy: 'the sawn tops of the log rounds round the fire',
   swatch: [0.62, 0.47, 0.3],
   bump: 0.012,   // nearly flat: a sawn face is smooth, its rings read as colour more than relief
   paint: (uv) => {

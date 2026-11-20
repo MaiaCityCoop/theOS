@@ -1,8 +1,8 @@
 // The holm oak (Quercus ilex): the evergreen oak of the Mediterranean, as it stands among the pines. A short, stout
 // trunk of dark bark cracked into small plates; a low fork into heavy limbs that rise and spread; and a broad, dense,
 // rounded crown, as wide as it is high when old, its foliage down to head height, so dark a green it reads nearly black
-// from afar. Slow to grow and long to live. Built with the tree kit (assets/kit/tree.js) as a mesh per shape (its levels
-// of detail first shares of it): the wood as tubes wrapped in its bark (materials/holmoakbark.js), the leaves as crossed cards cut out of a
+// from afar. Slow to grow and long to live. Built with the tree kit (assets/kit/tree.js) as a mesh per level of detail
+// and shape: the wood as tubes wrapped in its bark (materials/holmoakbark.js), the leaves as crossed cards cut out of a
 // painted sprig (materials/holmoakleaf.js), lit as the ball its crown makes. An asset in the one recipe
 // (assets/index.js), scattered by the trees' engine (src/scatter/trees.js) in the pine forest's stand, of which it takes
 // its share (biomes/pineforest.js). Units are metres; a shape is a stage of its growth at its own height.
@@ -10,24 +10,12 @@ import { tree, builder, tube, cards, crown } from './kit/tree.js';
 import { add, sub, mul, norm, lerp, sstep } from './kit/math.js';
 import { rng } from '../src/core/hash.js';
 import SPRIG from '../materials/holmoakleaf.twigs.js';
-// What a real one measures, and where that is known from (intent 0035): next to what it is, read against the
-// world's one scale (world/scale.js) and measured against what it draws by `bun tools/scale.js`.
-const MEASURE = {
-  real: 'Quercus ilex, the holm oak',
-  mature: 21,                        // what its height by age comes to (assets/holmoak.js)
-  typical: [12, 25],
-  most: 25,
-  source: [
-    'RHS (Quercus ilex): ultimate height higher than 12 m, in 20 to 50 years',
-    'The Wildlife Trusts: up to 20 m; tree nurseries\' sheets (Deepdale Trees): 20 to 25 m by site and climate',
-  ],
-};
 
 // how it grows: at six a dense bush a little over a metre; at eighteen a tall bush of four metres, leaves to the ground;
 // at forty a small round tree on a short bole; at ninety fifteen metres, its crown as wide; at two hundred a great dome
 // over twenty metres across. Its height by age (metres), and its numbers at an age: its height, where its crown begins,
 // its crown's reach, how far its crown's widest part lies up it (squat), how many great limbs leave its fork, its lean.
-const height = (year) => MEASURE.mature * (1 - Math.exp(-year / 70)) ** 1.15;   // (mature: its measure's)
+const height = (year) => 21 * (1 - Math.exp(-year / 70)) ** 1.15;
 function form(year, v, seed = 410) {
   const R0 = rng(seed * 7919 + v * 31 + year * 7), H = height(year), old = sstep(12, 110, year), side = v % 2 ? -1 : 1;
   return {
@@ -67,14 +55,15 @@ const limbsOf = (T, v, R0) => (T.limbs === 1 ? [{ from: FORK, end: add(C, [0, UP
     return { from: boleAt(1 - 0.28 * (j / (T.limbs - 1)) * (steep ? 0.5 : 1)), end: [C[0] + Math.cos(a) * reach, C[1] + (steep ? UP * (0.4 + 0.25 * R0()) : UP * 0.1 - DN * 0.3 * R0()), C[2] + Math.sin(a) * reach] };
   }));
 
-// ---- the tree, every twig of it; T its shape (an age's form), v which ----
-function oak(T, v) {
+// ---- the tree at a level: q 0 near (every twig), 1 middle (branches, larger sprigs), 2 far (limbs, a few big sprigs), 3 farthest
+// (its bole and a dozen great sprigs: a tree a few dozen pixels high); T its shape (an age's form), v which ----
+function oak(q, T, v) {
   const b = use(T), R0 = rng(T.seed), { thick, g } = sizes(T);
-  const nT = 7, rT = (t) => thick * (0.28 + 0.08 * (1 - t) + 0.18 * Math.max(0, 1 - t * 5) ** 2);
-  tube(b, Array.from({ length: nT }, (_, i) => boleAt(i / (nT - 1))), Array.from({ length: nT }, (_, i) => rT(i / (nT - 1))), 12, { body: true });
-  const puffs = Array.from({ length: Math.round(150 * fill(g)) }, () => puffAt(R0, 0.95 * (0.8 + 0.45 * R0()) * g));
-  crown(b, {
-    limbs: limbsOf(T, v, R0), puffs, thick, g, girth: [0.2, 0.07], bow: 0.9, count: 10, size: 0.95, lift: 0, R0,
+  const nT = q === 3 ? 3 : 7, rT = (t) => thick * (0.28 + 0.08 * (1 - t) + 0.18 * Math.max(0, 1 - t * 5) ** 2);
+  tube(b, Array.from({ length: nT }, (_, i) => boleAt(i / (nT - 1))), Array.from({ length: nT }, (_, i) => rT(i / (nT - 1))), [12, 7, 5, 3][q], { body: true });
+  const puffs = Array.from({ length: Math.round([150, 60, 22, 8][q] * fill(g)) }, () => puffAt(R0, [0.95, 1.35, 1.5, 1.9][q] * (0.8 + 0.45 * R0()) * g));
+  crown(b, q, {
+    limbs: limbsOf(T, v, R0), puffs, thick, g, girth: [0.2, 0.07], bow: 0.9, count: [10, 6, 4, 3], size: [0.95, 2.1, 3.6, 5.4], lift: 0, R0,
     dirOf: (p, d) => norm(add(mul(out(p), 0.9), mul(d, 0.75))),   // its sprigs stand out of its crown, all round it
     light: (p, d) => norm(add(mul(d, 0.35), add(mul(out(p), 0.85), [0, 0.15, 0]))),   // mostly its crown's: the leaf mass reads as one body, the puffs as its swell
     ao: (p, d) => Math.max(0.2, aoAt(p) * (0.65 + 0.35 * Math.max(0, d[0] * out(p)[0] + d[1] * out(p)[1] + d[2] * out(p)[2]))),   // a puff's inner side in its own shade
@@ -99,8 +88,7 @@ export default tree({
   type: 'asset',
   name: 'Holm oak',
   kind: 'tree',
-  about: 'The evergreen oak: a stout trunk, heavy limbs, a dense dark crown.',
-  measure: MEASURE,
+  about: 'The evergreen oak of the Mediterranean: a short, stout trunk of dark, finely cracked bark, a low fork into heavy spreading limbs, and a broad, dense, rounded crown of small leathery leaves, nearly black from afar.',
   colours: { bark: barkCol, leaves: leafCol },
   materials: { wood: 'fb5ce908-7437-45b6-879f-154de32d12b9' /* holm oak bark */, leaves: 'c4cbd29b-9dd2-494d-913b-9a80c40ab8e6' /* holm oak sprig */ },
   foliage: { wrap: 0.32, through: 0.16, flutter: 0.55 },   // leathery leaves: little light through them, and they tremble less than needles
@@ -109,12 +97,14 @@ export default tree({
   growth: { years: [6, 18, 40, 90, 200], variants: [1, 1, 2, 2, 2], form, height, min: 2, max: 400 },
   grow: oak, shade,
   // what it drops: the ground under it where it leads in its stand (the land lays it: src/terrain/material.js)
-  litter: { material: 'd269b213-283d-4f8f-92b0-66b57ac2e8b6' /* oak litter */, tile: 1.9 },
-  shadow: { most: [870, 492] },   // (its shade's: the most vertices and triangles a shape of it has, its place in the heap: src/scatter/heap.js)
-  // its finest: every sprig a spray of its twigs, each a card of one whole twig's painting (assets/kit/tree.js: splayOf)
-  fine: { sprig: SPRIG, twig: '8ee46707-6ec8-4c04-96e9-70151301427f' /* holm oak twig */ },
-  // where it grows (the one rule: src/scatter/rule.js): the pine forest, among its pines; cover: how much of the ground
-  // its crowns cover where it grows best; young: its saplings'; scale: one tree's own size about its age's height; lean:
-  // how far a trunk may lean; seed: its shapes'
-  placement: { at: 'scatter', engine: 'trees', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, cover: 0.5, young: 0.1, scale: [0.9, 1.1], lean: 0.06, seed: 410 },
+  litter: { material: 'd269b213-283d-4f8f-92b0-66b57ac2e8b6' /* oak litter */, tile: [1.9, 3.1] },
+  // its levels of detail, near to far (src/detail): where each ends comes from its kind, tree (assets/kinds.js); P: cells per patch side
+  levels: [{ P: 4, most: [36500, 23800] }, { P: 8, most: [7700, 4520] }, { P: 16, most: [1970, 1260] }, { P: 32, most: [480, 248] }],   // most: the most vertices and triangles a shape of it has at that level (its place in the heap: src/scatter/heap.js; a recipe that grows past it is told so)
+  shadow: { most: [870, 492] },   // (its shade's)
+  // its finest level, for the few nearest (larger on screen than px): every sprig a spray of its twigs, each a card of
+  // one whole twig's painting (assets/kit/tree.js: splayOf)
+  fine: { px: 600, sprig: SPRIG, twig: '8ee46707-6ec8-4c04-96e9-70151301427f' /* holm oak twig */, most: [110000, 62000] },
+  // where it grows: the pine forest's stand (its cells, its groves, its ages: biomes/pineforest.js `trees`), of which it
+  // takes its share; scale: one tree's own size about its age's height; lean: how far a trunk may lean; seed: its shapes'
+  placement: { at: 'scatter', engine: 'trees', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, share: 0.3, scale: [0.9, 1.1], lean: 0.06, seed: 410 },
 });

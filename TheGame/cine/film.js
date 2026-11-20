@@ -18,6 +18,6 @@ function clock() {
   return api;
 }
 
-if (world) { await import('./cine.js'); await import('./menu.js'); import('../src/boot.js').then((m) => m.boot({ profile: 'world' })); }   // (the game starts beside the viewer, as before: it is not waited for)
+if (world) { await import('./cine.js'); await import('./menu.js'); import('../src/main.js'); }   // (the game starts beside the viewer, as before: it is not waited for)
 else { window.__cine = clock(); document.body.classList.add('footage'); await import('./menu.js'); (await import('../src/ui/loading.js')).loadingDone(); }
 await import('./view.js');

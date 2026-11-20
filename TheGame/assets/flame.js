@@ -6,19 +6,7 @@
 // Units are metres; the origin is the middle of the fire, on the ground.
 import { lerp } from './kit/math.js';
 import { lcg } from '../src/core/hash.js';
-// What a real one measures, and where that is known from (intent 0035): next to what it is, read against the
-// world's one scale (world/scale.js) and measured against what it draws by `bun tools/scale.js`.
-const MEASURE = {
-  real: 'the flames of a campfire',
-  hot: 0.9,                          // how high its tallest tongue reaches
-  typical: [0.5, 1.2],
-  most: 1.5,
-  own: ['hot, typical, most: no source with measured flame heights of a campfire was found; the size of the fire under them is sourced'],
-  source: [
-    'a recreational fire: fuel 0.91 m across or less and 0.61 m high or less (the International Fire Code\'s definition, as fire services quote it)',
-  ],
-};
-const HOT = MEASURE.hot;   // how high the tallest tongue reaches
+const HOT = 0.9;   // how high the tallest tongue reaches
 
 // a fire's colours, from the heart out: the base is dull red where there is no air, the tips nearly white
 const fDeep = [0.55, 0.07, 0.02], fRed = [0.86, 0.16, 0.03], fOrange = [1.0, 0.45, 0.06], fAmber = [1.0, 0.72, 0.16], fPale = [1.0, 0.93, 0.62];
@@ -67,17 +55,23 @@ export default {
   type: 'asset',
   name: 'Flame',
   kind: 'shrub',   // nothing a walker cannot pass, and it casts no shadow of its own (assets/kinds.js)
-  about: 'The fire over a fire pit: red at the foot, near-white at the tips.',
-  measure: MEASURE,
+  about: 'The fire burning over a fire pit: a tall heart with shorter tongues round it, dull red at the foot and near-white at the tips, moving in the wind.',
   size: { length: 0.9, width: 0.9, height: HOT + 0.05 },
   colours: { deep: fDeep, red: fRed, orange: fOrange, amber: fAmber, pale: fPale },
   // it is all flutter and no lean: a fire is not pushed over by a breeze, it licks. Held at the coals, wildest at the
   // tips, which is what `hold` in swayOf already does (src/world/place.js)
   wind: { flap: 0.075, billow: 0.012, sway: 0.02 },
-  // its full detail, every tongue (in the world it is drawn as light, not as these faces: src/world/fire.js, intent
-  // 0018: its coals, its flames, its sparks and its smoke, and its light on what stands round it; the faces are only its
-  // picture in the library)
-  faces: fire(7, 7),
+  // near to far: every tongue; then fewer and coarser; then the heart alone over its coals
+  detail: {
+    levels: [
+      { faces: fire(7, 7) },
+      { faces: fire(5, 5) },
+      { faces: fire(3, 4) },
+      { faces: fire(1, 4, { bed: false }) },
+    ],
+  },
+  // in the world it is drawn as light, not as these faces (src/world/fire.js, intent 0018): its coals, its flames, its
+  // sparks and its smoke, and its light on what stands round it. The faces below are only its picture in the library.
   // width, height: the flames' (metres); bed: the coals' radius; sparks: how many; smoke: how thick; strength: its light
   fire: { width: 0.9, height: 1.05, bed: 0.4, sparks: 48, smoke: 0.7, strength: 1.0 },
   placement: { at: 'places' },

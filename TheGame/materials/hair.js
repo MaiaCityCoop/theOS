@@ -9,7 +9,7 @@ export default {
   type: 'material',
   name: 'Hair',
   kind: 'hair',
-  about: 'Dark brown hair: fine strands gathered into locks.',
+  about: 'Dark brown hair: fine strands side by side, gathered into locks that part and cross, lighter and darker strands through them.',
   usedBy: 'the heads of the characters',
   swatch: [0.2, 0.14, 0.1],
   bump: 0.01,

@@ -7,12 +7,12 @@
 // plant's); none (0) for what stands still (a rock, a made thing). Its seed is a number 0 … 2π of its own, what one thing
 // of a kind may differ by from another (seedOf: 0 … 1). Whoever places, packs this; the drawer (drawer.js) and its
 // makes (trees.js, placed.js) read it with what is here.
-import { vec3, cos, sin, fract } from 'three/tsl';
+import { vec3, max, cos, sin, fract } from 'three/tsl';
+import { U } from '../core/uniforms.js';
 import { camDist } from '../world/land.nodes.js';
-import { pxAt } from '../detail/measure.js';
 
-/** Its size on screen now, pixels, as the walker's lens sees it (size: metres; xy: where it stands): the measure's. */
-export const pxOf = (size, xy) => pxAt(size, camDist(xy));
+/** Its size on screen now, pixels, as the walker's lens sees it (size: metres; xy: where it stands). */
+export const pxOf = (size, xy) => size.mul(U.uPxK).div(max(camDist(xy), 1e-3));
 /** Its turn (yaw, radians) as two node functions: from its own frame into the world's (turn), and back (unturn). */
 export const turnOf = (yaw) => {
   const cs = cos(yaw), sn = sin(yaw);

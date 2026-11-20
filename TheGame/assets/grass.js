@@ -1,29 +1,28 @@
-// The grass: the meadow's blades, drawn round the camera by its engine (src/scatter/grass.js), each as it is, its bends
-// fewer further off. An asset in the one recipe (assets/index.js). How much of it grows where, how high and in
-// which colours is each biome's own (its `grass`: biomes/*.js); here is the blade, at its full detail, and no more:
+// The grass: the meadow's blades, instanced in three rings round the camera, dense and fine close, sparse and wide far
+// (src/scatter/grass.js draws them). An asset in the one recipe (assets/index.js). How much of it grows where, how
+// high and in which colours is each biome's own (its `grass`: biomes/*.js); here is the blade and its rings.
 //
-//   blade  { segs, cell, P, w }   segs: bends along it; cell: metres per cell, one blade may stand in each; P: cells along
-//          a patch's side (P * P blades a patch: how the engine packs them); w: half its width
-//
-// Its engine makes every coarser ring of it from this alone: the blade in its own cells, as wide and as tall, bent in
-// fewer straight pieces, each ring where how far that misses the blade's curve is the one ERROR_PX (src/detail/error.js).
-// None is fewer: a meadow thins only where its cells stand under a dial pixel apart, where its blades end and the carpet
-// under them carries it on.
+// tiers, near to far, distances in metres as the walker's 68° lens sees them (a longer lens stretches them by its own
+// factor: core/governor.js):
+//   segs   bends along the blade            w      half its width
+//   cell   metres per cell: one blade may stand in each
+//   P      cells along a patch's side: P * P blades a patch, a patch is cell * P metres
+//   near, far, nearFade, farFade   the ring, and the dithered hand-over to its neighbours
+//   end    where the last ring's blades shrink away
+// A farther ring's cells are wider: its blades are widened with the cell's area (w / cell² about the same in every ring),
+// so each ring covers the ground as the one before it and the hand-over does not thin the meadow.
 export default {
   uid: 'eb8f406f-1035-4921-ba42-10f05efab6ed',   // its stable id: every reference to it, everywhere, is this (src/core/registry.js)
   type: 'asset',
   name: 'Grass',
   kind: 'grass',
-  about: 'The blades of the meadow, in tufts, each moving in the wind.',
-  // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
-  measure: {
-    real: 'the grasses of a hay meadow, leaf and flowering stem',
-    typical: [0.3, 1.2],
-    most: 1.5,
-    source: ['false oat-grass (Arrhenatherum elatius), a hay meadow\'s tallest: 0.5 to 1.2 m, now and then 1.5 m (Flora Helvetica); 0.6 to 1.5 m (Bayer crop science)'],
-  },
+  about: 'The blades of the meadow: each bends and flutters in the wind on its own, in tufts of a common height and lean; a white flower head now and then. Every biome says how much of it grows, how high, and in which greens.',
   size: { length: 0.03, width: 0.03, height: 0.58 },   // one blade, full grown
   height: 0.58,
-  blade: { segs: 3, cell: 0.085, P: 96, w: 0.014 },
+  tiers: [
+    { segs: 3, cell: 0.085, P: 96, near: -1, nearFade: 0, far: 15, farFade: 5, w: 0.014, end: 1e6 },
+    { segs: 2, cell: 0.17, P: 96, near: 15, nearFade: 5, far: 42, farFade: 10, w: 0.033, end: 1e6 },
+    { segs: 1, cell: 0.38, P: 96, near: 42, nearFade: 10, far: 88, farFade: 22, w: 0.106, end: 88 },
+  ],
   placement: { at: 'scatter', engine: 'grass' },   // over all the land, as each biome's grass says
 };

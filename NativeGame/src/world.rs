@@ -3,6 +3,8 @@
 use bevy::prelude::*;
 
 pub const SKY: Color = Color::srgb(0.53, 0.70, 0.90);
+/// The haze of a real place toward its horizon.
+pub const HAZE: Color = Color::srgb(0.80, 0.86, 0.92);
 
 /// What would be hidden while a scene is shown (nothing, since the plain is gone).
 #[derive(Component)]
