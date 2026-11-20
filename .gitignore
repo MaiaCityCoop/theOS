@@ -14,3 +14,5 @@ avenDB/temp/
 avenDB/rpc.*
 avenDB/target/
 avenDB/run/
+avenDB/views/
+avenDB/merge.lock

@@ -1,5 +1,5 @@
 //! Deliverable 3 of intent 0050: the kernel's plugins. A changed head calls exactly the plugins watching its kind,
-//! once; an unchanged head calls nothing; a kernel started again calls nothing it handled; the baker bakes one asset
+//! once; an unchanged head calls nothing; a branch's edit calls nothing until merged; a kernel started again calls nothing it handled; the baker bakes one asset
 //! at a time and says when the engine fails.
 
 use avendb::AvenDb;
@@ -167,5 +167,32 @@ fn the_baker_as_a_plugin_bakes_the_changed_asset_and_reports_a_failure() {
     let e = avendb::baker::bake(&db, &stone).unwrap_err();
     assert!(e.contains("exit 3"), "{e}");
     drop((w, db));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_branch_edit_calls_nothing_until_it_is_merged() {
+    let (db, dir) = fresh("branch");
+    let stone = db.new("asset", "stone").unwrap();
+    let (plugins, assets, _) = tallies();
+    let mut w = Watcher::new(&db, plugins).unwrap();
+    w.pass(&db).unwrap();
+    assert_eq!(take(&assets), vec![stone.clone()]);
+    // an edit on a branch: main's head stays, nothing is called
+    db.make_branch("try", "a trial").unwrap();
+    let doc = db.doc(&stone).unwrap();
+    doc.get_text("text").insert(0, "on the branch").unwrap();
+    db.commit_on(Some("try"), &stone, &doc).unwrap();
+    assert!(w.pass(&db).unwrap().is_empty(), "a branch's edit calls nothing");
+    // the same edit on main is called once
+    db.commit_on(None, &stone, &doc).unwrap();
+    assert_eq!(w.pass(&db).unwrap(), vec![("assets".to_string(), stone)]);
+    drop(w);
+    // a process on a branch runs no watcher
+    let mut db = Arc::into_inner(db).unwrap();
+    db.set_branch(Some("try")).unwrap();
+    let (plugins, _, _) = tallies();
+    assert!(Watcher::new(&db, plugins).is_err());
+    drop(db);
     let _ = std::fs::remove_dir_all(dir);
 }

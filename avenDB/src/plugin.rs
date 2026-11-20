@@ -4,7 +4,7 @@
 //!
 //! The store has no change subscription to follow (iroh-blobs' tags are listed, not observed, and Loro's events are
 //! a doc's own, in one process), and a commit from any process lands as a new tag, so the watcher lists the heads
-//! every `POLL`. It keeps the heads each plugin has handled in a doc of its own, named by the root as `kernel`, so a
+//! every `POLL`, on main only (`doc/<id>`; a branch's tags are its own until merged). It keeps the heads each plugin has handled in a doc of its own, named by the root as `kernel`, so a
 //! kernel started again calls nothing for what it already handled.
 
 use crate::{AvenDb, Result};
@@ -42,7 +42,12 @@ pub struct Watcher {
 
 impl Watcher {
     /// The watcher of `plugins`, with what they handled before (kept in the kernel's doc, made on first use).
+    /// It watches main only: a branch's edits (and a merge's trial branch) call nothing until they are merged, so a
+    /// process put on a branch runs no watcher.
     pub fn new(db: &AvenDb, plugins: Vec<Box<dyn Plugin>>) -> Result<Self> {
+        if let Some(b) = db.branch() {
+            return Err(format!("the plugins watch main, and this process is on branch {b}"));
+        }
         let doc = kernel_doc(db)?;
         let handled = db.text(&doc)?.and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
         Ok(Watcher { plugins, handled, doc, seen: HashMap::new() })

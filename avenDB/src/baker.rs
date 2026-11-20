@@ -34,7 +34,14 @@ pub fn bake(db: &AvenDb, id: &str) -> Result<()> {
     let name = db.meta(id).map(|m| m.1).unwrap_or_default();
     eprintln!("baker: {id} {name}: started");
     let start = std::time::Instant::now();
-    let status = std::process::Command::new(&engine.path).arg("--bake").arg(id).env("AVENDB", db.dir()).status();
+    // the engine bakes on the branch this process is on: main's, from the kernel
+    let mut command = std::process::Command::new(&engine.path);
+    command.arg("--bake").arg(id).env("AVENDB", db.dir());
+    match db.branch() {
+        Some(b) => command.env("AVENDB_BRANCH", b),
+        None => command.env_remove("AVENDB_BRANCH"),
+    };
+    let status = command.status();
     let took = start.elapsed().as_secs_f32();
     drop(lock);
     let status = status.map_err(|e| format!("the engine did not start: {e}"))?;
