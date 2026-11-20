@@ -37,6 +37,10 @@ process goes through it over a local connection (the kernel owns it, theOS and t
 - **Names stay content addressed.** A doc version is still named by the BLAKE3 hash of its snapshot, computed when it
   is committed and kept in its row, so everything that pins a version by hash (worlds, builds) reads exactly that
   version back.
+- **Ids derived, not random** (Samuel: "shouldn't even those be proper content hashes?"). A doc's id stays the
+  same while its content changes, so it cannot be the hash of its content now; it becomes the BLAKE3 hash of its
+  first version (and, once nodes sync, of the key of the node that made it), so anyone can check where a doc began and
+  two nodes never make the same id. Today's ids (a hash of the time, the process and a counter) stay valid.
 - **Several processes at once.** SQLite in WAL mode lets every process on the machine read, and one write at a time,
   without going through an owner; only blobs keep the owner's connection.
 - **Sync later:** a node's doc history is a set of Loro updates; two nodes exchange what the other lacks (by version
@@ -60,6 +64,8 @@ process goes through it over a local connection (the kernel owns it, theOS and t
 3. A one-time move of every doc and its whole history from the tags and snapshots into SQLite; the old snapshot
    blobs stay readable by hash.
 4. Readers without the owner: theOS and `theDB` read docs straight from SQLite; blobs still through the owner.
+5. New docs get derived ids (BLAKE3 of the first version); `theDB` finds the engine's tree from the engine doc, so no
+   command takes a typed id for it.
 
 **Checks**
 
