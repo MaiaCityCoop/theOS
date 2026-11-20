@@ -13,6 +13,7 @@ use bevy::prelude::*;
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SetupAct {
     Make,
+    Copy,
     Saved,
 }
 
@@ -23,6 +24,7 @@ struct Setup {
     master: Option<String>,
     error: Option<String>,
     drawn: bool,
+    copied: bool,
 }
 
 #[derive(Component)]
@@ -55,14 +57,44 @@ fn click(mut ev: On<PointerClick>, acts: Query<&SetupAct>, mut s: ResMut<Setup>,
             }
             Err(e) => s.error = Some(e),
         },
+        SetupAct::Copy => {
+            if let Some(secret) = &s.secret {
+                match copy_for_a_minute(secret) {
+                    Ok(()) => s.copied = true,
+                    Err(e) => s.error = Some(e),
+                }
+            }
+        }
         SetupAct::Saved => {
             // forgotten here: the Keychain and the password manager hold it now
             s.secret = None;
+            s.copied = false;
             next.set(View::Home);
         }
         SetupAct::Make => {}
     }
     s.drawn = false;
+}
+
+/// Puts `secret` on the clipboard for pasting into a password manager, and takes it off again after a minute if
+/// it is still there (macOS keeps no clipboard history of its own; a clipboard manager might).
+fn copy_for_a_minute(secret: &str) -> Result<(), String> {
+    use std::io::Write;
+    let mut c = std::process::Command::new("/usr/bin/pbcopy").stdin(std::process::Stdio::piped()).spawn().map_err(|e| e.to_string())?;
+    c.stdin.take().ok_or("no input to pbcopy")?.write_all(secret.as_bytes()).map_err(|e| e.to_string())?;
+    c.wait().map_err(|e| e.to_string())?;
+    let secret = secret.to_string();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(60));
+        let now = std::process::Command::new("/usr/bin/pbpaste").output().map(|o| o.stdout).unwrap_or_default();
+        if now == secret.as_bytes()
+            && let Ok(mut c) = std::process::Command::new("/usr/bin/pbcopy").stdin(std::process::Stdio::piped()).spawn()
+        {
+            drop(c.stdin.take());
+            let _ = c.wait();
+        }
+    });
+    Ok(())
 }
 
 /// The secret in groups of four, four groups a line: easy to copy by eye and to check.
@@ -112,7 +144,15 @@ fn draw(mut commands: Commands, fonts: Res<Fonts>, mut s: ResMut<Setup>, old: Qu
                             children![text(&f.mono, 24.0, FOREST, grouped(secret))],
                         ));
                         card.spawn(text(&f.mono, 13.0, FOREST2, format!("public key  {master}")));
-                        card.spawn(button("I have saved it in my password manager", SetupAct::Saved, FOREST, CREAM));
+                        if let Some(e) = &s.error {
+                            card.spawn(text(&f.sans, 16.0, Color::srgb(0.7, 0.2, 0.15), e.clone()));
+                        }
+                        card.spawn(text(&f.sans, 15.0, FOREST2, "Never as a screenshot or in a chat: whoever sees it can sign as you.".into()));
+                        card.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(12.0), ..default() }).with_children(|row| {
+                            let copy = if s.copied { "Copied: off the clipboard in a minute" } else { "Copy" };
+                            row.spawn(button(copy, SetupAct::Copy, SAND, FOREST));
+                            row.spawn(button("I have saved it in my password manager", SetupAct::Saved, FOREST, CREAM));
+                        });
                     }
                     _ => {
                         card.spawn(text(&f.sans, 18.0, FOREST2, "theOS signs every change it keeps. One master key signs main and every merge; agents get keys of their own, for their own lines, by its grant. This store has no master yet.".into()));
