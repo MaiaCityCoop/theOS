@@ -271,7 +271,7 @@ fn layers(view: View) -> impl Fn(Commands, Res<crate::ui::Fonts>, Option<Res<Int
         let ids = match view {
             View::Game => &l.game,
             View::Studio => &l.studio,
-            View::Home | View::TheDB => return,
+            View::Home | View::TheDB | View::Setup => return,
         };
         for id in ids {
             if let Some(v) = read(id) {

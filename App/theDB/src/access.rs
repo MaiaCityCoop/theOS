@@ -43,18 +43,18 @@ impl TheDB {
 
     /// Makes `key` this store's master and signs every head as it is now ("I take these as they are"), so `verify`
     /// is clean from the first day. A store has one master; it is not changed here.
-    pub fn set_master(&mut self, key: SecretKey) -> Result<()> {
+    pub fn set_master(&self, key: SecretKey) -> Result<()> {
         if let Some(m) = self.master()? {
             return Err(format!("this store's master is {m} already"));
         }
         sql::set_meta(&self.sql(), "master", &key.public().to_string())?;
-        self.signer = Some(key);
+        self.sign_with(key);
         self.attest()
     }
 
     /// Makes a master for this store: a new key, kept in this Mac's Keychain. Returns it, to be shown once and kept by
     /// its owner in a password manager.
-    pub fn make_master(&mut self) -> Result<SecretKey> {
+    pub fn make_master(&self) -> Result<SecretKey> {
         let key = SecretKey::generate();
         theid::keychain_set(&key.public(), &Who::Master, &key)?;
         self.set_master(key.clone())?;
@@ -62,36 +62,48 @@ impl TheDB {
     }
 
     /// Puts the master's key (from its owner's backup) into this Mac's Keychain, after checking it is this store's.
-    pub fn restore_master(&mut self, key: SecretKey) -> Result<()> {
+    pub fn restore_master(&self, key: SecretKey) -> Result<()> {
         let master = self.master()?.ok_or("this store has no master")?;
         if key.public() != master {
             return Err(format!("that key is {}, this store's master is {master}", key.public()));
         }
         theid::keychain_set(&master, &Who::Master, &key)?;
-        self.signer = Some(key);
+        self.sign_with(key);
         Ok(())
     }
 
     /// Signs this process's commits with `key` (instead of the key from the Keychain).
-    pub fn sign_with(&mut self, key: SecretKey) {
-        self.signer = Some(key);
+    pub fn sign_with(&self, key: SecretKey) {
+        *self.signer.lock().unwrap_or_else(|e| e.into_inner()) = Some(key);
     }
 
-    /// The key this process signs with.
+    /// The key this process signs with: one given, or else the one the Keychain holds for this store's master
+    /// (`theid::key_for`), read once.
+    pub(crate) fn key(&self) -> Option<SecretKey> {
+        let mut k = self.signer.lock().unwrap_or_else(|e| e.into_inner());
+        if k.is_none()
+            && let Ok(Some(master)) = self.master()
+        {
+            *k = theid::key_for(&master);
+        }
+        k.clone()
+    }
+
+    /// The public half of the key this process signs with.
     pub fn signer(&self) -> Option<PublicKey> {
-        self.signer.as_ref().map(|k| k.public())
+        self.key().map(|k| k.public())
     }
 
     /// The master grants the agent `name` (its public key) its line for `days`: the grant kept as a blob, the line
     /// made. Signed by this process's key, which must be the master's. Returns the grant's hash.
     pub fn grant(&self, name: &str, agent: PublicKey, days: u64) -> Result<Hash> {
         let master = self.master()?.ok_or("this store has no master")?;
-        let key = self.signer.as_ref().filter(|k| k.public() == master).ok_or("only the master grants a line")?;
+        let key = self.key().filter(|k| k.public() == master).ok_or("only the master grants a line")?;
         let line = line(name);
         if !crate::is_branch(&line) {
             return Err(format!("not an agent's name (lowercase letters, digits, dashes): {name:?}"));
         }
-        let grant = theid::grant(key, agent, Cap::Line(line.clone()), days);
+        let grant = theid::grant(&key, agent, Cap::Line(line.clone()), days);
         let hash = self.put(grant.encode())?;
         sql::add_grant(&self.sql(), hash, &agent.to_string(), &line, theid::until(&grant).min(i64::MAX as u64) as i64)?;
         if !self.branches()?.contains(&line) {
@@ -118,7 +130,7 @@ impl TheDB {
     /// master (nothing is signed). Refuses what the branch does not allow this process.
     pub(crate) fn may_write(&self, branch: &str) -> Result<Option<(SecretKey, Option<Hash>)>> {
         let Some(master) = self.master()? else { return Ok(None) };
-        let Some(key) = self.signer.clone() else {
+        let Some(key) = self.key() else {
             return Err(format!("this store is signed, and this process has no key to write {branch} with (the master's is not in this Mac's Keychain: `theDB master restore`; an agent sets THEOS_AGENT)"));
         };
         if key.public() == master {
@@ -145,7 +157,7 @@ impl TheDB {
 
     /// The master signs every head of every branch as it is now.
     fn attest(&self) -> Result<()> {
-        let key = self.signer.clone().ok_or("no key")?;
+        let key = self.key().ok_or("no key")?;
         let mut sql = self.sql();
         let tx = sql.transaction().map_err(err)?;
         for (branch, id, version) in sql::all_heads(&tx)? {

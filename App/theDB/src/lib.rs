@@ -123,7 +123,8 @@ pub struct TheDB {
     /// The docs: this process's own connection to `theDB.sqlite`.
     sql: std::sync::Mutex<rusqlite::Connection>,
     /// The key this process signs its commits with (`access`): the master's or an agent's, from the Keychain.
-    signer: Option<access::SecretKey>,
+    /// Read from the Keychain the first time it is needed, so a master made while this process runs is used too.
+    signer: std::sync::Mutex<Option<access::SecretKey>>,
 }
 
 /// Now, in seconds since 1970: when a version was made.
@@ -162,11 +163,8 @@ impl TheDB {
         }
         let (store, owner) = Self::open_blobs(&rt, dir)?;
         let sql = sql::open(dir)?;
-        let mut db = TheDB { rt, store, owner, dir: dir.to_path_buf(), branch, sql: std::sync::Mutex::new(sql), signer: None };
+        let db = TheDB { rt, store, owner, dir: dir.to_path_buf(), branch, sql: std::sync::Mutex::new(sql), signer: std::sync::Mutex::new(None) };
         db.prepare()?;
-        if let Some(master) = db.master()? {
-            db.signer = theid::key_for(&master);
-        }
         Ok(db)
     }
 

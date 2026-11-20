@@ -10,6 +10,7 @@ mod camera;
 mod contract;
 mod film;
 mod root;
+mod setup;
 mod thedb_view;
 mod ui;
 mod views;
@@ -27,6 +28,8 @@ pub enum View {
     Studio,
     /// theDB's docs and blobs, read only (`thedb_view.rs`).
     TheDB,
+    /// The first start of a store without a master: its key made and shown once (`setup.rs`).
+    Setup,
 }
 
 /// The store, one for the app: theDB beside this repository (or where `THEDB` says).
@@ -89,7 +92,7 @@ fn main() {
             .insert_state(View::Studio)
             .add_systems(Update, film::take_still);
     } else {
-        app.add_plugins((ui::plugin, thedb_view::plugin));
+        app.add_plugins((ui::plugin, thedb_view::plugin, setup::plugin));
         if mode == Some("--navtest") {
             app.add_systems(Update, ui::navtest);
         }

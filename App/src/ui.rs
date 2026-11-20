@@ -251,6 +251,7 @@ fn release(mut cursor: Query<&mut bevy::window::CursorOptions>) {
 #[derive(Clone, Copy)]
 enum Click {
     Act(Act),
+    Setup(crate::setup::SetupAct),
     Db(fn(&crate::thedb_view::DbAct) -> bool),
 }
 
@@ -263,6 +264,8 @@ pub fn navtest(
     mut n: Local<u32>,
     mut step: Local<usize>,
     mut failed: Local<bool>,
+    mut setup_first: Local<Option<bool>>,
+    setup_buttons: Query<(&crate::setup::SetupAct, &ComputedNode, &UiGlobalTransform)>,
     buttons: Query<(&Act, &ComputedNode, &UiGlobalTransform)>,
     db_buttons: Query<(&crate::thedb_view::DbAct, &ComputedNode, &UiGlobalTransform)>,
     db: Option<Res<crate::thedb_view::Db>>,
@@ -276,7 +279,10 @@ pub fn navtest(
     use bevy::camera::RenderTarget;
     use bevy::picking::pointer::{Location, PointerAction, PointerButton, PointerId, PointerInput};
     use bevy::window::WindowRef;
-    let steps: [(Click, View); 17] = [
+    // a store without a master starts on the setup screen: its key made, then saved, then the dashboard
+    let setup = [(Click::Setup(crate::setup::SetupAct::Make), View::Setup), (Click::Setup(crate::setup::SetupAct::Saved), View::Home)];
+    let with_setup = *setup_first.get_or_insert_with(|| matches!(crate::db().master(), Ok(None)));
+    let views: [(Click, View); 17] = [
         (Click::Act(Act::Open(View::Studio)), View::Studio),
         (Click::Act(Act::Home), View::Home),
         (Click::Act(Act::Open(View::Game)), View::Game),
@@ -295,6 +301,7 @@ pub fn navtest(
         (Click::Db(|a| *a == DbAct::Branch(None)), View::TheDB),
         (Click::Act(Act::Home), View::Home),
     ];
+    let steps: Vec<(Click, View)> = setup.into_iter().filter(|_| with_setup).chain(views).collect();
     // a pointer of its own, so the real mouse over the window cannot move it
     const TEST: PointerId = PointerId::Custom(bevy::asset::uuid::Uuid::from_u128(0x0046_0047));
     if *state.get() == View::TheDB && db.as_ref().is_some_and(|d| d.reading) {
@@ -323,6 +330,7 @@ pub fn navtest(
         let what = match click {
             Click::Act(a) => format!("{a:?}"),
             Click::Db(_) => "in theDB's view".to_string(),
+            Click::Setup(a) => format!("{a:?} on the setup screen"),
         };
         println!(
             "navtest: step {} click {what}: now {:?}, {} {}",
@@ -337,6 +345,7 @@ pub fn navtest(
     }
     let found = match click {
         Click::Act(act) => buttons.iter().find(|(a, ..)| **a == act).map(|(_, n, t)| (n, t)),
+        Click::Setup(act) => setup_buttons.iter().find(|(a, ..)| **a == act).map(|(_, n, t)| (n, t)),
         // the first on screen: the topmost, then the leftmost
         Click::Db(pick) => db_buttons.iter().filter(|(a, ..)| pick(a)).min_by(|x, y| (x.2.translation.y, x.2.translation.x).partial_cmp(&(y.2.translation.y, y.2.translation.x)).unwrap_or(std::cmp::Ordering::Equal)).map(|(_, n, t)| (n, t)),
     };
