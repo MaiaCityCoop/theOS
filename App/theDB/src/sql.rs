@@ -504,3 +504,8 @@ pub fn proposal_heads(conn: &Connection) -> Result<Vec<(String, String)>> {
     let rows = q.query_map([crate::MAIN], |r| Ok((r.get(0)?, r.get(1)?))).map_err(err)?.collect::<std::result::Result<Vec<_>, _>>().map_err(err)?;
     Ok(rows)
 }
+
+/// Which doc the version `hash` is a version of, if SQLite holds it.
+pub fn version_doc(conn: &Connection, hash: Hash) -> Result<Option<String>> {
+    conn.query_row("SELECT doc FROM versions WHERE hash = ?1", [hex(hash)], |r| r.get(0)).optional().map_err(err)
+}

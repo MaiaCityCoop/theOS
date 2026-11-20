@@ -891,6 +891,7 @@ pub mod access;
 pub mod build;
 pub mod proposals;
 pub mod schema;
+pub mod vibe;
 
 pub mod inventory;
 

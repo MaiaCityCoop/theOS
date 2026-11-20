@@ -33,6 +33,11 @@
 //!     thedb agent <name> [days]         a new agent: its key in the Keychain, the master's grant of line-<name>
 //!     thedb verify                      every signature, and every head signed by whom its branch allows
 //!
+//! Vibes: one manifest kind for everything opened as a whole (vibe.rs).
+//!
+//!     thedb vibe schema                 the vibe schema, kept as a blob; prints its hash (name it on every vibe)
+//!     thedb vibe <id>[@<version>]       the vibe and everything it is made of; fails if anything is missing
+//!
 //! Modules (intent 0054): code that is content. A module doc's text is one Rust file; built, it is its part `wasm`.
 //!
 //!     thedb module build <id>           the module built into WebAssembly, kept as its part `wasm` (on this branch)
@@ -126,6 +131,17 @@ fn main() {
         ["proposal", id] => {
             let p = db.proposal(id).unwrap_or_else(|e| fail(&e));
             println!("{:?}  {}  from {}  ({} docs)", p.state, p.note, p.branch, p.docs.len());
+        }
+        ["vibe", "schema"] => println!("{}", db.vibe_schema().unwrap_or_else(|e| fail(&e))),
+        ["vibe", reference] => {
+            let tree = db.tree(reference).unwrap_or_else(|e| fail(&e));
+            let mut lines = Vec::new();
+            tree.lines(0, &mut lines);
+            println!("{}", lines.join("\n"));
+            let missing = tree.missing();
+            if !missing.is_empty() {
+                fail(&format!("{} missing", missing.len()));
+            }
         }
         ["module", "build", id] => println!("{}", db.build_module(id).unwrap_or_else(|e| fail(&e))),
         ["schema", "put", file] => {
