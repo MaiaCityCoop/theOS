@@ -597,7 +597,7 @@ fn enter(
     });
     // the land: its own material, no texture (the colour is in the geometry, from terrain.rs)
     // the recipe: the file in biomes/ if there is one, else the built-in meadow (written there, to be edited)
-    let id = "meadow.biome";
+    let id = crate::root::root().biome.as_str();
     let db = crate::db();
     let biome = db.file(id).ok().flatten().and_then(|t| serde_json::from_slice(&t).ok()).unwrap_or_else(crate::biome::Biome::meadow);
     crate::biome::set(biome.clone());

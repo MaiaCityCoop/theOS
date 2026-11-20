@@ -1,34 +1,27 @@
-//! avenDB from the shell, for people and agents.
+//! avenDB from the shell, for people and agents. Docs are reached by their ids only; a name is what a doc says it is.
 //!
-//!     avendb import <dir>            every file in <dir> as a doc, its id the file's name (flat; unchanged ones commit nothing)
-//!     avendb put <id> <file>         a file as doc <id>
-//!     avendb cat <id> [hash]         doc <id>'s file now (or at the version <hash>)
-//!     avendb part <id> <name> <file>  a file as the part <name> of doc <id>
-//!     avendb ls                      every doc and the hash of its current version
-//!     avendb head <id>               the hash of doc <id>'s current version
+//!     avendb new <kind> <name> [file]   a new doc (with a file's content); prints its id
+//!     avendb put <id> <file>            a file as doc <id>'s content
+//!     avendb part <id> <part> <file>    a file as a part of doc <id>
+//!     avendb cat <id> [hash]            doc <id>'s content now (or at the version <hash>)
+//!     avendb ls                         every doc: id, current version, kind, name
+//!     avendb head <id>                  the hash of doc <id>'s current version
+//!     avendb root [<id>]                the root doc's id (or make <id> the root)
+//!     avendb forget <id>                doc <id> is no longer reached (its versions stay)
 
 use avendb::AvenDb;
 use std::io::Write;
-use std::path::Path;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let db = AvenDb::open(AvenDb::here()).unwrap_or_else(|e| fail(&e));
     match args.iter().map(String::as_str).collect::<Vec<_>>()[..] {
-        ["import", dir] => {
-            let (mut n, mut changed) = (0, 0);
-            for file in walk(Path::new(dir)) {
-                let id = file.file_name().unwrap().to_string_lossy().into_owned();
-                let before = db.head(&id).unwrap_or_else(|e| fail(&e));
-                let bytes = std::fs::read(&file).unwrap_or_else(|e| fail(&e.to_string()));
-                let after = db.set_file(&id, &bytes).unwrap_or_else(|e| fail(&e));
-                n += 1;
-                if before != Some(after) {
-                    changed += 1;
-                    println!("{after}  {id}");
-                }
-            }
-            eprintln!("{n} files, {changed} new versions");
+        ["new", kind, name] => println!("{}", db.new(kind, name).unwrap_or_else(|e| fail(&e))),
+        ["new", kind, name, file] => {
+            let id = db.new(kind, name).unwrap_or_else(|e| fail(&e));
+            let bytes = std::fs::read(file).unwrap_or_else(|e| fail(&e.to_string()));
+            db.set_file(&id, &bytes).unwrap_or_else(|e| fail(&e));
+            println!("{id}");
         }
         ["put", id, file] => {
             let bytes = std::fs::read(file).unwrap_or_else(|e| fail(&e.to_string()));
@@ -42,29 +35,16 @@ fn main() {
         }
         ["ls"] => {
             for (id, h) in db.docs().unwrap_or_else(|e| fail(&e)) {
-                println!("{h}  {id}");
+                let (kind, name) = db.meta(&id).unwrap_or_default();
+                println!("{id}  {}  {kind:<8} {name}", &h.to_hex()[..12]);
             }
         }
         ["head", id] => println!("{}", db.head(id).unwrap_or_else(|e| fail(&e)).map(|h| h.to_string()).unwrap_or_default()),
-        _ => fail("usage: avendb import <dir> | put <id> <file> | cat <id> [hash] | ls | head <id>"),
+        ["root"] => println!("{}", db.root().unwrap_or_else(|e| fail(&e)).unwrap_or_default()),
+        ["root", id] => db.set_root(id).unwrap_or_else(|e| fail(&e)),
+        ["forget", id] => db.forget(id).unwrap_or_else(|e| fail(&e)),
+        _ => fail("usage: avendb new <kind> <name> [file] | put <id> <file> | part <id> <part> <file> | cat <id> [hash] | ls | head <id> | root [<id>] | forget <id>"),
     }
-}
-
-fn walk(dir: &Path) -> Vec<std::path::PathBuf> {
-    let mut out = Vec::new();
-    let mut entries: Vec<_> = std::fs::read_dir(dir).map(|r| r.flatten().map(|e| e.path()).collect()).unwrap_or_default();
-    entries.sort();
-    for p in entries {
-        if p.file_name().is_some_and(|n| n.to_string_lossy().starts_with('.')) {
-            continue;
-        }
-        if p.is_dir() {
-            out.extend(walk(&p));
-        } else {
-            out.push(p);
-        }
-    }
-    out
 }
 
 fn out(bytes: Vec<u8>) {

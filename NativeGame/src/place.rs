@@ -6,9 +6,10 @@
 //!     cargo run -- --bake-place     fetches the source tiles (130 MB, once) and writes Mértola's package
 //!     cargo run                     the dashboard's tile "Place" opens it
 //!
-//! Everything is kept in avenDB (intent 0049), each a flat doc: each open-data file fetched, once, by its own name; the
-//! canopy map's headers and rows as `chm-<quadkey>.…`; a place's package (height.bin, cover.bin, the map's layers,
-//! trees.bin, place.json, about 1 MB) as one doc `<site>.place`, each file a part. A click on the map outside the square bakes the square
+//! Everything is kept in avenDB (intent 0049), reached by ids from the root: each open-data file fetched, once, a part
+//! of the Earth's doc under its source URL (the canopy map's headers and rows too, under their URL and range); a
+//! place's package (height.bin, cover.bin, the map's layers, trees.bin, place.json, about 1 MB) one doc, each file a
+//! part. A click on the map outside the square bakes the square
 //! around that point the same way, in the background, and opens it; a place baked once opens at once.
 
 use crate::View;
@@ -22,8 +23,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
-/// Mértola's package in avenDB: the doc `mertola.place`, its files its parts.
-const MERTOLA: &str = "mertola.place";
 
 /// The size of a place and the resolution of its two grids.
 pub const SIZE_M: f32 = 6_000.0;
@@ -36,7 +35,7 @@ pub struct Site {
     pub name: String,
     pub lat: f64,
     pub lon: f64,
-    /// Its package in avenDB: one flat doc, `<site>.place`, each file a part of it (a blob by name).
+    /// Its package in avenDB: the id of one doc, each file a part of it (a blob).
     pub docs: String,
     pub start: Option<(f32, f32, f32)>,
 }
@@ -53,12 +52,13 @@ impl Site {
     pub fn mertola() -> Site {
         // on the hill west of the town, looking east over the Guadiana
         let start = Some((-1_200.0, 300.0, -std::f32::consts::FRAC_PI_2));
-        Site { name: "Mértola, Alentejo, Portugal".into(), lat: 37.6386, lon: -7.6614, docs: MERTOLA.into(), start }
+        Site { name: "Mértola, Alentejo, Portugal".into(), lat: 37.6386, lon: -7.6614, docs: crate::root::root().mertola.clone(), start }
     }
-    /// The 6 km square centred on a ground point, its package in avenDB as `<lat>_<lon>.place`.
+    /// The 6 km square centred on a ground point; its package's doc found in the Earth's doc by where it is, or made.
     pub fn around(lat: f64, lon: f64) -> Site {
         let name = format!("{:.4}° {}  {:.4}° {}", lat.abs(), if lat >= 0.0 { "N" } else { "S" }, lon.abs(), if lon >= 0.0 { "E" } else { "W" });
-        Site { name, lat, lon, docs: format!("{lat:.4}_{lon:.4}.place"), start: None }
+        let docs = place_doc(lat, lon, &name);
+        Site { name, lat, lon, docs, start: None }
     }
     /// The ground point (lat, lon) of a point of the site in metres, x to the east and z to the south.
     pub fn latlon(&self, x: f32, z: f32) -> (f64, f64) {
@@ -80,15 +80,28 @@ struct Manifest {
 
 // ---- the bake: open GeoTIFF tiles in, a small package out ----
 
-/// An open-data file, downloaded once and kept in avenDB as the doc `<name>` (its bytes a blob); None when there is
-/// none (no elevation tile over open sea), which is kept too (`<name>.none`), so it is not asked for again.
+/// The doc of the place at (lat, lon): found in the Earth's doc (its part `place <lat> <lon>` holds the id), or made.
+fn place_doc(lat: f64, lon: f64, name: &str) -> String {
+    let db = crate::db();
+    let (earth, at) = (&crate::root::root().earth, format!("place {lat:.4} {lon:.4}"));
+    if let Some(id) = db.part(earth, &at).ok().flatten() {
+        return String::from_utf8_lossy(&id).into_owned();
+    }
+    let id = db.new("place", name).expect("a place's doc is made");
+    let _ = db.set_part(earth, &at, id.as_bytes());
+    id
+}
+
+/// An open-data file, downloaded once and kept in avenDB: a part of the Earth's doc under its source URL (its bytes a
+/// blob). None when there is none (no elevation tile over open sea), which is kept too (`none <url>`), so it is not
+/// asked for again.
 pub fn fetch((name, url): (&str, &str)) -> Option<avendb::Bytes> {
     let db = crate::db();
-    let (id, none) = (name.to_string(), format!("{name}.none"));
-    if let Ok(Some(b)) = db.file(&id) {
-        return Some(b.into());
+    let earth = &crate::root::root().earth;
+    if let Ok(Some(b)) = db.part(earth, url) {
+        return Some(b);
     }
-    if db.head(&none).ok().flatten().is_some() {
+    if db.part(earth, &format!("none {url}")).ok().flatten().is_some() {
         return None;
     }
     eprintln!("fetching {name}");
@@ -99,11 +112,11 @@ pub fn fetch((name, url): (&str, &str)) -> Option<avendb::Bytes> {
     let _ = std::fs::remove_file(&part);
     match got {
         Some(b) => {
-            db.set_file(&id, &b).ok()?;
+            db.set_part(earth, url, &b).ok()?;
             Some(b.into())
         }
         None => {
-            let _ = db.set_text(&none, url);
+            let _ = db.set_part(earth, &format!("none {url}"), &[]);
             None
         }
     }

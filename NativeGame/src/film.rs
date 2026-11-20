@@ -40,11 +40,15 @@ impl Studio {
 }
 
 /// The kept shot list the Studio opens with.
-pub const FIRST_SHOTS: &str = "first-shots.shots";
+pub fn first_shots() -> &'static str {
+    &crate::root::root().first_shots
+}
 /// The Meadow's storytelling anchors: the same four shots at every stage of the scene.
-pub const ANCHORS: &str = "meadow-anchors.shots";
+pub fn anchors() -> &'static str {
+    &crate::root::root().anchors
+}
 
-/// A shot list: the avenDB doc `id`, or else a file at that path (a list an agent wrote).
+/// A shot list: the avenDB doc `id`, or else a file at that path (a list an agent wrote and passed on the command line).
 pub fn shots(id: &str) -> Option<Timeline> {
     let bytes = crate::db().file(id).ok().flatten().or_else(|| std::fs::read(id).ok())?;
     Timeline::from_json(std::str::from_utf8(&bytes).ok()?).ok()
@@ -59,7 +63,7 @@ pub struct Walker {
 }
 
 pub fn plugin(app: &mut App) {
-    let opened = shots(FIRST_SHOTS);
+    let opened = shots(first_shots());
     app.insert_resource(Studio::paused_at(opened.unwrap_or_else(|| camera::five_shots(1)), 0.0))
         .insert_resource(Walker { pos: Vec3::new(0.0, 1.6, 0.0), yaw: 0.0, pitch: -4.0 })
         .add_observer(capture)

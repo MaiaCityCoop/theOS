@@ -1,7 +1,7 @@
 //! Bevy reads avenDB: two asset sources, and nothing from disk.
 //!
-//! - The default source: an asset path is a doc's id (`shaders/wind.wesl` is doc `shaders/wind.wesl`), read as it is
-//!   now, and watched: a commit to the doc reloads it while the app runs.
+//! - The default source: an asset path is a doc's id and the kind of file it holds, for Bevy's loaders
+//!   (`<id>.wesl`, `<id>.ttf`): the doc read as it is now, and watched, so a commit to it reloads it while the app runs.
 //! - `blob://<hash>`: exact content, a blob or a doc's version by its hash; never changes, never watched.
 
 use crate::{AvenDb, Hash};
@@ -16,16 +16,30 @@ use std::sync::atomic::{AtomicBool, Ordering};
 /// How often the watcher looks for new versions of the docs.
 const WATCH_EVERY: std::time::Duration = std::time::Duration::from_millis(250);
 
+/// The doc id in an asset path: its file name up to the first dot.
 fn id_of(path: &Path) -> String {
-    path.components().map(|c| c.as_os_str().to_string_lossy()).collect::<Vec<_>>().join("/")
+    path.file_name().map(|n| n.to_string_lossy().split('.').next().unwrap_or_default().to_string()).unwrap_or_default()
 }
 
+/// The paths each doc was loaded by, so the watcher tells Bevy about the same ones.
+type Loaded = Arc<std::sync::Mutex<HashMap<String, Vec<PathBuf>>>>;
+
 /// Reads docs by id.
-pub struct Docs(pub Arc<AvenDb>);
+pub struct Docs(pub Arc<AvenDb>, Loaded);
 
 impl AssetReader for Docs {
     async fn read<'a>(&'a self, path: &'a Path) -> Result<VecReader, AssetReaderError> {
-        match self.0.file(&id_of(path)) {
+        let id = id_of(path);
+        if !crate::is_id(&id) {
+            return Err(AssetReaderError::NotFound(path.to_path_buf()));
+        }
+        if let Ok(mut l) = self.1.lock() {
+            let paths = l.entry(id.clone()).or_default();
+            if !paths.iter().any(|p| p == path) {
+                paths.push(path.to_path_buf());
+            }
+        }
+        match self.0.file(&id) {
             Ok(Some(bytes)) => Ok(VecReader::new(bytes)),
             Ok(None) => Err(AssetReaderError::NotFound(path.to_path_buf())),
             Err(e) => Err(AssetReaderError::Io(Arc::new(std::io::Error::other(e)))),
@@ -81,7 +95,7 @@ impl Drop for Watch {
     }
 }
 
-fn watch(db: Arc<AvenDb>, tell: async_channel::Sender<AssetSourceEvent>) -> Watch {
+fn watch(db: Arc<AvenDb>, loaded: Loaded, tell: async_channel::Sender<AssetSourceEvent>) -> Watch {
     let stop = Arc::new(AtomicBool::new(false));
     let done = stop.clone();
     std::thread::spawn(move || {
@@ -90,14 +104,16 @@ fn watch(db: Arc<AvenDb>, tell: async_channel::Sender<AssetSourceEvent>) -> Watc
             std::thread::sleep(WATCH_EVERY);
             let Ok(now) = db.docs() else { continue };
             for (id, hash) in now {
-                let event = match seen.get(&id) {
-                    None => AssetSourceEvent::AddedAsset(PathBuf::from(&id)),
-                    Some(h) if *h != hash => AssetSourceEvent::ModifiedAsset(PathBuf::from(&id)),
-                    _ => continue,
-                };
-                seen.insert(id, hash);
-                if tell.send_blocking(event).is_err() {
-                    return;
+                let changed = seen.get(&id).is_some_and(|h| *h != hash);
+                seen.insert(id.clone(), hash);
+                if !changed {
+                    continue;
+                }
+                let paths = loaded.lock().map(|l| l.get(&id).cloned().unwrap_or_default()).unwrap_or_default();
+                for p in paths {
+                    if tell.send_blocking(AssetSourceEvent::ModifiedAsset(p)).is_err() {
+                        return;
+                    }
                 }
             }
         }
@@ -107,9 +123,10 @@ fn watch(db: Arc<AvenDb>, tell: async_channel::Sender<AssetSourceEvent>) -> Watc
 
 /// The default source: docs by id, watched.
 pub fn docs_source(db: Arc<AvenDb>) -> AssetSourceBuilder {
-    let (r, w) = (db.clone(), db);
-    AssetSourceBuilder::new(move || Box::new(Docs(r.clone())))
-        .with_watcher(move |tell| Some(Box::new(watch(w.clone(), tell))))
+    let loaded: Loaded = Default::default();
+    let (r, w, lr, lw) = (db.clone(), db, loaded.clone(), loaded);
+    AssetSourceBuilder::new(move || Box::new(Docs(r.clone(), lr.clone())))
+        .with_watcher(move |tell| Some(Box::new(watch(w.clone(), lw.clone(), tell))))
 }
 
 /// `blob://`: blobs and docs' versions by hash.

@@ -35,10 +35,10 @@ pub struct LawnBake {
 
 impl Material for LawnBake {
     fn vertex_shader() -> ShaderRef {
-        "lawn_bake.wesl".into()
+        ShaderRef::Path(crate::root::shader(&crate::root::root().shaders.lawn_bake).into())
     }
     fn fragment_shader() -> ShaderRef {
-        "lawn_bake.wesl".into()
+        ShaderRef::Path(crate::root::shader(&crate::root::root().shaders.lawn_bake).into())
     }
     fn enable_prepass() -> bool {
         false

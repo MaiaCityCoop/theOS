@@ -21,6 +21,7 @@ mod map;
 mod meadow;
 mod patches;
 mod place;
+mod root;
 mod rig;
 mod sun;
 mod terrain;
@@ -125,7 +126,7 @@ fn main() {
     if args.get(1).map(String::as_str) == Some("--gate") {
         let dir: PathBuf = args.get(2).expect("--gate <dir>").into();
         let _ = std::fs::create_dir_all(&dir);
-        let timeline = film::shots(film::ANCHORS).expect("the anchors read and parse");
+        let timeline = film::shots(film::anchors()).expect("the anchors read and parse");
         app.insert_resource(film::Studio::paused_at(timeline, 0.0))
             .insert_resource(film::Gate { dir })
             .insert_state(View::Studio)

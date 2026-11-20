@@ -6,8 +6,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-/// The library's docs in avenDB: one flat doc an asset, `<name>.asset` (its recipe, as JSON).
-pub const KIND: &str = ".asset";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Asset {
@@ -64,26 +62,18 @@ pub fn shelf() -> Vec<Asset> {
     all
 }
 
-/// Every asset by name: the docs `<name>.asset` in avenDB, and any built-in one that has no doc yet (then
-/// kept there).
+/// Every asset by name: the root's library, each asset a doc holding its recipe as JSON. A built-in asset the library
+/// lacks is listed but not kept (the library is what the root names).
 pub fn read() -> BTreeMap<String, Asset> {
     let db = crate::db();
-    let parse = |id: &str| db.file(id).ok().flatten().and_then(|b| serde_json::from_slice::<Asset>(&b).ok());
     let mut all = BTreeMap::new();
-    for a in builtin() {
-        let id = format!("{}{KIND}", a.name.replace(' ', "-"));
-        let a = parse(&id).unwrap_or_else(|| {
-            let _ = db.set_file(&id, (serde_json::to_string_pretty(&a).unwrap_or_default() + "\n").as_bytes());
-            a
-        });
-        all.insert(a.name.clone(), a);
-    }
-    for (id, _) in db.docs().unwrap_or_default() {
-        if id.ends_with(KIND)
-            && let Some(a) = parse(&id)
-        {
-            all.entry(a.name.clone()).or_insert(a);
+    for id in &crate::root::root().library {
+        if let Some(a) = db.file(id).ok().flatten().and_then(|b| serde_json::from_slice::<Asset>(&b).ok()) {
+            all.insert(a.name.clone(), a);
         }
+    }
+    for a in builtin() {
+        all.entry(a.name.clone()).or_insert(a);
     }
     all
 }

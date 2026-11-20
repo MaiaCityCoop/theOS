@@ -74,9 +74,9 @@ impl FromWorld for Fonts {
     fn from_world(world: &mut World) -> Self {
         let assets = world.resource::<AssetServer>();
         Fonts {
-            serif: assets.load("DMSerifDisplay-Regular.ttf"),
-            sans: assets.load("DMSans-Variable.ttf"),
-            mono: assets.load("DMMono-Regular.ttf"),
+            serif: assets.load(crate::root::font(&crate::root::root().fonts.serif)),
+            sans: assets.load(crate::root::font(&crate::root::root().fonts.sans)),
+            mono: assets.load(crate::root::font(&crate::root::root().fonts.mono)),
         }
     }
 }
@@ -515,7 +515,7 @@ fn press(
         Act::Open(v) => next.set(v),
         Act::Home => next.set(View::Home),
         Act::NewShots => s.new_shots(),
-        Act::Anchors => s.open(crate::film::ANCHORS),
+        Act::Anchors => s.open(crate::film::anchors()),
         Act::Pick(k) => {
             if let Some(mut shelf) = shelf {
                 shelf.at = k;

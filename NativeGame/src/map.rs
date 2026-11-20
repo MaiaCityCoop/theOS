@@ -220,7 +220,7 @@ fn spawn(mut commands: Commands, ground: Option<Res<Ground>>, site: Res<Site>, s
     img.sampler = bevy::image::ImageSampler::linear();
     let image = images.add(img);
 
-    let mono: Handle<Font> = assets.load("DMMono-Regular.ttf");
+    let mono: Handle<Font> = assets.load(crate::root::font(&crate::root::root().fonts.mono));
     let forest = Color::srgb(0.090, 0.212, 0.333);
     let sun = Color::srgb(0.949, 0.710, 0.267);
     let inner = D - 8.0;

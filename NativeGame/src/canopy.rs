@@ -40,6 +40,17 @@ fn range(url: &str, a: u64, b: u64) -> Option<Vec<u8>> {
     (out.status.success() && !out.stdout.is_empty()).then_some(out.stdout)
 }
 
+/// Bytes a..=b of a URL, fetched once and kept in avenDB: a part of the Earth's doc under the URL and range.
+fn kept(url: &str, a: u64, b: u64) -> Option<Vec<u8>> {
+    let (db, earth, at) = (crate::db(), &crate::root::root().earth, format!("{url} bytes {a}-{b}"));
+    if let Some(got) = db.part(earth, &at).ok().flatten() {
+        return Some(got.to_vec());
+    }
+    let got = range(url, a, b)?;
+    db.set_part(earth, &at, &got).ok()?;
+    Some(got)
+}
+
 /// The rows of one tile that a window crosses, decoded: heights in metres, one byte a pixel.
 struct Window {
     origin: (f64, f64), // Mercator x, y of the tile's top left corner
@@ -81,17 +92,7 @@ fn tags(head: &[u8]) -> Option<std::collections::HashMap<u16, (u16, u64, u64)>> 
 fn read_tile(tx: u32, ty: u32, want: ((f64, f64), (f64, f64))) -> Option<Window> {
     let url = format!("{URL}/{}.tif", quadkey(tx, ty));
     // the header: the directory and the strips' offsets and sizes, which this map keeps in its first megabyte
-    // kept in avenDB once fetched, as the doc `chm-<quadkey>.head`
-    let id = format!("chm-{}.head", quadkey(tx, ty));
-    let db = crate::db();
-    let head = match db.file(&id).ok().flatten() {
-        Some(h) => h,
-        None => {
-            let h = range(&url, 0, (1 << 20) + 65_535)?;
-            db.set_file(&id, &h).ok()?;
-            h
-        }
-    };
+    let head = kept(&url, 0, (1 << 20) + 65_535)?;
     let t = tags(&head)?;
     let (width, height) = (t.get(&256)?.2 as usize, t.get(&257)?.2 as usize);
     let (offsets_at, counts_at) = (t.get(&273)?.2 as usize, t.get(&279)?.2 as usize);
@@ -109,17 +110,7 @@ fn read_tile(tx: u32, ty: u32, want: ((f64, f64), (f64, f64))) -> Option<Window>
     let off = |r: usize| u64_at(offsets_at + 8 * r);
     let len = |r: usize| u64_at(counts_at + 8 * r);
     let (a, b) = (off(r0)?, off(r1)? + len(r1)? - 1);
-    // the rows, kept in avenDB once fetched (`chm-<quadkey>.<from>-<to>`), as everything the Earth is made from
-    let id = format!("chm-{}.{a}-{b}", quadkey(tx, ty));
-    let db = crate::db();
-    let bytes = match db.file(&id).ok().flatten() {
-        Some(b) => b,
-        None => {
-            let b = range(&url, a, b)?;
-            db.set_file(&id, &b).ok()?;
-            b
-        }
-    };
+    let bytes = kept(&url, a, b)?;
     let mut rows = Vec::with_capacity(r1 - r0 + 1);
     for r in r0..=r1 {
         let s = (off(r)? - a) as usize;

@@ -2,7 +2,9 @@
 //!
 //! - A **blob** is immutable bytes named by their BLAKE3 hash (as IPFS): an image, a font, a bake, an engine build.
 //! - A **doc** is a Loro document with its whole history, named by an id (as IPNS): one shader, one asset, one recipe,
-//!   one shot list, one interface view, one engine. It is stored as blobs too: each commit writes the doc's snapshot as a
+//!   one shot list, one interface view, one engine. Its id is opaque and flat, made once (`new`) and never changed; what
+//!   it is and what people call it are inside it (`meta`: kind and name). Nothing is found by a name or a path: a doc
+//!   names the docs and blobs it uses by their ids and hashes, and everything is reached from one root doc. It is stored as blobs too: each commit writes the doc's snapshot as a
 //!   blob, and the doc's id points to its latest one. Every commit's snapshot is kept, so each version of a doc is also
 //!   named by a hash, and a world that names its docs by those hashes is made again exactly.
 //!
@@ -31,12 +33,36 @@ fn err(e: impl std::fmt::Display) -> String {
 /// The doc ids' tags in the store: `doc/<id>` → the doc's latest snapshot.
 const DOC: &str = "doc/";
 
-/// A doc's id is one flat name, as `ground.wesl`, `clover.asset` or `mertola.place`: no folders.
-fn flat(id: &str) -> Result<()> {
-    if id.is_empty() || id.contains(['/', '\\']) {
-        return Err(format!("a doc's id is one flat name, not a path: {id:?}"));
+/// The store's one entry point: the tag naming the blob that holds the root doc's id.
+const ROOT: &str = "root";
+
+/// The letters of an id: lowercase base 32. An id is 26 of them, the first a letter (so an id is also a name a shader
+/// module can have).
+const ALPHABET: &[u8; 32] = b"abcdefghijklmnopqrstuvwxyz234567";
+const ID_LEN: usize = 26;
+
+/// Whether `id` is a doc's id: opaque, flat, 26 letters of the alphabet, the first a-z.
+pub fn is_id(id: &str) -> bool {
+    id.len() == ID_LEN && id.bytes().all(|b| ALPHABET.contains(&b)) && id.as_bytes()[0].is_ascii_lowercase()
+}
+
+fn check(id: &str) -> Result<()> {
+    if !is_id(id) {
+        return Err(format!("not a doc id (26 letters, opaque, flat): {id:?}"));
     }
     Ok(())
+}
+
+/// A new id: 130 random bits (BLAKE3 of the time, the process, a counter), in the id alphabet.
+fn new_id() -> String {
+    static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let seed = format!("{t}:{}:{}", std::process::id(), N.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+    let h = Hash::new(seed.as_bytes());
+    let b = h.as_bytes();
+    let mut id: String = (0..ID_LEN).map(|i| ALPHABET[(b[i] & 31) as usize] as char).collect();
+    id.replace_range(0..1, &((b'a' + b[ID_LEN] % 26) as char).to_string());
+    id
 }
 
 /// The store.
@@ -134,7 +160,7 @@ impl AvenDb {
 
     /// Keeps `doc` as the latest version of `id`; returns the hash that names this version.
     pub fn commit(&self, id: &str, doc: &LoroDoc) -> Result<Hash> {
-        flat(id)?;
+        check(id)?;
         doc.commit();
         // a doc is a CRDT: what another worktree or process committed to it meanwhile is merged in, never overwritten
         if let Some(head) = self.head(id)?
@@ -160,6 +186,45 @@ impl AvenDb {
             }
             Ok(out)
         })
+    }
+
+    /// A new doc: its id made here, its kind and name kept inside it. Returns the id.
+    pub fn new(&self, kind: &str, name: &str) -> Result<String> {
+        let id = new_id();
+        let doc = LoroDoc::new();
+        let meta = doc.get_map("meta");
+        meta.insert("kind", kind).map_err(err)?;
+        meta.insert("name", name).map_err(err)?;
+        self.commit(&id, &doc)?;
+        Ok(id)
+    }
+
+    /// What doc `id` is and what people call it: (kind, name).
+    pub fn meta(&self, id: &str) -> Result<(String, String)> {
+        let doc = self.doc(id)?;
+        let meta = doc.get_map("meta");
+        let field = |k: &str| meta.get(k).and_then(|v| v.into_value().ok()).and_then(|v| v.into_string().ok()).map(|s| s.to_string()).unwrap_or_default();
+        Ok((field("kind"), field("name")))
+    }
+
+    /// Lets doc `id` go: it is no longer reached. Its versions' blobs stay, so what pinned them still reads them.
+    pub fn forget(&self, id: &str) -> Result<()> {
+        self.rt.block_on(async { self.store.tags().delete(format!("{DOC}{id}")).await.map(|_| ()).map_err(err) })
+    }
+
+    /// The root doc's id: where everything is reached from.
+    pub fn root(&self) -> Result<Option<String>> {
+        let Some(h) = self.rt.block_on(async { self.store.tags().get(ROOT).await.map(|t| t.map(|t| t.hash)).map_err(err) })? else {
+            return Ok(None);
+        };
+        Ok(self.get(h)?.map(|b| String::from_utf8_lossy(&b).into_owned()))
+    }
+
+    /// Makes doc `id` the root.
+    pub fn set_root(&self, id: &str) -> Result<()> {
+        check(id)?;
+        let h = self.put(id.as_bytes().to_vec())?;
+        self.rt.block_on(async { self.store.tags().set(ROOT, h).await.map_err(err) })
     }
 
     // ---- text docs: a shader, a recipe, a shot list ----
