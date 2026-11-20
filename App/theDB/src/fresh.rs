@@ -289,8 +289,7 @@ impl TheDB {
         new.set_root(&reach.root)?;
         // the clean store has the same master, who signs its heads as they are
         if let Some(master) = self.master()? {
-            let key = self.signer.clone().filter(|k| k.public() == master).ok_or("a signed store is made fresh by its master")?;
-            let mut new = new;
+            let key = self.key().filter(|k| k.public() == master).ok_or("a signed store is made fresh by its master")?;
             new.set_master(key)?;
             return self.same(&new, reach, &special);
         }
