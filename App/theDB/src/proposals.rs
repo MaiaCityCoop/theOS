@@ -62,6 +62,12 @@ impl TheDB {
         if p.state == State::Merged {
             return Ok(true);
         }
+        // main gains a proposal only by the master's hand (access.rs)
+        if let Some(master) = self.master()?
+            && self.signer() != Some(master)
+        {
+            return Err("a proposal is merged by the master only".into());
+        }
         let _lock = Lock::take(&self.dir().join("merge.lock"))?;
         let versions: Vec<(String, Hash)> = p.docs.iter().map(|(d, v)| Ok((d.clone(), v.parse().map_err(err)?))).collect::<Result<_>>()?;
         self.merge_into_main(&versions)?;

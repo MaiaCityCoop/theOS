@@ -32,6 +32,7 @@ use std::path::{Path, PathBuf};
 pub use bytes::Bytes;
 pub use iroh_blobs::Hash;
 pub use loro;
+pub use theid;
 
 /// Every doc theDB opens or makes, set up as Research/0059 §4.7 says: each change records when it was made (Loro keeps
 /// no time unless asked), and each commit is its own change (Loro otherwise joins one peer's commits within 1000 s
@@ -121,6 +122,8 @@ pub struct TheDB {
     branch: Option<String>,
     /// The docs: this process's own connection to `theDB.sqlite`.
     sql: std::sync::Mutex<rusqlite::Connection>,
+    /// The key this process signs its commits with (`access`): the master's or an agent's, from the Keychain.
+    signer: Option<access::SecretKey>,
 }
 
 /// Now, in seconds since 1970: when a version was made.
@@ -159,8 +162,11 @@ impl TheDB {
         }
         let (store, owner) = Self::open_blobs(&rt, dir)?;
         let sql = sql::open(dir)?;
-        let db = TheDB { rt, store, owner, dir: dir.to_path_buf(), branch, sql: std::sync::Mutex::new(sql) };
+        let mut db = TheDB { rt, store, owner, dir: dir.to_path_buf(), branch, sql: std::sync::Mutex::new(sql), signer: None };
         db.prepare()?;
+        if let Some(master) = db.master()? {
+            db.signer = theid::key_for(&master);
+        }
         Ok(db)
     }
 
@@ -478,12 +484,14 @@ impl TheDB {
     /// committing one doc at once, the second merges the first's version, and neither edit is lost.
     pub fn commit_on(&self, branch: Option<&str>, id: &str, doc: &LoroDoc) -> Result<Hash> {
         check(id)?;
+        let on = branch.unwrap_or(MAIN);
+        // who signs it, refused here if this process may not write `on`
+        let sign = self.may_write(on)?;
         // a message of its own: Loro joins one peer's consecutive changes that share a message and a second (on
         // import too, whatever the merge interval), and the history would show one entry for many commits
         let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
         doc.set_next_commit_message(&format!("theDB {t:x}"));
         doc.commit();
-        let on = branch.unwrap_or(MAIN);
         for _ in 0..TRIES {
             let mut sql = self.sql();
             let tx = sql.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(err)?;
@@ -518,6 +526,9 @@ impl TheDB {
             if branch.is_none() || !sql::described(&tx, id)? {
                 sql::describe(&tx, id, doc)?;
             }
+            if let Some((key, grant)) = &sign {
+                Self::sign_commit(&tx, id, on, hash, at, key, *grant)?;
+            }
             tx.commit().map_err(err)?;
             return Ok(hash);
         }
@@ -547,6 +558,12 @@ impl TheDB {
         }
         if self.branches()?.iter().any(|b| b == name) {
             return Ok(());
+        }
+        // in a signed store, branches are the master's to make (an agent's line comes with its grant)
+        if let Some(master) = self.master()?
+            && self.signer() != Some(master)
+        {
+            return Err("branches are made by the master only".into());
         }
         sql::make_branch(&self.sql(), name, about, now())
     }
@@ -874,6 +891,7 @@ pub use sql::{Find, Found};
 #[cfg(feature = "bevy")]
 pub mod bevy;
 
+pub mod access;
 pub mod build;
 pub mod proposals;
 

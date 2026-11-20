@@ -23,6 +23,16 @@
 //!     thedb proposal <id>               a proposal's state and its check's output
 //!     thedb merge <id>                  the proposal's docs brought into main, one merge at a time
 //!
+//! Who may write (intent 0054; keys, signatures and grants are theID's). Once a store has a master, main is written by
+//! the master only, and an agent (`THEOS_AGENT=<name>`, `THEDB_BRANCH=line-<name>`) by its own key on its own line.
+//!
+//!     thedb master                      the store's master (its public key), and whether this Mac holds its secret
+//!     thedb master init                 a new master: its secret into this Mac's Keychain, shown once to keep in a
+//!                                       password manager; every head as it is now signed by it
+//!     thedb master restore              the master's secret, read from the input, into this Mac's Keychain
+//!     thedb agent <name> [days]         a new agent: its key in the Keychain, the master's grant of line-<name>
+//!     thedb verify                      every signature, and every head signed by whom its branch allows
+//!
 //! Finding docs (intent 0053): answered from SQLite, no doc is opened.
 //!
 //!     thedb find kind=<kind>            the docs of a kind
@@ -107,6 +117,38 @@ fn main() {
             let p = db.proposal(id).unwrap_or_else(|e| fail(&e));
             println!("{:?}  {}  from {}  ({} docs)", p.state, p.note, p.branch, p.docs.len());
             println!("{}", db.proposal_output(id).unwrap_or_default());
+        }
+        ["master"] => match db.master().unwrap_or_else(|e| fail(&e)) {
+            Some(m) => println!("{m}\n{}", if db.signer() == Some(m) { "its secret is in this Mac's Keychain" } else { "its secret is not on this Mac: theDB master restore" }),
+            None => println!("no master: nothing is signed (theDB master init)"),
+        },
+        ["master", "init"] => {
+            let key = db.make_master().unwrap_or_else(|e| fail(&e));
+            println!("the master: {}", key.public());
+            println!("\nIts secret, shown this once. Keep it in your password manager now; this Mac's Keychain holds it too.\n");
+            println!("    {}\n", thedb::theid::secret_text(&key));
+        }
+        ["master", "restore"] => {
+            let mut text = String::new();
+            std::io::stdin().read_line(&mut text).unwrap_or_else(|e| fail(&e.to_string()));
+            let key: thedb::access::SecretKey = text.trim().parse().unwrap_or_else(|_| fail("not a secret key (64 hex digits)"));
+            db.restore_master(key).unwrap_or_else(|e| fail(&e));
+            println!("the master's secret is in this Mac's Keychain");
+        }
+        ["agent", name, rest @ ..] if rest.len() <= 1 => {
+            let days = rest.first().map(|d| d.parse().unwrap_or_else(|_| fail("days: a number"))).unwrap_or(30);
+            let key = db.make_agent(name, days).unwrap_or_else(|e| fail(&e));
+            println!("{key}\nworks with: THEOS_AGENT={name} THEDB_BRANCH={}", thedb::access::line(name));
+        }
+        ["verify"] => {
+            let v = db.verify().unwrap_or_else(|e| fail(&e));
+            for p in &v.problems {
+                println!("{p}");
+            }
+            println!("{} heads signed as their branch allows, {} problems", v.good, v.problems.len());
+            if !v.problems.is_empty() {
+                std::process::exit(1);
+            }
         }
         ["merge", id] => {
             let merged = db.merge(id).unwrap_or_else(|e| fail(&e));
