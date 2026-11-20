@@ -650,7 +650,7 @@ fn when(t: i64) -> String {
 
 /// The kinds in the order people look for them, the rest by name.
 fn kind_order(k: &str) -> (usize, String) {
-    const FIRST: [&str; 12] = ["root", "engine", "kernel", "world", "shots", "view", "layer", "shader", "font", "tree", "source", "proposal"];
+    const FIRST: [&str; 10] = ["root", "engine", "kernel", "world", "shots", "view", "layer", "shader", "font", "proposal"];
     (FIRST.iter().position(|x| *x == k).unwrap_or(FIRST.len()), k.to_string())
 }
 

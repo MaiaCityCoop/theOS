@@ -333,19 +333,14 @@ fn fresh_keeps_only_what_the_root_reaches() {
     // a store from before SQLite, then moved in: its old versions are blobs, one of them pinned by a build
     let old = old_store(&dir);
     let mut db = TheDB::open(&dir).unwrap();
-    let (src_id, src_versions) = &old.docs[2];
+    let (_, src_versions) = &old.docs[2];
     let pinned_src = src_versions[1].0;
-    // the engine: a tree naming its source doc; two builds, the second pinned, whose manifest names an older version
-    let tree = db.new("tree", "theOS").unwrap();
-    db.set_text(&tree, &format!(r#"{{"files": {{"src/lib.rs": "{src_id}"}}, "shape": {{}}}}"#)).unwrap();
+    // the engine: two builds, the second pinned, whose manifest names an older version of a source doc
     let engine = db.new("engine", "theOS").unwrap();
     let manifest = |v: Hash| format!(r#"{{"tree": null, "files": {{"src/lib.rs": "{v}"}}}}"#).into_bytes();
     let first = db.publish(&engine, b"\xcf\xfa an old binary", &manifest(src_versions[0].0), "rustc").unwrap();
     let pinned = db.publish(&engine, b"\xcf\xfa the binary", &manifest(pinned_src), "rustc").unwrap();
-    let mut e = db.engine(&engine).unwrap();
-    e.tree = Some(tree.clone());
-    db.set_text(&engine, &serde_json::to_string(&e).unwrap()).unwrap();
-    assert_eq!(e.builds.len(), 2);
+    assert_eq!(db.engine(&engine).unwrap().builds.len(), 2);
     // a shader named only in a text; a world with a part; a font as a file
     let grid = db.new("shader", "grid.wesl").unwrap();
     db.set_text(&grid, "fn grid() {}").unwrap();
@@ -372,10 +367,9 @@ fn fresh_keeps_only_what_the_root_reaches() {
     db.new("proposal", "a proposal").unwrap();
     let before: Vec<(String, Hash)> = db.docs().unwrap();
     let reach = db.reach().unwrap();
-    let mut want: Vec<String> = vec![root.clone(), engine.clone(), tree.clone(), src_id.clone(), grid.clone(), recipe.clone(), world.clone(), font.clone(), kernel.clone()];
+    let mut want: Vec<String> = vec![root.clone(), engine.clone(), grid.clone(), recipe.clone(), world.clone(), font.clone(), kernel.clone()];
     want.sort();
     assert_eq!(reach.docs.keys().cloned().collect::<Vec<_>>(), want, "what the root reaches");
-    assert_eq!(reach.versions.get(&pinned_src), Some(src_id), "the pinned build's source version, from before SQLite, is a version of its doc");
     let heads: std::collections::BTreeMap<String, Hash> = before.iter().cloned().collect();
     let pinned_binary = Hash::new(b"\xcf\xfa the binary");
 
@@ -405,7 +399,6 @@ fn fresh_keeps_only_what_the_root_reaches() {
     let e = db.engine(&engine).unwrap();
     assert_eq!(e.pinned.as_deref(), Some(pinned.to_hex().as_str()));
     assert_eq!(e.builds, vec![pinned.to_hex().to_string()]);
-    assert_eq!(e.tree.as_deref(), Some(tree.as_str()));
     assert_eq!(db.get(pinned_binary).unwrap().unwrap().as_ref(), b"\xcf\xfa the binary");
     assert!(db.get(Hash::new(b"\xcf\xfa an old binary")).unwrap().is_none(), "the unpinned build's binary is left behind");
     assert!(db.get(first).unwrap().is_none());

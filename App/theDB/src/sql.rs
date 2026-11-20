@@ -27,7 +27,7 @@
 //! They are plain rows for now.
 
 use crate::{Hash, Result, err, json};
-use loro::{ExportMode, LoroDoc, VersionVector};
+use loro::{ExportMode, Frontiers, LoroDoc, VersionVector};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::path::Path;
 
@@ -103,7 +103,60 @@ pub fn ready(conn: &Connection) -> Result<bool> {
 }
 
 pub fn create(conn: &Connection) -> Result<()> {
-    conn.execute_batch(SCHEMA).map_err(err)
+    conn.execute_batch(SCHEMA).map_err(err)?;
+    upgrade(conn)
+}
+
+/// What a store made before these existed gains: the frontiers that name each version in Loro's own terms
+/// (Research/0059 §4.2), and the peer ids lent to writers (§1.8).
+pub fn upgrade(conn: &Connection) -> Result<()> {
+    let has: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM pragma_table_info('versions') WHERE name = 'frontiers')", [], |r| r.get(0)).map_err(err)?;
+    if !has {
+        conn.execute_batch("ALTER TABLE versions ADD COLUMN frontiers BLOB").map_err(err)?;
+    }
+    conn.execute_batch("CREATE TABLE IF NOT EXISTS peers(doc TEXT NOT NULL, peer INTEGER NOT NULL, counter INTEGER NOT NULL, pid INTEGER NOT NULL, PRIMARY KEY(doc, peer)) WITHOUT ROWID").map_err(err)
+}
+
+// ---- peers: one Loro peer id per writer, lent and given back (Research/0059 §1.8) ----
+
+/// Lends a peer id for writing doc `id`, whose loaded history is `have`: one given back earlier whose every op `have`
+/// holds (so no op id is ever made twice with other content), or a new one. Held by this process until `give_back`;
+/// a holder that has died holds nothing.
+pub fn lease(conn: &Connection, id: &str, have: &VersionVector) -> Result<u64> {
+    let me = std::process::id() as i64;
+    let rows: Vec<(i64, i64, i64)> = {
+        let mut q = conn.prepare_cached("SELECT peer, counter, pid FROM peers WHERE doc = ?1").map_err(err)?;
+        q.query_map([id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).map_err(err)?.collect::<std::result::Result<_, _>>().map_err(err)?
+    };
+    for (peer, counter, pid) in rows {
+        let free = pid == 0 || !alive(pid);
+        let known = have.get(&(peer as u64)).copied().unwrap_or(0) as i64;
+        if free && known == counter && conn.execute("UPDATE peers SET pid = ?1 WHERE doc = ?2 AND peer = ?3 AND pid = ?4", params![me, id, peer, pid]).map_err(err)? == 1 {
+            return Ok(peer as u64);
+        }
+    }
+    let peer = LoroDoc::new().peer_id();
+    conn.execute("INSERT OR IGNORE INTO peers(doc, peer, counter, pid) VALUES(?1, ?2, 0, ?3)", params![id, peer as i64, me]).map_err(err)?;
+    Ok(peer)
+}
+
+/// Gives the peer id back, with how many ops of it the doc now holds.
+pub fn give_back(conn: &Connection, id: &str, peer: u64, counter: i32) -> Result<()> {
+    conn.execute("UPDATE peers SET pid = 0, counter = ?1 WHERE doc = ?2 AND peer = ?3", params![counter as i64, id, peer as i64]).map(|_| ()).map_err(err)
+}
+
+fn alive(pid: i64) -> bool {
+    unsafe extern "C" {
+        fn kill(pid: i32, sig: i32) -> i32;
+    }
+    // signal 0 only asks whether the process is there
+    unsafe { kill(pid as i32, 0) == 0 }
+}
+
+/// The frontiers that name the version `hash` in Loro's terms, if it was kept with them.
+pub fn frontiers(conn: &Connection, hash: Hash) -> Result<Option<Frontiers>> {
+    let b: Option<Option<Vec<u8>>> = conn.query_row("SELECT frontiers FROM versions WHERE hash = ?1", [hex(hash)], |r| r.get(0)).optional().map_err(err)?;
+    b.flatten().map(|b| Frontiers::decode(&b).map_err(err)).transpose()
 }
 
 pub fn mark_ready(conn: &Connection) -> Result<()> {
@@ -218,7 +271,7 @@ pub fn load(conn: &Connection, hash: Hash) -> Result<Option<LoroDoc>> {
             None => break,
         }
     }
-    let doc = LoroDoc::from_snapshot(chain.last().expect("a chain has its snapshot")).map_err(err)?;
+    let doc = crate::settle(LoroDoc::from_snapshot(chain.last().expect("a chain has its snapshot")).map_err(err)?);
     for update in chain.iter().rev().skip(1) {
         doc.import(update).map_err(err)?;
     }
@@ -272,8 +325,8 @@ pub fn keep(conn: &Connection, id: &str, doc: &LoroDoc, base: Option<Hash>, at: 
         let update = doc.export(ExportMode::updates(theirs)).map_err(err)?;
         if update.len() * 2 < snapshot.len() {
             conn.execute(
-                "INSERT INTO versions(hash, doc, parent, depth, bytes, vv, at, size) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                params![hex(hash), id, hex(*b), depth + 1, update, mine.encode(), at as i64, size],
+                "INSERT INTO versions(hash, doc, parent, depth, bytes, vv, at, size, frontiers) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![hex(hash), id, hex(*b), depth + 1, update, mine.encode(), at as i64, size, doc.oplog_frontiers().encode()],
             )
             .map_err(err)?;
             return Ok(hash);
@@ -285,8 +338,8 @@ pub fn keep(conn: &Connection, id: &str, doc: &LoroDoc, base: Option<Hash>, at: 
 
 fn insert_snapshot(conn: &Connection, id: &str, hash: Hash, snapshot: &[u8], doc: &LoroDoc, at: u64) -> Result<()> {
     conn.execute(
-        "INSERT OR IGNORE INTO versions(hash, doc, parent, depth, bytes, vv, at, size) VALUES(?1, ?2, NULL, 0, ?3, ?4, ?5, ?6)",
-        params![hex(hash), id, snapshot, doc.oplog_vv().encode(), at as i64, json::read(doc).len() as i64],
+        "INSERT OR IGNORE INTO versions(hash, doc, parent, depth, bytes, vv, at, size, frontiers) VALUES(?1, ?2, NULL, 0, ?3, ?4, ?5, ?6, ?7)",
+        params![hex(hash), id, snapshot, doc.oplog_vv().encode(), at as i64, json::read(doc).len() as i64, doc.oplog_frontiers().encode()],
     )
     .map(|_| ())
     .map_err(err)
