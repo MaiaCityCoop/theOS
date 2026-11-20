@@ -66,3 +66,36 @@ impl TheDB {
         Ok(files.len())
     }
 }
+
+// ---- modules (intent 0054): code that is content, kept in theDB and built here into WebAssembly ----
+
+impl TheDB {
+    /// Builds module doc `id`: its text is the source of one Rust file (no crates), built for `wasm32-unknown-unknown`
+    /// with the toolchain on this machine, and kept as its part `wasm`, a blob by hash, on this process's branch.
+    /// Returns the blob's hash. The host loads the part and runs it sandboxed (it can touch only what it is given).
+    pub fn build_module(&self, id: &str) -> Result<Hash> {
+        let (kind, _) = self.meta(id)?;
+        if kind != "module" {
+            return Err(format!("{id} is a {kind}, not a module"));
+        }
+        let source = self.text(id)?.ok_or_else(|| format!("the module {id} has no source"))?;
+        let dir = std::env::temp_dir().join(format!("thedb-module-{id}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).map_err(err)?;
+        let (src, out) = (dir.join("module.rs"), dir.join("module.wasm"));
+        std::fs::write(&src, source).map_err(err)?;
+        let built = std::process::Command::new("rustc")
+            .args(["--edition", "2024", "--target", "wasm32-unknown-unknown", "--crate-type", "cdylib", "-C", "opt-level=s", "-C", "strip=symbols", "-o"])
+            .arg(&out)
+            .arg(&src)
+            .output()
+            .map_err(err)?;
+        if !built.status.success() {
+            let _ = std::fs::remove_dir_all(&dir);
+            return Err(format!("the module {id} does not build:\n{}", String::from_utf8_lossy(&built.stderr)));
+        }
+        let wasm = std::fs::read(&out).map_err(err)?;
+        let _ = std::fs::remove_dir_all(&dir);
+        self.set_part(id, "wasm", &wasm)?;
+        Ok(Hash::new(&wasm))
+    }
+}

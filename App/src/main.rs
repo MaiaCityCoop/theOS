@@ -9,6 +9,7 @@
 mod camera;
 mod contract;
 mod film;
+mod module;
 mod pill;
 mod root;
 mod setup;

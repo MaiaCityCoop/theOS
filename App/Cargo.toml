@@ -13,6 +13,7 @@ bevy = { version = "0.20.1", default-features = false, features = ["3d", "ui", "
 thedb = { path = "theDB", features = ["bevy"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+wasmi = "2.0.2"
 
 [profile.dev]
 opt-level = 1
