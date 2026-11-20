@@ -29,20 +29,18 @@ fn the_master_writes_main_an_agent_its_line_and_verify_holds() {
     db.set_text(&world, "{\"sun\": 30}").unwrap();
     db.make_branch("other", "not ada's").unwrap_err();
     db.set_branch(Some("other")).unwrap_err();
-    // the agent proposes, only the master merges
-    let p = db.propose(&line("ada"), "a higher sun").unwrap_err();
-    assert!(p.contains("master only"), "a proposal lives on main: {p}");
-    db.set_branch(None).unwrap();
-    db.sign_with(master.clone());
+    // the agent proposes from its own line; an agent cannot accept, the host (theOS) or the master can
     let p = db.propose(&line("ada"), "a higher sun").unwrap();
-    db.sign_with(agent.clone());
-    assert!(db.merge(&p).unwrap_err().contains("master only"));
+    assert_eq!(db.proposals().unwrap().len(), 1);
+    assert!(db.merge(&p).unwrap_err().contains("not by an agent"));
+    db.set_branch(None).unwrap();
     db.sign_with(master);
     db.merge(&p).unwrap();
     assert!(db.text(&world).unwrap().unwrap().contains("30"));
+    assert_eq!(db.proposal(&p).unwrap().state, thedb::proposals::State::Merged);
     let v = db.verify().unwrap();
     assert!(v.problems.is_empty(), "{:?}", v.problems);
-    assert_eq!(v.good, 3, "the world on main and on the line, the proposal");
+    assert_eq!(v.good, 3, "the world on main and on the line, the proposal on the line");
     drop(db);
     let _ = std::fs::remove_dir_all(dir);
 }
@@ -71,4 +69,23 @@ fn a_key_without_a_grant_writes_nothing_and_a_forged_head_is_found() {
 
 fn db_dir(d: &std::path::Path) -> &std::path::Path {
     d
+}
+
+#[test]
+fn the_host_writes_main_and_accepts_by_the_masters_grant() {
+    let (db, dir) = store("host");
+    let world = db.new("world", "w").unwrap();
+    let master = SecretKey::generate();
+    db.set_master(master.clone()).unwrap();
+    let host = SecretKey::generate();
+    let g = db.put(thedb::theid::grant(&master, host.public(), thedb::access::Cap::Main, 1).encode()).unwrap();
+    db.set_host_for_test(host.public(), g).unwrap();
+    db.sign_with(host.clone());
+    db.set_text(&world, "{\"sun\": 40}").unwrap();
+    let agent = SecretKey::generate();
+    assert!(db.grant("bo", agent.public(), 1).is_err(), "the host does not grant lines");
+    let v = db.verify().unwrap();
+    assert!(v.problems.is_empty(), "{:?}", v.problems);
+    drop(db);
+    let _ = std::fs::remove_dir_all(dir);
 }

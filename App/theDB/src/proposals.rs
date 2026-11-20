@@ -2,7 +2,7 @@
 //! here is content: worlds, timelines, layouts, modules. A merge brings a proposal's versions into main under one lock,
 //! one at a time; checking content against its schema comes with intent 0056, and many merges at once with 0057.
 
-use crate::{Hash, Result, TheDB, err};
+use crate::{Hash, Result, TheDB, err, sql};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -25,59 +25,96 @@ pub struct Proposal {
 }
 
 impl TheDB {
-    /// A proposal to bring `branch` into main, as it is now. Returns the proposal's id.
+    /// A proposal to bring `branch` into main, as it is now: a doc on the branch itself, so an agent proposes from its
+    /// own line. Returns the proposal's id.
     pub fn propose(&self, branch: &str, note: &str) -> Result<String> {
-        let docs: BTreeMap<String, String> = self.changed_on(branch)?.into_iter().map(|(id, h)| (id, h.to_hex().to_string())).collect();
+        let mut docs = BTreeMap::new();
+        for (id, h) in self.changed_on(branch)? {
+            if self.meta_of(&self.doc_at(h)?).0 != "proposal" {
+                docs.insert(id, h.to_hex().to_string());
+            }
+        }
         if docs.is_empty() {
             return Err(format!("the branch {branch} changes nothing"));
         }
         let p = Proposal { branch: branch.into(), note: note.into(), docs, state: State::Open };
-        // a proposal lives on main, whatever branch proposes it
         let id = crate::new_id();
         let doc = self.edit(&id)?;
         let meta = doc.get_map("meta");
         meta.insert("kind", "proposal").map_err(err)?;
         meta.insert("name", note).map_err(err)?;
         doc.get_map("proposal").insert("it", serde_json::to_string(&p).map_err(err)?).map_err(err)?;
-        self.commit_on(None, &id, &doc)?;
+        self.commit_on(Some(branch), &id, &doc)?;
         Ok(id)
+    }
+
+    /// Every proposal on every line, with its id, newest first.
+    pub fn proposals(&self) -> Result<Vec<(String, Proposal)>> {
+        let mut out = Vec::new();
+        let heads = sql::proposal_heads(&self.sql())?;
+        for (id, branch) in heads {
+            let doc = self.doc_seen(Some(&branch), &id)?;
+            if let Some(p) = read(&doc) {
+                out.push((id, p));
+            }
+        }
+        Ok(out)
     }
 
     /// Proposal `id`.
     pub fn proposal(&self, id: &str) -> Result<Proposal> {
-        let doc = self.doc_seen(None, id)?;
-        let p = doc.get_map("proposal").get("it").and_then(|v| v.into_value().ok()).and_then(|v| v.into_string().ok()).ok_or_else(|| format!("{id} is no proposal"))?;
-        serde_json::from_str(&p).map_err(err)
+        let branch = self.proposal_branch(id)?;
+        read(&self.doc_seen(Some(&branch), id)?).ok_or_else(|| format!("{id} is no proposal"))
     }
 
-    /// The output of proposal `id`'s last check.
-    pub fn proposal_output(&self, id: &str) -> Result<String> {
-        let doc = self.doc_seen(None, id)?;
-        Ok(doc.get_text("output").to_string())
+    fn proposal_branch(&self, id: &str) -> Result<String> {
+        sql::proposal_heads(&self.sql())?.into_iter().find(|(p, _)| p == id).map(|(_, b)| b).ok_or_else(|| format!("no proposal {id}"))
     }
 
-    /// Merges proposal `id` into main: its versions, merged with what main holds now, become main's. One merge at a time.
-    pub fn merge(&self, id: &str) -> Result<bool> {
-        let mut p = self.proposal(id)?;
-        if p.state == State::Merged {
-            return Ok(true);
+    /// Accepts proposal `id`: its versions, merged with what main holds now, become main's. A person accepts it in
+    /// theOS; it is signed by the host or the master, never by an agent. One merge at a time.
+    pub fn merge(&self, id: &str) -> Result<()> {
+        let p = self.proposal(id)?;
+        if p.state != State::Open {
+            return Err(format!("the proposal is {:?} already", p.state));
         }
-        // main gains a proposal only by the master's hand (access.rs)
-        if let Some(master) = self.master()?
-            && self.signer() != Some(master)
-        {
-            return Err("a proposal is merged by the master only".into());
-        }
+        self.may_accept()?;
         let _lock = Lock::take(&self.dir().join("merge.lock"))?;
         let versions: Vec<(String, Hash)> = p.docs.iter().map(|(d, v)| Ok((d.clone(), v.parse().map_err(err)?))).collect::<Result<_>>()?;
         self.merge_into_main(&versions)?;
-        p.state = State::Merged;
-        let doc = self.doc_seen(None, id)?;
-        doc.get_text("output").update(&format!("merged {} docs into main", versions.len()), Default::default()).map_err(err)?;
-        doc.get_map("proposal").insert("it", serde_json::to_string(&p).map_err(err)?).map_err(err)?;
-        self.commit_on(None, id, &doc)?;
-        Ok(true)
+        self.close(id, p, State::Merged)
     }
+
+    /// Refuses proposal `id`: main stays as it is; the line keeps its work.
+    pub fn refuse(&self, id: &str) -> Result<()> {
+        let p = self.proposal(id)?;
+        self.may_accept()?;
+        self.close(id, p, State::Refused)
+    }
+
+    /// Only the host or the master closes a proposal.
+    fn may_accept(&self) -> Result<()> {
+        let Some(master) = self.master()? else { return Ok(()) };
+        let me = self.signer();
+        if me == Some(master) || self.host()?.is_some_and(|(h, _)| me == Some(h)) {
+            return Ok(());
+        }
+        Err("a proposal is accepted in theOS, by a person: not by an agent".into())
+    }
+
+    fn close(&self, id: &str, mut p: Proposal, state: State) -> Result<()> {
+        let branch = p.branch.clone();
+        p.state = state;
+        let doc = self.doc_seen(Some(&branch), id)?;
+        doc.get_map("proposal").insert("it", serde_json::to_string(&p).map_err(err)?).map_err(err)?;
+        self.commit_on(Some(&branch), id, &doc)?;
+        Ok(())
+    }
+}
+
+fn read(doc: &loro::LoroDoc) -> Option<Proposal> {
+    let p = doc.get_map("proposal").get("it")?.into_value().ok()?.into_string().ok()?;
+    serde_json::from_str(&p).ok()
 }
 
 /// A lock held while it lives: a file made only if it does not exist. A holder whose process is gone is no holder.

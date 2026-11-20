@@ -19,9 +19,9 @@
 //!     thedb branch <name> [about]       a new branch from main
 //!     thedb branches                    every branch, and how many docs it changes
 //!     thedb diff <branch>               the docs a branch changes: main's version → the branch's
-//!     thedb propose <branch> <note>     a proposal to merge a branch into main
+//!     thedb propose <branch> <note>     a proposal to merge a branch into main, kept on the branch
 //!     thedb proposal <id>               a proposal's state and its check's output
-//!     thedb merge <id>                  the proposal's docs brought into main, one merge at a time
+//!     thedb proposals                   every proposal on every line (accepted or refused in theOS only, by a person)
 //!
 //! Who may write (intent 0054; keys, signatures and grants are theID's). Once a store has a master, main is written by
 //! the master only, and an agent (`THEOS_AGENT=<name>`, `THEDB_BRANCH=line-<name>`) by its own key on its own line.
@@ -116,10 +116,21 @@ fn main() {
         ["proposal", id] => {
             let p = db.proposal(id).unwrap_or_else(|e| fail(&e));
             println!("{:?}  {}  from {}  ({} docs)", p.state, p.note, p.branch, p.docs.len());
-            println!("{}", db.proposal_output(id).unwrap_or_default());
+        }
+        ["proposals"] => {
+            for (id, p) in db.proposals().unwrap_or_else(|e| fail(&e)) {
+                println!("{id}  {:?}  {}  from {}  ({} docs)", p.state, p.note, p.branch, p.docs.len());
+            }
         }
         ["master"] => match db.master().unwrap_or_else(|e| fail(&e)) {
-            Some(m) => println!("{m}\n{}", if db.signer() == Some(m) { "its secret is in this Mac's Keychain" } else { "its secret is not on this Mac: theDB master restore" }),
+            Some(m) => {
+                println!("{m}");
+                match db.host().unwrap_or_else(|e| fail(&e)) {
+                    Some((h, _)) => println!("host {h}"),
+                    None => println!("no host yet: theOS makes it when it starts with the master's key"),
+                }
+                println!("this process signs as {}", db.signer().map(|k| k.to_string()).unwrap_or_else(|| "nobody (no key on this Mac)".into()));
+            }
             None => println!("no master: nothing is signed (theDB master init)"),
         },
         ["master", "init"] => {
@@ -149,14 +160,6 @@ fn main() {
             if !v.problems.is_empty() {
                 std::process::exit(1);
             }
-        }
-        ["merge", id] => {
-            let merged = db.merge(id).unwrap_or_else(|e| fail(&e));
-            println!("{}", db.proposal_output(id).unwrap_or_default());
-            if !merged {
-                fail("refused; main is unchanged");
-            }
-            eprintln!("merged into main");
         }
         ["root"] => println!("{}", db.root().unwrap_or_else(|e| fail(&e)).unwrap_or_default()),
         ["root", id] => db.set_root(id).unwrap_or_else(|e| fail(&e)),

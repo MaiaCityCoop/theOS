@@ -1,7 +1,10 @@
 //! Who may write what in theDB (intent 0054, step 4). Keys, signatures, grants and the Keychain are theID's, the one
 //! source for the whole stack; this is only what theDB signs and whom each branch allows.
 //!
-//! - **One master.** Its public key is the store's (`meta.master`). Main moves only by its signature.
+//! - **One master.** Its public key is the store's (`meta.master`). It grants, and signs nothing else once the host has
+//!   its key.
+//! - **The host.** theOS on this Mac has a key of its own (`meta.host`), granted `Cap::Main` by the master: it signs
+//!   the routine writes to main, and the merges a person accepts in theOS's Proposals view.
 //! - **Agents on their own lines.** An agent writes the branch `line-<agent>` only, with a grant of the master's
 //!   (`Cap::Line`), kept as a blob; each commit on a line is signed by its agent and names the grant that allows it.
 //! - **Merges by the master.** A proposal is brought into main by the master alone (`proposals.rs`).
@@ -52,12 +55,57 @@ impl TheDB {
         self.attest()
     }
 
+    /// The host's public key and the master's grant to it, if the store has a host.
+    pub fn host(&self) -> Result<Option<(PublicKey, Hash)>> {
+        let sql = self.sql();
+        match (sql::get_meta(&sql, "host")?, sql::get_meta(&sql, "host_grant")?) {
+            (Some(h), Some(g)) => Ok(Some((h.parse().map_err(err)?, g.parse().map_err(err)?))),
+            _ => Ok(None),
+        }
+    }
+
+    /// Gives the store a host, if it has none and this process holds the master's key: a new key in this Mac's
+    /// Keychain, granted `Cap::Main` by the master for a year. From then on this process signs with it.
+    pub fn ensure_host(&self) -> Result<()> {
+        let Some(master) = self.master()? else { return Ok(()) };
+        if self.host()?.is_some() {
+            return Ok(());
+        }
+        let Some(mk) = self.master_key() else { return Ok(()) };
+        let host = SecretKey::generate();
+        let grant = theid::grant(&mk, host.public(), Cap::Main, 365);
+        let g = self.put(grant.encode())?;
+        theid::keychain_set(&master, &Who::Host, &host)?;
+        {
+            let sql = self.sql();
+            sql::set_meta(&sql, "host", &host.public().to_string())?;
+            sql::set_meta(&sql, "host_grant", &g.to_string())?;
+        }
+        self.sign_with(host);
+        Ok(())
+    }
+
+    /// Names `host` as this store's host, by the master's grant `grant` (a blob): what `ensure_host` does, without the
+    /// Keychain, for tests.
+    pub fn set_host_for_test(&self, host: PublicKey, grant: Hash) -> Result<()> {
+        let sql = self.sql();
+        sql::set_meta(&sql, "host", &host.to_string())?;
+        sql::set_meta(&sql, "host_grant", &grant.to_string())
+    }
+
+    /// The master's own key, if this process holds it (given, or in this Mac's Keychain).
+    fn master_key(&self) -> Option<SecretKey> {
+        let master = self.master().ok()??;
+        self.key().filter(|k| k.public() == master).or_else(|| theid::keychain_get(&master, &Who::Master))
+    }
+
     /// Makes a master for this store: a new key, kept in this Mac's Keychain. Returns it, to be shown once and kept by
     /// its owner in a password manager.
     pub fn make_master(&self) -> Result<SecretKey> {
         let key = SecretKey::generate();
         theid::keychain_set(&key.public(), &Who::Master, &key)?;
         self.set_master(key.clone())?;
+        self.ensure_host()?;
         Ok(key)
     }
 
@@ -98,7 +146,7 @@ impl TheDB {
     /// made. Signed by this process's key, which must be the master's. Returns the grant's hash.
     pub fn grant(&self, name: &str, agent: PublicKey, days: u64) -> Result<Hash> {
         let master = self.master()?.ok_or("this store has no master")?;
-        let key = self.key().filter(|k| k.public() == master).ok_or("only the master grants a line")?;
+        let key = self.master_key().filter(|k| k.public() == master).ok_or("only the master grants a line")?;
         let line = line(name);
         if !crate::is_branch(&line) {
             return Err(format!("not an agent's name (lowercase letters, digits, dashes): {name:?}"));
@@ -136,6 +184,14 @@ impl TheDB {
         if key.public() == master {
             return Ok(Some((key, None)));
         }
+        if let Some((host, g)) = self.host()?
+            && key.public() == host
+        {
+            if theid::allows(&self.grant_at(g)?, &master, &host, &Cap::Main, crate::now()) {
+                return Ok(Some((key, Some(g))));
+            }
+            return Err("the host's grant has ended: the master grants it again".into());
+        }
         if branch == crate::MAIN {
             return Err("main is written by the master only: an agent works on its line and proposes".into());
         }
@@ -166,8 +222,9 @@ impl TheDB {
         tx.commit().map_err(err)
     }
 
-    /// Checks every signature kept, and that every head is signed by whom its branch allows: any branch by the master;
-    /// a line by its agent, with a grant of the master's that held when it signed.
+    /// Checks every signature kept, and that every head is signed by whom its branch allows: any branch by the master,
+    /// or by the host with the master's grant of main; a line by its agent, with the master's grant of it; each grant
+    /// as it held when the signature was made.
     pub fn verify(&self) -> Result<Verified> {
         let master = self.master()?.ok_or("this store has no master: nothing is signed")?;
         let mut v = Verified::default();
@@ -188,7 +245,9 @@ impl TheDB {
                 continue;
             }
             let allowed = signer == master
-                || s.grant.is_some_and(|g| self.grant_at(g).is_ok_and(|grant| theid::allows(&grant, &master, &signer, &Cap::Line(s.branch.clone()), s.at)));
+                || s.grant.is_some_and(|g| {
+                    self.grant_at(g).is_ok_and(|grant| [Cap::Main, Cap::Line(s.branch.clone())].iter().any(|cap| theid::allows(&grant, &master, &signer, cap, s.at)))
+                });
             if !allowed {
                 v.problems.push(format!("{what}: signed by {}, whom {} does not allow", signer.fmt_short(), s.branch));
                 continue;
