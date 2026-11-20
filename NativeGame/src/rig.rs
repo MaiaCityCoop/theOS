@@ -100,7 +100,7 @@ pub struct Captures;
 
 pub fn plugin(app: &mut App) {
     app.insert_resource(Walker::new(0.0, 0.0, 0.0))
-        .add_systems(Update, drive.run_if(|s: Res<State<World>>| matches!(s.get(), World::Place)));
+        .add_systems(Update, drive.run_if(in_state(crate::View::Place)).run_if(in_state(World::Place)));
 }
 
 #[allow(clippy::too_many_arguments)]

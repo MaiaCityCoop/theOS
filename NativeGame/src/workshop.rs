@@ -110,9 +110,20 @@ fn show(
     old: Query<Entity, With<Specimen>>,
     mut eye: ResMut<crate::contract::Eye>,
     view: Res<State<View>>,
+    studio: Res<crate::film::Studio>,
     mut caption: Query<&mut Text, With<Caption>>,
 ) {
     let Some(mut s) = shelf else { return };
+    // filmed by the Studio: the shelf shows the asset the shot names (its doc, by id)
+    if *view.get() == View::Studio
+        && let Some(id) = studio.timeline.shot_at(studio.time).and_then(|(i, _)| studio.timeline.clips[i].world.clone())
+        && let Some(name) = crate::db().file(&id).ok().flatten().and_then(|b| serde_json::from_slice::<crate::library::Asset>(&b).ok()).map(|a| a.name)
+        && let Some(at) = s.names.iter().position(|n| *n == name)
+        && at != s.at
+    {
+        s.at = at;
+        s.dirty = true;
+    }
     let library = crate::library::load();
     let Some(a) = s.names.get(s.at).and_then(|n| library.get(n)) else { return };
     // the camera stands back by the asset's size
@@ -152,7 +163,8 @@ fn show(
         ))
         .id();
     commands.entity(far).add_child(imp);
-    // the atlas itself, small, bottom right: the 8 × 8 views of the master as baked
+    // the atlas itself, small, bottom right: the 8 × 8 views of the master as baked (in the Library view, not in a film)
+    if *view.get() == View::Library {
     commands.spawn((
         Specimen,
         DespawnOnExit(World::Library), // it stayed over the Game after leaving
@@ -160,6 +172,7 @@ fn show(
         Node { position_type: PositionType::Absolute, right: Val::Px(12.0), bottom: Val::Px(12.0), width: Val::Px(256.0), height: Val::Px(256.0), ..default() },
         BackgroundColor(Color::srgb(0.15, 0.15, 0.15)),
     ));
+    }
     let child = commands
         .spawn((
             Specimen,

@@ -126,9 +126,10 @@ fn main() {
         return;
     }
     if args.get(1).map(String::as_str) == Some("--gate") {
-        let dir: PathBuf = args.get(2).expect("--gate <dir>").into();
+        let dir: PathBuf = args.get(2).expect("--gate <dir> [shots id]").into();
         let _ = std::fs::create_dir_all(&dir);
-        let timeline = film::shots(film::anchors()).expect("the anchors read and parse");
+        // the Meadow's anchors, or any shot list given by its doc id
+        let timeline = film::shots(args.get(3).map(String::as_str).unwrap_or(film::anchors())).expect("the shot list reads and parses");
         app.insert_resource(film::Studio::paused_at(timeline, 0.0))
             .insert_resource(film::Gate { dir })
             .insert_state(View::Studio)

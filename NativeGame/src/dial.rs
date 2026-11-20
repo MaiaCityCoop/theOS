@@ -34,7 +34,7 @@ struct Auto;
 struct AutoText;
 
 pub fn plugin(app: &mut App) {
-    app.add_systems(OnEnter(World::Place), spawn).add_systems(Update, show.run_if(in_state(World::Place)).run_if(resource_exists::<Sun>));
+    app.add_systems(OnEnter(World::Place), spawn.run_if(in_state(crate::View::Place))).add_systems(Update, show.run_if(in_state(World::Place)).run_if(resource_exists::<Sun>));
 }
 
 fn hhmm(hour: f32) -> String {

@@ -178,7 +178,7 @@ struct MapLabel;
 const M: usize = 320;
 
 pub fn plugin(app: &mut App) {
-    app.add_systems(OnEnter(World::Place), spawn.after(crate::place::enter))
+    app.add_systems(OnEnter(World::Place), spawn.after(crate::place::enter).run_if(in_state(crate::View::Place)))
         .add_systems(Update, (follow.run_if(resource_exists::<Map>), baked_yet.run_if(resource_exists::<Baking>)))
         .add_systems(OnExit(World::Place), |mut c: Commands| c.remove_resource::<Map>());
 }
