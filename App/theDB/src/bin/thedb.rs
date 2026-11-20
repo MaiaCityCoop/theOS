@@ -12,7 +12,6 @@
 //!     thedb source <build hash> <dir>                       the source a build was made from, into <dir>
 //!     thedb pin <engine id> <build hash>                    pins an earlier build
 //!     thedb builds <engine id>                              the engine's builds, the pinned one marked
-//!     thedb bake <asset id>                                 the kernel's baker on one asset, by hand; waits its turn
 //!
 //! Branches, source trees and merges (intent 0051). `THEDB_BRANCH=<name>` puts any process on a branch.
 //!
@@ -78,7 +77,6 @@ fn main() {
                 println!("{} {b}  {info}", if e.pinned.as_deref() == Some(b) { "*" } else { " " });
             }
         }
-        ["bake", id] => thedb::baker::bake(&db, id).unwrap_or_else(|e| fail(&e)),
         // ---- branches (intent 0051) ----
         ["branch", name, about @ ..] => db.make_branch(name, &about.join(" ")).unwrap_or_else(|e| fail(&e)),
         ["branches"] => {
@@ -144,7 +142,7 @@ fn main() {
         ["root"] => println!("{}", db.root().unwrap_or_else(|e| fail(&e)).unwrap_or_default()),
         ["root", id] => db.set_root(id).unwrap_or_else(|e| fail(&e)),
         ["forget", id] => db.forget(id).unwrap_or_else(|e| fail(&e)),
-        _ => fail("usage: thedb new <kind> <name> [file] | put <id> <file> | part <id> <part> <file> | cat <id> [hash] | ls | head <id> | root [<id>] | forget <id> | bake <asset id>"),
+        _ => fail("usage: thedb new <kind> <name> [file] | put <id> <file> | part <id> <part> <file> | cat <id> [hash] | ls | head <id> | root [<id>] | forget <id>"),
     }
 }
 

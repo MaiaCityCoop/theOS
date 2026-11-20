@@ -633,8 +633,6 @@ impl TheDB {
     }
 }
 
-pub mod baker;
-pub mod gpu;
 pub mod plugin;
 
 #[cfg(feature = "bevy")]
