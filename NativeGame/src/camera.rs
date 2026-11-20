@@ -85,6 +85,12 @@ pub struct Shot {
     /// it on the shelf). Without it the Meadow.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub world: Option<String>,
+    /// In a shot of the interface: the pointer's path, as shares of the window's width and height, evenly through the
+    /// shot; and the shares of the shot where it clicks.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pointer: Vec<[f32; 2]>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub clicks: Vec<f32>,
     pub keys: Vec<Key>,
 }
 
@@ -144,6 +150,20 @@ fn catmull_rom(a: f32, b: f32, c: f32, d: f32, t: f32) -> f32 {
 }
 
 impl Shot {
+    /// The pointer at `q`, the share of the shot played: on a straight path through its points, eased as the shot.
+    pub fn pointer_at(&self, q: f32) -> Option<bevy::math::Vec2> {
+        let p = &self.pointer;
+        match p.len() {
+            0 => None,
+            1 => Some(p[0].into()),
+            n => {
+                let f = self.ease.at(q.clamp(0.0, 1.0)) * (n - 1) as f32;
+                let j = (f.floor() as usize).min(n - 2);
+                Some(bevy::math::Vec2::from(p[j]).lerp(p[j + 1].into(), f - j as f32))
+            }
+        }
+    }
+
     /// The camera at `q`, the share of the shot played (0 to 1).
     pub fn at(&self, q: f32) -> Camera {
         let k = &self.keys;
@@ -219,7 +239,7 @@ fn key(pos: Vec3, look: Vec3, mm: f32, roll: f32) -> Key {
     Key { pos: pos.to_array(), look: look.to_array(), mm, roll, aperture: None, focus: None }
 }
 fn shot(name: &str, kind: &str, secs: f32, ease: Ease, why: &str, keys: Vec<Key>) -> Shot {
-    Shot { name: name.into(), kind: kind.into(), secs, ease, why: why.into(), hour: None, wind: None, world: None, keys }
+    Shot { name: name.into(), kind: kind.into(), secs, ease, why: why.into(), hour: None, wind: None, world: None, pointer: vec![], clicks: vec![], keys }
 }
 
 /// Five shots of different sizes and moves over the plane, the same for the same seed.

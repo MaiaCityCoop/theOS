@@ -29,6 +29,7 @@ mod sun;
 mod terrain;
 mod ui;
 mod wind;
+mod views;
 mod workshop;
 mod world;
 
@@ -115,7 +116,7 @@ fn main() {
     .set(AssetPlugin { watch_for_changes_override: Some(true), ..default() }))
     .init_state::<View>()
     .add_plugins((world::plugin, film::plugin, meadow::plugin, wind::plugin, workshop::plugin, impostor::plugin, patches::plugin, lawn::plugin))
-    .add_plugins((place::plugin, map::plugin, rig::plugin, sun::plugin, dial::plugin, contract::plugin));
+    .add_plugins((place::plugin, map::plugin, rig::plugin, sun::plugin, dial::plugin, contract::plugin, views::plugin));
     if args.get(1).map(String::as_str) == Some("--shelf") {
         let dir: PathBuf = args.get(2).expect("--shelf <dir>").into();
         let _ = std::fs::create_dir_all(&dir);

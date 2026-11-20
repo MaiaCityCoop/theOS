@@ -21,6 +21,8 @@ pub struct Root {
     pub earth: String,
     /// Bakes made once: each result a part of this doc, under the hash of what it was made from.
     pub bakes: String,
+    /// The dashboard: a view doc.
+    pub home: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

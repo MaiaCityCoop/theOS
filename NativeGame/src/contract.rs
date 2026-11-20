@@ -23,6 +23,8 @@ pub enum World {
     Meadow,
     Library,
     Place,
+    /// A view of the interface, filmed: the doc the shot names.
+    Interface,
 }
 
 /// A lens: any focal length, aperture and focus the shot wants.

@@ -19,10 +19,10 @@ pub(crate) const SUN: Color = Color::srgb(0.949, 0.710, 0.267); // --sun #f2b544
 pub(crate) const GLASS: Color = Color::srgba(0.984, 0.965, 0.918, 0.82);
 
 #[derive(Resource)]
-struct Fonts {
-    serif: Handle<Font>,
-    sans: Handle<Font>,
-    mono: Handle<Font>,
+pub struct Fonts {
+    pub serif: Handle<Font>,
+    pub sans: Handle<Font>,
+    pub mono: Handle<Font>,
 }
 
 #[derive(Component, Clone, Copy, PartialEq, Debug)]
@@ -55,7 +55,7 @@ struct PlayLabel;
 
 pub fn plugin(app: &mut App) {
     app.init_resource::<Fonts>()
-        .add_systems(OnEnter(View::Home), (home, release))
+        .add_systems(OnEnter(View::Home), release)
         .add_systems(OnEnter(View::Place), place)
         .add_systems(OnEnter(View::Studio), studio)
         .add_systems(OnEnter(View::Meadow), meadow)
@@ -104,70 +104,7 @@ fn pill(f: &Fonts, act: Act, words: &'static str, dark: bool) -> impl Bundle {
 }
 
 
-// ---- the dashboard: a welcome line and two tiles ----
-
-fn home(mut commands: Commands, f: Res<Fonts>) {
-    let tile = |act: Act, dark: bool, label: &'static str, title: &'static str, words: &'static str, grow: f32| {
-        let (bg, fg) = if dark { (FOREST, CREAM) } else { (CREAM, FOREST) };
-        (
-            Hovered::default(),
-            act,
-            Node {
-                flex_grow: grow,
-                flex_basis: Val::Px(0.0),
-                min_height: Val::Px(420.0),
-                padding: UiRect::all(Val::Px(30.0)),
-                flex_direction: FlexDirection::Column,
-                border_radius: BorderRadius::all(Val::Px(32.0)),
-                ..default()
-            },
-            BackgroundColor(bg),
-            BoxShadow::new(Color::srgba(0.09, 0.21, 0.33, 0.10), Val::Px(0.0), Val::Px(10.0), Val::Px(0.0), Val::Px(28.0)),
-            children![
-                text(&f.mono, 13.0, if dark { SUN } else { CLAY }, label),
-                (text(&f.serif, 46.0, fg, title), Node { margin: UiRect::vertical(Val::Px(12.0)), ..default() }),
-                text(&f.sans, 18.0, fg, words),
-            ],
-        )
-    };
-    commands.spawn((
-        DespawnOnExit(View::Home),
-        Node {
-            width: Val::Percent(100.0),
-            height: Val::Percent(100.0),
-            flex_direction: FlexDirection::Column,
-            padding: UiRect::all(Val::Px(36.0)),
-            row_gap: Val::Px(20.0),
-            ..default()
-        },
-        BackgroundColor(PAPER),
-        children![
-            (
-                Node {
-                    padding: UiRect::axes(Val::Px(28.0), Val::Px(20.0)),
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(18.0),
-                    border_radius: BorderRadius::all(Val::Px(32.0)),
-                    ..default()
-                },
-                BackgroundColor(CREAM),
-                children![
-                    text(&f.serif, 34.0, FOREST, "NativeGame"),
-                    (text(&f.sans, 17.0, FOREST2, "Day one, auf der grünen Wiese: a green plain, and a camera to film it."), Node { margin: UiRect::left(Val::Auto), ..default() }),
-                ],
-            ),
-            (
-                Node { column_gap: Val::Px(20.0), flex_grow: 1.0, ..default() },
-                children![
-                    tile(Act::Open(View::Meadow), true, "A · GAME", "Game", "The meadow: grass in wind, a physical sky, the sun. Click to look, W A S D, scroll to rise.", 2.0),
-                    tile(Act::Open(View::Studio), false, "B · STUDIO", "Studio", "Shots played live through the world by the virtual camera.", 1.0),
-                    tile(Act::Open(View::Library), false, "C · LIBRARY", "Library", "Every plant and rock, each a procedural master, beside its baked far view.", 1.0),
-                    tile(Act::Open(View::Place), false, "D · PLACE", "Mértola", "Walk 6 by 6 km of the real Alentejo: Copernicus 30 m elevation, ESA WorldCover ground.", 1.0),
-                ],
-            ),
-        ],
-    ));
-}
+// ---- the dashboard: drawn from its view doc (`views.rs`) ----
 
 // ---- the real place: the walker on real ground, and a line of help ----
 
@@ -496,6 +433,7 @@ fn seek(e: Entity, x: f32, strip: &Query<(&ComputedNode, &UiGlobalTransform), Wi
 fn press(
     mut click: On<PointerClick>,
     acts: Query<&Act>,
+    docs: Query<&crate::views::OpenDoc>,
     opened: Res<Opened>,
     time: Res<Time<Real>>,
     mut next: ResMut<NextState<View>>,
@@ -503,6 +441,12 @@ fn press(
     shelf: Option<ResMut<crate::workshop::Shelf>>,
 ) {
     let Ok(act) = acts.get(click.entity) else { return };
+    // a box that opens a doc: a shot list opens in the Studio
+    if let Ok(crate::views::OpenDoc(id)) = docs.get(click.entity)
+        && crate::views::opens(id) == View::Studio
+    {
+        s.open(id);
+    }
     click.propagate(false);
     // a view that has just opened ignores clicks for a moment: the click that opened it must not land on what is now
     // under the mouse (Home, then the Game tile under the pointer)

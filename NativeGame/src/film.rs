@@ -183,6 +183,7 @@ fn choose_world(view: Res<State<View>>, studio: Res<Studio>, world: Res<State<Wo
                 Some(id) => *kinds.entry(id.clone()).or_insert_with(|| match crate::db().meta(&id).map(|m| m.0).as_deref() {
                     Ok("place") => World::Place,
                     Ok("asset") => World::Library,
+                    Ok("view") => World::Interface,
                     _ => World::Meadow,
                 }),
             }
