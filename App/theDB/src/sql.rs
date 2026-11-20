@@ -114,6 +114,11 @@ pub fn upgrade(conn: &Connection) -> Result<()> {
     if !has {
         conn.execute_batch("ALTER TABLE versions ADD COLUMN frontiers BLOB").map_err(err)?;
     }
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS signed(version TEXT NOT NULL, branch TEXT NOT NULL, doc TEXT NOT NULL, signer TEXT NOT NULL, grant_hash TEXT, at INTEGER NOT NULL, sig BLOB NOT NULL, PRIMARY KEY(version, branch, signer)) WITHOUT ROWID;
+         CREATE TABLE IF NOT EXISTS grants(hash TEXT PRIMARY KEY, agent TEXT NOT NULL, line TEXT NOT NULL, until INTEGER NOT NULL) WITHOUT ROWID;",
+    )
+    .map_err(err)?;
     conn.execute_batch("CREATE TABLE IF NOT EXISTS peers(doc TEXT NOT NULL, peer INTEGER NOT NULL, counter INTEGER NOT NULL, pid INTEGER NOT NULL, PRIMARY KEY(doc, peer)) WITHOUT ROWID").map_err(err)
 }
 
@@ -438,4 +443,57 @@ pub fn find(conn: &Connection, branch: Option<&str>, by: Find) -> Result<Vec<Fou
 /// The doc the version `hash` is a version of, and when it was made, if SQLite holds it.
 pub fn version_of(conn: &Connection, hash: Hash) -> Result<Option<(String, u64)>> {
     conn.query_row("SELECT doc, at FROM versions WHERE hash = ?1", [hex(hash)], |r| Ok((r.get(0)?, r.get::<_, i64>(1)? as u64))).optional().map_err(err)
+}
+
+// ---- signatures and grants (access.rs) ----
+
+/// A signature kept: who signed which version as whose head on which branch, by which grant, when.
+pub struct Signed {
+    pub version: Hash,
+    pub branch: String,
+    pub doc: String,
+    pub signer: String,
+    pub grant: Option<Hash>,
+    pub at: u64,
+    pub sig: Vec<u8>,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn add_signed(conn: &Connection, version: Hash, branch: &str, doc: &str, signer: &str, grant: Option<Hash>, at: u64, sig: &[u8]) -> Result<()> {
+    conn.execute(
+        "INSERT OR REPLACE INTO signed(version, branch, doc, signer, grant_hash, at, sig) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![hex(version), branch, doc, signer, grant.map(hex), at as i64, sig],
+    )
+    .map(|_| ())
+    .map_err(err)
+}
+
+pub fn all_signed(conn: &Connection) -> Result<Vec<Signed>> {
+    let mut q = conn.prepare("SELECT version, branch, doc, signer, grant_hash, at, sig FROM signed").map_err(err)?;
+    let rows = q
+        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get::<_, Option<String>>(4)?, r.get::<_, i64>(5)?, r.get(6)?)))
+        .map_err(err)?
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(err)?;
+    rows.into_iter()
+        .map(|(v, branch, doc, signer, g, at, sig)| Ok(Signed { version: unhex(&v)?, branch, doc, signer, grant: g.as_deref().map(unhex).transpose()?, at: at as u64, sig }))
+        .collect()
+}
+
+/// Every head: (branch, doc, version).
+pub fn all_heads(conn: &Connection) -> Result<Vec<(String, String, Hash)>> {
+    let mut q = conn.prepare("SELECT branch, doc, hash FROM heads").map_err(err)?;
+    let rows = q.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?))).map_err(err)?.collect::<std::result::Result<Vec<_>, _>>().map_err(err)?;
+    rows.into_iter().map(|(b, d, h)| Ok((b, d, unhex(&h)?))).collect()
+}
+
+pub fn add_grant(conn: &Connection, hash: Hash, agent: &str, line: &str, until: i64) -> Result<()> {
+    conn.execute("INSERT OR IGNORE INTO grants(hash, agent, line, until) VALUES(?1, ?2, ?3, ?4)", params![hex(hash), agent, line, until]).map(|_| ()).map_err(err)
+}
+
+/// The grants kept for `agent` on `line`, newest first.
+pub fn grants_for(conn: &Connection, agent: &str, line: &str) -> Result<Vec<Hash>> {
+    let mut q = conn.prepare("SELECT hash FROM grants WHERE agent = ?1 AND line = ?2 ORDER BY until DESC").map_err(err)?;
+    let rows = q.query_map([agent, line], |r| r.get::<_, String>(0)).map_err(err)?.collect::<std::result::Result<Vec<_>, _>>().map_err(err)?;
+    rows.iter().map(|h| unhex(h)).collect()
 }

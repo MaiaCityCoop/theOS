@@ -1,0 +1,11 @@
+[package]
+name = "theid"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Identity for the whole stack: one key type (iroh's), one way to sign, one Keychain, one set of grants (rcan).
+[dependencies]
+iroh-base = "1.5.0"
+rcan = "0.4.1"
+serde = { version = "1", features = ["derive"] }
