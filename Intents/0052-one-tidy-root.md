@@ -1,8 +1,8 @@
 ---
 id: "0052"
 title: One tidy root
-state: propose         # idea | define | build | propose | story | archived
-outcome:               # accepted | rejected, set only when archived
+state: archived        # idea | define | build | propose | story | archived
+outcome: accepted      # accepted | rejected, set only when archived
 opened: 2026-11-20
 story:                 # Stories/0052-slug/, set at propose
 ---
@@ -83,7 +83,11 @@ when its own crate changes, so two views building one after the other can leave 
 
 ## Story
 
+_Not written: Samuel accepted and moved on to intent 0050; the story is told with 0050's._
+
 ## Archived
+
+accepted, 2026-11-20 (Samuel: "please accept everything"): one tidy root: App (theOS, theKERNEL, theDB), DATA, Website and the rest capitalised.
 
 ---
 
