@@ -36,6 +36,18 @@ const DOC: &str = "doc/";
 /// The store's one entry point: the tag naming the blob that holds the root doc's id.
 const ROOT: &str = "root";
 
+/// A branch's docs (intent 0051): `branch/<name>/<id>` → the doc's latest snapshot on that branch. A doc the branch has
+/// not changed is read from main.
+const BRANCH: &str = "branch/";
+
+/// The branches that exist: `branches/<name>` → a blob of what the branch is for.
+const BRANCHES: &str = "branches/";
+
+/// Whether `name` can be a branch's name: lowercase letters, digits and dashes.
+pub fn is_branch(name: &str) -> bool {
+    !name.is_empty() && name.len() <= 64 && name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+}
+
 /// The letters of an id: lowercase base 32. An id is 26 of them, the first a letter (so an id is also a name a shader
 /// module can have).
 const ALPHABET: &[u8; 32] = b"abcdefghijklmnopqrstuvwxyz234567";
@@ -44,6 +56,14 @@ const ID_LEN: usize = 26;
 /// Whether `id` is a doc's id: opaque, flat, 26 letters of the alphabet, the first a-z.
 pub fn is_id(id: &str) -> bool {
     id.len() == ID_LEN && id.bytes().all(|b| ALPHABET.contains(&b)) && id.as_bytes()[0].is_ascii_lowercase()
+}
+
+/// The tag of doc `id` on `branch` (main with `None`).
+fn tag(branch: Option<&str>, id: &str) -> String {
+    match branch {
+        Some(b) => format!("{BRANCH}{b}/{id}"),
+        None => format!("{DOC}{id}"),
+    }
 }
 
 fn check(id: &str) -> Result<()> {
@@ -71,6 +91,10 @@ pub struct AvenDb {
     store: Store,
     /// Set in the process that owns the store's files (and serves them to the others).
     owner: Option<FsStore>,
+    /// The store's folder.
+    dir: PathBuf,
+    /// The branch this process reads and writes (`AVENDB_BRANCH`); none is main.
+    branch: Option<String>,
 }
 
 impl AvenDb {
@@ -89,6 +113,12 @@ impl AvenDb {
         std::fs::create_dir_all(dir.as_ref()).map_err(err)?;
         let dir = dir.as_ref();
         let (port, cert) = (dir.join("rpc.port"), dir.join("rpc.cert"));
+        let branch = match std::env::var("AVENDB_BRANCH") {
+            Ok(b) if b.is_empty() || b == "main" => None,
+            Ok(b) if is_branch(&b) => Some(b),
+            Ok(b) => return Err(format!("AVENDB_BRANCH is not a branch's name (lowercase letters, digits, dashes): {b:?}")),
+            Err(_) => None,
+        };
         match rt.block_on(FsStore::load(dir)) {
             Ok(fs) => {
                 // the owner: serve the store to the other processes on this machine
@@ -99,7 +129,7 @@ impl AvenDb {
                 std::fs::write(&port, at.port().to_string()).map_err(err)?;
                 let store: Store = (*fs).clone();
                 rt.spawn(store.clone().listen(endpoint));
-                Ok(AvenDb { rt, store, owner: Some(fs) })
+                Ok(AvenDb { rt, store, owner: Some(fs), dir: dir.to_path_buf(), branch })
             }
             Err(e) => {
                 // another process owns it: talk to that one
@@ -109,9 +139,14 @@ impl AvenDb {
                 let addr: std::net::SocketAddr = format!("127.0.0.1:{}", p.trim()).parse().map_err(err)?;
                 let _guard = rt.enter();
                 let endpoint = irpc::util::make_client_endpoint("127.0.0.1:0".parse().unwrap(), &[&der]).map_err(err)?;
-                Ok(AvenDb { rt, store: Store::connect(endpoint, addr), owner: None })
+                Ok(AvenDb { rt, store: Store::connect(endpoint, addr), owner: None, dir: dir.to_path_buf(), branch })
             }
         }
+    }
+
+    /// The store's folder.
+    pub fn dir(&self) -> &Path {
+        &self.dir
     }
 
     /// Whether this process owns the store's files (the others reach it through this one).
@@ -139,9 +174,47 @@ impl AvenDb {
 
     // ---- docs ----
 
-    /// The latest snapshot of doc `id`: the hash that names its current version.
+    /// The latest snapshot of doc `id` on this process's branch (main's where the branch has not changed it): the hash
+    /// that names its current version.
     pub fn head(&self, id: &str) -> Result<Option<Hash>> {
-        self.rt.block_on(async { self.store.tags().get(format!("{DOC}{id}")).await.map(|t| t.map(|t| t.hash)).map_err(err) })
+        self.head_seen(self.branch.as_deref(), id)
+    }
+
+    /// The latest snapshot of doc `id` as `branch` sees it: the branch's version, or main's where it has none.
+    pub fn head_seen(&self, branch: Option<&str>, id: &str) -> Result<Option<Hash>> {
+        if let Some(b) = branch
+            && let Some(h) = self.head_on(Some(b), id)?
+        {
+            return Ok(Some(h));
+        }
+        self.head_on(None, id)
+    }
+
+    /// The latest snapshot of doc `id` on `branch` itself (main with `None`), without falling through.
+    pub fn head_on(&self, branch: Option<&str>, id: &str) -> Result<Option<Hash>> {
+        let tag = tag(branch, id);
+        self.rt.block_on(async { self.store.tags().get(tag).await.map(|t| t.map(|t| t.hash)).map_err(err) })
+    }
+
+    fn set_head(&self, branch: Option<&str>, id: &str, hash: Hash) -> Result<()> {
+        let tag = tag(branch, id);
+        self.rt.block_on(async { self.store.tags().set(tag, hash).await.map_err(err) })
+    }
+
+    /// The branch this process reads and writes; `None` is main.
+    pub fn branch(&self) -> Option<&str> {
+        self.branch.as_deref()
+    }
+
+    /// Reads and writes on `branch` from now on (`None`: main). The branch must exist.
+    pub fn set_branch(&mut self, branch: Option<&str>) -> Result<()> {
+        if let Some(b) = branch
+            && !self.branches()?.iter().any(|x| x == b)
+        {
+            return Err(format!("no branch {b}"));
+        }
+        self.branch = branch.map(str::to_string);
+        Ok(())
     }
 
     /// Doc `id` as it is now, or a new empty doc if there is none yet.
@@ -158,34 +231,104 @@ impl AvenDb {
         LoroDoc::from_snapshot(&bytes).map_err(err)
     }
 
-    /// Keeps `doc` as the latest version of `id`; returns the hash that names this version.
+    /// Keeps `doc` as the latest version of `id` on this process's branch; returns the hash that names this version.
     pub fn commit(&self, id: &str, doc: &LoroDoc) -> Result<Hash> {
+        let branch = self.branch.clone();
+        self.commit_on(branch.as_deref(), id, doc)
+    }
+
+    /// Keeps `doc` as the latest version of `id` on `branch` (main with `None`). A doc is a CRDT: what was committed to
+    /// it meanwhile (by another process, or on main before the branch first changed it) is merged in, never
+    /// overwritten.
+    pub fn commit_on(&self, branch: Option<&str>, id: &str, doc: &LoroDoc) -> Result<Hash> {
         check(id)?;
         doc.commit();
-        // a doc is a CRDT: what another worktree or process committed to it meanwhile is merged in, never overwritten
-        if let Some(head) = self.head(id)?
+        if let Some(head) = self.head_seen(branch, id)?
             && let Some(theirs) = self.get(head)?
         {
             doc.import(&theirs).map_err(err)?;
         }
         let snapshot = doc.export(ExportMode::Snapshot).map_err(err)?;
         let hash = self.put(snapshot)?;
-        self.rt.block_on(async { self.store.tags().set(format!("{DOC}{id}"), hash).await.map_err(err) })?;
+        self.set_head(branch, id, hash)?;
         Ok(hash)
     }
 
-    /// Every doc's id, and the hash of its current version.
+    /// Every doc's id and the hash of its current version, as this process's branch sees them.
     pub fn docs(&self) -> Result<Vec<(String, Hash)>> {
+        let mut all: std::collections::BTreeMap<String, Hash> = self.list(DOC)?.into_iter().collect();
+        if let Some(b) = &self.branch {
+            all.extend(self.changed_on(b)?);
+        }
+        Ok(all.into_iter().collect())
+    }
+
+    /// The docs `branch` has changed, and their versions there.
+    pub fn changed_on(&self, branch: &str) -> Result<Vec<(String, Hash)>> {
+        self.list(&format!("{BRANCH}{branch}/"))
+    }
+
+    /// The tags under `prefix`: what follows the prefix, and the hash each names.
+    fn list(&self, prefix: &str) -> Result<Vec<(String, Hash)>> {
         use n0_future::StreamExt;
         self.rt.block_on(async {
-            let mut list = self.store.tags().list_prefix(DOC).await.map_err(err)?;
+            let mut list = self.store.tags().list_prefix(prefix).await.map_err(err)?;
             let mut out = Vec::new();
             while let Some(t) = list.next().await {
                 let t = t.map_err(err)?;
-                out.push((String::from_utf8_lossy(&t.name.0[DOC.len()..]).into_owned(), t.hash));
+                out.push((String::from_utf8_lossy(&t.name.0[prefix.len()..]).into_owned(), t.hash));
             }
             Ok(out)
         })
+    }
+
+    // ---- branches (intent 0051) ----
+
+    /// A new branch, `name`, from main as it is; `about` says what it is for. A branch that exists stays as it is.
+    pub fn make_branch(&self, name: &str, about: &str) -> Result<()> {
+        if !is_branch(name) || name == "main" {
+            return Err(format!("not a branch's name (lowercase letters, digits, dashes; not main): {name:?}"));
+        }
+        if self.branches()?.iter().any(|b| b == name) {
+            return Ok(());
+        }
+        let h = self.put(about.as_bytes().to_vec())?;
+        self.rt.block_on(async { self.store.tags().set(format!("{BRANCHES}{name}"), h).await.map_err(err) })
+    }
+
+    /// Every branch's name.
+    pub fn branches(&self) -> Result<Vec<String>> {
+        Ok(self.list(BRANCHES)?.into_iter().map(|(n, _)| n).collect())
+    }
+
+    /// What `branch` is for.
+    pub fn about(&self, branch: &str) -> Result<String> {
+        let h = self.rt.block_on(async { self.store.tags().get(format!("{BRANCHES}{branch}")).await.map_err(err) })?;
+        let h = h.ok_or_else(|| format!("no branch {branch}"))?.hash;
+        Ok(self.get(h)?.map(|b| String::from_utf8_lossy(&b).into_owned()).unwrap_or_default())
+    }
+
+    /// Doc `id` as `branch`'s version and main's merged, without keeping it: what main would be after the merge.
+    pub fn merged(&self, branch: &str, id: &str) -> Result<LoroDoc> {
+        let doc = match self.head_on(None, id)? {
+            Some(h) => self.doc_at(h)?,
+            None => LoroDoc::new(),
+        };
+        if let Some(h) = self.head_on(Some(branch), id)? {
+            doc.import(&self.get(h)?.ok_or_else(|| format!("no blob {h}"))?).map_err(err)?;
+        }
+        Ok(doc)
+    }
+
+    /// Brings the versions `docs` (id → a version on a branch) into main: each merged with what main has. Returns the
+    /// new main versions. The branch keeps its own tags; what it changes afterwards can be brought in again.
+    pub fn merge_into_main(&self, docs: &[(String, Hash)]) -> Result<Vec<(String, Hash)>> {
+        let mut out = Vec::new();
+        for (id, version) in docs {
+            let doc = self.doc_at(*version)?;
+            out.push((id.clone(), self.commit_on(None, id, &doc)?));
+        }
+        Ok(out)
     }
 
     /// A new doc: its id made here, its kind and name kept inside it. Returns the id.
@@ -209,6 +352,9 @@ impl AvenDb {
 
     /// Lets doc `id` go: it is no longer reached. Its versions' blobs stay, so what pinned them still reads them.
     pub fn forget(&self, id: &str) -> Result<()> {
+        if let Some(b) = &self.branch {
+            return Err(format!("forget on main only (this process is on the branch {b})"));
+        }
         self.rt.block_on(async { self.store.tags().delete(format!("{DOC}{id}")).await.map(|_| ()).map_err(err) })
     }
 
@@ -360,17 +506,17 @@ pub struct Build {
 pub struct Engine {
     pub pinned: Option<String>,
     pub builds: Vec<String>,
+    /// The source tree its builds are made from (intent 0051).
+    #[serde(default)]
+    pub tree: Option<String>,
 }
 
 impl AvenDb {
-    /// Keeps a build of engine `id`: the binary and every source file as blobs, the tree as a manifest blob, the build
-    /// as a blob; adds it to the engine's builds and pins it. Returns the build's hash.
-    pub fn publish(&self, id: &str, binary: &[u8], source: &[(String, Vec<u8>)], toolchain: &str) -> Result<Hash> {
-        let mut tree = std::collections::BTreeMap::new();
-        for (path, bytes) in source {
-            tree.insert(path.clone(), self.put(bytes.clone())?.to_hex().to_string());
-        }
-        let manifest = self.put(serde_json::to_vec_pretty(&tree).map_err(err)?)?;
+    /// Keeps a build of engine `id`: the binary as a blob, the manifest of its source (each file named by its doc's
+    /// version, `publish_tree`) as a blob, the build as a blob; adds it to the engine's builds and pins it. Returns the
+    /// build's hash.
+    pub fn publish(&self, id: &str, binary: &[u8], manifest: &[u8], toolchain: &str) -> Result<Hash> {
+        let manifest = self.put(manifest.to_vec())?;
         let build = Build { binary: self.put(binary.to_vec())?.to_hex().to_string(), source: manifest.to_hex().to_string(), toolchain: toolchain.into() };
         let hash = self.put(serde_json::to_vec_pretty(&build).map_err(err)?)?;
         let mut engine = self.engine(id)?;
@@ -404,6 +550,8 @@ impl AvenDb {
 
 #[cfg(feature = "bevy")]
 pub mod bevy;
+
+pub mod source;
 
 impl Drop for AvenDb {
     fn drop(&mut self) {
