@@ -1,8 +1,8 @@
 ---
 id: "0050"
 title: One LOD ladder for every asset
-state: build           # idea | define | build | propose | story | archived
-outcome:               # accepted | rejected, set only when archived
+state: archived        # idea | define | build | propose | story | archived
+outcome: rejected      # accepted | rejected, set only when archived
 opened: 2026-11-20
 story:                 # Stories/0050-slug/, set at propose
 ---
@@ -182,7 +182,9 @@ _Filled after the human's yes._
 
 ## Archived
 
-_accepted or rejected, the date, the reason in a line._
+rejected, 2026-11-20: ended by Samuel's clean cut to day 1 (intent 0055: "let's drop everything we did so far") with
+deliverables 6, 7 and 9 unmerged. What was built is in the tag `archived/2026-11-20-before-day-1`; what was learned is
+the article in intent 0055.
 
 ---
 
