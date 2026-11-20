@@ -395,6 +395,9 @@ pub const TILE: u32 = 32;
 /// Tiles along a side of a level: 8 × 8 tiles of 32 slots, small enough that the view culls those behind the eye and
 /// `meadow::lay` hides those wholly past the level's reach.
 pub const TILES: u32 = 8;
+/// How far from its cell's centre a vertex sits for each side of its blade, in cells: the shader reads the side back
+/// from the position (`slot_of`).
+pub const SIDE: f32 = 0.25;
 
 pub fn tile(segs: u32) -> Mesh {
     use bevy::asset::RenderAssetUsages;
@@ -411,7 +414,7 @@ pub fn tile(segs: u32) -> Mesh {
                 let t = s as f32 / segs as f32;
                 let sides: &[f32] = if s == segs { &[0.0] } else { &[-1.0, 0.0, 1.0] };
                 for &side in sides {
-                    pos.push([ci + 0.5 + 0.25 * side, t, cj + 0.5]);
+                    pos.push([ci + 0.5 + SIDE * side, t, cj + 0.5]);
                     uv.push([side, t]);
                     nrm.push([0.0, 1.0, 0.0]);
                     col.push([1.0, 1.0, 1.0, 1.0]);

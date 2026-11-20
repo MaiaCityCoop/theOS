@@ -47,7 +47,8 @@ pub struct Words {
     #[serde(default)]
     pub margin_y: f32,
     /// A live value the words show instead: `frame` (the frame time and the hour), `caption` (the Library's asset),
-    /// `playhead` (the Studio's time), `play` (Play or Pause), `title` (the shot list's title).
+    /// `playhead` (the Studio's time), `play` (Play or Pause), `title` (the shot list's title), `far` (the Library's
+    /// toggle: what it shows now).
     #[serde(default)]
     pub bind: Option<String>,
 }
@@ -92,7 +93,7 @@ pub struct Boxed {
     /// What a click does: opens this doc, by id.
     #[serde(default)]
     pub open: Option<String>,
-    /// Or: `home`, `play`, `anchors`, `new_shots`.
+    /// Or: `home`, `play`, `anchors`, `new_shots`, `far_view` (the Library: full mesh or far view).
     #[serde(default)]
     pub act: Option<String>,
     /// Where a layer sits over the world: its distances from the window's edges, in pixels.
@@ -223,6 +224,9 @@ pub fn draw(commands: &mut Commands, fonts: &crate::ui::Fonts, spec: &Spec, pare
                 Some("item") => {
                     ec.insert(crate::ui::ShelfLabel);
                 }
+                Some("far") => {
+                    ec.insert(crate::workshop::FarLabel);
+                }
                 _ => {}
             }
             ec.id()
@@ -269,6 +273,7 @@ pub fn draw(commands: &mut Commands, fonts: &crate::ui::Fonts, spec: &Spec, pare
                 Some("play") => Some(crate::ui::Act::PlayPause),
                 Some("anchors") => Some(crate::ui::Act::Anchors),
                 Some("new_shots") => Some(crate::ui::Act::NewShots),
+                Some("far_view") => Some(crate::ui::Act::FarView),
                 _ => None,
             };
             if let Some(a) = act {

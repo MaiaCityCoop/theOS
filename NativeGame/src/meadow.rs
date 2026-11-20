@@ -61,11 +61,12 @@ struct Tile {
     b: u32,
 }
 
-/// The finest cell of the GPU grass and its levels (as in `wind.wesl`).
-const FINE: f32 = 0.04;
-const LEVELS: u32 = 4; // real blades to ~35 m; the lawn beyond
-/// How far a level reaches, in its cells (`REACH` in `wind.wesl`).
-const REACH: f32 = 110.0;
+/// The finest cell of the GPU grass, in metres (625 blades a square metre), and its levels. The shaders read these
+/// from `shared.rs`'s module.
+pub const FINE: f32 = 0.04;
+pub const LEVELS: u32 = 4; // real blades to ~35 m; the lawn beyond
+/// How far a level reaches, in its cells.
+pub const REACH: f32 = 110.0;
 
 /// A tile of the baked patches: its level (cell 1 m × 2^level) and its place in the level's 4 × 4 tiles.
 #[derive(Component)]

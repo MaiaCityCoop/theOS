@@ -13,7 +13,7 @@ pub struct Asset {
     /// `rock` or `plant`.
     pub kind: String,
     /// The shape's generator: `stone`, `clod` (in `terrain.rs`); `clover`, `plantain`, `dandelion`, `moss`,
-    /// `seed_head` (in `grass.rs`).
+    /// `seed_head` (in `grass.rs`); `tree` (in `tree.rs`).
     pub generator: String,
     /// Smallest and largest, metres across.
     pub size: [f32; 2],
@@ -22,6 +22,38 @@ pub struct Asset {
     /// How flat (rocks: height over width).
     #[serde(default = "one")]
     pub flatness: f32,
+    /// How many individuals its far view is baked from (intent 0050): every seed is drawn far off as one of them.
+    /// One unless its silhouette varies enough from seed to seed to show.
+    #[serde(default = "one_u32", skip_serializing_if = "is_one")]
+    pub variants: u32,
+    /// Its doc's id in avenDB, where it has one.
+    #[serde(skip)]
+    pub id: Option<String>,
+}
+
+fn one_u32() -> u32 {
+    1
+}
+
+fn is_one(n: &u32) -> bool {
+    *n == 1
+}
+
+/// The seed of variant `v` of an asset's far view: fixed, so a bake reproduces.
+pub fn variant_seed(v: u32) -> u32 {
+    v + 1
+}
+
+/// The variant of the far view an individual of seed `seed` is drawn as.
+pub fn variant_of(a: &Asset, seed: u32) -> u32 {
+    let mut x = seed.wrapping_mul(0x9E37_79B1);
+    x ^= x >> 16;
+    x % a.variants.max(1)
+}
+
+/// The recipe's bytes, as a bake's key reads them: the recipe alone, not where it is kept.
+pub fn recipe_bytes(a: &Asset) -> Vec<u8> {
+    serde_json::to_vec(a).unwrap_or_default()
 }
 
 fn one() -> f32 {
@@ -29,7 +61,7 @@ fn one() -> f32 {
 }
 
 fn asset(name: &str, kind: &str, generator: &str, size: [f32; 2], a: [f32; 3], b: [f32; 3], flatness: f32) -> Asset {
-    Asset { name: name.into(), kind: kind.into(), generator: generator.into(), size, colour: [a, b], flatness }
+    Asset { name: name.into(), kind: kind.into(), generator: generator.into(), size, colour: [a, b], flatness, variants: 1, id: None }
 }
 
 /// The built-in assets: what the library starts with (written to `library/` once, to be edited there).
@@ -45,6 +77,8 @@ pub fn builtin() -> Vec<Asset> {
         asset("grass patch", "plant", "grass_patch", [1.0, 1.0], [0.045, 0.120, 0.018], [0.100, 0.230, 0.035], 1.0),
         asset("grass tuft", "plant", "grass_tuft", [0.12, 0.45], [0.045, 0.120, 0.018], [0.100, 0.230, 0.035], 1.0),
         asset("seed head", "plant", "seed_head", [0.55, 0.95], [0.30, 0.24, 0.10], [0.20, 0.16, 0.08], 1.0),
+        // a broadleaf tree, 8 to 16 m tall, its leaves a beech's or an oak's summer green
+        asset("broadleaf", "plant", "tree", [8.0, 16.0], [0.050, 0.105, 0.025], [0.075, 0.140, 0.032], 1.0),
     ]
 }
 
@@ -68,7 +102,8 @@ pub fn read() -> BTreeMap<String, Asset> {
     let db = crate::db();
     let mut all = BTreeMap::new();
     for id in &crate::root::root().library {
-        if let Some(a) = db.file(id).ok().flatten().and_then(|b| serde_json::from_slice::<Asset>(&b).ok()) {
+        if let Some(mut a) = db.file(id).ok().flatten().and_then(|b| serde_json::from_slice::<Asset>(&b).ok()) {
+            a.id = Some(id.clone());
             all.insert(a.name.clone(), a);
         }
     }
@@ -98,6 +133,8 @@ pub fn master(a: &Asset, seed: u32) -> bevy::prelude::Mesh {
     if a.kind == "rock" {
         let size = a.size[0] + (a.size[1] - a.size[0]) * r(2);
         crate::terrain::rock_master(&a.generator, size, col, a.flatness, seed)
+    } else if a.generator == "tree" {
+        crate::tree::tree_master(seed, col)
     } else {
         crate::grass::plant_master(&a.generator, seed, col)
     }

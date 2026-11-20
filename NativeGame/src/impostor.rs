@@ -42,13 +42,21 @@ fn frame_up(f: Vec3) -> Vec3 {
     if f.y.abs() > 0.999 { -Vec3::Z } else { Vec3::Y }
 }
 
-/// A baked master: its two atlases, and the sphere around it that each frame shows.
+/// An asset's far view: for each of its variants two atlases (colour, normal), and the sphere around them all that
+/// each frame shows.
 #[derive(Clone)]
 pub struct Baked {
-    pub albedo: Handle<Image>,
-    pub normal: Handle<Image>,
+    pub variants: Vec<(Handle<Image>, Handle<Image>)>,
     pub centre: Vec3,
     pub radius: f32,
+}
+
+/// What a finished bake is kept as: the asset, the key, its parameters, and how many parts are still to come.
+struct Keep {
+    asset: Option<String>,
+    key: String,
+    params: serde_json::Value,
+    left: std::sync::Mutex<u32>,
 }
 
 /// The cameras and copies of a bake; gone after a few frames.
@@ -67,8 +75,8 @@ struct Shooting {
     views: Vec<Handle<Image>>,
     atlas: Handle<Image>,
     got: std::sync::Arc<std::sync::Mutex<(Vec<u8>, u32)>>,
-    /// What the atlas is kept under once made: the bake's key and the part's name.
-    keep: (String, &'static str),
+    /// What the atlas is kept as once made: the bake, and the part's name.
+    keep: (std::sync::Arc<Keep>, String),
 }
 
 /// Writes a surface's normal as its colour.
@@ -120,12 +128,10 @@ impl Material for Impostor {
 }
 
 impl Impostor {
-    pub fn of(b: &Baked) -> Self {
-        Impostor {
-            params: ImpostorParams { sphere: b.centre.extend(b.radius), grid: Vec4::new(FRAMES as f32, 0.0, 0.0, 0.0) },
-            albedo: b.albedo.clone(),
-            normal: b.normal.clone(),
-        }
+    /// A far copy drawn as variant `v` of the bake.
+    pub fn of(b: &Baked, v: u32) -> Self {
+        let (albedo, normal) = b.variants[v as usize % b.variants.len()].clone();
+        Impostor { params: ImpostorParams { sphere: b.centre.extend(b.radius), grid: Vec4::new(FRAMES as f32, 0.0, 0.0, 0.0) }, albedo, normal }
     }
 }
 
@@ -140,28 +146,14 @@ pub fn quad() -> Mesh {
 /// into the atlases, once; they are removed a few frames later.
 pub fn bake(
     commands: &mut Commands,
-    mesh: Mesh,
+    asset: &crate::library::Asset,
     meshes: &mut Assets<Mesh>,
     images: &mut Assets<Image>,
     colours: &mut Assets<StandardMaterial>,
     normals: &mut Assets<NormalBake>,
 ) -> Baked {
-    let (mut lo, mut hi) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
-    if let Some(bevy::mesh::VertexAttributeValues::Float32x3(pos)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) {
-        for p in pos {
-            lo = lo.min(Vec3::from(*p));
-            hi = hi.max(Vec3::from(*p));
-        }
-    }
-    if lo.x > hi.x {
-        (lo, hi) = (Vec3::ZERO, Vec3::ZERO);
-    }
-    let centre = (lo + hi) * 0.5;
-    let radius = ((hi - lo).length() * 0.5).max(0.01);
-    // the atlases are put together on the CPU from one small picture a view: Bevy redraws a camera's whole target
-    // each frame, so a camera moved across one atlas kept only its last view
     let side = FRAMES * RES;
-    let atlas = |format: TextureFormat| {
+    let atlas = |format: TextureFormat, data: Option<Vec<u8>>| {
         let mut img = Image::new_fill(
             bevy::render::render_resource::Extent3d { width: side, height: side, depth_or_array_layers: 1 },
             bevy::render::render_resource::TextureDimension::D2,
@@ -170,22 +162,126 @@ pub fn bake(
             bevy::asset::RenderAssetUsages::default(),
         );
         img.sampler = bevy::image::ImageSampler::linear();
+        if data.is_some() {
+            img.data = data;
+        }
         img
     };
-    // made once: the same master and settings give the same atlases, kept in avenDB
-    let r = crate::root::root();
-    let key = crate::bakes::key("impostor", &[&crate::bakes::mesh_bytes(&mesh), format!("{FRAMES} {RES}").as_bytes()], &[&r.shaders.bake_normal]);
-    if let (Some(a), Some(n)) = (crate::bakes::get(&key, "albedo"), crate::bakes::get(&key, "normal")) {
-        let kept = |data: Vec<u8>, format| {
-            let mut img = atlas(format);
-            img.data = Some(data);
-            img
-        };
-        let (albedo, normal) = (images.add(kept(a, TextureFormat::Rgba8UnormSrgb)), images.add(kept(n, TextureFormat::Rgba8Unorm)));
-        return Baked { albedo, normal, centre, radius };
+    let n = asset.variants.max(1);
+    // made once, and belonging to the asset: its recipe, the bake's settings, its shader and the bake code make the
+    // key; a result made under it is read back without growing a master
+    let key = key_for(asset);
+    if let Some(id) = &asset.id
+        && let Some(params) = crate::bakes::valid(id, "impostor", &key)
+    {
+        let parts: Option<Vec<_>> = (0..n)
+            .map(|v| Some((crate::bakes::part(id, "impostor", &format!("albedo {v}"))?, crate::bakes::part(id, "impostor", &format!("normal {v}"))?)))
+            .collect();
+        if let Some(parts) = parts {
+            let f = |k: &str| params.get(k).and_then(|x| x.as_f64()).unwrap_or(0.0) as f32;
+            let variants = parts
+                .into_iter()
+                .map(|(a, nm)| (images.add(atlas(TextureFormat::Rgba8UnormSrgb, Some(a))), images.add(atlas(TextureFormat::Rgba8Unorm, Some(nm)))))
+                .collect();
+            return Baked { variants, centre: Vec3::new(f("x"), f("y"), f("z")), radius: f("radius") };
+        }
     }
-    let albedo = images.add(atlas(TextureFormat::Rgba8UnormSrgb));
-    let normal = images.add(atlas(TextureFormat::Rgba8Unorm));
+    // not made yet, or made from something else: grow each variant's master and photograph it
+    let masters: Vec<Mesh> = (0..n).map(|v| crate::library::master(asset, crate::library::variant_seed(v))).collect();
+    let (mut lo, mut hi) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
+    for m in &masters {
+        if let Some(bevy::mesh::VertexAttributeValues::Float32x3(pos)) = m.attribute(Mesh::ATTRIBUTE_POSITION) {
+            for p in pos {
+                lo = lo.min(Vec3::from(*p));
+                hi = hi.max(Vec3::from(*p));
+            }
+        }
+    }
+    if lo.x > hi.x {
+        (lo, hi) = (Vec3::ZERO, Vec3::ZERO);
+    }
+    let centre = (lo + hi) * 0.5;
+    let radius = ((hi - lo).length() * 0.5).max(0.01);
+    let keep = std::sync::Arc::new(Keep {
+        asset: asset.id.clone(),
+        key,
+        params: serde_json::json!({ "x": centre.x, "y": centre.y, "z": centre.z, "radius": radius, "variants": n, "frames": FRAMES, "res": RES }),
+        left: std::sync::Mutex::new(2 * n),
+    });
+    let mut variants = Vec::new();
+    for (v, mesh) in masters.into_iter().enumerate() {
+        let albedo = images.add(atlas(TextureFormat::Rgba8UnormSrgb, None));
+        let normal = images.add(atlas(TextureFormat::Rgba8Unorm, None));
+        shoot_master(commands, mesh, centre, radius, [(&albedo, format!("albedo {v}")), (&normal, format!("normal {v}"))], &keep, meshes, images, colours, normals);
+        variants.push((albedo, normal));
+    }
+    Baked { variants, centre, radius }
+}
+
+/// The key of an asset's impostor: its recipe, the bake's settings, its shader and the bake code (`bakes::key`).
+pub fn key_for(asset: &crate::library::Asset) -> String {
+    crate::bakes::key("impostor", &[&crate::library::recipe_bytes(asset), format!("{FRAMES} {RES}").as_bytes()], &[&crate::root::root().shaders.bake_normal])
+}
+
+/// Whether asset `asset`'s far view is made and current.
+pub fn current(asset: &crate::library::Asset) -> bool {
+    asset.id.as_deref().is_some_and(|id| crate::bakes::valid(id, "impostor", &key_for(asset)).is_some())
+}
+
+/// `--bake <asset id>`: every derived result of one asset that is not current, made and kept in avenDB, then quit.
+/// Run by the kernel's baker when an asset doc changes; a result already current makes it quit at once, writing
+/// nothing (so the change its own write makes ends here).
+#[derive(Resource)]
+pub struct BakeOne {
+    pub asset: String,
+    pub frames: u32,
+}
+
+pub fn bake_one(
+    mut commands: Commands,
+    mut job: ResMut<BakeOne>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut images: ResMut<Assets<Image>>,
+    mut colours: ResMut<Assets<StandardMaterial>>,
+    mut normals: ResMut<Assets<NormalBake>>,
+    mut exit: MessageWriter<AppExit>,
+) {
+    let Some(asset) = crate::library::load().into_values().find(|a| a.id.as_deref() == Some(job.asset.as_str())) else {
+        error!("--bake: no asset {}", job.asset);
+        exit.write(AppExit::error());
+        return;
+    };
+    if current(&asset) {
+        info!("--bake: {} is current", asset.name);
+        exit.write(AppExit::Success);
+        return;
+    }
+    if job.frames == 0 {
+        info!("--bake: {} ({} variants)", asset.name, asset.variants.max(1));
+        bake(&mut commands, &asset, &mut meshes, &mut images, &mut colours, &mut normals);
+    }
+    job.frames += 1;
+    // a bake takes about 160 frames and its read-backs a few more; one that has not finished in ten times that failed
+    if job.frames > 1600 {
+        error!("--bake: {} did not finish", asset.name);
+        exit.write(AppExit::error());
+    }
+}
+
+/// Sets up the cameras and copies that photograph one master into its two atlases.
+#[allow(clippy::too_many_arguments)]
+fn shoot_master(
+    commands: &mut Commands,
+    mesh: Mesh,
+    centre: Vec3,
+    radius: f32,
+    targets: [(&Handle<Image>, String); 2],
+    keep: &std::sync::Arc<Keep>,
+    meshes: &mut Assets<Mesh>,
+    images: &mut Assets<Image>,
+    colours: &mut Assets<StandardMaterial>,
+    normals: &mut Assets<NormalBake>,
+) {
     let m = meshes.add(mesh);
     let flat = colours.add(StandardMaterial { base_color: Color::WHITE, unlit: true, double_sided: true, cull_mode: None, ..default() });
     let ticks = FRAMES * FRAMES + 8 + WARM as u32;
@@ -193,7 +289,8 @@ pub fn bake(
     let (albedo_layer, normal_layer) = (FIRST_LAYER + 2 * pair, FIRST_LAYER + 2 * pair + 1);
     commands.spawn((Baking(ticks), Mesh3d(m.clone()), MeshMaterial3d(flat), RenderLayers::layer(albedo_layer), Transform::default()));
     commands.spawn((Baking(ticks), Mesh3d(m), MeshMaterial3d(normals.add(NormalBake {})), RenderLayers::layer(normal_layer), Transform::default()));
-    for (layer, target, format, part) in [(albedo_layer, &albedo, TextureFormat::Rgba8UnormSrgb, "albedo"), (normal_layer, &normal, TextureFormat::Rgba8Unorm, "normal")] {
+    let [(albedo, a_part), (normal, n_part)] = targets;
+    for (layer, target, format, part) in [(albedo_layer, albedo, TextureFormat::Rgba8UnormSrgb, a_part), (normal_layer, normal, TextureFormat::Rgba8Unorm, n_part)] {
         let views: Vec<Handle<Image>> = (0..FRAMES * FRAMES)
             .map(|_| {
                 let mut img = Image::new_target_texture(RES, RES, format, None);
@@ -205,7 +302,7 @@ pub fn bake(
         let first = views[0].clone();
         commands.spawn((
             Baking(ticks + 200),
-            Shooting { k: -WARM, centre, radius, views, atlas: target.clone(), got: Default::default(), keep: (key.clone(), part) },
+            Shooting { k: -WARM, centre, radius, views, atlas: target.clone(), got: Default::default(), keep: (keep.clone(), part) },
             Camera3d::default(),
             Camera { order: -100, clear_color: ClearColorConfig::Custom(Color::NONE), ..default() },
             RenderTarget::Image(first.into()),
@@ -221,7 +318,6 @@ pub fn bake(
             Transform::default(),
         ));
     }
-    Baked { albedo, normal, centre, radius }
 }
 
 /// Points each baking camera at its next view and its own small picture; once all are taken, reads them back and
@@ -260,7 +356,15 @@ fn shoot(mut commands: Commands, mut cams: Query<(&mut Shooting, &mut RenderTarg
                             && let Some(mut img) = images.get_mut(&atlas)
                         {
                             let data = std::mem::take(&mut g.0);
-                            crate::bakes::put(&keep.0, keep.1, &data);
+                            let (bake, part) = &keep;
+                            if let Some(asset) = &bake.asset {
+                                crate::bakes::keep_part(asset, "impostor", part, &data);
+                                let mut left = bake.left.lock().unwrap_or_else(|e| e.into_inner());
+                                *left = left.saturating_sub(1);
+                                if *left == 0 {
+                                    crate::bakes::seal(asset, "impostor", &bake.key, &bake.params);
+                                }
+                            }
                             img.data = Some(data);
                         }
                     },

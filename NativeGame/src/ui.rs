@@ -34,6 +34,8 @@ pub enum Act {
     Anchors,
     /// The Library's asset at this place on the shelf.
     Pick(usize),
+    /// The Library: the asset as its full mesh, or as its far view.
+    FarView,
 }
 
 /// When the current view opened, in real seconds since the start.
@@ -296,6 +298,11 @@ fn press(
             if let Some(mut shelf) = shelf {
                 shelf.at = k;
                 shelf.dirty = true;
+            }
+        }
+        Act::FarView => {
+            if let Some(mut shelf) = shelf {
+                shelf.far = !shelf.far;
             }
         }
         Act::PlayPause => {
