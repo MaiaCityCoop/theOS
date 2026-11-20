@@ -11,6 +11,7 @@
 //!     avendb publish <engine id> <binary> <source dir>...   a build of the engine, with its source tree; pins it
 //!     avendb pin <engine id> <build hash>                    pins an earlier build
 //!     avendb builds <engine id>                              the engine's builds, the pinned one marked
+//!     avendb bake <asset id>                                 the kernel's baker on one asset, by hand; waits its turn
 
 use avendb::AvenDb;
 use std::io::Write;
@@ -67,10 +68,11 @@ fn main() {
                 println!("{} {b}  {info}", if e.pinned.as_deref() == Some(b) { "*" } else { " " });
             }
         }
+        ["bake", id] => avendb::baker::bake(&db, id).unwrap_or_else(|e| fail(&e)),
         ["root"] => println!("{}", db.root().unwrap_or_else(|e| fail(&e)).unwrap_or_default()),
         ["root", id] => db.set_root(id).unwrap_or_else(|e| fail(&e)),
         ["forget", id] => db.forget(id).unwrap_or_else(|e| fail(&e)),
-        _ => fail("usage: avendb new <kind> <name> [file] | put <id> <file> | part <id> <part> <file> | cat <id> [hash] | ls | head <id> | root [<id>] | forget <id>"),
+        _ => fail("usage: avendb new <kind> <name> [file] | put <id> <file> | part <id> <part> <file> | cat <id> [hash] | ls | head <id> | root [<id>] | forget <id> | bake <asset id>"),
     }
 }
 
