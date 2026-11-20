@@ -4,7 +4,8 @@
 
 use crate::View;
 use crate::place::Site;
-use crate::world::{Eye, HAZE, SKY};
+use crate::place::PlaceEye as Eye;
+use crate::world::{HAZE, SKY};
 use bevy::light::CascadeShadowConfigBuilder;
 use bevy::pbr::DistanceFog;
 use bevy::prelude::*;

@@ -13,6 +13,7 @@
 use crate::View;
 use crate::rig::Walker;
 use crate::world::Plain;
+use bevy::pbr::{DistanceFog, FogFalloff};
 use bevy::asset::RenderAssetUsages;
 use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::prelude::*;
@@ -285,7 +286,50 @@ impl Ground {
 }
 
 pub fn plugin(app: &mut App) {
-    app.insert_resource(Site::mertola()).add_systems(OnEnter(View::Place), enter).add_systems(OnExit(View::Place), leave);
+    app.insert_resource(Site::mertola())
+        .add_systems(OnEnter(View::Place), (stage, enter).chain())
+        .add_systems(OnExit(View::Place), (leave, unstage));
+}
+
+/// The real place's own eye: a 3D camera with its haze, made when the place opens and gone when it closes (the
+/// dashboard's camera rests meanwhile).
+#[derive(Component)]
+pub struct PlaceEye;
+
+fn stage(mut commands: Commands, mut dash: Query<(Entity, &mut Camera), With<crate::world::Eye>>) {
+    for (e, mut c) in &mut dash {
+        c.is_active = false;
+        commands.entity(e).remove::<IsDefaultUiCamera>();
+    }
+    commands.spawn((
+        PlaceEye,
+        DespawnOnExit(View::Place),
+        IsDefaultUiCamera,
+        Camera3d::default(),
+        // after the dashboard's camera, should that still be on (a still taken straight into the place)
+        Camera { order: 1, ..default() },
+        Projection::Perspective(PerspectiveProjection { near: 0.05, far: 30_000.0, ..default() }),
+        Transform::from_xyz(0.0, 1.6, 0.0),
+        DistanceFog {
+            color: crate::world::HAZE,
+            falloff: FogFalloff::from_visibility_colors(6_000.0, crate::world::HAZE, crate::world::HAZE),
+            ..default()
+        },
+    ));
+    // the sun's light; `sun.rs` turns and colours it with the hour
+    commands.spawn((
+        DespawnOnExit(View::Place),
+        DirectionalLight { illuminance: 9_000.0, shadow_maps_enabled: true, ..default() },
+        bevy::light::CascadeShadowConfigBuilder { num_cascades: 3, first_cascade_far_bound: 40.0, maximum_distance: 600.0, ..default() }.build(),
+        Transform::from_xyz(0.3, 1.0, 0.4).looking_at(Vec3::ZERO, Vec3::Y),
+    ));
+}
+
+fn unstage(mut commands: Commands, mut dash: Query<(Entity, &mut Camera), With<crate::world::Eye>>) {
+    for (e, mut c) in &mut dash {
+        c.is_active = true;
+        commands.entity(e).insert(IsDefaultUiCamera);
+    }
 }
 
 pub fn hash(x: u32, y: u32, salt: u32) -> f32 {

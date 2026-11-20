@@ -6,7 +6,7 @@
 
 use crate::View;
 use crate::place::Ground;
-use crate::world::Eye;
+use crate::place::PlaceEye as Eye;
 use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::prelude::*;
 
@@ -100,7 +100,7 @@ pub struct Captures;
 
 pub fn plugin(app: &mut App) {
     app.insert_resource(Walker::new(0.0, 0.0, 0.0))
-        .add_systems(Update, drive.run_if(|s: Res<State<View>>| matches!(s.get(), View::Game | View::Place)));
+        .add_systems(Update, drive.run_if(|s: Res<State<View>>| matches!(s.get(), View::Place)));
 }
 
 #[allow(clippy::too_many_arguments)]

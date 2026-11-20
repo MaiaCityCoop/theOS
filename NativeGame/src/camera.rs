@@ -82,7 +82,32 @@ pub struct Shot {
     pub ease: Ease,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub why: String,
+    /// The shot's hour of the day (0 to 24), or `[from, to]` across the shot (a time-lapse). Without it the shot keeps
+    /// the hour it finds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hour: Option<Over>,
+    /// The shot's wind (0 calm to 2.5 a storm), or `[from, to]` across the shot. Without it the shot keeps the wind.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wind: Option<Over>,
     pub keys: Vec<Key>,
+}
+
+/// A value held through a shot, or one that runs from one value to another across it.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Over {
+    Held(f32),
+    Runs([f32; 2]),
+}
+
+impl Over {
+    /// The value at `q`, the share of the shot played.
+    pub fn at(&self, q: f32) -> f32 {
+        match *self {
+            Over::Held(v) => v,
+            Over::Runs([a, b]) => a + (b - a) * q,
+        }
+    }
 }
 
 /// A shot list, cut one shot after the other. The file holds `{ "clips": [...] }` like the legacy timelines.
@@ -185,7 +210,7 @@ fn key(pos: Vec3, look: Vec3, mm: f32, roll: f32) -> Key {
     Key { pos: pos.to_array(), look: look.to_array(), mm, roll }
 }
 fn shot(name: &str, kind: &str, secs: f32, ease: Ease, why: &str, keys: Vec<Key>) -> Shot {
-    Shot { name: name.into(), kind: kind.into(), secs, ease, why: why.into(), keys }
+    Shot { name: name.into(), kind: kind.into(), secs, ease, why: why.into(), hour: None, wind: None, keys }
 }
 
 /// Five shots of different sizes and moves over the plane, the same for the same seed.

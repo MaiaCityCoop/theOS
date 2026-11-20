@@ -3,30 +3,43 @@
 //!     cargo run                                   the app: the dashboard, Game and Studio
 //!     cargo run -- --still <shots.json> <s> <out.png>   an agent's still: the camera of a shot list at a time
 //!     cargo run -- --shots <seed> <out.json>      five new shots from a seed, kept as a shot list
+//!     cargo run -- --meadow <out.png> [hour]      measure the Meadow at 1080p for ten seconds, one picture, quit
 //!     cargo run -- --bake-place [lat lon]         a real place's package (Mértola's by default), from open data
 //!     cargo run -- --place-still <out.png> [km] [hour]  an agent's still of the real place, the map that many km across, at a solar hour
 
+mod biome;
 mod camera;
 mod canopy;
 mod dial;
 mod film;
+mod clouds;
+mod grass;
+mod impostor;
+mod lawn;
+mod library;
 mod map;
+mod meadow;
+mod patches;
 mod place;
 mod rig;
 mod sun;
+mod terrain;
 mod ui;
+mod wind;
+mod workshop;
 mod world;
 
 use bevy::prelude::*;
 use std::path::PathBuf;
 
-/// The three views of the app.
+/// The views of the app.
 #[derive(States, Default, Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum View {
     #[default]
     Home,
-    Game,
     Studio,
+    Meadow,
+    Library,
     Place,
 }
 
@@ -65,6 +78,11 @@ fn main() {
         (timeline, Still { time: args.get(3).and_then(|s| s.parse().ok()).expect(usage), out: args.get(4).expect(usage).into() })
     });
 
+    let measure = (args.get(1).map(String::as_str) == Some("--meadow")).then(|| {
+        let hour = args.get(3).and_then(|h| h.parse().ok()).unwrap_or(18.5);
+        (meadow::Measure { out: args.get(2).expect("--meadow <out.png> [hour]").into() }, meadow::Hour(hour))
+    });
+
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window {
@@ -74,9 +92,39 @@ fn main() {
             ..default()
         }),
         ..default()
-    }))
+    })
+    // the assets beside the code, however the binary is started: run directly (not by cargo), Bevy looked for them
+    // beside the binary, found no shaders or fonts, and drew the world without grass, ground or text
+    .set(AssetPlugin { file_path: concat!(env!("CARGO_MANIFEST_DIR"), "/assets").into(), ..default() }))
     .init_state::<View>()
-    .add_plugins((world::plugin, film::plugin, place::plugin, map::plugin, rig::plugin, sun::plugin, dial::plugin));
+    .add_plugins((world::plugin, film::plugin, meadow::plugin, wind::plugin, workshop::plugin, impostor::plugin, patches::plugin, lawn::plugin))
+    .add_plugins((place::plugin, map::plugin, rig::plugin, sun::plugin, dial::plugin));
+    if args.get(1).map(String::as_str) == Some("--shelf") {
+        let dir: PathBuf = args.get(2).expect("--shelf <dir>").into();
+        let _ = std::fs::create_dir_all(&dir);
+        app.add_plugins(ui::plugin)
+            .insert_resource(workshop::ShelfShots { dir })
+            .add_systems(Update, workshop::shelf_shots);
+        app.run();
+        return;
+    }
+    if args.get(1).map(String::as_str) == Some("--gate") {
+        let dir: PathBuf = args.get(2).expect("--gate <dir>").into();
+        let _ = std::fs::create_dir_all(&dir);
+        let anchors = std::fs::read_to_string(film::ANCHORS).expect("the anchors read");
+        let timeline = camera::Timeline::from_json(&anchors).expect("the anchors parse");
+        app.insert_resource(film::Studio::paused_at(timeline, 0.0))
+            .insert_resource(film::Gate { dir })
+            .insert_state(View::Studio)
+            .add_systems(Update, film::gate);
+        app.run();
+        return;
+    }
+    if let Some((m, hour)) = measure {
+        app.insert_resource(m).insert_resource(hour).insert_state(View::Meadow).add_systems(Update, meadow::measure);
+        app.run();
+        return;
+    }
     match (still, place_still) {
         (_, Some(still)) => {
             app.insert_resource(still).insert_state(View::Place).add_systems(Update, film::take_still);
@@ -95,6 +143,9 @@ fn main() {
         }
         (None, None) => {
             app.add_plugins(ui::plugin);
+            if args.get(1).map(String::as_str) == Some("--navtest") {
+                app.add_systems(Update, ui::navtest);
+            }
         }
     }
     app.run();
