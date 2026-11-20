@@ -40,9 +40,9 @@ impl Studio {
 }
 
 /// The kept shot list the Studio opens with.
-pub const FIRST_SHOTS: &str = "timelines/first-shots.json";
+pub const FIRST_SHOTS: &str = "first-shots.shots";
 /// The Meadow's storytelling anchors: the same four shots at every stage of the scene.
-pub const ANCHORS: &str = "timelines/meadow-anchors.json";
+pub const ANCHORS: &str = "meadow-anchors.shots";
 
 /// A shot list: the avenDB doc `id`, or else a file at that path (a list an agent wrote).
 pub fn shots(id: &str) -> Option<Timeline> {

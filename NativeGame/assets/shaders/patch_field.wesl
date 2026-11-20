@@ -10,7 +10,7 @@ import bevy_pbr::render::{
     pbr_types,
     pbr_functions::{apply_pbr_lighting, main_pass_post_lighting_processing, calculate_view},
 };
-import super::wind::{thash, land, bare};
+import package::wind::{thash, land, bare};
 
 struct Params {
     // xyz: the master's centre, w: the radius of its sphere

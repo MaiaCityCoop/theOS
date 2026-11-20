@@ -74,9 +74,9 @@ impl FromWorld for Fonts {
     fn from_world(world: &mut World) -> Self {
         let assets = world.resource::<AssetServer>();
         Fonts {
-            serif: assets.load("fonts/DMSerifDisplay-Regular.ttf"),
-            sans: assets.load("fonts/DMSans-Variable.ttf"),
-            mono: assets.load("fonts/DMMono-Regular.ttf"),
+            serif: assets.load("DMSerifDisplay-Regular.ttf"),
+            sans: assets.load("DMSans-Variable.ttf"),
+            mono: assets.load("DMMono-Regular.ttf"),
         }
     }
 }

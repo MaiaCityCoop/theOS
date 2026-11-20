@@ -75,7 +75,7 @@ pub struct NormalBake {}
 
 impl Material for NormalBake {
     fn fragment_shader() -> ShaderRef {
-        "shaders/bake_normal.wesl".into()
+        "bake_normal.wesl".into()
     }
 }
 
@@ -110,10 +110,10 @@ impl Material for Impostor {
         false
     }
     fn vertex_shader() -> ShaderRef {
-        "shaders/impostor.wesl".into()
+        "impostor.wesl".into()
     }
     fn fragment_shader() -> ShaderRef {
-        "shaders/impostor.wesl".into()
+        "impostor.wesl".into()
     }
 }
 

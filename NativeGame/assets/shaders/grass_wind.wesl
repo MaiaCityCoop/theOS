@@ -4,7 +4,7 @@ import bevy_pbr::render::{
     forward_io::{Vertex, VertexOutput, decompress_vertex},
     view_transformations::position_world_to_clip,
 };
-import super::wind::{Wind, Blade, sway, sink, blade, slot_of};
+import package::wind::{Wind, Blade, sway, sink, blade, slot_of};
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(100) var<uniform> wind: Wind;
 

@@ -81,8 +81,8 @@ fn tags(head: &[u8]) -> Option<std::collections::HashMap<u16, (u16, u64, u64)>> 
 fn read_tile(tx: u32, ty: u32, want: ((f64, f64), (f64, f64))) -> Option<Window> {
     let url = format!("{URL}/{}.tif", quadkey(tx, ty));
     // the header: the directory and the strips' offsets and sizes, which this map keeps in its first megabyte
-    // kept in avenDB once fetched, as the doc `earth/chm/<quadkey>.head`
-    let id = format!("earth/chm/{}.head", quadkey(tx, ty));
+    // kept in avenDB once fetched, as the doc `chm-<quadkey>.head`
+    let id = format!("chm-{}.head", quadkey(tx, ty));
     let db = crate::db();
     let head = match db.file(&id).ok().flatten() {
         Some(h) => h,
@@ -109,8 +109,8 @@ fn read_tile(tx: u32, ty: u32, want: ((f64, f64), (f64, f64))) -> Option<Window>
     let off = |r: usize| u64_at(offsets_at + 8 * r);
     let len = |r: usize| u64_at(counts_at + 8 * r);
     let (a, b) = (off(r0)?, off(r1)? + len(r1)? - 1);
-    // the rows, kept in avenDB once fetched (`earth/chm/<quadkey>.<from>-<to>`), as everything the Earth is made from
-    let id = format!("earth/chm/{}.{a}-{b}", quadkey(tx, ty));
+    // the rows, kept in avenDB once fetched (`chm-<quadkey>.<from>-<to>`), as everything the Earth is made from
+    let id = format!("chm-{}.{a}-{b}", quadkey(tx, ty));
     let db = crate::db();
     let bytes = match db.file(&id).ok().flatten() {
         Some(b) => b,

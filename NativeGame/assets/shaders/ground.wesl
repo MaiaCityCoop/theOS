@@ -10,7 +10,7 @@ import bevy_pbr::{
         mesh_view_bindings::view,
     },
 };
-import super::wind::{tnoise, thash};
+import package::wind::{tnoise, thash};
 
 struct Biome {
     colours: array<vec4<f32>, 8>,

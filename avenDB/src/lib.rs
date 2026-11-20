@@ -31,6 +31,14 @@ fn err(e: impl std::fmt::Display) -> String {
 /// The doc ids' tags in the store: `doc/<id>` → the doc's latest snapshot.
 const DOC: &str = "doc/";
 
+/// A doc's id is one flat name, as `ground.wesl`, `clover.asset` or `mertola.place`: no folders.
+fn flat(id: &str) -> Result<()> {
+    if id.is_empty() || id.contains(['/', '\\']) {
+        return Err(format!("a doc's id is one flat name, not a path: {id:?}"));
+    }
+    Ok(())
+}
+
 /// The store.
 pub struct AvenDb {
     rt: tokio::runtime::Runtime,
@@ -40,9 +48,13 @@ pub struct AvenDb {
 }
 
 impl AvenDb {
-    /// The store of this repository: `avenDB/data/` beside this crate.
+    /// The store of this machine: `~/avenDB`, one for every checkout, session and tool on it (`AVENDB` names
+    /// another).
     pub fn here() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+        if let Ok(d) = std::env::var("AVENDB") {
+            return d.into();
+        }
+        Path::new(&std::env::var("HOME").unwrap_or_else(|_| ".".into())).join("avenDB")
     }
 
     /// Opens (or makes) the store in `dir`.
@@ -122,6 +134,7 @@ impl AvenDb {
 
     /// Keeps `doc` as the latest version of `id`; returns the hash that names this version.
     pub fn commit(&self, id: &str, doc: &LoroDoc) -> Result<Hash> {
+        flat(id)?;
         doc.commit();
         let snapshot = doc.export(ExportMode::Snapshot).map_err(err)?;
         let hash = self.put(snapshot)?;
@@ -209,6 +222,35 @@ impl AvenDb {
             return Ok(self.get(h)?.ok_or_else(|| format!("no blob {h}"))?.to_vec());
         }
         Ok(doc.get_text("text").to_string().into_bytes())
+    }
+}
+
+// ---- parts: a doc that holds several files, each a blob by name (a place's height, cover, map layers) ----
+
+impl AvenDb {
+    /// Keeps `bytes` as the part `name` of doc `id` (a blob the doc names in its map `parts`). Unchanged, nothing is
+    /// committed. Returns the doc's version hash.
+    pub fn set_part(&self, id: &str, name: &str, bytes: &[u8]) -> Result<Hash> {
+        let blob = self.put(bytes.to_vec())?.to_hex().to_string();
+        let doc = self.doc(id)?;
+        let parts = doc.get_map("parts");
+        if let Some(h) = self.head(id)?
+            && parts.get(name).and_then(|v| v.into_value().ok()).and_then(|v| v.into_string().ok()).is_some_and(|b| *b == blob)
+        {
+            return Ok(h);
+        }
+        parts.insert(name, blob).map_err(err)?;
+        self.commit(id, &doc)
+    }
+
+    /// The part `name` of doc `id`, at its current version.
+    pub fn part(&self, id: &str, name: &str) -> Result<Option<Bytes>> {
+        let Some(h) = self.head(id)? else { return Ok(None) };
+        let doc = self.doc_at(h)?;
+        let Some(b) = doc.get_map("parts").get(name).and_then(|v| v.into_value().ok()).and_then(|v| v.into_string().ok()) else {
+            return Ok(None);
+        };
+        self.get(b.parse().map_err(err)?)
     }
 }
 

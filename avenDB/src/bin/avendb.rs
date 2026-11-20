@@ -1,8 +1,9 @@
 //! avenDB from the shell, for people and agents.
 //!
-//!     avendb import <dir> [prefix]   every file under <dir> as a doc, its id [prefix/]its path in <dir> (unchanged ones commit nothing)
+//!     avendb import <dir>            every file in <dir> as a doc, its id the file's name (flat; unchanged ones commit nothing)
 //!     avendb put <id> <file>         a file as doc <id>
 //!     avendb cat <id> [hash]         doc <id>'s file now (or at the version <hash>)
+//!     avendb part <id> <name> <file>  a file as the part <name> of doc <id>
 //!     avendb ls                      every doc and the hash of its current version
 //!     avendb head <id>               the hash of doc <id>'s current version
 
@@ -12,13 +13,12 @@ use std::path::Path;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let db = AvenDb::open(std::env::var("AVENDB").map(Into::into).unwrap_or_else(|_| AvenDb::here())).unwrap_or_else(|e| fail(&e));
+    let db = AvenDb::open(AvenDb::here()).unwrap_or_else(|e| fail(&e));
     match args.iter().map(String::as_str).collect::<Vec<_>>()[..] {
-        ["import", dir] | ["import", dir, _] => {
-            let prefix = args.get(2).map(|p| format!("{}/", p.trim_end_matches('/'))).unwrap_or_default();
+        ["import", dir] => {
             let (mut n, mut changed) = (0, 0);
             for file in walk(Path::new(dir)) {
-                let id = prefix.clone() + &file.strip_prefix(dir).unwrap().components().map(|c| c.as_os_str().to_string_lossy()).collect::<Vec<_>>().join("/");
+                let id = file.file_name().unwrap().to_string_lossy().into_owned();
                 let before = db.head(&id).unwrap_or_else(|e| fail(&e));
                 let bytes = std::fs::read(&file).unwrap_or_else(|e| fail(&e.to_string()));
                 let after = db.set_file(&id, &bytes).unwrap_or_else(|e| fail(&e));
@@ -36,6 +36,10 @@ fn main() {
         }
         ["cat", id] => out(db.file(id).unwrap_or_else(|e| fail(&e)).unwrap_or_else(|| fail(&format!("no doc {id}")))),
         ["cat", _id, hash] => out(db.file_at(hash.parse().unwrap_or_else(|_| fail("not a hash"))).unwrap_or_else(|e| fail(&e))),
+        ["part", id, name, file] => {
+            let bytes = std::fs::read(file).unwrap_or_else(|e| fail(&e.to_string()));
+            println!("{}", db.set_part(id, name, &bytes).unwrap_or_else(|e| fail(&e)));
+        }
         ["ls"] => {
             for (id, h) in db.docs().unwrap_or_else(|e| fail(&e)) {
                 println!("{h}  {id}");

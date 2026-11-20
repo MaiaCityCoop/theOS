@@ -57,8 +57,8 @@ pub fn date(day: u32) -> String {
 }
 
 fn spawn(mut commands: Commands, assets: Res<AssetServer>, still: Option<Res<crate::Still>>) {
-    let sans: Handle<Font> = assets.load("fonts/DMSans-Variable.ttf");
-    let mono: Handle<Font> = assets.load("fonts/DMMono-Regular.ttf");
+    let sans: Handle<Font> = assets.load("DMSans-Variable.ttf");
+    let mono: Handle<Font> = assets.load("DMMono-Regular.ttf");
     let txt = |font: &Handle<Font>, size: f32, color: Color, words: &str| {
         (Text::new(words), TextFont { font: font.clone().into(), font_size: FontSize::Px(size), ..default() }, TextColor(color))
     };

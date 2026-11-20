@@ -24,12 +24,12 @@ fn blobs_round_trip_by_hash() {
 #[test]
 fn every_version_of_a_doc_reads_back() {
     let (db, dir) = fresh("docs");
-    let v1 = db.set_text("shaders/wind", "one").unwrap();
-    let v2 = db.set_text("shaders/wind", "one two").unwrap();
-    let v3 = db.set_text("shaders/wind", "one two three").unwrap();
-    assert_eq!(db.set_text("shaders/wind", "one two three").unwrap(), v3, "the same text commits nothing");
-    assert_eq!(db.head("shaders/wind").unwrap(), Some(v3));
-    assert_eq!(db.text("shaders/wind").unwrap().as_deref(), Some("one two three"));
+    let v1 = db.set_text("wind.wesl", "one").unwrap();
+    let v2 = db.set_text("wind.wesl", "one two").unwrap();
+    let v3 = db.set_text("wind.wesl", "one two three").unwrap();
+    assert_eq!(db.set_text("wind.wesl", "one two three").unwrap(), v3, "the same text commits nothing");
+    assert_eq!(db.head("wind.wesl").unwrap(), Some(v3));
+    assert_eq!(db.text("wind.wesl").unwrap().as_deref(), Some("one two three"));
     for (v, want) in [(v1, "one"), (v2, "one two"), (v3, "one two three")] {
         assert_eq!(db.doc_at(v).unwrap().get_text("text").to_string(), want);
     }
@@ -38,15 +38,15 @@ fn every_version_of_a_doc_reads_back() {
     let at_v1 = db.doc_at(v1).unwrap().state_frontiers();
     let fork = first.fork_at(&at_v1).unwrap();
     fork.get_text("text").insert(3, " and a fork").unwrap();
-    let f = db.commit("shaders/wind-fork", &fork).unwrap();
+    let f = db.commit("wind-fork.wesl", &fork).unwrap();
     assert_eq!(db.doc_at(f).unwrap().get_text("text").to_string(), "one and a fork");
-    assert_eq!(db.text("shaders/wind").unwrap().as_deref(), Some("one two three"), "the fork leaves its source alone");
+    assert_eq!(db.text("wind.wesl").unwrap().as_deref(), Some("one two three"), "the fork leaves its source alone");
     let ids: Vec<String> = db.docs().unwrap().into_iter().map(|(id, _)| id).collect();
-    assert_eq!(ids, ["shaders/wind", "shaders/wind-fork"]);
+    assert_eq!(ids, ["wind-fork.wesl", "wind.wesl"]); // in byte order
     drop(db);
     // and it is all still there when the store opens again
     let db = AvenDb::open(&dir).unwrap();
-    assert_eq!(db.text("shaders/wind").unwrap().as_deref(), Some("one two three"));
+    assert_eq!(db.text("wind.wesl").unwrap().as_deref(), Some("one two three"));
     assert_eq!(db.doc_at(v1).unwrap().get_text("text").to_string(), "one");
     drop(db);
     let _ = std::fs::remove_dir_all(dir);
@@ -56,15 +56,28 @@ fn every_version_of_a_doc_reads_back() {
 fn a_second_process_reaches_the_store_through_its_owner() {
     let (owner, dir) = fresh("shared");
     assert!(owner.owns());
-    let v1 = owner.set_text("recipes/meadow", "grass").unwrap();
+    let v1 = owner.set_text("meadow.biome", "grass").unwrap();
     // a second opening, as `avendb` in a shell while the app runs
     let other = AvenDb::open(&dir).expect("the second opening reaches the owner");
     assert!(!other.owns());
-    assert_eq!(other.text("recipes/meadow").unwrap().as_deref(), Some("grass"));
-    let v2 = other.set_text("recipes/meadow", "grass and clover").unwrap();
+    assert_eq!(other.text("meadow.biome").unwrap().as_deref(), Some("grass"));
+    let v2 = other.set_text("meadow.biome", "grass and clover").unwrap();
     assert_ne!(v1, v2);
-    assert_eq!(owner.text("recipes/meadow").unwrap().as_deref(), Some("grass and clover"), "the owner sees the other's commit");
+    assert_eq!(owner.text("meadow.biome").unwrap().as_deref(), Some("grass and clover"), "the owner sees the other's commit");
     drop(other);
     drop(owner);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn ids_are_flat_and_parts_are_blobs() {
+    let (db, dir) = fresh("flat");
+    assert!(db.set_text("shaders/wind.wesl", "x").is_err(), "no folders in an id");
+    db.set_part("mertola.place", "height.bin", &[1, 2, 3]).unwrap();
+    let v = db.set_part("mertola.place", "cover.bin", &[10, 20]).unwrap();
+    assert_eq!(db.set_part("mertola.place", "cover.bin", &[10, 20]).unwrap(), v, "unchanged commits nothing");
+    assert_eq!(db.part("mertola.place", "height.bin").unwrap().unwrap().as_ref(), &[1, 2, 3]);
+    assert!(db.part("mertola.place", "trees.bin").unwrap().is_none());
+    drop(db);
     let _ = std::fs::remove_dir_all(dir);
 }
