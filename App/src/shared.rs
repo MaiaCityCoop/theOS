@@ -15,7 +15,19 @@ struct Module(#[allow(dead_code)] Handle<Shader>);
 
 pub fn plugin(app: &mut App) {
     let handle = app.world_mut().resource_mut::<Assets<Shader>>().add(Shader::from_wesl(wgsl(), PATH));
-    app.insert_resource(Module(handle));
+    app.insert_resource(Module(handle)).add_systems(Update, follow_biome);
+}
+
+/// The module reads the biome (where the ground is bare): when a scene sets another biome, it is written again, and
+/// the shaders that import it are made again with it.
+fn follow_biome(module: Res<Module>, mut shaders: ResMut<Assets<Shader>>, mut seen: Local<u64>) {
+    let now = crate::biome::generation();
+    if *seen != now {
+        *seen = now;
+        if let Some(mut s) = shaders.get_mut(&module.0) {
+            *s = Shader::from_wesl(wgsl(), PATH);
+        }
+    }
 }
 
 /// The module's source.

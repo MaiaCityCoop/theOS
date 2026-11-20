@@ -101,14 +101,27 @@ pub fn fetch((name, url): (&str, &str)) -> Option<thedb::Bytes> {
     if let Ok(Some(b)) = db.part(earth, url) {
         return Some(b);
     }
-    if db.part(earth, &format!("none {url}")).ok().flatten().is_some() {
+    // a source the server said is not there (404: an ocean tile, say) is not asked again; an empty marker is one an
+    // older build wrote on any failure, even a local one, so it is asked again
+    if db.part(earth, &format!("none {url}")).ok().flatten().is_some_and(|m| m.as_ref() == b"404") {
         return None;
     }
     eprintln!("fetching {name}");
-    // downloaded beside the build, then kept in theDB; the download itself is not kept
-    let part = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("target/{name}.part"));
-    let ok = std::process::Command::new("curl").args(["-sSfL", "--retry", "2", "-o"]).arg(&part).arg(url).status().is_ok_and(|s| s.success());
-    let got = if ok { std::fs::read(&part).ok() } else { None };
+    // downloaded into the store's cache, then kept in theDB; the download itself is not kept
+    let dir = db.dir().join("cache").join("download");
+    let _ = std::fs::create_dir_all(&dir);
+    let part = dir.join(format!("{name}.{}.part", std::process::id()));
+    let status = std::process::Command::new("curl")
+        .args(["-sSL", "--retry", "2", "-w", "%{http_code}", "-o"])
+        .arg(&part)
+        .arg(url)
+        .output()
+        .ok()
+        .map(|o| (o.status.success(), String::from_utf8_lossy(&o.stdout).trim().to_string()));
+    let got = match &status {
+        Some((true, code)) if code.starts_with('2') => std::fs::read(&part).ok(),
+        _ => None,
+    };
     let _ = std::fs::remove_file(&part);
     match got {
         Some(b) => {
@@ -116,7 +129,12 @@ pub fn fetch((name, url): (&str, &str)) -> Option<thedb::Bytes> {
             Some(b.into())
         }
         None => {
-            let _ = db.set_part(earth, &format!("none {url}"), &[]);
+            // only the server's own "not there" is remembered; a failed connection or a full disk is tried again
+            if matches!(&status, Some((true, code)) if code == "404") {
+                let _ = db.set_part(earth, &format!("none {url}"), b"404");
+            } else {
+                eprintln!("could not fetch {name}: {status:?}");
+            }
             None
         }
     }

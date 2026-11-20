@@ -89,7 +89,15 @@ pub fn set(b: Biome) {
     if let Ok(mut c) = CURRENT.write() {
         *c = Some(b);
     }
+    GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
+
+/// How many times the biome was set: what reads it (the shared shader module) writes itself again when this moves.
+pub fn generation() -> u64 {
+    GENERATION.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+static GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 impl Biome {
     /// Per square metre of an asset (0 if the recipe does not place it).
@@ -122,7 +130,7 @@ impl Biome {
                 // (the grass's `bare` reads this same noise)
                 Layer {
                     grass: false,
-                    ..layer("sandy earth", [0.13, 0.10, 0.068], 1.0, crate::terrain::BARE_CELL, crate::terrain::BARE_FROM, crate::terrain::BARE_SOFT, 1.0)
+                    ..layer("sandy earth", [0.13, 0.10, 0.068], 1.0, 16.0, 0.74, 0.06, 1.0)
                 },
             ],
             relief: 0.6,

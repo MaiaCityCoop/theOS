@@ -1,7 +1,7 @@
 ---
 id: "0052"
 title: One tidy root
-state: build           # idea | define | build | propose | story | archived
+state: propose         # idea | define | build | propose | story | archived
 outcome:               # accepted | rejected, set only when archived
 opened: 2026-11-20
 story:                 # Stories/0052-slug/, set at propose
@@ -65,6 +65,22 @@ Samuel asked for the work outright; it holds no surprise beyond his words, so it
 
 ## Propose
 
+**Delivered:** the root as Samuel asked: API, App (theOS, theKERNEL, theDB in one workspace), Artifacts, Brand,
+Compass, DATA (the store, ignored by git; its caches in `DATA/cache/`), Deploy, Intents, Research, Server, Stories,
+TheGame, Website. avenDB is theDB everywhere; theOS starts as `theOS.app`; the video is an artifact.
+
+**Checks, as they were**
+
+| # | Result | Evidence |
+| --- | --- | --- |
+| 1 | passed | the website builds from `Website/`; CI's bundle passed; next served the merge (`cfb67375`), website and game 200 |
+| 2–4 | passed | no live reference to an old folder outside Intents, Stories and Research (git grep); CI on Linux found one more (`Server/repo.js`, `brand` in lowercase), fixed |
+| 5 | passed | the workspace's tests and build through theDB's check; theKERNEL starts theOS from `DATA/` |
+| 6 | passed | `bun Artifacts/artifacts.js check` |
+
+**Known gaps:** old intents and stories keep the old paths (history); the shared build folder re-links a binary only
+when its own crate changes, so two views building one after the other can leave the other's binary in place.
+
 ## Story
 
 ## Archived
@@ -78,7 +94,7 @@ Samuel asked for the work outright; it holds no surprise beyond his words, so it
 - [x] 3 Research
 - [x] 4 Capitals
 - [x] 5 The engine: App (theOS, theKERNEL, theDB), DATA
-- [ ] Large blobs over the store's connection (publish and the lawn while theOS runs)
+- [x] Large blobs over the store's connection (streamed in pieces; a publish while theOS runs passed)
 - [ ] Follow-ups: format versions per doc and the kernel as a pinned doc; sccache stored in theDB
 - [x] 6 The artifact
 
