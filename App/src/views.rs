@@ -123,20 +123,7 @@ pub struct OpenDoc(pub String);
 pub struct Drawn;
 
 pub fn colour(token: &str) -> Color {
-    use crate::ui::*;
-    if let Some(hex) = token.strip_prefix('#') {
-        return Srgba::hex(hex).map(Color::from).unwrap_or(FOREST);
-    }
-    match token {
-        "paper" => PAPER,
-        "cream" => CREAM,
-        "sand" => SAND,
-        "forest2" => FOREST2,
-        "clay" => CLAY,
-        "sun" => SUN,
-        "glass" => GLASS,
-        _ => FOREST,
-    }
+    crate::theme::colour(token)
 }
 
 /// The view a doc opens, from its kind: a shot list the Studio, the world the Game.

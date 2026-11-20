@@ -8,15 +8,6 @@ use bevy::picking::events::{PointerClick, PointerDrag, PointerPress};
 use bevy::picking::hover::Hovered;
 use bevy::ui::UiGlobalTransform;
 
-// brand/brand.css, :root
-pub(crate) const PAPER: Color = Color::srgb(0.969, 0.941, 0.890); // --paper #f7f0e3
-pub(crate) const CREAM: Color = Color::srgb(0.984, 0.965, 0.918); // --cream #fbf6ea
-pub(crate) const SAND: Color = Color::srgb(0.925, 0.882, 0.800); // --sand #ece1cc
-pub(crate) const FOREST: Color = Color::srgb(0.090, 0.212, 0.333); // --forest #173655
-pub(crate) const FOREST2: Color = Color::srgb(0.275, 0.349, 0.431); // --forest2 #46596e
-pub(crate) const CLAY: Color = Color::srgb(0.310, 0.616, 0.204); // --clay #4f9d34
-pub(crate) const SUN: Color = Color::srgb(0.949, 0.710, 0.267); // --sun #f2b544
-pub(crate) const GLASS: Color = Color::srgba(0.984, 0.965, 0.918, 0.82);
 
 #[derive(Resource)]
 pub struct Fonts {
@@ -117,11 +108,11 @@ pub(crate) fn strip_follows(mut commands: Commands, f: Res<Fonts>, s: Res<Studio
                     border_radius: BorderRadius::all(Val::Px(16.0)),
                     ..default()
                 },
-                BackgroundColor(SAND),
+                BackgroundColor(crate::theme::colour("sand")),
                 Pickable::IGNORE,
                 children![
-                    (text(&f.sans, 15.0, FOREST, c.name.clone()), Pickable::IGNORE),
-                    (text(&f.mono, 12.0, FOREST2, format!("{} · {:.0} mm · {:.1} s", c.kind, mm, c.secs)), Pickable::IGNORE),
+                    (text(&f.sans, 15.0, crate::theme::colour("forest"), c.name.clone()), Pickable::IGNORE),
+                    (text(&f.mono, 12.0, crate::theme::colour("forest2"), format!("{} · {:.0} mm · {:.1} s", c.kind, mm, c.secs)), Pickable::IGNORE),
                 ],
             ));
         }
@@ -129,7 +120,7 @@ pub(crate) fn strip_follows(mut commands: Commands, f: Res<Fonts>, s: Res<Studio
             Playhead,
             Pickable::IGNORE,
             Node { position_type: PositionType::Absolute, top: Val::Px(-4.0), bottom: Val::Px(-4.0), width: Val::Px(3.0), border_radius: BorderRadius::MAX, ..default() },
-            BackgroundColor(SUN),
+            BackgroundColor(crate::theme::colour("sun")),
         ));
     });
 }

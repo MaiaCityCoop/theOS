@@ -59,15 +59,17 @@ pub struct Aim;
 pub fn plugin(app: &mut App) {
     // the walker starts in the middle of a 10 m square, between the grid's stronger lines
     app.insert_resource(Studio::paused_at(shots(timeline()).expect("the root's timeline reads and parses"), 0.0))
-        .insert_resource(Walker { pos: Vec3::new(5.5, 0.0, 5.5), yaw: 0.0, pitch: -4.0 })
-        .add_systems(Startup, |module: Option<Res<crate::module::WorldModule>>, mut w: ResMut<Walker>| w.pos.y = module.map_or(0.0, |m| m.eye_height()))
+        .insert_resource(Walker { pos: Vec3::ZERO, yaw: 0.0, pitch: -4.0 })
+        .add_systems(Startup, |module: Option<Res<crate::module::WorldModule>>, mut w: ResMut<Walker>| {
+            if let Some(m) = module {
+                w.pos = Vec3::new(m.start_x(), m.eye_height(), m.start_z());
+            }
+        })
         .add_observer(capture)
         .add_systems(Update, (choose_world, (walk.run_if(in_state(View::Game)), play.run_if(in_state(View::Studio))).in_set(Aim)));
 }
 
 /// The walker's eye height range: just above the grid's lines up to 12 km, as the legacy game's camera.
-const LOWEST: f32 = 0.1;
-const HIGHEST: f32 = 12_000.0;
 
 #[allow(clippy::too_many_arguments)]
 fn walk(
@@ -87,30 +89,27 @@ fn walk(
         walker.yaw += motion.delta.x * 0.12;
         walker.pitch = (walker.pitch - motion.delta.y * 0.12).clamp(-89.0, 89.0);
     }
-    // rise and sink: each notch of the wheel multiplies the eye's height, so a few take it from the ground to 12 km
+    // how one moves is the world module's: its pace, its limits, its lens; theOS only maps the keys and the mouse
+    let Some(m) = module else { return };
+    let (lowest, highest) = (m.lowest(), m.highest());
     let notches = match scroll.unit {
         bevy::input::mouse::MouseScrollUnit::Line => scroll.delta.y,
         bevy::input::mouse::MouseScrollUnit::Pixel => scroll.delta.y / 40.0,
     };
     if notches != 0.0 {
-        walker.pos.y = (walker.pos.y * 1.18f32.powf(-notches)).clamp(LOWEST, HIGHEST);
+        walker.pos.y = (walker.pos.y * m.rise_per_notch().powf(-notches)).clamp(lowest, highest);
     }
     let (sy, cy) = walker.yaw.to_radians().sin_cos();
     let (ahead, right) = (Vec3::new(sy, 0.0, -cy), Vec3::new(cy, 0.0, sy));
     let axis = |a: KeyCode, b: KeyCode| (keys.pressed(a) as i32 - keys.pressed(b) as i32) as f32;
-    let m = (ahead * axis(KeyCode::KeyW, KeyCode::KeyS) + right * axis(KeyCode::KeyD, KeyCode::KeyA)
-        + Vec3::Y * axis(KeyCode::KeyE, KeyCode::KeyQ))
-    .normalize_or_zero();
-    // walking pace at eye height, faster the higher the eye, as a flight over the land would feel
-    let run = if keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]) { 4.5 } else { 1.0 };
-    // faster the higher the eye is above where it starts (the world's module says where)
-    let start = module.as_ref().map_or(1.0, |m| m.eye_height().max(0.01));
-    let speed = 4.0 * run * (walker.pos.y / start).max(1.0).powf(0.9);
-    walker.pos += m * speed * time.delta_secs();
-    walker.pos.y = walker.pos.y.clamp(LOWEST, HIGHEST);
+    let dir = (ahead * axis(KeyCode::KeyW, KeyCode::KeyS) + right * axis(KeyCode::KeyD, KeyCode::KeyA) + Vec3::Y * axis(KeyCode::KeyE, KeyCode::KeyQ)).normalize_or_zero();
+    let running = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
+    let speed = m.walk_speed(walker.pos.y, running);
+    walker.pos += dir * speed * time.delta_secs();
+    walker.pos.y = walker.pos.y.clamp(lowest, highest);
     let (sp, cp) = walker.pitch.to_radians().sin_cos();
     let at = walker.pos;
-    *eye = Eye { pos: at, look: at + Vec3::new(sy * cp, sp, -cy * cp), roll: 0.0, lens: Lens { mm: 35.0, ..default() } };
+    *eye = Eye { pos: at, look: at + Vec3::new(sy * cp, sp, -cy * cp), roll: 0.0, lens: Lens { mm: m.lens_mm(), ..default() } };
 }
 
 /// A click into the world (not on the interface) captures the mouse for looking; Escape lets it go.

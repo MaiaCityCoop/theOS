@@ -55,6 +55,16 @@ Samuel asked for the work outright; it went straight to Build.
   agent claude: `theOS` (the dashboard, engine, kernel, fonts, layers) made of `This is day 1` (the timeline), made of
   `the green world` and `the blue world` (each its world, module, shader and schema); the root names `theOS`.
 
+- **Locks: the system by one hash** (`App/theDB/src/lock.rs`). `theDB lock` pins everything the root reaches (the
+  top vibe whole, every doc at its version, every blob), signed by the master or the host, kept as a blob: its hash
+  is the system's. `THEDB_LOCK=<hash>` opens any process there, read only; `theKERNEL --at <hash>` starts the engine
+  build the lock pins, at the lock.
+- **The audit: host or dynamic.** Host (git): theKERNEL, theDB, the doc renderer (`views.rs`), the world renderer
+  and the wasm host, the shot player and its maths, input, the core chrome (pill, setup, theDB view). Moved out this
+  round: the palette (a theme doc, with a schema; the host keeps the brand palette only for a store with none) and how
+  one walks (pace, run, limits, wheel, lens, start: the world module). Still host, to move next: the look speed, the
+  pill's and setup's own sizes, the "five new shots" ease kit.
+
 **Checks, as they ran** (on a copy of the live store): an agent's write to main refused; an agent's proposal accepted
 through the pill by `--navtest` (all steps passed); `theDB verify` clean (45 heads); a world with `"ground": "blue"`
 refused by its schema; the gate's pictures of the two shots, green and blue; `cargo test --workspace` passed.
@@ -89,6 +99,8 @@ Keychain, not made and held by the agent's session alone.
 
 - **Asked:** the items above.
 - **Delivered:** all five, checked on a copy of the store; Samuel accepted the live proposal.
+- **Asked:** start the system from a vibe version; audit host against dynamic. **Delivered:** locks and
+  `theKERNEL --at`, checked by a navtest at a lock; the palette and the walking moved out; proposed for Samuel.
 - **Asked:** vibes. **Delivered:** the vibe kind and schema, `theDB vibe`, day 1 as four vibes, proposed for Samuel.
 
 ## Trail

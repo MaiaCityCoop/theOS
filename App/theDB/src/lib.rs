@@ -125,6 +125,15 @@ pub struct TheDB {
     /// The key this process signs its commits with (`access`): the master's or an agent's, from the Keychain.
     /// Read from the Keychain the first time it is needed, so a master made while this process runs is used too.
     signer: std::sync::Mutex<Option<access::SecretKey>>,
+    /// The lock this process runs at (`lock.rs`): every doc read at the version it pins, nothing written.
+    lock: Option<Locked>,
+}
+
+/// A lock this process runs at.
+pub(crate) struct Locked {
+    pub hash: Hash,
+    pub root: String,
+    pub docs: std::collections::BTreeMap<String, Hash>,
 }
 
 /// Now, in seconds since 1970: when a version was made.
@@ -150,7 +159,14 @@ impl TheDB {
             Ok(b) => return Err(format!("THEDB_BRANCH is not a branch's name (lowercase letters, digits, dashes): {b:?}")),
             Err(_) => None,
         };
-        Self::open_on(dir.as_ref(), branch)
+        let mut db = Self::open_on(dir.as_ref(), branch)?;
+        // the system at a lock: `THEDB_LOCK=<hash>` (theKERNEL --at <hash> sets it for the engine)
+        if let Ok(l) = std::env::var("THEDB_LOCK")
+            && !l.is_empty()
+        {
+            db.at_lock(l.parse().map_err(|_| format!("THEDB_LOCK is not a hash: {l:?}"))?)?;
+        }
+        Ok(db)
     }
 
     /// Opens (or makes) the store in `dir`, on `branch`.
@@ -163,7 +179,7 @@ impl TheDB {
         }
         let (store, owner) = Self::open_blobs(&rt, dir)?;
         let sql = sql::open(dir)?;
-        let db = TheDB { rt, store, owner, dir: dir.to_path_buf(), branch, sql: std::sync::Mutex::new(sql), signer: std::sync::Mutex::new(None) };
+        let db = TheDB { rt, store, owner, dir: dir.to_path_buf(), branch, sql: std::sync::Mutex::new(sql), signer: std::sync::Mutex::new(None), lock: None };
         db.prepare()?;
         Ok(db)
     }
@@ -407,6 +423,10 @@ impl TheDB {
 
     /// The latest version of doc `id` on `branch` itself (main with `None`), without falling through.
     pub fn head_on(&self, branch: Option<&str>, id: &str) -> Result<Option<Hash>> {
+        // at a lock, a doc is the version the lock pins, on every branch; a doc it does not pin is not there
+        if let Some(l) = &self.lock {
+            return Ok(l.docs.get(id).copied());
+        }
         sql::head(&self.sql(), branch.unwrap_or(MAIN), id)
     }
 
@@ -482,6 +502,9 @@ impl TheDB {
     /// committing one doc at once, the second merges the first's version, and neither edit is lost.
     pub fn commit_on(&self, branch: Option<&str>, id: &str, doc: &LoroDoc) -> Result<Hash> {
         check(id)?;
+        if let Some(l) = &self.lock {
+            return Err(format!("this process runs the system at the lock {}: it reads, and writes nothing", l.hash.fmt_short()));
+        }
         let on = branch.unwrap_or(MAIN);
         // who signs it, refused here if this process may not write `on`
         let sign = self.may_write(on)?;
@@ -629,6 +652,9 @@ impl TheDB {
 
     /// The root doc's id: where everything is reached from.
     pub fn root(&self) -> Result<Option<String>> {
+        if let Some(l) = &self.lock {
+            return Ok(Some(l.root.clone()));
+        }
         sql::get_meta(&self.sql(), sql::ROOT)
     }
 
@@ -890,6 +916,7 @@ pub mod bevy;
 pub mod access;
 pub mod build;
 pub mod proposals;
+pub mod lock;
 pub mod schema;
 pub mod vibe;
 
