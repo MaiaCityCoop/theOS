@@ -100,6 +100,14 @@ fn main() {
     });
 
     let bake_one = (args.get(1).map(String::as_str) == Some("--bake")).then(|| impostor::BakeOne { asset: args.get(2).expect("--bake <asset id>").clone(), frames: 0 });
+    // a bake that is current needs no renderer: most of the baker's calls end here, at once
+    if let Some(job) = &bake_one
+        && let Some(asset) = library::load().into_values().find(|a| a.id.as_deref() == Some(job.asset.as_str()))
+        && impostor::current(&asset)
+    {
+        eprintln!("--bake: {} is current", asset.name);
+        return;
+    }
     let mut app = App::new();
     // everything the engine loads comes from avenDB (intent 0049): an asset's path is a doc's id, watched, so a new
     // version of a shader reloads while the app runs; `blob://<hash>` is a blob or a doc's exact version
@@ -124,7 +132,10 @@ fn main() {
     .add_plugins((world::plugin, film::plugin, meadow::plugin, wind::plugin, workshop::plugin, impostor::plugin, patches::plugin, lawn::plugin))
     .add_plugins((place::plugin, map::plugin, rig::plugin, sun::plugin, dial::plugin, contract::plugin, views::plugin, shared::plugin));
     if let Some(job) = bake_one {
-        app.insert_resource(job).add_systems(Update, impostor::bake_one);
+        // its window is never shown, so it gets no redraws: run every frame anyway, or it never reaches its end
+        app.insert_resource(job)
+            .insert_resource(bevy::winit::WinitSettings { focused_mode: bevy::winit::UpdateMode::Continuous, unfocused_mode: bevy::winit::UpdateMode::Continuous })
+            .add_systems(Update, impostor::bake_one);
         app.run();
         return;
     }
