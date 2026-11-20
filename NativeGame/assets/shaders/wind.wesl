@@ -58,7 +58,7 @@ fn sway(world: vec3<f32>, time: f32, strength: f32) -> vec3<f32> {
 
 // ---- The GPU grass: every blade made here, each frame, from its cell on a grid fixed to the world ----
 //
-// A tile of the mesh holds 64 × 64 blade slots; each vertex carries its slot (the local x and z, in cells) and, in
+// A tile of the mesh holds 32 × 32 blade slots; each vertex carries its slot (the local x and z, in cells) and, in
 // its UV, which side of the blade (−1, 0, +1) and how far up it (0 root, 1 tip). Tiles are laid in nested levels
 // around the eye, each twice as coarse as the one inside it (their scale is the cell size). Here a slot becomes a
 // blade: its place, its height, its lean, its colour, all from a hash of its cell, so it is the same blade every

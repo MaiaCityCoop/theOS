@@ -55,6 +55,14 @@ pub fn load() -> BTreeMap<String, Asset> {
     ONCE.get_or_init(read).clone()
 }
 
+/// The shelf's order: grouped by kind (plants, then rocks), by name within each. The Library's list and its stepping
+/// both use it, so a place on the list is the same asset everywhere.
+pub fn shelf() -> Vec<Asset> {
+    let mut all: Vec<Asset> = load().into_values().collect();
+    all.sort_by(|a, b| a.kind.cmp(&b.kind).then_with(|| a.name.cmp(&b.name)));
+    all
+}
+
 /// Every asset by name: the files in `library/`, and any built-in one that has no file yet (then written).
 pub fn read() -> BTreeMap<String, Asset> {
     let _ = std::fs::create_dir_all(DIR);

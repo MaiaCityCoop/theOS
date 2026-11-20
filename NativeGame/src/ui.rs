@@ -176,11 +176,11 @@ fn library(mut commands: Commands, f: Res<Fonts>) {
         children![
             (Hovered::default(), Act::Home, chip_node(), BackgroundColor(CREAM), children![text(&f.sans, CHIP_TEXT, FOREST, "Home")]),
             (chip_node(), BackgroundColor(GLASS), children![(crate::workshop::Caption, text(&f.mono, CHIP_TEXT, FOREST, "…"))]),
-            (chip_node(), BackgroundColor(GLASS), children![text(&f.mono, CHIP_TEXT, FOREST, "click an asset · ← → step · Space new individual · scroll closer")]),
+            (chip_node(), BackgroundColor(GLASS), children![text(&f.mono, CHIP_TEXT, FOREST, "left/right · Space new seed · scroll zoom")]),
         ],
     ));
     // the shelf: every asset of the library, grouped by kind, on the left; the chosen one dark
-    let library = crate::library::load();
+    let library = crate::library::shelf();
     commands
         .spawn((
             DespawnOnExit(View::Library),
@@ -199,7 +199,7 @@ fn library(mut commands: Commands, f: Res<Fonts>) {
         ))
         .with_children(|list| {
             let mut kind = String::new();
-            for (k, a) in library.values().enumerate() {
+            for (k, a) in library.iter().enumerate() {
                 if a.kind != kind {
                     kind = a.kind.clone();
                     list.spawn((text(&f.mono, 11.0, CLAY, if kind == "rock" { "ROCKS" } else { "PLANTS" }), Node { margin: UiRect::top(Val::Px(6.0)), ..default() }));

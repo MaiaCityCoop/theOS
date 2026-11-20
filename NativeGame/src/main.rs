@@ -70,7 +70,10 @@ fn main() {
             ..default()
         }),
         ..default()
-    }))
+    })
+    // the assets beside the code, however the binary is started: run directly (not by cargo), Bevy looked for them
+    // beside the binary, found no shaders or fonts, and drew the world without grass, ground or text
+    .set(AssetPlugin { file_path: concat!(env!("CARGO_MANIFEST_DIR"), "/assets").into(), ..default() }))
     .init_state::<View>()
     .add_plugins((world::plugin, film::plugin, meadow::plugin, wind::plugin, workshop::plugin, impostor::plugin, patches::plugin, lawn::plugin));
     if args.get(1).map(String::as_str) == Some("--shelf") {
@@ -78,7 +81,6 @@ fn main() {
         let _ = std::fs::create_dir_all(&dir);
         app.add_plugins(ui::plugin)
             .insert_resource(workshop::ShelfShots { dir })
-            .insert_state(View::Library)
             .add_systems(Update, workshop::shelf_shots);
         app.run();
         return;

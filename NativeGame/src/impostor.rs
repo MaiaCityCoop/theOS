@@ -19,8 +19,11 @@ pub const RES: u32 = 128;
 /// Ticks a bake waits on its first view before it starts, for its shaders to compile.
 const WARM: i32 = 90;
 
-const ALBEDO_LAYER: usize = 4;
-const NORMAL_LAYER: usize = 5;
+/// The render layers bakes draw on: each bake its own pair, so two bakes running at once (the grass patch's at startup
+/// and the Library's first asset) never photograph each other's copies.
+const FIRST_LAYER: usize = 8;
+const PAIRS: usize = 24;
+static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 pub fn plugin(app: &mut App) {
     app.add_plugins((MaterialPlugin::<NormalBake>::default(), MaterialPlugin::<Impostor>::default())).add_systems(Update, (shoot, finish).chain());
@@ -124,9 +127,11 @@ impl Impostor {
     }
 }
 
-/// The quad a far copy is drawn on: its corners in [-1, 1]; the shader turns and sizes it.
+/// The quad a far copy is drawn on: its corners in [-1, 1]; the shader turns and sizes it. It carries tangents only so
+/// the shader can hand the frame's axes in the world to the fragment (the baked normals are in the master's own space
+/// and must turn with the copy).
 pub fn quad() -> Mesh {
-    Rectangle::new(2.0, 2.0).mesh().build()
+    Rectangle::new(2.0, 2.0).mesh().build().with_generated_tangents().expect("a rectangle has normals and UVs")
 }
 
 /// Bakes `mesh` (its vertex colours its albedo): spawns the copies and 2 × 64 cameras that each photograph one frame
@@ -170,9 +175,11 @@ pub fn bake(
     let m = meshes.add(mesh);
     let flat = colours.add(StandardMaterial { base_color: Color::WHITE, unlit: true, double_sided: true, cull_mode: None, ..default() });
     let ticks = FRAMES * FRAMES + 8 + WARM as u32;
-    commands.spawn((Baking(ticks), Mesh3d(m.clone()), MeshMaterial3d(flat), RenderLayers::layer(ALBEDO_LAYER), Transform::default()));
-    commands.spawn((Baking(ticks), Mesh3d(m), MeshMaterial3d(normals.add(NormalBake {})), RenderLayers::layer(NORMAL_LAYER), Transform::default()));
-    for (layer, target, format) in [(ALBEDO_LAYER, &albedo, TextureFormat::Rgba8UnormSrgb), (NORMAL_LAYER, &normal, TextureFormat::Rgba8Unorm)] {
+    let pair = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % PAIRS;
+    let (albedo_layer, normal_layer) = (FIRST_LAYER + 2 * pair, FIRST_LAYER + 2 * pair + 1);
+    commands.spawn((Baking(ticks), Mesh3d(m.clone()), MeshMaterial3d(flat), RenderLayers::layer(albedo_layer), Transform::default()));
+    commands.spawn((Baking(ticks), Mesh3d(m), MeshMaterial3d(normals.add(NormalBake {})), RenderLayers::layer(normal_layer), Transform::default()));
+    for (layer, target, format) in [(albedo_layer, &albedo, TextureFormat::Rgba8UnormSrgb), (normal_layer, &normal, TextureFormat::Rgba8Unorm)] {
         let views: Vec<Handle<Image>> = (0..FRAMES * FRAMES)
             .map(|_| {
                 let mut img = Image::new_target_texture(RES, RES, format, None);

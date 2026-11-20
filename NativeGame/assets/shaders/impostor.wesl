@@ -61,7 +61,10 @@ fn vertex(v: Vertex) -> VertexOutput {
     let world = model * vec4<f32>(local, 1.0);
     out.world_position = world;
     out.position = position_world_to_clip(world.xyz);
+    // the frame's axes in the world: the fragment turns the baked normals (in the master's own space) with the copy
     out.world_normal = normalize(m3 * f);
+@if(VERTEX_TANGENTS)
+    out.world_tangent = vec4<f32>(normalize(m3 * right), 1.0);
 @if(VERTEX_UVS_A)
     out.uv = vec2<f32>((i + corner.x * 0.5 + 0.5) / n, (j + 0.5 - corner.y * 0.5) / n);
     return out;
@@ -77,8 +80,20 @@ fn fragment(in: VertexOutput, @builtin(front_facing) front: bool) -> FragmentOut
     if (a.a < 0.5) {
         discard;
     }
-    let model = mesh_functions::get_world_from_local(0u);
-    let nb = textureSample(normal_tex, normal_smp, uv).xyz * 2.0 - 1.0;
+    // the baked normal is in the master's own space: written in the frame's axes there (right, up, toward the eye)
+    // and rebuilt from the same axes in the world, so the copy's light turns with it
+    let local = textureSample(normal_tex, normal_smp, uv).xyz * 2.0 - 1.0;
+    var nb = local;
+@if(VERTEX_TANGENTS)
+    {
+        let f = frame_dir(floor(uv.x * params.grid.x), floor(uv.y * params.grid.x), params.grid.x);
+        let right = normalize(cross(frame_up(f), f));
+        let up = cross(f, right);
+        let n_w = normalize(in.world_normal);
+        let r_w = normalize(in.world_tangent.xyz);
+        let u_w = cross(n_w, r_w);
+        nb = r_w * dot(local, right) + u_w * dot(local, up) + n_w * dot(local, f);
+    }
     var pbr = pbr_types::pbr_input_new();
     pbr.material.base_color = vec4<f32>(a.rgb, 1.0);
     pbr.material.perceptual_roughness = 0.85;

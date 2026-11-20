@@ -8,7 +8,7 @@ use bevy::camera::Exposure;
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::light::atmosphere::ScatteringMedium;
-use bevy::light::{Atmosphere, AtmosphereEnvironmentMapLight, CascadeShadowConfigBuilder, SunDisk, light_consts::lux};
+use bevy::light::{Atmosphere, AtmosphereEnvironmentMapLight, EnvironmentMapLight, CascadeShadowConfigBuilder, SunDisk, light_consts::lux};
 use bevy::pbr::{AtmosphereSettings, ScreenSpaceAmbientOcclusion};
 use bevy::post_process::bloom::Bloom;
 use bevy::platform::collections::HashMap;
@@ -67,6 +67,8 @@ struct Tile {
 /// The finest cell of the GPU grass and its levels (as in `wind.wesl`).
 const FINE: f32 = 0.04;
 const LEVELS: u32 = 4; // real blades to ~35 m; the lawn beyond
+/// How far a level reaches, in its cells (`REACH` in `wind.wesl`).
+const REACH: f32 = 110.0;
 
 /// A tile of the baked patches: its level (cell 1 m × 2^level) and its place in the level's 4 × 4 tiles.
 #[derive(Component)]
@@ -142,12 +144,21 @@ fn lay(state: Res<State<View>>, eye: Query<&GlobalTransform, With<Eye2>>, mut ti
     let at = eye.translation();
     let high = at.y - crate::terrain::height(at.x, at.z) > HIGH || *state.get() == View::Library;
     let n = crate::grass::TILE as f32;
+    let half = (crate::grass::TILES / 2) as f32;
     for (tile, mut t, mut v) in &mut tiles {
         let s = FINE * 2f32.powi(tile.level as i32);
-        let (ox, oz) = ((at.x / s).floor() * s - 2.0 * n * s, (at.z / s).floor() * s - 2.0 * n * s);
+        let (ox, oz) = ((at.x / s).floor() * s - half * n * s, (at.z / s).floor() * s - half * n * s);
+        let (x0, z0) = (ox + tile.a as f32 * n * s, oz + tile.b as f32 * n * s);
         // the cell size rides in the scale (the shader reads it back); y stays 1
-        *t = Transform::from_xyz(ox + tile.a as f32 * n * s, 0.0, oz + tile.b as f32 * n * s).with_scale(Vec3::new(s, 1.0, s));
-        *v = if high { Visibility::Hidden } else { Visibility::Inherited };
+        *t = Transform::from_xyz(x0, 0.0, z0).with_scale(Vec3::new(s, 1.0, s));
+        // a tile wholly past its level's reach, or (beyond the finest) wholly inside the hole the finer level fills,
+        // shows no blade (`wind.wesl`, `blade`): not drawn at all
+        let (x1, z1) = (x0 + n * s, z0 + n * s);
+        let near = Vec2::new((x0 - at.x).max(at.x - x1).max(0.0), (z0 - at.z).max(at.z - z1).max(0.0)).length();
+        let far = Vec2::new((at.x - x0).abs().max((x1 - at.x).abs()), (at.z - z0).abs().max((z1 - at.z).abs())).length();
+        let reach = REACH * s;
+        let empty = near > reach + 0.5 * s || (tile.level > 0 && far < 0.35 * reach - s);
+        *v = if high || empty { Visibility::Hidden } else { Visibility::Inherited };
     }
 }
 
@@ -295,7 +306,9 @@ fn stream(
         .collect();
     for (k, c, (grass, close, ground)) in ready {
         field.growing.remove(&k);
-        let mut parts = vec![commands.spawn((GrassWorld, MEADOW, Mesh3d(meshes.add(ground)), MeshMaterial3d(field.ground.clone()))).id()];
+        // the land receives shadows but casts none: its hills are too gentle to shade it within the shadows' 45 m, and
+        // drawing it into the shadow maps cost about 4 ms a frame
+        let mut parts = vec![commands.spawn((GrassWorld, MEADOW, Mesh3d(meshes.add(ground)), MeshMaterial3d(field.ground.clone()), bevy::light::NotShadowCaster)).id()];
         // the blades stay out of the sun's shadow maps: they would draw every blade twice more each frame; the shade
         // among them comes from their dark roots and the ambient occlusion instead. (None in the Library.)
         if grass.count_vertices() > 0 {
@@ -345,7 +358,73 @@ pub fn plugin(app: &mut App) {
             Update,
             (stream, lay, spawn_patches, lay_patches, attach_lawn, reframe, focus, crate::clouds::drift).run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio | View::Library)),
         )
-        .add_systems(Update, (hours, sun).chain().run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio | View::Library)));
+        .add_systems(Update, (hours, sun, sky_light).chain().run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio | View::Library)));
+}
+
+/// The sky's light on the land (reflections and the ambient from the sky) only changes when the sun moves. Bevy makes it
+/// afresh every frame, the sky drawn into a cube map and filtered, about 12 ms of a 38 ms frame on this Mac; so once it
+/// has been made, it is kept as a plain environment light, and made again only when the sun has moved by a degree.
+#[derive(Default)]
+struct SkyLight {
+    /// The sun's direction it was made for, and the frames it has been making since.
+    made_for: Option<Vec3>,
+    frames: u32,
+    /// The kept light, while it is not being made.
+    kept: Option<EnvironmentMapLight>,
+}
+
+/// Frames the sky's light is made over before it is kept: the cube map and its filtering settle within a few.
+const SKY_LIGHT_FRAMES: u32 = 6;
+
+fn sky_light(
+    mut commands: Commands,
+    mut state: Local<SkyLight>,
+    sun: Query<&Transform, With<Sun>>,
+    eye: Query<(Entity, Has<AtmosphereEnvironmentMapLight>, Option<&EnvironmentMapLight>), With<Eye2>>,
+) {
+    let (Ok(sun), Ok((e, making, light))) = (sun.single(), eye.single()) else {
+        *state = SkyLight::default();
+        return;
+    };
+    if off("ENV") {
+        return;
+    }
+    let to_sun = sun.translation.normalize_or_zero();
+    let moved = state.made_for.is_none_or(|d| d.angle_between(to_sun) > 1f32.to_radians());
+    if making {
+        state.frames += 1;
+        // made: keep what it gave as a plain light, and stop making it
+        if state.frames >= SKY_LIGHT_FRAMES
+            && !moved
+            && let Some(l) = light
+        {
+            state.kept = Some(l.clone());
+            // removing the maker removes the light it made too; the kept one goes straight back
+            commands.entity(e).remove::<AtmosphereEnvironmentMapLight>().insert(l.clone());
+        }
+        if moved {
+            state.made_for = Some(to_sun);
+            state.frames = 0;
+        }
+        return;
+    }
+    if moved {
+        // the sun has moved: make it again (Bevy makes new targets only where no environment light is)
+        commands.entity(e).remove::<EnvironmentMapLight>().insert(AtmosphereEnvironmentMapLight { size: UVec2::splat(64), ..default() });
+        state.made_for = Some(to_sun);
+        state.frames = 0;
+        return;
+    }
+    // should the maker's removal have taken the kept light with it after all, put it back
+    if light.is_none()
+        && let Some(k) = state.kept.clone()
+    {
+        commands.entity(e).insert(k);
+    }
+}
+
+fn off(part: &str) -> bool {
+    std::env::var_os(format!("MEADOW_NO_{part}")).is_some()
 }
 
 /// The camera's frame time, smoothed, in milliseconds.
@@ -497,7 +576,7 @@ fn enter(
         });
     }
     if !off("AO") {
-        cam.insert(ScreenSpaceAmbientOcclusion::default()); // soft shading where blades crowd and meet the ground
+        cam.insert(ScreenSpaceAmbientOcclusion { quality_level: bevy::pbr::ScreenSpaceAmbientOcclusionQualityLevel::Low, ..default() }); // soft shading where blades crowd and meet the ground
     }
     // the grass: one mesh a chunk, so the view culls it a chunk at a time
     let blades = grass.add(crate::wind::Grass {
@@ -527,14 +606,14 @@ fn enter(
     });
     // the land beyond the grass, to the horizon, rebuilt around the eye as it moves (`stream`)
     let far = meshes.add(crate::terrain::far(0.0, 0.0, None));
-    commands.spawn((GrassWorld, MEADOW, Mesh3d(far.clone()), MeshMaterial3d(ground.clone())));
+    commands.spawn((GrassWorld, MEADOW, Mesh3d(far.clone()), MeshMaterial3d(ground.clone()), bevy::light::NotShadowCaster));
     // the grass and the near land are grown around the camera as it moves (`stream`)
     let close = {
         let mut m = grass.get(&blades).cloned().expect("the grass material was just added");
         m.extension.params.eye.w = 1.0;
         grass.add(m)
     };
-    // the GPU grass: 5 levels of 4 × 4 tiles, each tile 64 × 64 blades made in the vertex shader; the finest level
+    // the GPU grass: 4 levels of 8 × 8 tiles, each tile 32 × 32 blades made in the vertex shader; the finest level
     // with four segments a blade, the others three. Their bounds are set wide by hand (the mesh holds only slots).
     let made = {
         let mut m = grass.get(&blades).cloned().expect("the grass material was just added");
@@ -549,8 +628,8 @@ fn enter(
         let fine = meshes.add(crate::grass::tile(4));
         let coarse = meshes.add(crate::grass::tile(3));
         for level in 0..LEVELS {
-            for a in 0..4 {
-                for b in 0..4 {
+            for a in 0..crate::grass::TILES {
+                for b in 0..crate::grass::TILES {
                     commands.spawn((
                         GrassWorld,
                         MEADOW,

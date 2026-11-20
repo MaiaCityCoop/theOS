@@ -39,8 +39,17 @@ pub fn plugin(app: &mut App) {
         .add_systems(Update, (keys, show, turn).chain().run_if(in_state(View::Library)));
 }
 
-fn enter(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
-    let names: Vec<String> = crate::library::load().keys().cloned().collect();
+/// The Meadow's hour, kept while the Library shows its assets in late-morning light, and given back on leaving.
+#[derive(Resource)]
+struct MeadowHour(f32);
+
+/// The Library's hour: late morning, the sun high enough to light an asset from the side without long shadows.
+const HOUR: f32 = 10.5;
+
+fn enter(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>, mut hour: ResMut<crate::meadow::Hour>) {
+    commands.insert_resource(MeadowHour(hour.0));
+    hour.0 = HOUR;
+    let names: Vec<String> = crate::library::shelf().into_iter().map(|a| a.name).collect();
     commands.insert_resource(Shelf { names, at: 0, seed: 1, dirty: true, zoom: 1.0 });
     // two turntables on the land at the origin: the master on the left, its impostor on the right
     // on a flat bed of the meadow's soil, a little above the land: its tussocks (up to 20 cm) would hide a clover
@@ -56,7 +65,11 @@ fn enter(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials
     commands.spawn((Room, Turn, Side(1), LAYER, Transform::from_xyz(0.0, ground, 0.0), Visibility::default()));
 }
 
-fn leave(mut commands: Commands, room: Query<Entity, With<Room>>) {
+fn leave(mut commands: Commands, room: Query<Entity, With<Room>>, kept: Option<Res<MeadowHour>>, mut hour: ResMut<crate::meadow::Hour>) {
+    if let Some(k) = kept {
+        hour.0 = k.0;
+    }
+    commands.remove_resource::<MeadowHour>();
     for e in &room {
         commands.entity(e).despawn();
     }
@@ -162,10 +175,9 @@ fn show(
     commands.entity(parent).add_child(child);
     for mut t in &mut caption {
         t.0 = format!(
-            "{} · {} · generator {} · {:.0}–{:.0} cm · seed {} · master {} triangles | impostor 2 triangles, {}×{} views · {}/{}",
+            "{} · {} · {:.0}–{:.0} cm · seed {} · {} triangles, far view 2 ({}×{} views) · {}/{}",
             a.name,
             a.kind,
-            a.generator,
             a.size[0] * 100.0,
             a.size[1] * 100.0,
             s.seed,
@@ -194,12 +206,25 @@ pub fn shelf_shots(
     mut commands: Commands,
     shots: Res<ShelfShots>,
     shelf: Option<ResMut<Shelf>>,
+    mut next: ResMut<NextState<View>>,
     mut n: Local<u32>,
     mut exit: MessageWriter<AppExit>,
 ) {
-    let Some(mut s) = shelf else { return };
+    // enter the Library from Home, as a person does, so its interface is the one they see
+    let Some(mut s) = shelf else {
+        *n += 1;
+        if *n == 50 {
+            commands.spawn(bevy::render::view::screenshot::Screenshot::primary_window()).observe(bevy::render::view::screenshot::save_to_disk(shots.dir.join("home.png")));
+        }
+        if *n == 60 {
+            next.set(View::Library);
+            *n = 0;
+        }
+        return;
+    };
     *n += 1;
-    let wait = if s.at == 0 { 400 } else { 160 };
+    // a bake takes about 160 frames and its read-back a few more: photograph after it, or the far view is empty
+    let wait = if s.at == 0 { 400 } else { 260 };
     if *n == wait {
         let name = s.names.get(s.at).cloned().unwrap_or_default().replace(' ', "-");
         commands
@@ -208,7 +233,7 @@ pub fn shelf_shots(
     }
     if *n == wait + 10 {
         *n = 0;
-        if s.at + 1 >= s.names.len() {
+        if s.at + 1 >= s.names.len().min(std::env::var("SHELF_N").ok().and_then(|v| v.parse().ok()).unwrap_or(usize::MAX)) {
             exit.write(AppExit::Success);
         } else {
             s.at += 1;

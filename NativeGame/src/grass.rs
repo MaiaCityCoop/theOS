@@ -391,7 +391,10 @@ fn thatch(g: &mut Geo, cx: i32, cz: i32, share: f32) {
 /// A tile of the GPU grass: `TILE` × `TILE` blade slots, each `segs` segments up. A vertex's position is its slot
 /// (in cells), its UV which side of the blade (−1, +1, 0 at the tip) and how far up (0 to 1); the blade itself is
 /// made in the vertex shader (`wind.wesl`, `blade`).
-pub const TILE: u32 = 64;
+pub const TILE: u32 = 32;
+/// Tiles along a side of a level: 8 × 8 tiles of 32 slots, small enough that the view culls those behind the eye and
+/// `meadow::lay` hides those wholly past the level's reach.
+pub const TILES: u32 = 8;
 
 pub fn tile(segs: u32) -> Mesh {
     use bevy::asset::RenderAssetUsages;
