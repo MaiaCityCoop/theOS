@@ -285,6 +285,26 @@ impl TheDB {
         self.sql.lock().unwrap_or_else(|e| e.into_inner())
     }
 
+    /// A doc as `branch` sees it, or a new empty doc.
+    pub(crate) fn doc_seen(&self, branch: Option<&str>, id: &str) -> Result<LoroDoc> {
+        match self.head_seen(branch, id)? {
+            Some(h) => self.doc_at(h),
+            None => Ok(LoroDoc::new()),
+        }
+    }
+
+    /// What a doc says it is: (kind, name).
+    pub(crate) fn meta_of(&self, doc: &LoroDoc) -> (String, String) {
+        let meta = doc.get_map("meta");
+        let field = |k: &str| meta.get(k).and_then(|v| v.into_value().ok()).and_then(|v| v.into_string().ok()).map(|s| s.to_string()).unwrap_or_default();
+        (field("kind"), field("name"))
+    }
+
+    /// Writes what the store holds to disk now: before a process that owns it may be stopped.
+    pub fn sync(&self) -> Result<()> {
+        self.rt.block_on(async { self.store.sync_db().await.map_err(err) })
+    }
+
     /// The store's folder.
     pub fn dir(&self) -> &Path {
         &self.dir
@@ -812,7 +832,8 @@ pub use sql::{Find, Found};
 #[cfg(feature = "bevy")]
 pub mod bevy;
 
-pub mod source;
+pub mod build;
+pub mod proposals;
 
 pub mod inventory;
 

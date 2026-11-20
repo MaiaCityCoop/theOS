@@ -133,21 +133,12 @@ real trade-off the definition does not settle (say, more detail against 60 fps),
   (`SendMessage`) with the PR, the numbers and what is open. It never merges. It never asks the
   human: it decides in the direction of the intent, writes the decision and why into the PR, and
   sends a real blocker to the master while it goes on with what it can do.
-- **The engine (App/: theOS, theKERNEL and theDB) is worked in theDB, not in git** (intent 0051). Its source is
-  the tree the engine doc names (`theDB builds <engine>`; `theDB files <tree>`). A worker on the
-  engine makes a branch and a view instead of a worktree, and proposes instead of opening a PR:
-
-      theDB branch 0050-tree "the procedural tree"
-      THEDB_BRANCH=0050-tree theDB checkout <tree> DATA/cache/views/0050-tree
-      … edit and build in the view (cargo builds into the one shared target) …
-      theDB sync DATA/cache/views/0050-tree        as often as it likes: its edits onto its branch
-      theDB propose 0050-tree "what it does"   then tells the master the proposal's id
-
-  The engine run from a view on a branch (`THEDB_BRANCH=…`) reads that branch's shaders and recipes
-  too. The master merges with `theDB merge <proposal>`: the merged tree is checked (the tree's
-  `check`: builds and tests) and main moves only if it passes; a refused proposal keeps the
-  compiler's output (`theDB proposal <id>`). Several workers can share the main checkout's folder,
-  each in its own view. git gets snapshots: `theDB snapshot <tree> .` and a commit.
+- **Core and modules (intent 0054).** The core (theKERNEL, theDB, the host, the theDB view and the Studio, all of
+  `App/`) lives in git and is changed by **one master session only**, reviewed and gated hard: nothing else touches
+  git's `App/`. A build is published from a clean commit with `theDB publish <engine> .` and pinned by its hash.
+  Everything dynamic (worlds, timelines, layouts, configs, assets, later WASM modules) lives in theDB and is worked by
+  agents on their own theDB branches, proposed and merged at high volume (intent 0057): `theDB branch <name>`,
+  `THEDB_BRANCH=<name> theDB put …`, `theDB propose <name> "<note>"`, `theDB merge <id>`.
 - A brief is complete in itself: the task, the files, the invariants to keep, the checks, what done
   looks like, whom to report to. The master relays between sessions that cannot reach each other.
 - **One task, one session.** Every task runs in a code session of its own, never as a subagent

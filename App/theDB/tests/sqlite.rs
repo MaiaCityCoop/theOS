@@ -409,9 +409,6 @@ fn fresh_keeps_only_what_the_root_reaches() {
     assert_eq!(db.get(pinned_binary).unwrap().unwrap().as_ref(), b"\xcf\xfa the binary");
     assert!(db.get(Hash::new(b"\xcf\xfa an old binary")).unwrap().is_none(), "the unpinned build's binary is left behind");
     assert!(db.get(first).unwrap().is_none());
-    let dir2 = dir.join("checkout");
-    db.checkout_build(&pinned.to_hex(), &dir2).unwrap();
-    assert_eq!(std::fs::read_to_string(dir2.join("src/lib.rs")).unwrap(), src_versions[1].1, "the pinned source version still checks out");
     // the kernel remembers only docs that stay
     let k: serde_json::Value = serde_json::from_str(&db.text(&kernel).unwrap().unwrap()).unwrap();
     assert_eq!(k["baker"].as_object().unwrap().len(), 1);

@@ -153,6 +153,9 @@ struct MidHead;
 struct MidList;
 #[derive(Component)]
 struct Right;
+/// The detail pane's own column on its right: the chosen doc's history, to choose a version from.
+#[derive(Component)]
+struct RightHistory;
 #[derive(Component)]
 struct Menu;
 
@@ -530,7 +533,8 @@ fn layout(mut commands: Commands, mut db: ResMut<Db>) {
     commands
         .spawn((
             DespawnOnExit(View::TheDB),
-            Node { width: Val::Percent(100.0), height: Val::Percent(100.0), flex_direction: FlexDirection::Column, padding: UiRect::all(Val::Px(24.0)), row_gap: Val::Px(16.0), ..default() },
+            // pinned to the window's four edges, so no content can make the view wider than the window
+            Node { position_type: PositionType::Absolute, left: Val::Px(0.0), right: Val::Px(0.0), top: Val::Px(0.0), bottom: Val::Px(0.0), flex_direction: FlexDirection::Column, padding: UiRect::all(Val::Px(24.0)), row_gap: Val::Px(16.0), overflow: Overflow::clip(), ..default() },
             BackgroundColor(PAPER),
         ))
         .with_children(|root| {
@@ -539,14 +543,19 @@ fn layout(mut commands: Commands, mut db: ResMut<Db>) {
                 Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(16.0), padding: UiRect::axes(Val::Px(24.0), Val::Px(12.0)), border_radius: BorderRadius::all(Val::Px(24.0)), ..default() },
                 BackgroundColor(CREAM),
             ));
-            root.spawn(Node { flex_direction: FlexDirection::Row, flex_grow: 1.0, flex_basis: Val::Px(0.0), min_height: Val::Px(0.0), column_gap: Val::Px(16.0), ..default() }).with_children(|body| {
+            root.spawn(Node { flex_direction: FlexDirection::Row, flex_grow: 1.0, flex_basis: Val::Px(0.0), min_height: Val::Px(0.0), min_width: Val::Px(0.0), column_gap: Val::Px(16.0), ..default() }).with_children(|body| {
                 body.spawn((Left, pane(0.0, Val::Px(250.0)), BackgroundColor(CREAM)));
-                body.spawn((pane(3.0, Val::Auto), BackgroundColor(CREAM))).with_children(|mid| {
+                // the docs and the chosen doc share what the left column leaves, half each
+                body.spawn((pane(1.0, Val::Auto), BackgroundColor(CREAM))).with_children(|mid| {
                     mid.spawn((MidHead, Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(10.0), ..default() }));
                     mid.spawn((MidList, scroller()));
                 });
-                body.spawn((pane(2.0, Val::Auto), BackgroundColor(CREAM))).with_children(|right| {
-                    right.spawn((Right, scroller()));
+                body.spawn((pane(1.0, Val::Auto), BackgroundColor(CREAM))).with_children(|right| {
+                    right.spawn(Node { flex_direction: FlexDirection::Row, flex_grow: 1.0, flex_basis: Val::Px(0.0), min_height: Val::Px(0.0), min_width: Val::Px(0.0), column_gap: Val::Px(14.0), ..default() }).with_children(|split| {
+                        // the doc itself on the left, its history in a narrow column on the right
+                        split.spawn((Right, scroller(), Node { flex_direction: FlexDirection::Column, flex_grow: 1.0, flex_basis: Val::Px(0.0), min_width: Val::Px(0.0), min_height: Val::Px(0.0), overflow: Overflow::scroll_y(), row_gap: Val::Px(2.0), ..default() }));
+                        split.spawn((RightHistory, scroller(), Node { flex_direction: FlexDirection::Column, width: Val::Px(220.0), flex_shrink: 0.0, min_height: Val::Px(0.0), overflow: Overflow::scroll_y(), row_gap: Val::Px(2.0), padding: UiRect::left(Val::Px(12.0)), border: UiRect::left(Val::Px(1.5)), ..default() }, BorderColor::all(PICKED)));
+                    });
                 });
             });
         });
@@ -562,13 +571,14 @@ fn draw(
     mid_head: Query<Entity, With<MidHead>>,
     mut mid: Query<(Entity, &mut ScrollPosition), (With<MidList>, Without<Right>)>,
     mut right: Query<(Entity, &mut ScrollPosition), (With<Right>, Without<MidList>)>,
+    history: Query<Entity, With<RightHistory>>,
     mut picked: Local<(Option<Pick>, Option<String>, Option<Hash>)>,
 ) {
     let d = db.dirty;
     if !(d.head || d.left || d.mid || d.right) {
         return;
     }
-    let (Ok(h), Ok(l), Ok(mh), Ok((m, mut mscroll)), Ok((r, mut rscroll))) = (head.single(), left.single(), mid_head.single(), mid.single_mut(), right.single_mut()) else { return };
+    let (Ok(h), Ok(l), Ok(mh), Ok((m, mut mscroll)), Ok((r, mut rscroll)), Ok(hist)) = (head.single(), left.single(), mid_head.single(), mid.single_mut(), right.single_mut(), history.single()) else { return };
     db.dirty = Dirty::default();
     // a new kind starts its list at the top; a new doc or blob its pane
     if picked.0.as_ref() != Some(&db.pick) {
@@ -596,6 +606,8 @@ fn draw(
     if d.right {
         commands.entity(r).despawn_children();
         commands.entity(r).with_children(|p| draw_right(p, f, &db));
+        commands.entity(hist).despawn_children();
+        commands.entity(hist).with_children(|p| draw_history(p, f, &db));
     }
 }
 
@@ -1123,6 +1135,23 @@ fn diff_lines(p: &mut ChildSpawnerCommands, f: &Fonts, before: &str, now: &str) 
     });
 }
 
+/// The chosen doc's history, newest first, in the detail pane's own column: a version to choose.
+fn draw_history(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
+    let (Some(inv), Pick::Kind(_)) = (&db.inv, &db.pick) else { return };
+    let Some(d) = db.doc.as_ref().and_then(|id| inv.docs.iter().find(|d| &d.id == id)) else { return };
+    let Some(det) = db.detail.as_ref().filter(|x| x.id == d.id) else { return };
+    let at = db.version.unwrap_or(0);
+    section(p, f, &format!("history · {}", det.versions.len()));
+    for (i, v) in det.versions.iter().enumerate().rev().take(MAX_ROWS) {
+        let bg = if i == at { PICKED } else { CREAM };
+        p.spawn((DbAct::Version(i), Hovered::default(), Base(bg), BackgroundColor(bg), Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(2.0), ..row_node(0.0) })).with_children(|r| {
+            r.spawn(cell(f, "mono", 12.0, FOREST, format!("{}  {}", i + 1, v.label()), Val::Percent(100.0), 0.0));
+            let size = det.sizes.get(i).copied().flatten().map(|s| bytes(s as u64)).unwrap_or_else(|| "—".into());
+            r.spawn(cell(f, "mono", 11.0, FOREST2, format!("{} · {size}", when(v.time)), Val::Percent(100.0), 0.0));
+        });
+    }
+}
+
 fn draw_right(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
     let Some(inv) = &db.inv else { return };
     match &db.pick {
@@ -1143,16 +1172,6 @@ fn draw_right(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
             p.spawn(words(f, "sans", 13.0, FOREST2, if d.own.is_empty() { "no branch has its own head for it".to_string() } else { format!("own heads on: {}", d.own.join(", ")) }));
             let Some(det) = db.detail.as_ref().filter(|x| x.id == d.id) else { return };
             let at = db.version.unwrap_or(0);
-            // the history, newest first
-            section(p, f, &format!("history · {} versions", det.versions.len()));
-            for (i, v) in det.versions.iter().enumerate().rev().take(MAX_ROWS) {
-                let bg = if i == at { PICKED } else { CREAM };
-                p.spawn((DbAct::Version(i), Hovered::default(), Base(bg), BackgroundColor(bg), row_node(10.0))).with_children(|r| {
-                    r.spawn(cell(f, "mono", 12.0, FOREST, format!("{:>3}  {}", i + 1, v.label()), Val::Auto, 1.0));
-                    r.spawn(cell(f, "mono", 12.0, FOREST2, when(v.time), Val::Px(120.0), 0.0));
-                    r.spawn(cell(f, "mono", 12.0, FOREST2, det.sizes.get(i).copied().flatten().map(|s| bytes(s as u64)).unwrap_or_else(|| "—".into()), Val::Px(70.0), 0.0));
-                });
-            }
             let label = det.versions.get(at).map(|v| v.label()).unwrap_or_default();
             if let Some(before) = &det.before {
                 section(p, f, &format!("changes in {label}, against the version before"));

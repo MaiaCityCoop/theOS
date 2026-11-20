@@ -3,18 +3,49 @@
 //! and serves it to the engine and to every other process on the machine. Arguments pass through to the engine.
 //!
 //!     kernel [args...]
+//!
+//! Told to stop (Ctrl-C or a TERM), it stops the engine, writes what the store holds to disk and closes it: a store
+//! closed by a plain kill can lose what other processes wrote through it last.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use thedb::TheDB;
 
+static STOP: AtomicBool = AtomicBool::new(false);
+
+extern "C" fn stop(_: i32) {
+    STOP.store(true, Ordering::Relaxed);
+}
+
+unsafe extern "C" {
+    fn signal(signum: i32, handler: extern "C" fn(i32)) -> usize;
+}
+
 fn main() {
+    // SIGINT and SIGTERM
+    unsafe {
+        signal(2, stop);
+        signal(15, stop);
+    }
     let args: Vec<String> = std::env::args().skip(1).collect();
     let dir = TheDB::here();
     let db = TheDB::open(&dir).unwrap_or_else(|e| fail(&e));
     let engine = db.pinned_engine().unwrap_or_else(|e| fail(&e));
     eprintln!("kernel: engine {}, build {}, {}", engine.engine, &engine.build[..12], engine.toolchain);
-    let status = std::process::Command::new(&engine.path).args(&args).env("THEDB", &dir).status().unwrap_or_else(|e| fail(&e.to_string()));
+    let mut child = std::process::Command::new(&engine.path).args(&args).env("THEDB", &dir).spawn().unwrap_or_else(|e| fail(&e.to_string()));
+    let code = loop {
+        if let Some(status) = child.try_wait().unwrap_or_else(|e| fail(&e.to_string())) {
+            break status.code().unwrap_or(1);
+        }
+        if STOP.load(Ordering::Relaxed) {
+            let _ = child.kill();
+            let _ = child.wait();
+            break 0;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    };
+    let _ = db.sync();
     drop(db);
-    std::process::exit(status.code().unwrap_or(1));
+    std::process::exit(code);
 }
 
 fn fail(e: &str) -> ! {
