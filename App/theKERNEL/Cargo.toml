@@ -8,6 +8,6 @@ publish = false
 name = "theKERNEL"
 path = "src/main.rs"
 
-# The kernel: the one thing installed (main.rs). Small on purpose: theDB and its plugins, never the engine.
+# The kernel: the one thing installed (main.rs). Small on purpose: theDB, never the engine.
 [dependencies]
 thedb = { path = "../theDB" }

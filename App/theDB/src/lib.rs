@@ -633,7 +633,6 @@ impl TheDB {
     }
 }
 
-pub mod plugin;
 
 #[cfg(feature = "bevy")]
 pub mod bevy;
