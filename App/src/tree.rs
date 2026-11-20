@@ -21,7 +21,19 @@ use std::f32::consts::{PI, TAU};
 // along every branch by the length walked from the root, faster the higher the branch's order (a twig bends more per
 // metre than a limb), so a twig's tip is near 1 and a leaf's tip a little more than its twig. It is continuous at
 // every fork: a branch starts with its parent's weight where it leaves it, so the wood never tears apart when it
-// sways. The whole tree is scaled so its largest weight is 1.
+// sways. The whole tree is scaled so its largest bending length is `SWAY`.
+//
+// The wind moves a point of an asset by `bend` (the wind doc) with a bending length s: its weight times its height
+// above the foot (the same rule for the master and its far copy). `bend` curls s metres into an arc of the wind's
+// curvature, about 1 rad/m in a breeze and up to 5.5 rad/m in the gusts of a storm, and never past 1.4 rad. With
+// weights up to 1, s would reach the tree's whole height (8 to 16 m): every crown would curl past 1.4 rad and its top
+// would fall metres down to the arc's end, the tree lying flat at any strength. So the weights are scaled where they
+// are made: the crown's outermost twigs bend over `SWAY`, the rest by their weight's share of it.
+
+/// The bending length of the tree's most swaying point (its top twigs), metres. With it `bend` moves them out on
+/// average about 11 cm in a breeze (strength 1), 15 cm at the slider's default (1.4) and 22 cm in a storm (2.5), at
+/// most 30 cm; a storm's strongest gusts curl them to `bend`'s limit and pull them down by 30 cm at most.
+pub const SWAY: f32 = 0.5;
 
 /// Per branch order (0 the trunk, 1 the limbs, 2 the branches, 3 the small branches, 4 the twigs): sides around a
 /// ring, points along the branch, the radius at its tip (metres), how strongly it turns up towards the light (per
@@ -430,9 +442,10 @@ pub fn tree_master(_: &crate::library::Asset, seed: u32, size: f32, col: Vec3) -
         }
     }
 
-    // the wind weights brought to [0, 1]: the trunk's foot stays at 0
-    let most = g.wind.iter().fold(0.0f32, |m, &w| m.max(w)).max(1e-6);
-    g.wind.iter_mut().for_each(|w| *w = (*w / most).clamp(0.0, 1.0));
+    // the wind weights scaled so the largest bending length (a weight times its height above the foot) is `SWAY`:
+    // the trunk's foot stays at 0
+    let most = g.wind.iter().zip(&g.pos).fold(0.0f32, |m, (&w, p)| m.max(w * p[1].max(0.0))).max(1e-6);
+    g.wind.iter_mut().for_each(|w| *w = (*w * SWAY / most).clamp(0.0, 1.0));
     g.mesh()
 }
 
@@ -465,6 +478,10 @@ mod tests {
             let Some(VertexAttributeValues::Float32(wind)) = a.attribute(ATTRIBUTE_WIND) else { panic!("no wind") };
             assert_eq!(wind.len(), positions(&a).len());
             assert!(wind.iter().all(|w| (0.0..=1.0).contains(w)), "wind weights in [0, 1]");
+            // the largest bending length is about `SWAY` (`master` fits the tree to its size, a scale near 1): the
+            // wind sways the crown and never lays it flat
+            let s = positions(&a).iter().zip(wind).fold(0.0f32, |m, (p, w)| m.max(w * p[1]));
+            assert!(s > 0.3 * SWAY && s <= SWAY * 1.05, "seed {seed}: largest bending length {s} m");
             let lowest = positions(&a).iter().zip(wind).min_by(|x, y| x.0[1].total_cmp(&y.0[1])).unwrap();
             assert!(*lowest.1 < 0.01, "the trunk's foot does not move");
             tops.push(top);

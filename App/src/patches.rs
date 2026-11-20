@@ -23,12 +23,11 @@ fn bake_at_start(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut images: ResMut<Assets<Image>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     mut passes: ResMut<Assets<crate::impostor::BakePass>>,
 ) {
     let library = crate::library::load();
     if let Some(asset) = library.get("grass patch") {
-        let baked = crate::impostor::bake(&mut commands, asset, &mut meshes, &mut images, &mut materials, &mut passes);
+        let baked = crate::impostor::bake(&mut commands, asset, &mut meshes, &mut images, &mut passes);
         commands.insert_resource(PatchBake(baked));
     }
 }
@@ -64,7 +63,7 @@ impl PatchField {
     /// `begin`: where the first level's patches start, metres from the eye.
     pub fn of(b: &crate::impostor::Baked, begin: f32) -> Self {
         PatchField {
-            params: crate::impostor::ImpostorParams { sphere: b.centre.extend(b.radius), grid: Vec4::new(crate::impostor::FRAMES as f32, begin, 0.0, 0.0) },
+            params: crate::impostor::ImpostorParams { grid: b.variants[0].params.grid.with_y(begin), ..b.variants[0].params },
             albedo: b.variants[0].albedo.clone(),
             normal: b.variants[0].normal.clone(),
         }

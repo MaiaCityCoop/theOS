@@ -272,6 +272,8 @@ impl TheDB {
             && let Some(theirs) = self.get(head)?
         {
             doc.import(&theirs).map_err(err)?;
+            json::heal(doc)?;
+            doc.commit();
         }
         let snapshot = doc.export(ExportMode::Snapshot).map_err(err)?;
         let hash = self.put(snapshot)?;
@@ -400,25 +402,26 @@ impl TheDB {
 
     // ---- text docs: a shader, a recipe, a shot list ----
 
-    /// The text of doc `id` (its root text `text`), if it exists.
+    /// The text of doc `id`, if it exists: its root text, or, for a doc kept as a map (`json`), that map written out as
+    /// JSON.
     pub fn text(&self, id: &str) -> Result<Option<String>> {
         Ok(match self.head(id)? {
-            Some(h) => Some(self.doc_at(h)?.get_text("text").to_string()),
+            Some(h) => Some(json::read(&self.doc_at(h)?)),
             None => None,
         })
     }
 
     /// Sets the text of doc `id`, as an edit of what it was (so its history shows what changed); a text that is
-    /// already there commits nothing. Returns the hash of the version that holds it.
+    /// already there commits nothing. A text that is a JSON object is kept as a Loro map, key by key (`json`), so two
+    /// branches that change it merge by key and never into a text that no longer parses. Returns the hash of the
+    /// version that holds it.
     pub fn set_text(&self, id: &str, text: &str) -> Result<Hash> {
         let doc = self.doc(id)?;
-        let t = doc.get_text("text");
-        if let Some(h) = self.head(id)?
-            && t.to_string() == text
+        if !json::write(&doc, text)?
+            && let Some(h) = self.head(id)?
         {
             return Ok(h);
         }
-        t.update(text, Default::default()).map_err(err)?;
         self.commit(id, &doc)
     }
 }
@@ -463,7 +466,7 @@ impl TheDB {
             let h: Hash = b.parse().map_err(err)?;
             return Ok(self.get(h)?.ok_or_else(|| format!("no blob {h}"))?.to_vec());
         }
-        Ok(doc.get_text("text").to_string().into_bytes())
+        Ok(json::read(&doc).into_bytes())
     }
 }
 
@@ -638,6 +641,8 @@ pub mod plugin;
 pub mod bevy;
 
 pub mod source;
+
+mod json;
 
 impl Drop for TheDB {
     fn drop(&mut self) {

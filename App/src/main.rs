@@ -6,7 +6,7 @@
 //!     cargo run -- --meadow <out.png> [hour]      measure the Meadow at 1080p for ten seconds, one picture, quit
 //!     cargo run -- --bake-place [lat lon]         a real place's package (Mértola's by default), from open data
 //!     cargo run -- --bake <asset id>              an asset's far views made and kept in theDB if not current, then quit
-//!     cargo run -- --place-still <out.png> [km] [hour]  an agent's still of the real place, the map that many km across, at a solar hour
+//!     cargo run -- --place-still <out.png> [km] [hour] [up]  an agent's still of the real place, the map that many km across, at a solar hour, from that many metres up
 
 mod bakes;
 mod biome;
@@ -78,16 +78,17 @@ fn main() {
     if args.get(1).map(String::as_str) == Some("--bake-place") {
         let at: Vec<f64> = args[2..].iter().filter_map(|a| a.parse().ok()).collect();
         let site = if let [lat, lon] = at[..] { place::Site::around(lat, lon) } else { place::Site::mertola() };
-        match place::bake(&site) {
+        match place::bake(&site, &place::Progress::default()) {
             Ok(line) => println!("{line}"),
             Err(e) => eprintln!("the bake failed: {e}"),
         }
         return;
     }
     let place_still = (args.get(1).map(String::as_str) == Some("--place-still"))
-        .then(|| Still { time: 0.0, out: args.get(2).expect("--place-still <out.png> [map km]").into() });
+        .then(|| Still { time: 0.0, out: args.get(2).expect("--place-still <out.png> [map km] [hour] [metres up]").into() });
     let map_km: Option<f32> = args.get(3).and_then(|s| s.parse().ok());
     let hour: Option<f32> = args.get(4).and_then(|s| s.parse().ok());
+    let up: Option<f32> = args.get(5).and_then(|s| s.parse().ok());
     let still = (args.get(1).map(String::as_str) == Some("--still")).then(|| {
         let usage = "--still <shots.json> <seconds> <out.png>";
         let timeline = film::shots(args.get(2).expect(usage)).expect("the shot list reads and parses");
@@ -170,6 +171,9 @@ fn main() {
             app.insert_resource(still).insert_state(View::Place).add_systems(Update, film::take_still);
             if let Some(km) = map_km {
                 app.insert_resource(map::Start(km));
+            }
+            if let Some(up) = up {
+                app.insert_resource(rig::Up(up));
             }
             if let Some(hour) = hour {
                 app.insert_resource(contract::Clock { day: sun::now().0, hour, ..default() }).insert_resource(sun::Sun::default());

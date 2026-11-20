@@ -120,7 +120,7 @@ fn shine(
     for mut f in &mut fog {
         let haze = mix(mix(Color::srgb(0.03, 0.04, 0.08), HAZE, day), Color::srgb(0.95, 0.70, 0.55), dusk * 0.6);
         f.color = haze;
-        f.falloff = bevy::pbr::FogFalloff::from_visibility_colors(6_000.0, haze, haze);
+        f.falloff = crate::place::air(haze);
     }
 }
 
@@ -143,7 +143,7 @@ fn set(
     clear.0 = SKY;
     for mut f in &mut fog {
         f.color = HAZE;
-        f.falloff = bevy::pbr::FogFalloff::from_visibility_colors(6_000.0, HAZE, HAZE);
+        f.falloff = crate::place::air(HAZE);
     }
 }
 

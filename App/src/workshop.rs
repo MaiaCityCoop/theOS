@@ -12,6 +12,8 @@ use bevy::prelude::*;
 const LAYER: RenderLayers = crate::meadow::MEADOW;
 /// How high the bed the assets stand on lies above the land.
 const PLINTH: f32 = 0.25;
+/// The share of a plant's diffuse light its leaves let through (its master's; its far view's broad lobe too).
+pub const TRANSMISSION: f32 = 0.5;
 
 #[derive(Resource)]
 pub struct Shelf {
@@ -44,7 +46,8 @@ pub struct Caption;
 pub fn plugin(app: &mut App) {
     app.add_systems(OnEnter(World::Library), enter)
         .add_systems(OnExit(World::Library), leave)
-        .add_systems(Update, (keys, show, turn, toggle).chain().run_if(in_state(World::Library)));
+        // before the wind is given out, so a master and its far copy made this frame sway from their first frame
+        .add_systems(Update, (keys, show, turn, toggle).chain().before(crate::wind::blow).run_if(in_state(World::Library)));
 }
 
 /// The Meadow's hour, kept while the Library shows its assets in late-morning light, and given back on leaving.
@@ -111,10 +114,10 @@ fn show(
     mut commands: Commands,
     shelf: Option<ResMut<Shelf>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
     mut bakes: ResMut<Assets<crate::impostor::BakePass>>,
     mut impostors: ResMut<Assets<crate::impostor::Impostor>>,
+    mut masters: ResMut<Assets<crate::wind::Master>>,
     turn: Query<Entity, With<Turn>>,
     old: Query<Entity, With<Specimen>>,
     mut eye: ResMut<crate::contract::Eye>,
@@ -153,13 +156,15 @@ fn show(
     for e in &old {
         commands.entity(e).despawn();
     }
-    let mesh = crate::library::master(a, s.seed);
+    // (`SHELF_MATCH`: the full mesh is the master the far view was baked from, to compare the two as the same individual)
+    let seed = if std::env::var_os("SHELF_MATCH").is_some() { crate::library::variant_seed(crate::library::variant_of(a, s.seed)) } else { s.seed };
+    let mesh = crate::library::master(a, seed);
     let tris = crate::library::triangles(&mesh);
     // the asset's far view: made once for the asset, not for the seed; a new seed is drawn as one of its variants
     let baked = match far_views.get(&a.name) {
         Some(b) => b.clone(),
         None => {
-            let b = crate::impostor::bake(&mut commands, a, &mut meshes, &mut images, &mut materials, &mut bakes);
+            let b = crate::impostor::bake(&mut commands, a, &mut meshes, &mut images, &mut bakes);
             far_views.insert(a.name.clone(), b.clone());
             b
         }
@@ -171,7 +176,7 @@ fn show(
             Specimen,
             Shows(true),
             LAYER,
-            Mesh3d(meshes.add(crate::impostor::quad())),
+            Mesh3d(meshes.add(crate::impostor::shell())),
             MeshMaterial3d(impostors.add(crate::impostor::Impostor::of(&baked, variant))),
             bevy::camera::visibility::NoFrustumCulling,
             // its shadow would be the bare quad's: the shadow pass does not turn it
@@ -180,7 +185,7 @@ fn show(
         ))
         .id();
     commands.entity(table).add_child(imp);
-    // the atlas itself, small, bottom right, with the far view: the 8 × 8 views of the master as baked (in the Library
+    // the atlas itself, small, bottom right, with the far view: the 12 × 12 views of the master as baked (in the Library
     // view, not in a film)
     if *view.get() == View::Library {
     commands.spawn((
@@ -192,20 +197,25 @@ fn show(
         BackgroundColor(Color::srgb(0.15, 0.15, 0.15)),
     ));
     }
+    // the full mesh sways in the wind as its far copy does: the same function, weights, time and strength
+    // (`wind::Master`), on the same turntable, so F shows no jump in motion
     let child = commands
         .spawn((
             Specimen,
             Shows(false),
             LAYER,
-            Mesh3d(meshes.add(mesh)),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::WHITE,
-                perceptual_roughness: 0.85,
-                reflectance: 0.1,
-                double_sided: true,
-                cull_mode: None,
-                diffuse_transmission: if a.kind == "plant" { 0.5 } else { 0.0 },
-                ..default()
+            Mesh3d(meshes.add(crate::library::with_wind(mesh))),
+            MeshMaterial3d(masters.add(crate::wind::Master {
+                base: StandardMaterial {
+                    base_color: Color::WHITE,
+                    perceptual_roughness: 0.85,
+                    reflectance: 0.1,
+                    double_sided: true,
+                    cull_mode: None,
+                    diffuse_transmission: if a.kind == "plant" { TRANSMISSION } else { 0.0 },
+                    ..default()
+                },
+                extension: crate::wind::Sway::default(),
             })),
             Transform::default(),
         ))
@@ -222,8 +232,8 @@ fn show(
             tris,
             variant + 1,
             a.variants.max(1),
-            crate::impostor::FRAMES,
-            crate::impostor::FRAMES,
+            crate::impostor::GRID,
+            crate::impostor::GRID,
             s.at + 1,
             s.names.len()
         );
@@ -279,13 +289,25 @@ pub fn shelf_shots(
     *n += 1;
     // a bake takes about 160 frames and its read-back a few more: photograph after it, or the far view is empty
     let wait = if s.at == 0 { 400 } else { 260 };
-    if *n == wait {
-        let name = s.names.get(s.at).cloned().unwrap_or_default().replace(' ', "-");
+    // each asset twice, in the same place: its full mesh, then its far view (the toggle's two sides)
+    let name = s.names.get(s.at).cloned().unwrap_or_default().replace(' ', "-");
+    let at = s.at;
+    let shot = |commands: &mut Commands, side: &str| {
         commands
             .spawn(bevy::render::view::screenshot::Screenshot::primary_window())
-            .observe(bevy::render::view::screenshot::save_to_disk(shots.dir.join(format!("{}-{name}.png", s.at))));
+            .observe(bevy::render::view::screenshot::save_to_disk(shots.dir.join(format!("{at:02}-{name}-{side}.png"))));
+    };
+    if *n == wait {
+        shot(&mut commands, "mesh");
     }
     if *n == wait + 10 {
+        s.far = true;
+    }
+    if *n == wait + 30 {
+        shot(&mut commands, "far");
+    }
+    if *n == wait + 40 {
+        s.far = false;
         *n = 0;
         if s.at + 1 >= s.names.len().min(std::env::var("SHELF_N").ok().and_then(|v| v.parse().ok()).unwrap_or(usize::MAX)) {
             exit.write(AppExit::Success);

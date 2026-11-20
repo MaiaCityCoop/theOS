@@ -42,6 +42,8 @@ pub struct Shaders {
     pub grass_wind: String,
     pub grass_wind_prepass: String,
     pub impostor: String,
+    /// A master in the wind (`wind::Master`): the main pass's and the prepass's vertex shaders.
+    pub master_wind: String,
     pub bake_normal: String,
     pub lawn_bake: String,
     pub patch_field: String,

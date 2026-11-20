@@ -126,9 +126,20 @@ pub fn colour(a: &Asset, r: f32) -> Vec3 {
 
 /// How much a vertex moves in the wind, 0 to 1, one Float32 per vertex: part of the master's contract (intent 0050).
 /// A master has positions, normals and colours (linear reflectance), UVs where its generator gives them, and the wind
-/// weight where its generator gives it; a master without it does not move in the wind (a rock): its weight is 0. The
-/// impostor's wind channel and the wind shader read it.
+/// weight where its generator gives it; a master without it does not move in the wind (a rock): its weight is 0. A
+/// point sways by the wind's `bend` over its weight times its height above the master's foot: the master as drawn
+/// (`wind::Master`) and its far copy (the impostor's wind channel) read it the same way.
 pub const ATTRIBUTE_WIND: MeshVertexAttribute = MeshVertexAttribute::new("Wind", 0x7EE0_0050_0000_0001, VertexFormat::Float32);
+
+/// A master as it is drawn and baked: with its wind weights, zeros where its generator gives none (it stands still).
+/// The shaders that read the weight need it on every master.
+pub fn with_wind(mut mesh: Mesh) -> Mesh {
+    if mesh.attribute(ATTRIBUTE_WIND).is_none() {
+        let n = mesh.count_vertices();
+        mesh.insert_attribute(ATTRIBUTE_WIND, vec![0.0f32; n]);
+    }
+    mesh
+}
 
 /// A generator: grows the individual `seed` of an asset at the size and in the colour given (drawn by `master` from
 /// the asset's ranges), standing at the origin, Y up, in metres. It reads its proportions from the asset and keeps no

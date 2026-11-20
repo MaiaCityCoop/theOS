@@ -9,8 +9,9 @@
 //! Everything is kept in theDB (intent 0049), reached by ids from the root: each open-data file fetched, once, a part
 //! of the Earth's doc under its source URL (the canopy map's headers and rows too, under their URL and range); a
 //! place's package (height.bin, cover.bin, the map's layers, trees.bin, place.json, about 1 MB) one doc, each file a
-//! part. A click on the map outside the square bakes the square
-//! around that point the same way, in the background, and opens it; a place baked once opens at once.
+//! part. A click on the map outside the square bakes the square around that point the same way, in the background,
+//! and opens it (`map.rs`: the latest click wins, and a panel shows each step's tiles and MB); a place baked once
+//! opens at once.
 
 use crate::contract::World;
 use crate::rig::Walker;
@@ -21,7 +22,6 @@ use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::Path;
 
 
 /// The size of a place and the resolution of its two grids.
@@ -92,66 +92,170 @@ fn place_doc(lat: f64, lon: f64, name: &str) -> String {
     id
 }
 
+/// What a bake running in the background is doing, shared with the app that shows it: the step, its detail (the tile
+/// and the MB), and the share of the whole bake done. Each step owns a slice of the whole (`step`), and reports how far
+/// into it it is (`at`), so the share only grows. A bake asked for by a click carries the click's generation: when a
+/// later click supersedes it, it stops at the next tile (the download in hand finishes and is kept).
+#[derive(Clone, Default)]
+pub struct Progress {
+    now: std::sync::Arc<std::sync::Mutex<Now>>,
+    generation: u64,
+    latest: std::sync::Arc<std::sync::atomic::AtomicU64>,
+}
+
+/// A bake's progress, read.
+#[derive(Clone, Default, Debug)]
+pub struct Now {
+    pub step: String,
+    pub detail: String,
+    /// 0 to 1, of the whole bake
+    pub share: f32,
+    slice: (f32, f32),
+}
+
+impl Progress {
+    /// The progress of the bake of click `generation`; `latest` holds the generation of the latest click.
+    pub fn of(generation: u64, latest: std::sync::Arc<std::sync::atomic::AtomicU64>) -> Progress {
+        Progress { now: Default::default(), generation, latest }
+    }
+    pub fn read(&self) -> Now {
+        self.now.lock().unwrap().clone()
+    }
+    /// Whether a later click has superseded this bake.
+    pub fn stale(&self) -> bool {
+        self.latest.load(std::sync::atomic::Ordering::Relaxed) != self.generation
+    }
+    /// Stops the bake if a later click has superseded it.
+    pub fn go_on(&self) -> Result<(), String> {
+        if self.stale() { Err("superseded by a later click".into()) } else { Ok(()) }
+    }
+    /// A new step, owning the slice `from..to` of the whole.
+    pub fn step(&self, step: &str, from: f32, to: f32) {
+        let mut n = self.now.lock().unwrap();
+        *n = Now { step: step.into(), detail: String::new(), share: from, slice: (from, to) };
+        eprintln!("bake: {step}");
+    }
+    /// How far into the step it is (0 to 1), and what it is doing.
+    pub fn at(&self, within: f32, detail: String) {
+        let mut n = self.now.lock().unwrap();
+        let (a, b) = n.slice;
+        n.share = n.share.max(a + (b - a) * within.clamp(0.0, 1.0));
+        n.detail = detail;
+    }
+}
+
+/// Megabytes, as the panel shows them.
+pub fn mb(bytes: u64) -> String {
+    format!("{:.1} MB", bytes as f64 / 1e6)
+}
+
+/// A URL, or bytes a..=b of it, downloaded with curl into the store's download cache, reporting the bytes as they come
+/// (`report(got, of)`, of: the size when known: the range's, or the server's Content-Length from a HEAD first).
+/// Ok(None) when the server says it is not there (404, or 416 for a range past its end: an ocean tile); Err when it
+/// could not be asked (no network) or answered otherwise.
+pub fn download(url: &str, range: Option<(u64, u64)>, report: &mut dyn FnMut(u64, Option<u64>)) -> Result<Option<Vec<u8>>, String> {
+    static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let dir = crate::db().dir().join("cache").join("download");
+    let _ = std::fs::create_dir_all(&dir);
+    // a file of its own for every download, so two bakes fetching the same tile never write into one file
+    let part = dir.join(format!("{}.{}.part", std::process::id(), N.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
+    let size = match range {
+        Some((a, b)) => Some(b - a + 1),
+        None => std::process::Command::new("curl").args(["-sSLI", "--max-time", "20", url]).output().ok().and_then(|o| {
+            // the last response's length, after any redirects
+            String::from_utf8_lossy(&o.stdout).lines().rev().find_map(|l| {
+                let (k, v) = l.split_once(':')?;
+                k.trim().eq_ignore_ascii_case("content-length").then(|| v.trim().parse().ok()).flatten()
+            })
+        }),
+    };
+    let mut cmd = std::process::Command::new("curl");
+    cmd.args(["-sSL", "--retry", "2", "--connect-timeout", "20", "-w", "%{http_code}", "-o"]).arg(&part);
+    if let Some((a, b)) = range {
+        cmd.args(["-r", &format!("{a}-{b}")]);
+    }
+    let mut child = cmd.arg(url).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().map_err(|e| format!("curl: {e}"))?;
+    // the bytes so far, a few times a second, from the file's size
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) => {
+                report(std::fs::metadata(&part).map_or(0, |m| m.len()), size);
+                std::thread::sleep(std::time::Duration::from_millis(200));
+            }
+            Err(e) => return Err(format!("curl: {e}")),
+        }
+    };
+    let out = child.wait_with_output().map_err(|e| format!("curl: {e}"))?;
+    let code = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let got = std::fs::read(&part).ok();
+    let _ = std::fs::remove_file(&part);
+    match (status.success(), code.as_str()) {
+        (true, c) if c.starts_with('2') => {
+            let got = got.ok_or("the download vanished from the cache")?;
+            report(got.len() as u64, size);
+            Ok(Some(got))
+        }
+        (true, "404" | "416") => Ok(None),
+        (true, c) => Err(format!("the server answered {c}")),
+        (false, _) => {
+            let why = String::from_utf8_lossy(&out.stderr).trim().trim_start_matches("curl: ").to_string();
+            Err(if why.is_empty() { "no network".into() } else { why })
+        }
+    }
+}
+
 /// An open-data file, downloaded once and kept in theDB: a part of the Earth's doc under its source URL (its bytes a
-/// blob). None when there is none (no elevation tile over open sea), which is kept too (`none <url>`), so it is not
-/// asked for again.
-pub fn fetch((name, url): (&str, &str)) -> Option<thedb::Bytes> {
+/// blob). Ok(None) when there is none (no elevation tile over open sea): the server's 404 is kept too (`none <url>`),
+/// so it is not asked for again. Err when it could not be fetched (no network, say), which is not kept: it is tried
+/// again next time. `report` hears the bytes as they come.
+pub fn fetch((name, url): (&str, &str), report: &mut dyn FnMut(u64, Option<u64>)) -> Result<Option<thedb::Bytes>, String> {
     let db = crate::db();
     let earth = &crate::root::root().earth;
     if let Ok(Some(b)) = db.part(earth, url) {
-        return Some(b);
+        return Ok(Some(b));
     }
-    // a source the server said is not there (404: an ocean tile, say) is not asked again; an empty marker is one an
-    // older build wrote on any failure, even a local one, so it is asked again
+    // an empty marker is one an older build wrote on any failure, even a local one, so it is asked again
     if db.part(earth, &format!("none {url}")).ok().flatten().is_some_and(|m| m.as_ref() == b"404") {
-        return None;
+        return Ok(None);
     }
     eprintln!("fetching {name}");
-    // downloaded into the store's cache, then kept in theDB; the download itself is not kept
-    let dir = db.dir().join("cache").join("download");
-    let _ = std::fs::create_dir_all(&dir);
-    let part = dir.join(format!("{name}.{}.part", std::process::id()));
-    let status = std::process::Command::new("curl")
-        .args(["-sSL", "--retry", "2", "-w", "%{http_code}", "-o"])
-        .arg(&part)
-        .arg(url)
-        .output()
-        .ok()
-        .map(|o| (o.status.success(), String::from_utf8_lossy(&o.stdout).trim().to_string()));
-    let got = match &status {
-        Some((true, code)) if code.starts_with('2') => std::fs::read(&part).ok(),
-        _ => None,
-    };
-    let _ = std::fs::remove_file(&part);
-    match got {
-        Some(b) => {
-            db.set_part(earth, url, &b).ok()?;
-            Some(b.into())
+    match download(url, None, report) {
+        Ok(Some(b)) => {
+            db.set_part(earth, url, &b)?;
+            Ok(Some(b.into()))
         }
-        None => {
-            // only the server's own "not there" is remembered; a failed connection or a full disk is tried again
-            if matches!(&status, Some((true, code)) if code == "404") {
-                let _ = db.set_part(earth, &format!("none {url}"), b"404");
-            } else {
-                eprintln!("could not fetch {name}: {status:?}");
-            }
-            None
+        Ok(None) => {
+            let _ = db.set_part(earth, &format!("none {url}"), b"404");
+            Ok(None)
+        }
+        Err(e) => {
+            eprintln!("could not fetch {name}: {e}");
+            Err(format!("{name} could not be fetched: {e}"))
         }
     }
+}
+
+/// Whether an open-data file is already kept (or known not to be there): fetching it costs nothing.
+pub fn kept(url: &str) -> bool {
+    let (db, earth) = (crate::db(), &crate::root::root().earth);
+    db.part(earth, url).ok().flatten().is_some() || db.part(earth, &format!("none {url}")).ok().flatten().is_some_and(|m| m.as_ref() == b"404")
 }
 
 /// The open tiles a kind of map comes in, joined: each ground point is read from the tile that holds it.
 pub struct Source {
     dem: bool,
     tiles: HashMap<String, Option<Raster>>,
+    /// A tile that could not be fetched while reading (not a 404: that is the sea): the bake fails with it.
+    pub failed: Option<String>,
 }
 
 impl Source {
     pub fn dem() -> Source {
-        Source { dem: true, tiles: HashMap::new() }
+        Source { dem: true, tiles: HashMap::new(), failed: None }
     }
     pub fn cover() -> Source {
-        Source { dem: false, tiles: HashMap::new() }
+        Source { dem: false, tiles: HashMap::new(), failed: None }
     }
     /// The tile's file name and URL: Copernicus GLO-30 in 1° tiles, ESA WorldCover in 3° tiles.
     fn tile(&self, lat: f64, lon: f64) -> (String, String) {
@@ -166,10 +270,57 @@ impl Source {
             (name.clone(), format!("https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/{name}"))
         }
     }
+    /// Every tile a square of `km` a side around the site touches: the tile grid over its corners' latitudes and
+    /// longitudes (the square is drawn in a flat projection, so its corners are its extremes).
+    fn tiles_over(&self, site: &Site, km: f32) -> Vec<(String, String)> {
+        let h = km * 500.0;
+        let (n, w) = site.latlon(-h, -h);
+        let (s, e) = site.latlon(h, h);
+        let deg = if self.dem { 1.0 } else { 3.0 };
+        let mut out: Vec<(String, String)> = Vec::new();
+        for la in (s / deg).floor() as i32..=(n / deg).floor() as i32 {
+            for lo in (w / deg).floor() as i32..=(e / deg).floor() as i32 {
+                let t = self.tile((la as f64 + 0.5) * deg, (lo as f64 + 0.5) * deg);
+                if !out.contains(&t) {
+                    out.push(t);
+                }
+            }
+        }
+        out
+    }
+    /// Fetches every tile a square of `km` around the site needs, before any is read, so the bake can say how many
+    /// there are and how far it is; reports into the progress's current step. A tile that cannot be fetched fails it.
+    pub fn fetch_over(&mut self, site: &Site, km: f32, what: &str, p: &Progress) -> Result<(), String> {
+        let tiles = self.tiles_over(site, km);
+        let n = tiles.len();
+        for (i, (name, url)) in tiles.into_iter().enumerate() {
+            p.go_on()?;
+            let cached = kept(&url);
+            let mut report = |got: u64, of: Option<u64>| {
+                let part = of.map_or(0.5, |of| got as f32 / of.max(1) as f32);
+                let size = of.map_or(mb(got), |of| format!("{} of {}", mb(got), mb(of)));
+                p.at((i as f32 + part) / n as f32, format!("tile {} of {n} · {size}", i + 1));
+            };
+            if cached {
+                p.at(i as f32 / n as f32, format!("tile {} of {n} · kept", i + 1));
+            }
+            let raster = fetch((&name, &url), &mut report).map_err(|e| format!("{what}: {e}"))?.and_then(Raster::open);
+            self.tiles.insert(name, raster);
+            p.at((i + 1) as f32 / n as f32, format!("tile {} of {n} · {}", i + 1, if cached { "kept" } else { "done" }));
+        }
+        Ok(())
+    }
     /// The value at a ground point; where there is no tile, the sea: 0 m, and WorldCover's water.
     pub fn at(&mut self, lat: f64, lon: f64, smooth: bool) -> f32 {
         let (name, url) = self.tile(lat, lon);
-        let r = self.tiles.entry(name.clone()).or_insert_with(|| fetch((&name, &url)).and_then(Raster::open));
+        let failed = &mut self.failed;
+        let r = self.tiles.entry(name.clone()).or_insert_with(|| match fetch((&name, &url), &mut |_, _| {}) {
+            Ok(b) => b.and_then(Raster::open),
+            Err(e) => {
+                failed.get_or_insert(e);
+                None
+            }
+        });
         match r {
             Some(r) => r.at(lat, lon, smooth),
             None if self.dem => 0.0,
@@ -254,9 +405,19 @@ fn raw_tile(dec: &mut tiff::decoder::Decoder<std::io::Cursor<thedb::Bytes>>, byt
     read().unwrap_or_default()
 }
 
-/// Bakes a site's package into its directory: the height and cover grids and the map's layers. Returns a line on it.
-pub fn bake(site: &Site) -> Result<String, String> {
+/// Bakes a site's package into theDB: the height and cover grids, the map's layers and the measured trees, reporting
+/// each step to `p`. The steps' slices of the whole follow what takes the time on a first bake: the downloads.
+/// Returns a line on it.
+pub fn bake(site: &Site, p: &Progress) -> Result<String, String> {
     let (mut dem, mut cover) = (Source::dem(), Source::cover());
+    // the tiles first, over the map's 40 km region (it holds the 6 km square), so every download is counted
+    p.step("Elevation · Copernicus GLO-30", 0.0, 0.25);
+    dem.fetch_over(site, crate::map::REGION_KM, "the elevation", p)?;
+    p.step("Land cover · ESA WorldCover", 0.25, 0.55);
+    cover.fetch_over(site, crate::map::REGION_KM, "the land cover", p)?;
+    p.go_on()?;
+
+    p.step("Building the terrain", 0.55, 0.60);
     let grid = |n: usize, r: &mut Source, smooth: bool| -> Vec<f32> {
         (0..n * n)
             .map(|i| {
@@ -267,12 +428,24 @@ pub fn bake(site: &Site) -> Result<String, String> {
             .collect()
     };
     let height = grid(HN, &mut dem, true);
+    p.at(0.5, "the height".into());
     let classes: Vec<u8> = grid(CN, &mut cover, false).into_iter().map(|c| c as u8).collect();
+    if let Some(e) = dem.failed.take().or(cover.failed.take()) {
+        return Err(e);
+    }
     site.write("height.bin", &height.iter().flat_map(|h| h.to_le_bytes()).collect::<Vec<u8>>())?;
     site.write("cover.bin", &classes)?;
-    crate::map::bake(site, &mut dem, &mut cover)?;
-    let trees = crate::canopy::trees(site);
+    p.go_on()?;
+
+    p.step("The map · Natural Earth coastlines", 0.60, 0.66);
+    crate::map::bake(site, &mut dem, &mut cover, p)?;
+    p.go_on()?;
+
+    p.step("Trees · Meta and WRI canopy height", 0.66, 0.97);
+    let trees = crate::canopy::trees(site, p)?;
     site.write("trees.bin", &crate::canopy::bytes(&trees))?;
+
+    p.step("Writing the package", 0.97, 1.0);
     let manifest = Manifest {
         name: site.name.clone(),
         lat: site.lat,
@@ -289,9 +462,10 @@ pub fn bake(site: &Site) -> Result<String, String> {
     };
     // the manifest last: a package without one is unfinished
     site.write("place.json", (serde_json::to_string_pretty(&manifest).unwrap() + "\n").as_bytes())?;
+    p.at(1.0, String::new());
     let (lo, hi) = height.iter().fold((f32::MAX, f32::MIN), |(a, b), &h| (a.min(h), b.max(h)));
-    let shares: Vec<String> = shares(&classes).iter().map(|(c, s)| format!("{}:{s:.0}%", c.code)).collect();
-    Ok(format!("baked {}: height {lo:.0}..{hi:.0} m, {} trees, cover {}", site.docs, trees.len(), shares.join(" ")))
+    let shares: Vec<String> = shares(&classes).iter().map(|(c, s)| format!("{} {s:.0}%", c.name)).collect();
+    Ok(format!("baked {}: height {lo:.0}..{hi:.0} m, {} trees, cover {}", site.docs, trees.len(), shares.join(", ")))
 }
 
 /// Whether a site's package is there and whole.
@@ -328,9 +502,7 @@ impl Ground {
 pub fn plugin(app: &mut App) {
     app.insert_resource(Site::mertola())
         .add_systems(OnEnter(World::Place), (stage, enter).chain())
-        .add_systems(OnExit(World::Place), (leave, unstage))
-        .init_resource::<CoverView>()
-        .add_systems(Update, (cover_key.run_if(in_state(crate::View::Place)).run_if(in_state(World::Place)), cover_look).chain());
+        .add_systems(OnExit(World::Place), (leave, unstage));
 }
 
 /// The real place's own eye: a 3D camera with its haze, made when the place opens and gone when it closes (the
@@ -355,7 +527,7 @@ fn stage(mut commands: Commands, mut dash: Query<(Entity, &mut Camera), With<cra
         Transform::from_xyz(0.0, 1.6, 0.0),
         DistanceFog {
             color: crate::world::HAZE,
-            falloff: FogFalloff::from_visibility_colors(6_000.0, crate::world::HAZE, crate::world::HAZE),
+            falloff: air(crate::world::HAZE),
             ..default()
         },
     ));
@@ -366,6 +538,17 @@ fn stage(mut commands: Commands, mut dash: Query<(Entity, &mut Camera), With<cra
         bevy::light::CascadeShadowConfigBuilder { num_cascades: 3, first_cascade_far_bound: 40.0, maximum_distance: 600.0, ..default() }.build(),
         Transform::from_xyz(0.3, 1.0, 0.4).looking_at(Vec3::ZERO, Vec3::Y),
     ));
+}
+
+/// How far one sees through the place's air: 30 km, a clear day (the meteorological visibility; the WMO calls 20 to
+/// 50 km very good). The haze used to close at 6 km, a hazy day's, which veiled the land a third at 1 km away and
+/// left it pale and milky from above; the square's edge is hidden by the land beyond it, coloured as the square is.
+pub const VISIBILITY: f32 = 30_000.0;
+
+/// The place's air with the haze of the hour: light is taken out toward a clear sky's blue (the red and green go
+/// further than the blue) and the haze's colour scattered in, as the Meadow's air does.
+pub fn air(haze: Color) -> FogFalloff {
+    FogFalloff::from_visibility_colors(VISIBILITY, Color::srgb(0.35, 0.48, 0.66), haze)
 }
 
 fn unstage(mut commands: Commands, mut dash: Query<(Entity, &mut Camera), With<crate::world::Eye>>) {
@@ -380,51 +563,56 @@ pub fn hash(x: u32, y: u32, salt: u32) -> f32 {
     ((h ^ (h >> 13)).wrapping_mul(0x85eb_ca6b) >> 8) as f32 / (1u32 << 24) as f32
 }
 
-/// A land cover class of ESA WorldCover, as cover.bin holds it: its code, its name, its colour in the natural view
-/// (linear, as the ground looks in late autumn after the first rains) and its colour in WorldCover's own legend (sRGB).
-/// The terrain, the map and the legend all read their colours and names from `CLASSES`, so there is no second copy.
+/// A land cover class of ESA WorldCover, as cover.bin holds it: its code, its name, and its colour on the ground and on
+/// the round map, as linear reflectance in red, green and blue. The terrain, the map and the bake line all read
+/// `CLASSES`, so there is no second copy.
+///
+/// The colours are what each surface reflects in the visible: Sentinel-2 surface reflectance (L2A, bands 4, 3 and 2,
+/// red, green and blue) over each cover, and the USGS Spectral Library version 7 (Kokaly et al. 2017,
+/// https://doi.org/10.5066/F7RR1WDJ) for its materials: green leaves 0.03 to 0.06 in red and blue with a peak of 0.08 to
+/// 0.15 in green; dry grass and scrub 0.10 to 0.25, warm; soils and rock 0.20 to 0.35; asphalt, roofs and concrete
+/// 0.10 to 0.30, grey; snow 0.8 to 0.9; clear deep water 0.01 to 0.05, highest in blue. Within those ranges each class
+/// is put where it stays apart from its neighbours, so a forest, a field and a scrubland read as three things.
 pub struct Class {
     pub code: u8,
     pub name: &'static str,
     pub natural: [f32; 3],
-    pub legend: [u8; 3],
 }
 
-/// WorldCover's eleven classes. The legend colours are the product's published palette: ESA WorldCover 10 m 2021 v200,
-/// Product User Manual v2.0, table 1 (https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/docs/WorldCover_PUM_V2.0.pdf),
-/// the same values Earth Engine's catalog gives for ESA/WorldCover/v200. WorldCover does not tell sea, lakes and rivers
-/// apart: all are its permanent water.
+/// WorldCover's eleven classes (ESA WorldCover 10 m 2021 v200, Product User Manual v2.0, table 1). WorldCover does not
+/// tell sea, lakes and rivers apart: all are its permanent water, drawn as water.
 pub const CLASSES: [Class; 11] = [
-    // the ground under the cork and holm oaks, dry grass
-    Class { code: 10, name: "Tree cover", natural: [0.30, 0.29, 0.17], legend: [0x00, 0x64, 0x00] },
-    // cistus and broom, grey green
-    Class { code: 20, name: "Shrubland", natural: [0.22, 0.24, 0.14], legend: [0xff, 0xbb, 0x22] },
-    // half green again
-    Class { code: 30, name: "Grassland", natural: [0.34, 0.34, 0.18], legend: [0xff, 0xff, 0x4c] },
-    // ploughed
-    Class { code: 40, name: "Cropland", natural: [0.36, 0.27, 0.17], legend: [0xf0, 0x96, 0xff] },
-    // white walls, red roofs show as light
-    Class { code: 50, name: "Built-up", natural: [0.62, 0.58, 0.52], legend: [0xfa, 0x00, 0x00] },
-    // bare schist and soil
-    Class { code: 60, name: "Bare / sparse vegetation", natural: [0.40, 0.33, 0.24], legend: [0xb4, 0xb4, 0xb4] },
-    // old snow, a little grey
-    Class { code: 70, name: "Snow and ice", natural: [0.80, 0.82, 0.85], legend: [0xf0, 0xf0, 0xf0] },
-    // the Guadiana
-    Class { code: 80, name: "Permanent water", natural: [0.06, 0.12, 0.14], legend: [0x00, 0x64, 0xc8] },
-    Class { code: 90, name: "Herbaceous wetland", natural: [0.18, 0.24, 0.13], legend: [0x00, 0x96, 0xa0] },
-    Class { code: 95, name: "Mangroves", natural: [0.10, 0.16, 0.09], legend: [0x00, 0xcf, 0x75] },
-    Class { code: 100, name: "Moss and lichen", natural: [0.36, 0.34, 0.24], legend: [0xfa, 0xe6, 0xa0] },
+    // a closed canopy seen from above: dark, rich green
+    Class { code: 10, name: "Tree cover", natural: [0.035, 0.075, 0.030] },
+    // cistus, broom and heath with dry ground between: warm ochre
+    Class { code: 20, name: "Shrubland", natural: [0.150, 0.120, 0.060] },
+    // grass, green after the autumn rains: lighter and yellower than the trees
+    Class { code: 30, name: "Grassland", natural: [0.085, 0.140, 0.045] },
+    // fields: sown cereal and stubble, between green and straw
+    Class { code: 40, name: "Cropland", natural: [0.150, 0.165, 0.070] },
+    // roofs, streets and walls: grey
+    Class { code: 50, name: "Built-up", natural: [0.200, 0.195, 0.190] },
+    // bare schist, sand and soil: pale
+    Class { code: 60, name: "Bare / sparse vegetation", natural: [0.300, 0.260, 0.200] },
+    Class { code: 70, name: "Snow and ice", natural: [0.850, 0.870, 0.900] },
+    // clear deep water: dark, bluest; the terrain also makes it smooth and glossy
+    Class { code: 80, name: "Permanent water", natural: [0.012, 0.030, 0.050] },
+    // reeds and wet meadow: dark teal green
+    Class { code: 90, name: "Herbaceous wetland", natural: [0.040, 0.085, 0.065] },
+    Class { code: 95, name: "Mangroves", natural: [0.025, 0.060, 0.030] },
+    // tundra's mosses and lichens: grey olive
+    Class { code: 100, name: "Moss and lichen", natural: [0.160, 0.160, 0.110] },
 ];
 
-/// A code WorldCover does not define (its no-data value is 0): the natural view's average ground, black in the legend.
-pub const NO_DATA: Class = Class { code: 0, name: "No data", natural: [0.32, 0.31, 0.20], legend: [0x00, 0x00, 0x00] };
+/// A code WorldCover does not define (its no-data value is 0): an average ground.
+pub const NO_DATA: Class = Class { code: 0, name: "No data", natural: [0.140, 0.130, 0.080] };
 
 /// The class of a code.
 pub fn class(code: u8) -> &'static Class {
     CLASSES.iter().find(|c| c.code == code).unwrap_or(&NO_DATA)
 }
 
-/// The colour of a WorldCover class in the natural view.
+/// The colour of a WorldCover class.
 pub fn colour(code: u8) -> [f32; 3] {
     class(code).natural
 }
@@ -437,62 +625,6 @@ pub fn shares(cover: &[u8]) -> Vec<(&'static Class, f32)> {
         (0..256).filter(|&c| counts[c] > 0).map(|c| (class(c as u8), counts[c] as f32 * 100.0 / cover.len().max(1) as f32)).collect();
     out.sort_by(|a, b| b.1.total_cmp(&a.1));
     out
-}
-
-/// Which colours the terrain wears: the natural ones (false, the default) or WorldCover's legend (true). It outlives a
-/// place, so a square opened from the map keeps the view.
-#[derive(Resource, Default)]
-pub struct CoverView(pub bool);
-
-/// The terrain's material and its two pictures, to swap when the view changes.
-#[derive(Resource)]
-pub struct GroundLook {
-    material: Handle<StandardMaterial>,
-    natural: Handle<Image>,
-    classes: Handle<Image>,
-}
-
-/// The toggle's words: which colours the terrain wears now.
-#[derive(Component)]
-pub struct CoverLabel;
-
-/// A layer shown only while the terrain wears the land cover classes (the legend).
-#[derive(Component)]
-pub struct CoverOnly;
-
-/// L switches the terrain between its natural colours and the land cover classes.
-fn cover_key(keys: Res<ButtonInput<KeyCode>>, mut view: ResMut<CoverView>) {
-    if keys.just_pressed(KeyCode::KeyL) {
-        view.0 = !view.0;
-    }
-}
-
-/// Puts the chosen picture on the terrain, names it on the toggle and shows or hides the legend.
-fn cover_look(
-    view: Res<CoverView>,
-    look: Option<Res<GroundLook>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut labels: Query<&mut Text, With<CoverLabel>>,
-    mut only: Query<&mut Visibility, With<CoverOnly>>,
-) {
-    if let Some(look) = &look
-        && (view.is_changed() || look.is_changed())
-        && let Some(mut m) = materials.get_mut(&look.material)
-    {
-        m.base_color_texture = Some(if view.0 { look.classes.clone() } else { look.natural.clone() });
-    }
-    let want = if view.0 { "land cover · L" } else { "natural · L" };
-    for mut t in &mut labels {
-        if t.0 != want {
-            t.0 = want.into();
-        }
-    }
-    let shown = if view.0 { Visibility::Inherited } else { Visibility::Hidden };
-    for mut v in &mut only {
-        if *v != shown {
-            *v = shown;
-        }
-    }
 }
 
 fn read_package(site: &Site) -> Option<(Manifest, Vec<f32>, Vec<u8>)> {
@@ -510,7 +642,7 @@ pub fn enter(
     mut plain: Query<&mut Visibility, With<Plain>>,
     mut walker: ResMut<Walker>,
     site: Res<Site>,
-    view: Res<CoverView>,
+    up: Option<Res<crate::rig::Up>>,
 ) {
     let Some((_, h, cover)) = read_package(&site) else {
         error!("no place package in theDB at {}; run `cargo run -- --bake-place` once", site.docs);
@@ -550,21 +682,26 @@ pub fn enter(
         .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, nor)
         .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uv)
         .with_inserted_indices(Indices::U32(idx));
-    // its picture: the natural colours, or the land cover classes (L), whichever the view wears
-    let (natural, classes) = (images.add(ground_image(&cover)), images.add(classes_image(&cover)));
+    // its picture: each class's colour, blended softly at the edges; water smooth and glossy, the land matte
     let material = materials.add(StandardMaterial {
-        base_color_texture: Some(if view.0 { classes.clone() } else { natural.clone() }),
+        base_color_texture: Some(images.add(ground_image(&cover))),
+        metallic_roughness_texture: Some(images.add(roughness_image(&cover))),
         perceptual_roughness: 1.0,
+        metallic: 0.0,
         ..default()
     });
-    commands.spawn((DespawnOnExit(World::Place), Mesh3d(meshes.add(terrain)), MeshMaterial3d(material.clone())));
-    commands.insert_resource(GroundLook { material, natural, classes });
+    commands.spawn((DespawnOnExit(World::Place), Mesh3d(meshes.add(terrain)), MeshMaterial3d(material)));
 
-    // the land beyond the site, just under its lowest point (the river), so it never floods a valley
+    // the land beyond the site, just under its lowest point (the river), so it never floods a valley; its colour the
+    // site's own on average, so the square's edge does not show as a seam
+    let mean = cover.iter().fold([0.0f32; 3], |m, &c| {
+        let k = colour(c);
+        [m[0] + k[0], m[1] + k[1], m[2] + k[2]]
+    }).map(|v| v / cover.len().max(1) as f32);
     commands.spawn((
         DespawnOnExit(World::Place),
         Mesh3d(meshes.add(Plane3d::default().mesh().size(60_000.0, 60_000.0))),
-        MeshMaterial3d(materials.add(StandardMaterial { base_color: Color::srgb(0.30, 0.29, 0.19), perceptual_roughness: 1.0, ..default() })),
+        MeshMaterial3d(materials.add(StandardMaterial { base_color: Color::linear_rgb(mean[0], mean[1], mean[2]), perceptual_roughness: 1.0, ..default() })),
         Transform::from_xyz(0.0, -3.0, 0.0),
     ));
 
@@ -685,10 +822,12 @@ pub fn enter(
     }
     info!("place: {} measured trees, {} plants in all", measured.as_ref().map_or(0, Vec::len), plants.len());
 
-    // where the site says to start; a place jumped to keeps the walker's height and heading, at its centre
-    match site.start {
-        Some((x, z, yaw)) => *walker = Walker::new(x, z, yaw),
-        None => walker.place(0.0, 0.0),
+    // where the site says to start; a square opened from the map at a lookout over it, at eye height, as the first
+    // place opens
+    let (x, z, yaw) = site.start.unwrap_or_else(|| lookout(&ground));
+    *walker = Walker::new(x, z, yaw);
+    if let Some(up) = up {
+        *walker = std::mem::replace(&mut *walker, Walker::new(0.0, 0.0, 0.0)).at_height(up.0);
     }
     // the world's land, for the contract
     let land = ground.clone();
@@ -696,42 +835,54 @@ pub fn enter(
     commands.insert_resource(ground);
 }
 
+/// Where to stand on a square opened from the map: the highest dry ground within 1.5 km of its centre, looking toward
+/// the centre, so the first view looks over the square, as Mértola's start looks over its river.
+fn lookout(ground: &Ground) -> (f32, f32, f32) {
+    let mut best = (0.0, 0.0, f32::MIN);
+    for j in -30..=30 {
+        for i in -30..=30 {
+            let (x, z) = (i as f32 * 50.0, j as f32 * 50.0);
+            if x * x + z * z > 1500.0 * 1500.0 {
+                continue;
+            }
+            let cell = |v: f32| (((v / SIZE_M + 0.5) * CN as f32) as usize).min(CN - 1);
+            if ground.cover[cell(z) * CN + cell(x)] == 80 {
+                continue;
+            }
+            let h = ground.at(x, z);
+            if h > best.2 {
+                best = (x, z, h);
+            }
+        }
+    }
+    let (x, z) = (best.0, best.1);
+    // yaw 0 looks north (-z) and turns left as it grows: the heading from (x, z) to the centre
+    let yaw = if x * x + z * z < 1.0 { 0.0 } else { x.atan2(z) };
+    (x, z, yaw)
+}
+
 fn leave(mut commands: Commands, mut plain: Query<&mut Visibility, With<Plain>>) {
     for mut v in &mut plain {
         *v = Visibility::Inherited;
     }
     commands.remove_resource::<Ground>();
-    commands.remove_resource::<GroundLook>();
 }
 
-/// The ground's picture: each cover class's colour, a little noise so no two pixels match, softened over its
-/// neighbours so the classes blend instead of showing their 12 m squares.
+/// The ground's picture: each cover class's colour, a little noise so no two pixels match, and the classes blended over
+/// a 5 by 5 cell neighbourhood (binomial weights, about 25 m), so their edges are soft and the 12 m cells never show.
 fn ground_image(cover: &[u8]) -> Image {
     use bevy::image::{ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
     use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
     let raw: Vec<[f32; 3]> = (0..CN * CN)
         .map(|k| {
-            let n = 0.88 + 0.24 * hash((k % CN) as u32, (k / CN) as u32, 9);
+            let n = 0.90 + 0.20 * hash((k % CN) as u32, (k / CN) as u32, 9);
             colour(cover[k]).map(|c| c * n)
         })
         .collect();
-    let mut data = Vec::with_capacity(CN * CN * 4);
-    for j in 0..CN {
-        for i in 0..CN {
-            let mut sum = [0.0; 3];
-            let mut w = 0.0;
-            for (dj, di) in [(0, 0), (-1, 0), (1, 0), (0, -1), (0, 1)] {
-                let (a, b) = ((i as i32 + di).clamp(0, CN as i32 - 1) as usize, (j as i32 + dj).clamp(0, CN as i32 - 1) as usize);
-                let wt = if di == 0 && dj == 0 { 2.0 } else { 1.0 };
-                for (s, c) in sum.iter_mut().zip(raw[b * CN + a]) {
-                    *s += c * wt;
-                }
-                w += wt;
-            }
-            data.extend(sum.map(|s| ((s / w).clamp(0.0, 1.0).powf(1.0 / 2.2) * 255.0) as u8));
-            data.push(255);
-        }
-    }
+    let data = blur(&raw).into_iter().flat_map(|c| {
+        let [r, g, b] = c.map(|v| (v.clamp(0.0, 1.0).powf(1.0 / 2.2) * 255.0) as u8);
+        [r, g, b, 255]
+    }).collect();
     let mut img = Image::new(
         Extent3d { width: CN as u32, height: CN as u32, depth_or_array_layers: 1 },
         TextureDimension::D2,
@@ -749,27 +900,41 @@ fn ground_image(cover: &[u8]) -> Image {
     img
 }
 
-/// The ground's picture in WorldCover's legend colours: one texel a cover cell, flat and unblended, so each class shows
-/// exactly where the map has it.
-fn classes_image(cover: &[u8]) -> Image {
-    use bevy::image::{ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
+/// A cover grid's values softened: each cell the binomial mean (1 4 6 4 1, across then down) of its neighbours.
+fn blur<const K: usize>(raw: &[[f32; K]]) -> Vec<[f32; K]> {
+    const W: [f32; 5] = [1.0, 4.0, 6.0, 4.0, 1.0];
+    let pass = |src: &[[f32; K]], across: bool| -> Vec<[f32; K]> {
+        (0..CN * CN)
+            .map(|k| {
+                let (i, j) = ((k % CN) as i32, (k / CN) as i32);
+                let mut sum = [0.0; K];
+                for (t, w) in W.iter().enumerate() {
+                    let d = t as i32 - 2;
+                    let (a, b) = if across { ((i + d).clamp(0, CN as i32 - 1), j) } else { (i, (j + d).clamp(0, CN as i32 - 1)) };
+                    for (s, c) in sum.iter_mut().zip(src[b as usize * CN + a as usize]) {
+                        *s += c * w / 16.0;
+                    }
+                }
+                sum
+            })
+            .collect()
+    };
+    pass(&pass(raw, true), false)
+}
+
+/// The terrain's roughness (green) and metalness (blue, none): water smooth, so the sun glints on it; the land matte.
+fn roughness_image(cover: &[u8]) -> Image {
     use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-    let data: Vec<u8> = cover.iter().flat_map(|&c| {
-        let [r, g, b] = class(c).legend;
-        [r, g, b, 255]
-    }).collect();
+    let raw: Vec<[f32; 1]> = cover.iter().map(|&c| [if c == 80 { 0.12 } else { 1.0 }]).collect();
+    let data = blur(&raw).into_iter().flat_map(|[r]| [0, (r * 255.0) as u8, 0, 255]).collect();
     let mut img = Image::new(
         Extent3d { width: CN as u32, height: CN as u32, depth_or_array_layers: 1 },
         TextureDimension::D2,
         data,
-        TextureFormat::Rgba8UnormSrgb,
+        TextureFormat::Rgba8Unorm,
         RenderAssetUsages::default(),
     );
-    img.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
-        mag_filter: ImageFilterMode::Nearest,
-        min_filter: ImageFilterMode::Linear,
-        ..default()
-    });
+    img.sampler = bevy::image::ImageSampler::linear();
     img
 }
 
@@ -781,8 +946,26 @@ mod tests {
     fn classes_are_worldcovers_eleven_once_each() {
         let codes: Vec<u8> = CLASSES.iter().map(|c| c.code).collect();
         assert_eq!(codes, [10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100]);
-        assert_eq!(class(80).legend, [0x00, 0x64, 0xc8]);
+        assert!(class(80).natural[2] > class(80).natural[0], "water is bluest");
         assert_eq!(class(7).name, NO_DATA.name);
+    }
+
+    #[test]
+    fn progress_grows_through_its_steps_and_a_later_click_supersedes_it() {
+        let latest = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(1));
+        let p = Progress::of(1, latest.clone());
+        p.step("Elevation", 0.0, 0.25);
+        p.at(0.5, "tile 1 of 2".into());
+        assert!((p.read().share - 0.125).abs() < 1e-6);
+        p.at(0.2, "back".into()); // never backwards
+        assert!((p.read().share - 0.125).abs() < 1e-6);
+        p.step("Land cover", 0.25, 0.55);
+        p.at(1.0, String::new());
+        assert!((p.read().share - 0.55).abs() < 1e-6);
+        assert!(p.go_on().is_ok());
+        latest.store(2, std::sync::atomic::Ordering::Relaxed);
+        assert!(p.stale() && p.go_on().is_err());
+        assert!(!Progress::default().stale(), "a bake no click asked for is never superseded");
     }
 
     #[test]

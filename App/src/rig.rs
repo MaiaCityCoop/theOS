@@ -87,6 +87,11 @@ impl Walker {
     pub fn height(&self) -> f32 {
         self.l.exp()
     }
+    /// The same rig at another height (m), as if the wheel had brought it there.
+    pub fn at_height(mut self, h: f32) -> Self {
+        (self.l, self.l_prev) = (h.max(EYE).ln(), h.max(EYE).ln());
+        self
+    }
     /// Puts the point somewhere else, keeping the height; the eyes do not ease there.
     pub fn place(&mut self, x: f32, z: f32) {
         (self.x, self.z, self.eye_y) = (x, z, None);
@@ -97,6 +102,10 @@ impl Walker {
 /// panel), so the camera does not move under it. It needs `Hovered` beside it.
 #[derive(Component)]
 pub struct Captures;
+
+/// The height (m) a place opens at, when not the eyes: an agent's still from above (`--place-still … [up]`).
+#[derive(Resource)]
+pub struct Up(pub f32);
 
 pub fn plugin(app: &mut App) {
     app.insert_resource(Walker::new(0.0, 0.0, 0.0))
