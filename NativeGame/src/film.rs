@@ -6,7 +6,6 @@ use crate::{Still, View};
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
-use std::path::Path;
 
 /// The Studio's film: the shot list, where the playhead is, and whether it plays.
 #[derive(Resource)]
@@ -32,7 +31,7 @@ impl Studio {
     }
     /// Opens a kept shot list from `timelines/` and plays it from the start.
     pub fn open(&mut self, path: &str) {
-        if let Some(t) = std::fs::read_to_string(path).ok().and_then(|t| Timeline::from_json(&t).ok()) {
+        if let Some(t) = shots(path) {
             self.timeline = t;
             self.time = 0.0;
             self.playing = true;
@@ -41,9 +40,15 @@ impl Studio {
 }
 
 /// The kept shot list the Studio opens with.
-pub const FIRST_SHOTS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/timelines/first-shots.json");
+pub const FIRST_SHOTS: &str = "timelines/first-shots.json";
 /// The Meadow's storytelling anchors: the same four shots at every stage of the scene.
-pub const ANCHORS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/timelines/meadow-anchors.json");
+pub const ANCHORS: &str = "timelines/meadow-anchors.json";
+
+/// A shot list: the avenDB doc `id`, or else a file at that path (a list an agent wrote).
+pub fn shots(id: &str) -> Option<Timeline> {
+    let bytes = crate::db().file(id).ok().flatten().or_else(|| std::fs::read(id).ok())?;
+    Timeline::from_json(std::str::from_utf8(&bytes).ok()?).ok()
+}
 
 /// The walker of the Game: W A S D to move, the mouse (held) to look, Shift to run, E and Q to rise and sink.
 #[derive(Resource)]
@@ -54,7 +59,7 @@ pub struct Walker {
 }
 
 pub fn plugin(app: &mut App) {
-    let opened = std::fs::read_to_string(Path::new(FIRST_SHOTS)).ok().and_then(|t| Timeline::from_json(&t).ok());
+    let opened = shots(FIRST_SHOTS);
     app.insert_resource(Studio::paused_at(opened.unwrap_or_else(|| camera::five_shots(1)), 0.0))
         .insert_resource(Walker { pos: Vec3::new(0.0, 1.6, 0.0), yaw: 0.0, pitch: -4.0 })
         .add_observer(capture)

@@ -6,7 +6,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/library");
+/// The library's docs in avenDB: `library/<name>.json`.
+pub const DIR: &str = "library";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Asset {
@@ -63,26 +64,25 @@ pub fn shelf() -> Vec<Asset> {
     all
 }
 
-/// Every asset by name: the files in `library/`, and any built-in one that has no file yet (then written).
+/// Every asset by name: the docs `library/<name>.json` in avenDB, and any built-in one that has no doc yet (then
+/// kept there).
 pub fn read() -> BTreeMap<String, Asset> {
-    let _ = std::fs::create_dir_all(DIR);
+    let db = crate::db();
+    let parse = |id: &str| db.file(id).ok().flatten().and_then(|b| serde_json::from_slice::<Asset>(&b).ok());
     let mut all = BTreeMap::new();
     for a in builtin() {
-        let path = format!("{DIR}/{}.json", a.name.replace(' ', "-"));
-        let a = match std::fs::read_to_string(&path).ok().and_then(|t| serde_json::from_str::<Asset>(&t).ok()) {
-            Some(kept) => kept,
-            None => {
-                let _ = std::fs::write(&path, serde_json::to_string_pretty(&a).unwrap_or_default() + "\n");
-                a
-            }
-        };
+        let id = format!("{DIR}/{}.json", a.name.replace(' ', "-"));
+        let a = parse(&id).unwrap_or_else(|| {
+            let _ = db.set_file(&id, (serde_json::to_string_pretty(&a).unwrap_or_default() + "\n").as_bytes());
+            a
+        });
         all.insert(a.name.clone(), a);
     }
-    if let Ok(dir) = std::fs::read_dir(DIR) {
-        for f in dir.flatten() {
-            if let Some(a) = std::fs::read_to_string(f.path()).ok().and_then(|t| serde_json::from_str::<Asset>(&t).ok()) {
-                all.entry(a.name.clone()).or_insert(a);
-            }
+    for (id, _) in db.docs().unwrap_or_default() {
+        if id.starts_with(&format!("{DIR}/"))
+            && let Some(a) = parse(&id)
+        {
+            all.entry(a.name.clone()).or_insert(a);
         }
     }
     all

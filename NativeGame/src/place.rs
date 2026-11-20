@@ -3,12 +3,13 @@
 //! detail below that is invented, and trees stand where WorldCover says tree cover, placed by a hash so every run
 //! grows the same ones.
 //!
-//!     cargo run -- --bake-place     fetches the source tiles (130 MB, once, into target/) and writes Mértola's package
+//!     cargo run -- --bake-place     fetches the source tiles (130 MB, once) and writes Mértola's package
 //!     cargo run                     the dashboard's tile "Place" opens it
 //!
-//! The package is what the game keeps: assets/places/mertola/ (height.bin, cover.bin, the map's layers, place.json),
-//! about 1 MB. A click on the map outside the square bakes the square around that point the same way, in the
-//! background, into target/places/, and opens it; a place baked once opens at once.
+//! Everything is kept in avenDB (intent 0049): each open-data file fetched, once, as the doc `earth/<name>`; the canopy
+//! map's headers and rows as `earth/chm/…`; a place's package (height.bin, cover.bin, the map's layers, trees.bin,
+//! place.json, about 1 MB) as the docs `places/<site>/<file>`. A click on the map outside the square bakes the square
+//! around that point the same way, in the background, and opens it; a place baked once opens at once.
 
 use crate::View;
 use crate::rig::Walker;
@@ -19,10 +20,10 @@ use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-/// Mértola's package, kept in the repository; every other place is fetched on the map's click into target/places/.
-const MERTOLA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/places/mertola");
+/// Mértola's package in avenDB: the docs `places/mertola/<file>`.
+const MERTOLA: &str = "places/mertola";
 
 /// The size of a place and the resolution of its two grids.
 pub const SIZE_M: f32 = 6_000.0;
@@ -35,21 +36,29 @@ pub struct Site {
     pub name: String,
     pub lat: f64,
     pub lon: f64,
-    pub dir: PathBuf,
+    /// Where its package is kept in avenDB: the docs `<docs>/<file>`.
+    pub docs: String,
     pub start: Option<(f32, f32, f32)>,
 }
 
 impl Site {
+    /// A file of the site's package, from avenDB.
+    pub fn read(&self, file: &str) -> Option<Vec<u8>> {
+        crate::db().file(&format!("{}/{file}", self.docs)).ok().flatten()
+    }
+    /// Keeps a file of the site's package in avenDB.
+    pub fn write(&self, file: &str, bytes: &[u8]) -> Result<(), String> {
+        crate::db().set_file(&format!("{}/{file}", self.docs), bytes).map(|_| ())
+    }
     pub fn mertola() -> Site {
         // on the hill west of the town, looking east over the Guadiana
         let start = Some((-1_200.0, 300.0, -std::f32::consts::FRAC_PI_2));
-        Site { name: "Mértola, Alentejo, Portugal".into(), lat: 37.6386, lon: -7.6614, dir: MERTOLA.into(), start }
+        Site { name: "Mértola, Alentejo, Portugal".into(), lat: 37.6386, lon: -7.6614, docs: MERTOLA.into(), start }
     }
-    /// The 6 km square centred on a ground point, its package under target/places/.
+    /// The 6 km square centred on a ground point, its package in avenDB under `places/<lat>_<lon>`.
     pub fn around(lat: f64, lon: f64) -> Site {
         let name = format!("{:.4}° {}  {:.4}° {}", lat.abs(), if lat >= 0.0 { "N" } else { "S" }, lon.abs(), if lon >= 0.0 { "E" } else { "W" });
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("target/places/{lat:.4}_{lon:.4}"));
-        Site { name, lat, lon, dir, start: None }
+        Site { name, lat, lon, docs: format!("places/{lat:.4}_{lon:.4}"), start: None }
     }
     /// The ground point (lat, lon) of a point of the site in metres, x to the east and z to the south.
     pub fn latlon(&self, x: f32, z: f32) -> (f64, f64) {
@@ -71,25 +80,33 @@ struct Manifest {
 
 // ---- the bake: open GeoTIFF tiles in, a small package out ----
 
-/// Downloads a file once into target/place-data; None when there is none (no elevation tile over open sea).
-pub fn fetch((name, url): (&str, &str)) -> Option<PathBuf> {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("target/place-data");
-    std::fs::create_dir_all(&dir).ok()?;
-    let (path, part, none) = (dir.join(name), dir.join(format!("{name}.part")), dir.join(format!("{name}.none")));
-    if path.exists() {
-        return Some(path);
+/// An open-data file, downloaded once and kept in avenDB as the doc `earth/<name>` (its bytes a blob); None when there
+/// is none (no elevation tile over open sea), which is kept too (`earth/<name>.none`), so it is not asked for again.
+pub fn fetch((name, url): (&str, &str)) -> Option<avendb::Bytes> {
+    let db = crate::db();
+    let (id, none) = (format!("earth/{name}"), format!("earth/{name}.none"));
+    if let Ok(Some(b)) = db.file(&id) {
+        return Some(b.into());
     }
-    if none.exists() {
+    if db.head(&none).ok().flatten().is_some() {
         return None;
     }
     eprintln!("fetching {name}");
+    // downloaded beside the build, then kept in avenDB; the download itself is not kept
+    let part = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("target/{name}.part"));
     let ok = std::process::Command::new("curl").args(["-sSfL", "--retry", "2", "-o"]).arg(&part).arg(url).status().is_ok_and(|s| s.success());
-    if ok && std::fs::rename(&part, &path).is_ok() {
-        return Some(path);
-    }
+    let got = if ok { std::fs::read(&part).ok() } else { None };
     let _ = std::fs::remove_file(&part);
-    let _ = std::fs::write(&none, url); // remembered, so the sea is not asked for again
-    None
+    match got {
+        Some(b) => {
+            db.set_file(&id, &b).ok()?;
+            Some(b.into())
+        }
+        None => {
+            let _ = db.set_text(&none, url);
+            None
+        }
+    }
 }
 
 /// The open tiles a kind of map comes in, joined: each ground point is read from the tile that holds it.
@@ -121,7 +138,7 @@ impl Source {
     /// The value at a ground point; where there is no tile, the sea: 0 m, and WorldCover's water.
     pub fn at(&mut self, lat: f64, lon: f64, smooth: bool) -> f32 {
         let (name, url) = self.tile(lat, lon);
-        let r = self.tiles.entry(name.clone()).or_insert_with(|| fetch((&name, &url)).and_then(|p| Raster::open(&p)));
+        let r = self.tiles.entry(name.clone()).or_insert_with(|| fetch((&name, &url)).and_then(Raster::open));
         match r {
             Some(r) => r.at(lat, lon, smooth),
             None if self.dem => 0.0,
@@ -132,25 +149,25 @@ impl Source {
 
 /// A tiled GeoTIFF read a tile at a time, so a 36,000-pixel tile costs only the tiles the site touches.
 pub struct Raster {
-    dec: tiff::decoder::Decoder<std::io::BufReader<std::fs::File>>,
+    dec: tiff::decoder::Decoder<std::io::Cursor<avendb::Bytes>>,
     origin: (f64, f64), // lon, lat of the raster's top left corner
     step: (f64, f64),   // degrees a pixel, across and down
     size: (u32, u32),
     tile: (u32, u32),
     across: u32,
     tiles: HashMap<u32, Vec<f32>>,
-    path: PathBuf,
+    bytes: avendb::Bytes,
 }
 
 impl Raster {
-    fn open(path: &Path) -> Option<Raster> {
+    fn open(bytes: avendb::Bytes) -> Option<Raster> {
         use tiff::tags::Tag;
-        let mut dec = tiff::decoder::Decoder::new(std::io::BufReader::new(std::fs::File::open(path).ok()?)).ok()?;
+        let mut dec = tiff::decoder::Decoder::new(std::io::Cursor::new(bytes.clone())).ok()?;
         let scale = dec.get_tag_f64_vec(Tag::ModelPixelScaleTag).ok()?;
         let tie = dec.get_tag_f64_vec(Tag::ModelTiepointTag).ok()?;
         let size = dec.dimensions().ok()?;
         let tile = dec.chunk_dimensions();
-        Some(Raster { origin: (tie[3], tie[4]), step: (scale[0], scale[1]), size, tile, across: size.0.div_ceil(tile.0), tiles: HashMap::new(), dec, path: path.into() })
+        Some(Raster { origin: (tie[3], tie[4]), step: (scale[0], scale[1]), size, tile, across: size.0.div_ceil(tile.0), tiles: HashMap::new(), dec, bytes })
     }
 
     fn pixel(&mut self, px: u32, py: u32) -> f32 {
@@ -158,7 +175,7 @@ impl Raster {
         let (tx, ty) = (px / self.tile.0, py / self.tile.1);
         let index = ty * self.across + tx;
         let tw = self.tile.0;
-        let (dec, path) = (&mut self.dec, &self.path);
+        let (dec, bytes) = (&mut self.dec, &self.bytes);
         let data = self.tiles.entry(index).or_insert_with(|| {
             use tiff::decoder::DecodingResult as D;
             match dec.read_chunk(index) {
@@ -168,7 +185,7 @@ impl Raster {
                 Ok(_) => Vec::new(),
                 // WorldCover is a palette image, which the tiff crate will not decode: its tiles are 8-bit class
                 // numbers, deflated, without a predictor, so they are inflated here as they are
-                Err(_) => raw_tile(dec, path, index),
+                Err(_) => raw_tile(dec, bytes, index),
             }
         });
         // edge tiles may come back narrower; their rows are as wide as the data they hold
@@ -192,18 +209,15 @@ impl Raster {
     }
 }
 
-fn raw_tile(dec: &mut tiff::decoder::Decoder<std::io::BufReader<std::fs::File>>, path: &Path, index: u32) -> Vec<f32> {
-    use std::io::{Read, Seek, SeekFrom};
+fn raw_tile(dec: &mut tiff::decoder::Decoder<std::io::Cursor<avendb::Bytes>>, bytes: &[u8], index: u32) -> Vec<f32> {
+    use std::io::Read;
     use tiff::tags::Tag;
     let mut read = || -> Option<Vec<f32>> {
-        let offset = *dec.get_tag_u64_vec(Tag::TileOffsets).ok()?.get(index as usize)?;
-        let count = *dec.get_tag_u64_vec(Tag::TileByteCounts).ok()?.get(index as usize)?;
-        let mut file = std::fs::File::open(path).ok()?;
-        file.seek(SeekFrom::Start(offset)).ok()?;
-        let mut packed = vec![0; count as usize];
-        file.read_exact(&mut packed).ok()?;
+        let offset = *dec.get_tag_u64_vec(Tag::TileOffsets).ok()?.get(index as usize)? as usize;
+        let count = *dec.get_tag_u64_vec(Tag::TileByteCounts).ok()?.get(index as usize)? as usize;
+        let packed = bytes.get(offset..offset + count)?;
         let mut out = Vec::new();
-        flate2::read::ZlibDecoder::new(&packed[..]).read_to_end(&mut out).ok()?;
+        flate2::read::ZlibDecoder::new(packed).read_to_end(&mut out).ok()?;
         Some(out.into_iter().map(f32::from).collect())
     };
     read().unwrap_or_default()
@@ -223,14 +237,11 @@ pub fn bake(site: &Site) -> Result<String, String> {
     };
     let height = grid(HN, &mut dem, true);
     let classes: Vec<u8> = grid(CN, &mut cover, false).into_iter().map(|c| c as u8).collect();
-    let dir = &site.dir;
-    let io = |e: std::io::Error| e.to_string();
-    std::fs::create_dir_all(dir).map_err(io)?;
-    std::fs::write(dir.join("height.bin"), height.iter().flat_map(|h| h.to_le_bytes()).collect::<Vec<u8>>()).map_err(io)?;
-    std::fs::write(dir.join("cover.bin"), &classes).map_err(io)?;
+    site.write("height.bin", &height.iter().flat_map(|h| h.to_le_bytes()).collect::<Vec<u8>>())?;
+    site.write("cover.bin", &classes)?;
     crate::map::bake(site, &mut dem, &mut cover)?;
     let trees = crate::canopy::trees(site);
-    crate::canopy::save(&trees, &dir.join("trees.bin")).map_err(io)?;
+    site.write("trees.bin", &crate::canopy::bytes(&trees))?;
     let manifest = Manifest {
         name: site.name.clone(),
         lat: site.lat,
@@ -246,17 +257,17 @@ pub fn bake(site: &Site) -> Result<String, String> {
         ],
     };
     // the manifest last: a package without one is unfinished
-    std::fs::write(dir.join("place.json"), serde_json::to_string_pretty(&manifest).unwrap() + "\n").map_err(io)?;
+    site.write("place.json", (serde_json::to_string_pretty(&manifest).unwrap() + "\n").as_bytes())?;
     let (lo, hi) = height.iter().fold((f32::MAX, f32::MIN), |(a, b), &h| (a.min(h), b.max(h)));
     let mut counts = [0usize; 256];
     classes.iter().for_each(|&c| counts[c as usize] += 1);
     let shares: Vec<String> = (0..256).filter(|&c| counts[c] > 0).map(|c| format!("{c}:{:.0}%", counts[c] as f32 * 100.0 / classes.len() as f32)).collect();
-    Ok(format!("baked {}: height {lo:.0}..{hi:.0} m, {} trees, cover {}", dir.display(), trees.len(), shares.join(" ")))
+    Ok(format!("baked {}: height {lo:.0}..{hi:.0} m, {} trees, cover {}", site.docs, trees.len(), shares.join(" ")))
 }
 
 /// Whether a site's package is there and whole.
 pub fn baked(site: &Site) -> bool {
-    site.dir.join("place.json").exists()
+    site.read("place.json").is_some()
 }
 
 // ---- the place in the app ----
@@ -352,10 +363,10 @@ pub fn colour(class: u8) -> [f32; 3] {
     }
 }
 
-fn read_package(dir: &Path) -> Option<(Manifest, Vec<f32>, Vec<u8>)> {
-    let m: Manifest = serde_json::from_str(&std::fs::read_to_string(dir.join("place.json")).ok()?).ok()?;
-    let h = std::fs::read(dir.join("height.bin")).ok()?.chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect();
-    Some((m, h, std::fs::read(dir.join("cover.bin")).ok()?))
+fn read_package(site: &Site) -> Option<(Manifest, Vec<f32>, Vec<u8>)> {
+    let m: Manifest = serde_json::from_slice(&site.read("place.json")?).ok()?;
+    let h = site.read("height.bin")?.chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect();
+    Some((m, h, site.read("cover.bin")?))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -368,8 +379,8 @@ pub fn enter(
     mut walker: ResMut<Walker>,
     site: Res<Site>,
 ) {
-    let Some((_, h, cover)) = read_package(&site.dir) else {
-        error!("no place package at {}; run `cargo run -- --bake-place` once", site.dir.display());
+    let Some((_, h, cover)) = read_package(&site) else {
+        error!("no place package in avenDB at {}; run `cargo run -- --bake-place` once", site.docs);
         return;
     };
     for mut v in &mut plain {
@@ -435,7 +446,7 @@ pub fn enter(
         trunk: bool,
         tint: f32,
     }
-    let measured = crate::canopy::load(&site.dir.join("trees.bin")).filter(|t| !t.is_empty());
+    let measured = site.read("trees.bin").map(|b| crate::canopy::parse(&b)).filter(|t| !t.is_empty());
     let mut plants: Vec<Plant> = Vec::new();
     if let Some(trees) = &measured {
         for (k, t) in trees.iter().enumerate() {

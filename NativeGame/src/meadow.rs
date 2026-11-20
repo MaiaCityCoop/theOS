@@ -92,7 +92,7 @@ fn lay_patches(state: Res<State<View>>, eye: Query<&GlobalTransform, With<Eye2>>
 }
 
 /// Gives the ground the baked lawn once it exists (it is baked at startup).
-fn attach_lawn(lawn: Option<Res<crate::lawn::Lawn>>, field: Option<Res<Field>>, mut grounds: ResMut<Assets<crate::wind::Ground>>, mut waited: Local<u32>) {
+fn attach_lawn(time: Res<Time>, lawn: Option<Res<crate::lawn::Lawn>>, field: Option<Res<Field>>, mut grounds: ResMut<Assets<crate::wind::Ground>>, mut waited: Local<u32>) {
     let (Some(lawn), Some(field)) = (lawn, field) else { return };
     // both atlases filled, and a few frames for their pictures to reach the GPU
     if lawn.done.load(std::sync::atomic::Ordering::SeqCst) < 2 {
@@ -108,6 +108,8 @@ fn attach_lawn(lawn: Option<Res<crate::lawn::Lawn>>, field: Option<Res<Field>>, 
         g.extension.lawn = Vec4::new(1.0, crate::lawn::TOP, 0.0, 0.0);
         g.extension.lawn_albedo = Some(lawn.albedo.clone());
         g.extension.lawn_height = Some(lawn.height.clone());
+        // the startup measure (intent 0049's 10 % gate): the Meadow settled, its bakes in place
+        info!("settled: the Meadow's bakes in place after {:.2} s", time.elapsed_secs());
     }
 }
 
@@ -595,11 +597,12 @@ fn enter(
     });
     // the land: its own material, no texture (the colour is in the geometry, from terrain.rs)
     // the recipe: the file in biomes/ if there is one, else the built-in meadow (written there, to be edited)
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/biomes/meadow.json");
-    let biome = std::fs::read_to_string(path).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_else(crate::biome::Biome::meadow);
+    let id = "biomes/meadow.json";
+    let db = crate::db();
+    let biome = db.file(id).ok().flatten().and_then(|t| serde_json::from_slice(&t).ok()).unwrap_or_else(crate::biome::Biome::meadow);
     crate::biome::set(biome.clone());
     // the recipe kept beside the code, as the file future biomes will be
-    let _ = std::fs::write(path, serde_json::to_string_pretty(&biome).unwrap_or_default());
+    let _ = db.set_file(id, serde_json::to_string_pretty(&biome).unwrap_or_default().as_bytes());
     let ground = grounds.add(crate::wind::Ground {
         base: StandardMaterial { base_color: Color::WHITE, perceptual_roughness: 0.95, reflectance: 0.3, cull_mode: None, ..default() },
         extension: crate::wind::GroundLook { biome: biome.uniform(), lawn: Vec4::ZERO, lawn_albedo: None, lawn_height: None, sun: Vec4::Y },

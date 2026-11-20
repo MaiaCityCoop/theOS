@@ -37,7 +37,6 @@ fn pixel_latlon(site: &Site, i: usize, j: usize, km: f32) -> (f64, f64) {
 }
 
 pub fn bake(site: &Site, dem: &mut Source, cover: &mut Source) -> Result<(), String> {
-    let io = |e: std::io::Error| e.to_string();
     // the region: relief shading from the elevation, coloured by land cover, water from WorldCover
     let h: Vec<f32> = (0..N * N).map(|k| {
         let (lat, lon) = pixel_latlon(site, k % N, k / N, REGION_KM);
@@ -56,11 +55,11 @@ pub fn bake(site: &Site, dem: &mut Source, cover: &mut Source) -> Result<(), Str
             rgb.extend(c.map(|v| (v.clamp(0.0, 1.0) * 255.0) as u8));
         }
     }
-    std::fs::write(site.dir.join("region.bin"), rgb).map_err(io)?;
+    site.write("region.bin", &rgb)?;
 
     // the land at three scales, from Natural Earth's 1:10 million land polygons (public domain)
     let land = fetch(LAND_URL).ok_or("Natural Earth's land could not be fetched")?;
-    let json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(land).map_err(io)?).map_err(|e| e.to_string())?;
+    let json: serde_json::Value = serde_json::from_slice(&land).map_err(|e| e.to_string())?;
     let mut rings: Vec<Vec<(f64, f64)>> = Vec::new();
     for f in json["features"].as_array().unwrap() {
         let g = &f["geometry"];
@@ -76,7 +75,7 @@ pub fn bake(site: &Site, dem: &mut Source, cover: &mut Source) -> Result<(), Str
         }
     }
     for (km, file) in LANDS {
-        std::fs::write(site.dir.join(file), rasterise(site, &rings, km)).map_err(io)?;
+        site.write(file, &rasterise(site, &rings, km))?;
     }
     Ok(())
 }
@@ -202,12 +201,12 @@ fn spawn(mut commands: Commands, ground: Option<Res<Ground>>, site: Res<Site>, s
     }
     let mut layers = vec![Layer { km: SIZE_M / 1000.0, n: CN, px: near }];
     // the baked layers; the region's colours are stored as they are shown
-    if let Ok(rgb) = std::fs::read(site.dir.join("region.bin")) {
+    if let Some(rgb) = site.read("region.bin") {
         let px = rgb.chunks_exact(3).map(|c| [c[0], c[1], c[2]]).collect();
         layers.push(Layer { km: REGION_KM, n: N, px });
     }
     for (km, file) in LANDS {
-        if let Ok(mask) = std::fs::read(site.dir.join(file)) {
+        if let Some(mask) = site.read(file) {
             layers.push(Layer { km, n: N, px: mask.iter().map(|&m| to_srgb(if m > 0 { LAND } else { SEA })).collect() });
         }
     }
