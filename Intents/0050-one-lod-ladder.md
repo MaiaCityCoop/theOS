@@ -139,7 +139,22 @@ The tree adds lines (its recipe); it is counted apart from the size gate, which 
 
 ## Build
 
-_Filled while building: decisions, and what turned out different from the definition._
+- **Order changed:** intent 0051 (the engine's source in avenDB) came first at Samuel's word; 0050's work was then
+  done the 0051 way, each part a branch of avenDB merged through its check.
+- **Bakes linked from the asset (2) and one impostor per asset (4), first cut:** an asset doc links its impostor in
+  `derived`; the result doc (kind `bake`) holds a part per picture (iroh blobs) and the key and parameters it was made
+  under. Valid while its key matches what the recipe, the settings, the shader and the bake code give now; checked
+  without growing a master. `BAKE_CODE = "0049.1"` is gone: the key reads the bake code's own source. `variants` in
+  the recipe, 1 by default; a seed is drawn as `hash(seed) % variants`.
+- **The baker (3):** the kernel's plugins (`avenDB/src/plugin.rs`) and the baker (`baker.rs`), from PR #415; it runs
+  `--bake <asset>` in the repo's GPU lock (`gpu.rs`, the same files as `lock.js`). On its first start it went through
+  all eleven assets: the broadleaf's four variants baked in 13.8 s, the others found current in about 2.5 s each.
+- **One source (8):** Rust writes one WESL module, `package::shared`, from the same tables Rust evaluates; the shader
+  docs import it. Left: the meadow's biome doc repeats the bare ground's numbers.
+- **The tree (9), early:** `tree.rs`, 200k–400k triangles per seed, wind weights per vertex; a library asset doc
+  `broadleaf` with 4 variants. Found on the way, for deliverable 1: plant generators are not given the asset's
+  size; `size` means "across" for rocks and height for the tree; the wind weight is not in any bake key.
+- **The Library (Samuel):** one turntable, the full mesh or the far view in the same place: F or the toggle chip.
 
 ## Propose
 
@@ -158,17 +173,17 @@ _accepted or rejected, the date, the reason in a line._
 ## Todo
 
 - [x] Samuel answers the two open questions (variants per asset, default 1; the kernel bakes, as a plugin)
-- [ ] Samuel approves the definition
+- [x] Samuel approves the definition
 - [ ] Measure the missing code gates on `main`
-- [ ] 1 The asset contract
-- [ ] 2 Bakes linked from the asset
-- [ ] 3 The baker, a kernel plugin
-- [ ] 4 One impostor per asset
+- [ ] 1 The asset contract (size to every generator; one meaning of size; wind weight in the key)
+- [x] 2 Bakes linked from the asset (first cut)
+- [x] 3 The baker, a kernel plugin
+- [x] 4 One impostor per asset
 - [ ] 5 Texel channels and wind on impostors
 - [ ] 6 One measure, one switch
 - [ ] 7 The seven schemes collapsed
-- [ ] 8 One source for shared functions
-- [ ] 9 The stress test: a procedural tree
+- [x] 8 One source for shared functions (the biome doc's bare numbers left)
+- [ ] 9 The stress test: a procedural tree (the tree is in; its run through the whole ladder waits for 5–7)
 
 ## Changelog
 

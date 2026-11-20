@@ -1,7 +1,7 @@
 ---
 id: "0051"
 title: The engine's source in avenDB, with branches and checked merges
-state: build           # idea | define | build | propose | story | archived
+state: propose         # idea | define | build | propose | story | archived
 outcome:               # accepted | rejected, set only when archived
 opened: 2026-11-20
 story:                 # Stories/0051-slug/, set at propose
@@ -127,7 +127,34 @@ surprise beyond his words, so it goes straight to Build.
 
 ## Propose
 
-_Filled when everything is built. Then stop: the human decides._
+**Delivered:** branches, the engine's source as a tree of docs, views, checked merge proposals, builds from the tree
+named by doc version, snapshots into git; the intents skill's worker flow; and, found while using it, a store whose
+owner is closing is now waited for and taken over. In use the same day: six branches (0051's fixes, the kernel plugin,
+0050's assets, one source, the tree, the broadleaf asset) merged into avenDB main one by one through their checks,
+and this PR is `avendb snapshot` of the result.
+
+**Checks, as they were**
+
+| # | Result | Evidence |
+| --- | --- | --- |
+| 1 Branches | passed | `cargo test` in `avenDB/`: `a_branch_reads_main_and_keeps_its_own` |
+| 2 Source round trip | passed | `import` of 38 files, `checkout` to a folder: 38 files, 0 differ |
+| 3 Views merge | passed | `two_views_edit_one_file_and_both_merge`; and in use, six branches merged |
+| 4 A broken merge is refused | passed | `a_merge_that_breaks_the_build_is_refused`: the compiler's "cannot find function `one`" kept, main unchanged |
+| 5 Builds linked by content | passed | `avendb publish` → build `aa843b39…`, pinned, started by the kernel; `avendb source` of it gives the view's 45 files, 0 differ |
+| 6 Snapshots | passed | `snapshot` right after the import: `git status` clean; this PR's engine code is a snapshot |
+
+**The 10 % gate**
+
+| Measure | Before | After |
+| --- | --- | --- |
+| An agent ready to build NativeGame | a new folder and a cold Bevy build: 1,653 s (the first build into the shared target) | a view (under 1 s) and the shared target: 87 s for the first build of 0050's view, 51–147 s for a merge's whole check |
+| The engine's frame, startup and memory | unchanged code paths | not measured again: no renderer change in 0051 |
+
+**Known gaps:** a content-only merge (a root or asset doc) checks nothing, since no source tree is touched; large
+parts (the lawn's atlases, about 14 MB) fail to pass through the store's connection from a second process
+("Error::Io"), so the lawn is kept only by the process that owns the store; the shared target holds the views'
+binaries, so two views building at once take turns.
 
 ## Story
 
@@ -141,13 +168,15 @@ _accepted or rejected, the date, the reason in a line._
 
 ## Todo
 
-- [ ] 1 Branches in avenDB
-- [ ] 2 The source as docs
-- [ ] 3 Folders as views
-- [ ] 4 Checked merge proposals
-- [ ] 5 Builds from the tree, linked by content
-- [ ] 6 git for snapshots only
-- [ ] Measure the agent-ready time on `main`
+- [x] 1 Branches in avenDB
+- [x] 2 The source as docs
+- [x] 3 Folders as views
+- [x] 4 Checked merge proposals
+- [x] 5 Builds from the tree, linked by content
+- [x] 6 git for snapshots only
+- [x] Measure the agent-ready time
+- [ ] Large parts through the store's connection (the lawn)
+- [ ] Samuel accepts or rejects
 
 ## Changelog
 
@@ -160,6 +189,16 @@ _accepted or rejected, the date, the reason in a line._
 - **Delivered:** this intent and `research_notes/0051-source-in-avendb.md`.
 - **Good:** 0049's builds and pinning are in place to build on.
 - **Broke / not there yet:** 0049's definition had narrowed Samuel's decision to blob snapshots of a git folder.
+
+### 2026-11-20 (afternoon)
+
+- **Asked:** parallel work in one place; a walkable build; the branches merged back into one main.
+- **Delivered:** every branch merged through its check; the engine published from the tree and started by the kernel;
+  this PR, a snapshot of avenDB main.
+- **Good:** the first cold build took 27 minutes; every build after it, 1 to 2.5 minutes. The merge check passed six
+  times and refused nothing that compiled.
+- **Broke / not there yet:** a second process opening the store while its owner closed got a dead connection (fixed
+  on the branch `0051-open`); the lawn's large parts do not pass through the connection.
 
 ## Trail
 
