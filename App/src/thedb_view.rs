@@ -523,8 +523,13 @@ fn pane(grow: f32, width: Val) -> Node {
     }
 }
 
-fn scroller() -> impl Bundle {
-    (Node { flex_direction: FlexDirection::Column, flex_grow: 1.0, flex_basis: Val::Px(0.0), min_height: Val::Px(0.0), overflow: Overflow::scroll_y(), row_gap: Val::Px(2.0), ..default() }, ScrollPosition::default())
+/// A column that scrolls; `node` gives its size and place.
+fn scroller(node: Node) -> impl Bundle {
+    (Node { flex_direction: FlexDirection::Column, min_height: Val::Px(0.0), overflow: Overflow::scroll_y(), row_gap: Val::Px(2.0), ..node }, ScrollPosition::default())
+}
+
+fn grow() -> Node {
+    Node { flex_grow: 1.0, flex_basis: Val::Px(0.0), min_width: Val::Px(0.0), ..default() }
 }
 
 /// The view's frame: the header and the three panes; what is in them is drawn by `draw`.
@@ -548,13 +553,13 @@ fn layout(mut commands: Commands, mut db: ResMut<Db>) {
                 // the docs and the chosen doc share what the left column leaves, half each
                 body.spawn((pane(1.0, Val::Auto), BackgroundColor(CREAM))).with_children(|mid| {
                     mid.spawn((MidHead, Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(10.0), ..default() }));
-                    mid.spawn((MidList, scroller()));
+                    mid.spawn((MidList, scroller(grow())));
                 });
                 body.spawn((pane(1.0, Val::Auto), BackgroundColor(CREAM))).with_children(|right| {
                     right.spawn(Node { flex_direction: FlexDirection::Row, flex_grow: 1.0, flex_basis: Val::Px(0.0), min_height: Val::Px(0.0), min_width: Val::Px(0.0), column_gap: Val::Px(14.0), ..default() }).with_children(|split| {
                         // the doc itself on the left, its history in a narrow column on the right
-                        split.spawn((Right, scroller(), Node { flex_direction: FlexDirection::Column, flex_grow: 1.0, flex_basis: Val::Px(0.0), min_width: Val::Px(0.0), min_height: Val::Px(0.0), overflow: Overflow::scroll_y(), row_gap: Val::Px(2.0), ..default() }));
-                        split.spawn((RightHistory, scroller(), Node { flex_direction: FlexDirection::Column, width: Val::Px(220.0), flex_shrink: 0.0, min_height: Val::Px(0.0), overflow: Overflow::scroll_y(), row_gap: Val::Px(2.0), padding: UiRect::left(Val::Px(12.0)), border: UiRect::left(Val::Px(1.5)), ..default() }, BorderColor::all(PICKED)));
+                        split.spawn((Right, scroller(grow())));
+                        split.spawn((RightHistory, scroller(Node { width: Val::Px(220.0), flex_shrink: 0.0, padding: UiRect::left(Val::Px(12.0)), border: UiRect::left(Val::Px(1.5)), ..default() }), BorderColor::all(PICKED)));
                     });
                 });
             });
