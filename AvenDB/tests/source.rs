@@ -156,3 +156,17 @@ fn a_merge_that_breaks_the_build_is_refused() {
     drop(db);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn a_rename_keeps_each_files_doc() {
+    let (db, dir, tree, _git) = with_tree("mv");
+    let before = db.tree(&tree).unwrap().files["src/lib.rs"].clone();
+    assert_eq!(db.mv(&tree, "src", "code").unwrap(), 1);
+    let t = db.tree(&tree).unwrap();
+    assert_eq!(t.files.get("code/lib.rs"), Some(&before), "the same doc under its new path");
+    assert!(!t.files.contains_key("src/lib.rs"));
+    assert_eq!(t.shape.include, vec!["code".to_string()], "the shape follows");
+    assert_eq!(db.meta(&before).unwrap().1, "code/lib.rs");
+    drop(db);
+    let _ = std::fs::remove_dir_all(dir);
+}

@@ -1,4 +1,4 @@
-# NativeGame
+# App: theOS
 
 The new game on its own engine, in Rust on Bevy: a food forest grown from recipes, on land taken from real places.
 It stands beside [`TheGame/`](../TheGame/README.md), which keeps running.

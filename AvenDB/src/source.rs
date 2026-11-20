@@ -243,6 +243,37 @@ impl AvenDb {
         Ok(done)
     }
 
+    /// Renames, in tree `id` on this process's branch, the path `from` (a file, or a folder and everything in it) to
+    /// `to`: each file keeps its doc and its history, and the shape's paths follow. How many files moved.
+    pub fn mv(&self, id: &str, from: &str, to: &str) -> Result<usize> {
+        let tree = self.tree(id)?;
+        let doc = self.doc(id)?;
+        let files = doc.get_map("files");
+        let moved = |p: &str| if p == from { Some(to.to_string()) } else { p.strip_prefix(&format!("{from}/")).map(|rest| format!("{to}/{rest}")) };
+        let mut n = 0;
+        for (path, fid) in &tree.files {
+            if let Some(new) = moved(path) {
+                files.delete(path).map_err(err)?;
+                files.insert(&new, fid.as_str()).map_err(err)?;
+                let fdoc = self.doc(fid)?;
+                fdoc.get_map("meta").insert("name", new.as_str()).map_err(err)?;
+                self.commit(fid, &fdoc)?;
+                n += 1;
+            }
+        }
+        let mut shape = tree.shape.clone();
+        for i in shape.include.iter_mut() {
+            if let Some(new) = moved(i) {
+                *i = new;
+            }
+        }
+        if shape != tree.shape {
+            doc.get_map("tree").insert("shape", serde_json::to_string(&shape).map_err(err)?).map_err(err)?;
+        }
+        self.commit(id, &doc)?;
+        Ok(n)
+    }
+
     /// Writes tree `id` as this process's branch sees it into `dir`, with the stamp that makes `dir` a view. A file the
     /// last stamp named that the tree no longer has is removed; nothing else in `dir` is touched.
     pub fn checkout(&self, id: &str, dir: &Path) -> Result<()> {
@@ -252,7 +283,14 @@ impl AvenDb {
 
     fn write_tree(&self, branch: Option<&str>, id: &str, dir: &Path, stamp: bool) -> Result<()> {
         let tree = self.tree_on(branch, id)?;
-        let old = read_stamp(dir).ok();
+        // what the last stamp named that the tree no longer has goes first: on a disk that ignores case, an old path
+        // and its new spelling are one file, and removing it after the write would remove the new one
+        if let Some(old) = read_stamp(dir).ok() {
+            let kept: std::collections::HashSet<String> = tree.files.keys().map(|p| p.to_lowercase()).collect();
+            for path in old.files.keys().filter(|p| !kept.contains(&p.to_lowercase())) {
+                let _ = std::fs::remove_file(dir.join(path));
+            }
+        }
         let mut files = BTreeMap::new();
         for (path, fid) in &tree.files {
             let h = self.head_seen(branch, fid)?.ok_or_else(|| format!("{path}: no doc {fid}"))?;
@@ -265,11 +303,6 @@ impl AvenDb {
                 std::fs::write(&at, &bytes).map_err(|e| format!("{path}: {e}"))?;
             }
             files.insert(path.clone(), (fid.clone(), h.to_hex().to_string()));
-        }
-        if let Some(old) = old {
-            for path in old.files.keys().filter(|p| !tree.files.contains_key(*p)) {
-                let _ = std::fs::remove_file(dir.join(path));
-            }
         }
         if stamp {
             let s = Stamp { tree: id.into(), branch: branch.map(str::to_string), files };

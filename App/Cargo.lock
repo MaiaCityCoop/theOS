@@ -4777,6 +4777,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "kernel"
+version = "0.1.0"
+dependencies = [
+ "avendb",
+]
+
+[[package]]
 name = "khronos-egl"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5431,18 +5438,6 @@ dependencies = [
  "rustc-hash 1.1.0",
  "serde",
  "thiserror 2.0.21",
-]
-
-[[package]]
-name = "nativegame"
-version = "0.1.0"
-dependencies = [
- "avendb",
- "bevy",
- "flate2",
- "serde",
- "serde_json",
- "tiff",
 ]
 
 [[package]]
@@ -7897,6 +7892,18 @@ name = "tap"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
+
+[[package]]
+name = "theos"
+version = "0.1.0"
+dependencies = [
+ "avendb",
+ "bevy",
+ "flate2",
+ "serde",
+ "serde_json",
+ "tiff",
+]
 
 [[package]]
 name = "thiserror"

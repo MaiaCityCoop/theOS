@@ -104,7 +104,7 @@ impl AvenDb {
         if let Ok(d) = std::env::var("AVENDB") {
             return d.into();
         }
-        main_checkout(Path::new(env!("CARGO_MANIFEST_DIR"))).join("avenDB")
+        main_checkout(Path::new(env!("CARGO_MANIFEST_DIR"))).join("AvenDB")
     }
 
     /// Opens (or makes) the store in `dir`.

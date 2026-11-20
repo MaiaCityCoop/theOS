@@ -8,11 +8,11 @@ Artifacts/items/*/source.md
 Artifacts/items/*/thumb.jpg
 
 # avenDB's store (intent 0049): the docs and blobs, one for the machine at the main checkout's root, never in git
-avenDB/blobs.db
-avenDB/data/
-avenDB/temp/
-avenDB/rpc.*
-avenDB/target/
-avenDB/run/
-avenDB/views/
-avenDB/merge.lock
+AvenDB/blobs.db
+AvenDB/data/
+AvenDB/temp/
+AvenDB/rpc.*
+AvenDB/target/
+AvenDB/run/
+AvenDB/views/
+AvenDB/merge.lock

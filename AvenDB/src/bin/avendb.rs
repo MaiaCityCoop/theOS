@@ -23,6 +23,7 @@
 //!     avendb shape <tree> [<shape json>] a tree's shape (or change it)
 //!     avendb files <tree>                a tree's files and their docs
 //!     avendb import <tree> <git dir>     the files git tracks under the tree's paths, as edits of the tree
+//!     avendb mv <tree> <from> <to>       a path (a file or a folder) renamed in the tree, each file keeping its doc
 //!     avendb checkout <tree> <dir>       the tree as the branch sees it, written into <dir>: a view
 //!     avendb sync <dir>                  a view's edits into its branch (merged with the branch's), written back
 //!     avendb propose <branch> <note>     a proposal to merge a branch into main
@@ -115,6 +116,7 @@ fn main() {
             let paths = tracked(Path::new(dir), &shape.include);
             report(db.import(tree, Path::new(dir), &paths).unwrap_or_else(|e| fail(&e)));
         }
+        ["mv", tree, from, to] => eprintln!("{} files moved", db.mv(tree, from, to).unwrap_or_else(|e| fail(&e))),
         ["checkout", tree, dir] => {
             db.checkout(tree, Path::new(dir)).unwrap_or_else(|e| fail(&e));
             eprintln!("{dir}: a view of {tree} on {}", db.branch().unwrap_or("main"));

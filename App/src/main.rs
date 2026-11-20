@@ -110,7 +110,7 @@ fn main() {
     }
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window {
-            title: "NativeGame".into(),
+            title: "theOS".into(),
             resolution: if still.is_some() || place_still.is_some() { (1280, 720).into() } else { (1440, 900).into() },
             resizable: still.is_none() && place_still.is_none(),
             // a bake draws only into its own pictures: no window to see
