@@ -133,7 +133,7 @@ real trade-off the definition does not settle (say, more detail against 60 fps),
   (`SendMessage`) with the PR, the numbers and what is open. It never merges. It never asks the
   human: it decides in the direction of the intent, writes the decision and why into the PR, and
   sends a real blocker to the master while it goes on with what it can do.
-- **The engine (NativeGame and theDB) is worked in theDB, not in git** (intent 0051). Its source is
+- **The engine (App/: theOS, theKERNEL and theDB) is worked in theDB, not in git** (intent 0051). Its source is
   the tree the engine doc names (`theDB builds <engine>`; `theDB files <tree>`). A worker on the
   engine makes a branch and a view instead of a worktree, and proposes instead of opening a PR:
 

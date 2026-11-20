@@ -34,8 +34,11 @@ Samuel asked for the work outright; it holds no surprise beyond his words, so it
 3. `reports/` and `research_notes/` → `Research/`. Not into Artifacts: an artifact is one outside source with its link
    (`Artifacts/schema.json`); research is our own writing, and the outside sources it cites become artifacts one by one.
 4. Every root folder capitalised: `brand/` → `Brand/`, `deploy/` → `Deploy/`, `server/` → `Server/`.
-5. The engine renamed in avenDB, then written out: `NativeGame/` → `App/` (the app and its window named theOS),
-   `avenDB/` → `AvenDB/` (the crate and the store), the kernel its own small crate at `App/kernel/`.
+5. The engine renamed in avenDB, then written out: `NativeGame/` → `App/`, one workspace of three crates: theOS (the
+   app and its window), `App/theKERNEL/` (the kernel, small) and `App/theDB/` (avenDB renamed theDB: the crate, the
+   `theDB` command, `TheDB`, `THEDB`, `THEDB_BRANCH`). The store in `DATA/` at the root, ignored by git; what is
+   written out from it (`run/`, the binary the kernel starts; `views/`, source for cargo; `target/`, cargo's cache)
+   in `DATA/cache/`, which can be deleted at any time.
 6. The video Samuel brought kept as an artifact (`value-theory-desirability-plus-scarcity`).
 
 **Checks**
@@ -51,6 +54,15 @@ Samuel asked for the work outright; it holds no surprise beyond his words, so it
 
 ## Build
 
+- Samuel's corrections on the way: the app's folder is `App/`, not `OS/` (the repository is the OS); avenDB is theDB,
+  the kernel theKERNEL; the store `DATA/`.
+- `theDB mv <tree> <from> <to>` renames paths in a tree keeping each file's doc and history; every engine rename went
+  through it, then a merge with the tree's check, then `theDB snapshot`.
+- Found and fixed: a checkout removed an old path after writing its case-only rename, which on this disk is the same
+  file (it removes first now); `--bake` hung once its window was hidden (a current bake is checked before the app
+  starts, and a bake runs every frame); a publish while theOS owns the store fails for the 224 MB binary (large blobs
+  over the store's connection: still open).
+
 ## Propose
 
 ## Story
@@ -65,7 +77,9 @@ Samuel asked for the work outright; it holds no surprise beyond his words, so it
 - [x] 2 Bible
 - [x] 3 Research
 - [x] 4 Capitals
-- [ ] 5 The engine: App, AvenDB, App/kernel, theOS
+- [x] 5 The engine: App (theOS, theKERNEL, theDB), DATA
+- [ ] Large blobs over the store's connection (publish and the lawn while theOS runs)
+- [ ] Follow-ups: format versions per doc and the kernel as a pinned doc; sccache stored in theDB
 - [x] 6 The artifact
 
 ## Changelog
