@@ -12,6 +12,7 @@
 //!     avendb source <build hash> <dir>                       the source a build was made from, into <dir>
 //!     avendb pin <engine id> <build hash>                    pins an earlier build
 //!     avendb builds <engine id>                              the engine's builds, the pinned one marked
+//!     avendb bake <asset id>                                 the kernel's baker on one asset, by hand; waits its turn
 //!
 //! Branches, source trees and merges (intent 0051). `AVENDB_BRANCH=<name>` puts any process on a branch.
 //!
@@ -76,6 +77,7 @@ fn main() {
                 println!("{} {b}  {info}", if e.pinned.as_deref() == Some(b) { "*" } else { " " });
             }
         }
+        ["bake", id] => avendb::baker::bake(&db, id).unwrap_or_else(|e| fail(&e)),
         // ---- branches (intent 0051) ----
         ["branch", name, about @ ..] => db.make_branch(name, &about.join(" ")).unwrap_or_else(|e| fail(&e)),
         ["branches"] => {
@@ -85,6 +87,8 @@ fn main() {
             }
         }
         ["diff", branch] => {
+            // a doc the branch made has its name on the branch only
+            db.set_branch(Some(branch)).unwrap_or_else(|e| fail(&e));
             for (id, h) in db.changed_on(branch).unwrap_or_else(|e| fail(&e)) {
                 let (kind, name) = db.meta(&id).unwrap_or_default();
                 let main = db.head_on(None, &id).ok().flatten().map(|h| h.to_hex()[..12].to_string()).unwrap_or_else(|| "new".into());
@@ -138,7 +142,7 @@ fn main() {
         ["root"] => println!("{}", db.root().unwrap_or_else(|e| fail(&e)).unwrap_or_default()),
         ["root", id] => db.set_root(id).unwrap_or_else(|e| fail(&e)),
         ["forget", id] => db.forget(id).unwrap_or_else(|e| fail(&e)),
-        _ => fail("usage: avendb new <kind> <name> [file] | put <id> <file> | part <id> <part> <file> | cat <id> [hash] | ls | head <id> | root [<id>] | forget <id>"),
+        _ => fail("usage: avendb new <kind> <name> [file] | put <id> <file> | part <id> <part> <file> | cat <id> [hash] | ls | head <id> | root [<id>] | forget <id> | bake <asset id>"),
     }
 }
 

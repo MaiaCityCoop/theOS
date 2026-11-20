@@ -28,8 +28,7 @@ fn bake_at_start(
 ) {
     let library = crate::library::load();
     if let Some(asset) = library.get("grass patch") {
-        let master = crate::library::master(asset, 7);
-        let baked = crate::impostor::bake(&mut commands, master, &mut meshes, &mut images, &mut materials, &mut normals);
+        let baked = crate::impostor::bake(&mut commands, asset, &mut meshes, &mut images, &mut materials, &mut normals);
         commands.insert_resource(PatchBake(baked));
     }
 }
@@ -66,8 +65,8 @@ impl PatchField {
     pub fn of(b: &crate::impostor::Baked, begin: f32) -> Self {
         PatchField {
             params: crate::impostor::ImpostorParams { sphere: b.centre.extend(b.radius), grid: Vec4::new(crate::impostor::FRAMES as f32, begin, 0.0, 0.0) },
-            albedo: b.albedo.clone(),
-            normal: b.normal.clone(),
+            albedo: b.variants[0].0.clone(),
+            normal: b.variants[0].1.clone(),
         }
     }
 }

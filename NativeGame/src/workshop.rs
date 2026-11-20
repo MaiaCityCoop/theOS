@@ -1,8 +1,8 @@
-//! The Library: every asset of the library one at a time, its master on a turntable in the Meadow's own world (its
-//! sky, sun, haze and land; the grass cleared around it). ← → step
-//! through the assets, Space makes a new individual (a new seed), the mouse wheel moves closer or further. It shows
-//! what each asset is made of and how many triangles its master has, the reference every LOD and far view is made
-//! from.
+//! The Library: every asset of the library one at a time, on a turntable in the Meadow's own world (its sky, sun,
+//! haze and land; the grass cleared around it), as its full mesh or as its far view, in the same place: F or the
+//! toggle switches between them (intent 0050). ← → step through the assets, Space makes a new individual (a new
+//! seed), the mouse wheel moves closer or further. It shows what each asset is made of and how many triangles its
+//! master has, the reference every LOD and far view is made from.
 
 use crate::View;
 use crate::contract::World;
@@ -20,7 +20,17 @@ pub struct Shelf {
     pub seed: u32,
     pub dirty: bool,
     pub zoom: f32,
+    /// Showing the far view instead of the full mesh.
+    pub far: bool,
 }
+
+/// The toggle's words: what the turntable shows now.
+#[derive(Component)]
+pub struct FarLabel;
+
+/// The asset as its full mesh (false) or its far view (true).
+#[derive(Component)]
+struct Shows(bool);
 
 #[derive(Component)]
 struct Room;
@@ -30,14 +40,11 @@ struct Specimen;
 struct Turn;
 #[derive(Component)]
 pub struct Caption;
-/// Which turntable: 0 the master, 1 its impostor.
-#[derive(Component)]
-struct Side(u8);
 
 pub fn plugin(app: &mut App) {
     app.add_systems(OnEnter(World::Library), enter)
         .add_systems(OnExit(World::Library), leave)
-        .add_systems(Update, (keys, show, turn).chain().run_if(in_state(World::Library)));
+        .add_systems(Update, (keys, show, turn, toggle).chain().run_if(in_state(World::Library)));
 }
 
 /// The Meadow's hour, kept while the Library shows its assets in late-morning light, and given back on leaving.
@@ -51,8 +58,8 @@ fn enter(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials
     commands.insert_resource(MeadowHour(clock.hour));
     clock.hour = HOUR;
     let names: Vec<String> = crate::library::shelf().into_iter().map(|a| a.name).collect();
-    commands.insert_resource(Shelf { names, at: 0, seed: 1, dirty: true, zoom: 1.0 });
-    // two turntables on the land at the origin: the master on the left, its impostor on the right
+    commands.insert_resource(Shelf { names, at: 0, seed: 1, dirty: true, zoom: 1.0, far: false });
+    // one turntable on the land at the origin, the asset as its full mesh or its far view in the same place,
     // on a flat bed of the meadow's soil, a little above the land: its tussocks (up to 20 cm) would hide a clover
     let ground = crate::terrain::height(0.0, 0.0) + PLINTH;
     commands.spawn((
@@ -62,8 +69,7 @@ fn enter(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials
         MeshMaterial3d(materials.add(StandardMaterial { base_color: Color::srgb(0.30, 0.24, 0.17), perceptual_roughness: 1.0, reflectance: 0.0, ..default() })),
         Transform::from_xyz(0.0, ground - PLINTH * 0.5, 0.0),
     ));
-    commands.spawn((Room, Turn, Side(0), LAYER, Transform::from_xyz(0.0, ground, 0.0), Visibility::default()));
-    commands.spawn((Room, Turn, Side(1), LAYER, Transform::from_xyz(0.0, ground, 0.0), Visibility::default()));
+    commands.spawn((Room, Turn, LAYER, Transform::from_xyz(0.0, ground, 0.0), Visibility::default()));
 }
 
 fn leave(mut commands: Commands, room: Query<Entity, With<Room>>, kept: Option<Res<MeadowHour>>, mut clock: ResMut<crate::contract::Clock>) {
@@ -92,6 +98,9 @@ fn keys(keys: Res<ButtonInput<KeyCode>>, scroll: Res<bevy::input::mouse::Accumul
         s.seed = s.seed.wrapping_add(1);
         s.dirty = true;
     }
+    if keys.just_pressed(KeyCode::KeyF) {
+        s.far = !s.far;
+    }
     if scroll.delta.y != 0.0 {
         s.zoom = (s.zoom * 1.1f32.powf(-scroll.delta.y.signum())).clamp(0.2, 5.0);
     }
@@ -106,12 +115,13 @@ fn show(
     mut images: ResMut<Assets<Image>>,
     mut bakes: ResMut<Assets<crate::impostor::NormalBake>>,
     mut impostors: ResMut<Assets<crate::impostor::Impostor>>,
-    mut turn: Query<(Entity, &Side, &mut Transform), (With<Turn>, Without<Camera3d>)>,
+    turn: Query<Entity, With<Turn>>,
     old: Query<Entity, With<Specimen>>,
     mut eye: ResMut<crate::contract::Eye>,
     view: Res<State<View>>,
     studio: Res<crate::film::Studio>,
     mut caption: Query<&mut Text, With<Caption>>,
+    mut far_views: Local<std::collections::HashMap<String, crate::impostor::Baked>>,
 ) {
     let Some(mut s) = shelf else { return };
     // filmed by the Studio: the shelf shows the asset the shot names (its doc, by id)
@@ -136,9 +146,6 @@ fn show(
         // the lens that sees 45° tall, as the turntables were framed for
         eye.lens = crate::contract::Lens::seeing(45f32.to_radians(), 16.0 / 9.0);
     }
-    for (_, side, mut t) in &mut turn {
-        t.translation.x = if side.0 == 0 { -size * 0.75 } else { size * 0.75 };
-    }
     if !s.dirty {
         return;
     }
@@ -148,27 +155,39 @@ fn show(
     }
     let mesh = crate::library::master(a, s.seed);
     let tris = crate::library::triangles(&mesh);
-    let baked = crate::impostor::bake(&mut commands, mesh.clone(), &mut meshes, &mut images, &mut materials, &mut bakes);
-    let (Some(parent), Some(far)) = (turn.iter().find(|t| t.1.0 == 0).map(|t| t.0), turn.iter().find(|t| t.1.0 == 1).map(|t| t.0)) else { return };
+    // the asset's far view: made once for the asset, not for the seed; a new seed is drawn as one of its variants
+    let baked = match far_views.get(&a.name) {
+        Some(b) => b.clone(),
+        None => {
+            let b = crate::impostor::bake(&mut commands, a, &mut meshes, &mut images, &mut materials, &mut bakes);
+            far_views.insert(a.name.clone(), b.clone());
+            b
+        }
+    };
+    let variant = crate::library::variant_of(a, s.seed);
+    let Some(table) = turn.iter().next() else { return };
     let imp = commands
         .spawn((
             Specimen,
+            Shows(true),
             LAYER,
             Mesh3d(meshes.add(crate::impostor::quad())),
-            MeshMaterial3d(impostors.add(crate::impostor::Impostor::of(&baked))),
+            MeshMaterial3d(impostors.add(crate::impostor::Impostor::of(&baked, variant))),
             bevy::camera::visibility::NoFrustumCulling,
             // its shadow would be the bare quad's: the shadow pass does not turn it
             bevy::light::NotShadowCaster,
             Transform::default(),
         ))
         .id();
-    commands.entity(far).add_child(imp);
-    // the atlas itself, small, bottom right: the 8 × 8 views of the master as baked (in the Library view, not in a film)
+    commands.entity(table).add_child(imp);
+    // the atlas itself, small, bottom right, with the far view: the 8 × 8 views of the master as baked (in the Library
+    // view, not in a film)
     if *view.get() == View::Library {
     commands.spawn((
         Specimen,
+        Shows(true),
         DespawnOnExit(World::Library), // it stayed over the Game after leaving
-        ImageNode::new(baked.albedo.clone()),
+        ImageNode::new(baked.variants[variant as usize % baked.variants.len()].0.clone()),
         Node { position_type: PositionType::Absolute, right: Val::Px(12.0), bottom: Val::Px(12.0), width: Val::Px(256.0), height: Val::Px(256.0), ..default() },
         BackgroundColor(Color::srgb(0.15, 0.15, 0.15)),
     ));
@@ -176,6 +195,7 @@ fn show(
     let child = commands
         .spawn((
             Specimen,
+            Shows(false),
             LAYER,
             Mesh3d(meshes.add(mesh)),
             MeshMaterial3d(materials.add(StandardMaterial {
@@ -190,21 +210,37 @@ fn show(
             Transform::default(),
         ))
         .id();
-    commands.entity(parent).add_child(child);
+    commands.entity(table).add_child(child);
     for mut t in &mut caption {
         t.0 = format!(
-            "{} · {} · {:.0}–{:.0} cm · seed {} · {} triangles, far view 2 ({}×{} views) · {}/{}",
+            "{} · {} · {:.0}–{:.0} cm · seed {} · {} triangles, far view {} of {} ({}×{} views) · {}/{}",
             a.name,
             a.kind,
             a.size[0] * 100.0,
             a.size[1] * 100.0,
             s.seed,
             tris,
+            variant + 1,
+            a.variants.max(1),
             crate::impostor::FRAMES,
             crate::impostor::FRAMES,
             s.at + 1,
             s.names.len()
         );
+    }
+}
+
+/// Shows the full mesh or the far view, as the toggle says, and names it on the toggle.
+fn toggle(shelf: Option<Res<Shelf>>, mut shown: Query<(&Shows, &mut Visibility)>, mut label: Query<&mut Text, With<FarLabel>>) {
+    let Some(s) = shelf else { return };
+    for (k, mut v) in &mut shown {
+        *v = if k.0 == s.far { Visibility::Inherited } else { Visibility::Hidden };
+    }
+    for mut t in &mut label {
+        let want = if s.far { "far view · F" } else { "full mesh · F" };
+        if t.0 != want {
+            t.0 = want.into();
+        }
     }
 }
 

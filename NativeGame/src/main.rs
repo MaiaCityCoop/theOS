@@ -5,6 +5,7 @@
 //!     cargo run -- --shots <seed> <out.json>      five new shots from a seed, kept as a shot list
 //!     cargo run -- --meadow <out.png> [hour]      measure the Meadow at 1080p for ten seconds, one picture, quit
 //!     cargo run -- --bake-place [lat lon]         a real place's package (Mértola's by default), from open data
+//!     cargo run -- --bake <asset id>              an asset's far views made and kept in avenDB if not current, then quit
 //!     cargo run -- --place-still <out.png> [km] [hour]  an agent's still of the real place, the map that many km across, at a solar hour
 
 mod bakes;
@@ -24,9 +25,11 @@ mod meadow;
 mod patches;
 mod place;
 mod root;
+mod shared;
 mod rig;
 mod sun;
 mod terrain;
+mod tree;
 mod ui;
 mod wind;
 mod views;
@@ -96,6 +99,7 @@ fn main() {
         (meadow::Measure { out: args.get(2).expect("--meadow <out.png> [hour]").into() }, contract::Clock { hour, ..default() })
     });
 
+    let bake_one = (args.get(1).map(String::as_str) == Some("--bake")).then(|| impostor::BakeOne { asset: args.get(2).expect("--bake <asset id>").clone(), frames: 0 });
     let mut app = App::new();
     // everything the engine loads comes from avenDB (intent 0049): an asset's path is a doc's id, watched, so a new
     // version of a shader reloads while the app runs; `blob://<hash>` is a blob or a doc's exact version
@@ -109,6 +113,8 @@ fn main() {
             title: "NativeGame".into(),
             resolution: if still.is_some() || place_still.is_some() { (1280, 720).into() } else { (1440, 900).into() },
             resizable: still.is_none() && place_still.is_none(),
+            // a bake draws only into its own pictures: no window to see
+            visible: bake_one.is_none(),
             ..default()
         }),
         ..default()
@@ -116,7 +122,12 @@ fn main() {
     .set(AssetPlugin { watch_for_changes_override: Some(true), ..default() }))
     .init_state::<View>()
     .add_plugins((world::plugin, film::plugin, meadow::plugin, wind::plugin, workshop::plugin, impostor::plugin, patches::plugin, lawn::plugin))
-    .add_plugins((place::plugin, map::plugin, rig::plugin, sun::plugin, dial::plugin, contract::plugin, views::plugin));
+    .add_plugins((place::plugin, map::plugin, rig::plugin, sun::plugin, dial::plugin, contract::plugin, views::plugin, shared::plugin));
+    if let Some(job) = bake_one {
+        app.insert_resource(job).add_systems(Update, impostor::bake_one);
+        app.run();
+        return;
+    }
     if args.get(1).map(String::as_str) == Some("--shelf") {
         let dir: PathBuf = args.get(2).expect("--shelf <dir>").into();
         let _ = std::fs::create_dir_all(&dir);

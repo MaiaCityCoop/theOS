@@ -119,29 +119,41 @@ impl AvenDb {
             Ok(b) => return Err(format!("AVENDB_BRANCH is not a branch's name (lowercase letters, digits, dashes): {b:?}")),
             Err(_) => None,
         };
-        match rt.block_on(FsStore::load(dir)) {
-            Ok(fs) => {
-                // the owner: serve the store to the other processes on this machine
-                let _guard = rt.enter();
-                let (endpoint, der) = irpc::util::make_server_endpoint("127.0.0.1:0".parse().unwrap()).map_err(err)?;
-                let at = endpoint.local_addr().map_err(err)?;
-                std::fs::write(&cert, &der).map_err(err)?;
-                std::fs::write(&port, at.port().to_string()).map_err(err)?;
-                let store: Store = (*fs).clone();
-                rt.spawn(store.clone().listen(endpoint));
-                Ok(AvenDb { rt, store, owner: Some(fs), dir: dir.to_path_buf(), branch })
-            }
-            Err(e) => {
-                // another process owns it: talk to that one
-                let (Ok(p), Ok(der)) = (std::fs::read_to_string(&port), std::fs::read(&cert)) else {
-                    return Err(format!("the store is held by another process that does not serve it: {e}"));
-                };
-                let addr: std::net::SocketAddr = format!("127.0.0.1:{}", p.trim()).parse().map_err(err)?;
-                let _guard = rt.enter();
-                let endpoint = irpc::util::make_client_endpoint("127.0.0.1:0".parse().unwrap(), &[&der]).map_err(err)?;
-                Ok(AvenDb { rt, store: Store::connect(endpoint, addr), owner: None, dir: dir.to_path_buf(), branch })
+        // a store whose owner is closing, or has gone without tidying up, answers nothing: wait a little and take it
+        // over (the files are free once the owner is gone)
+        for _ in 0..40 {
+            match rt.block_on(FsStore::load(dir)) {
+                Ok(fs) => {
+                    // the owner: serve the store to the other processes on this machine
+                    let _guard = rt.enter();
+                    let (endpoint, der) = irpc::util::make_server_endpoint("127.0.0.1:0".parse().unwrap()).map_err(err)?;
+                    let at = endpoint.local_addr().map_err(err)?;
+                    std::fs::write(&cert, &der).map_err(err)?;
+                    std::fs::write(&port, at.port().to_string()).map_err(err)?;
+                    let store: Store = (*fs).clone();
+                    rt.spawn(store.clone().listen(endpoint));
+                    return Ok(AvenDb { rt, store, owner: Some(fs), dir: dir.to_path_buf(), branch });
+                }
+                Err(e) => {
+                    // another process owns it: talk to that one, if it answers
+                    let (Ok(p), Ok(der)) = (std::fs::read_to_string(&port), std::fs::read(&cert)) else {
+                        return Err(format!("the store is held by another process that does not serve it: {e}"));
+                    };
+                    let addr: std::net::SocketAddr = format!("127.0.0.1:{}", p.trim()).parse().map_err(err)?;
+                    let store = {
+                        let _guard = rt.enter();
+                        let endpoint = irpc::util::make_client_endpoint("127.0.0.1:0".parse().unwrap(), &[&der]).map_err(err)?;
+                        Store::connect(endpoint, addr)
+                    };
+                    let answers = rt.block_on(async { tokio::time::timeout(std::time::Duration::from_secs(2), store.tags().get(ROOT)).await.is_ok_and(|r| r.is_ok()) });
+                    if answers {
+                        return Ok(AvenDb { rt, store, owner: None, dir: dir.to_path_buf(), branch });
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(250));
+                }
             }
         }
+        Err("the store's owner neither answers nor lets it go".into())
     }
 
     /// The store's folder.
@@ -547,6 +559,56 @@ impl AvenDb {
         serde_json::from_slice(&b).map_err(err)
     }
 }
+
+/// The engine the root names, at the build it pins, as a binary on disk ready to run.
+pub struct Pinned {
+    pub engine: String,
+    pub build: String,
+    pub toolchain: String,
+    pub path: PathBuf,
+}
+
+impl AvenDb {
+    /// The engine the root names, at its pinned build: the binary is written once beside the store under its hash
+    /// (`run/<hash>`) and checked against that hash every time, so what runs is what the build names.
+    pub fn pinned_engine(&self) -> Result<Pinned> {
+        use std::os::unix::fs::PermissionsExt;
+        let root = self.root()?.ok_or("avenDB has no root")?;
+        let root_doc: serde_json::Value = serde_json::from_str(&self.text(&root)?.unwrap_or_default()).map_err(err)?;
+        let engine = root_doc["engine"].as_str().ok_or("the root names no engine")?.to_string();
+        let pinned = self.engine(&engine)?.pinned.ok_or("the engine pins no build")?;
+        let build = self.build(&pinned)?;
+        let hash: Hash = build.binary.parse().map_err(|_| "the build's binary is no hash")?;
+        let run = self.dir.join("run");
+        let path = run.join(hash.to_hex().as_str());
+        let good = |p: &Path| std::fs::read(p).is_ok_and(|b| Hash::new(&b) == hash);
+        if !good(&path) {
+            if path.exists() {
+                eprintln!("avendb: the cached engine binary does not match its hash: refused, and written again from the store");
+            }
+            let bytes = self.get(hash)?.ok_or("the store lacks the engine's binary")?;
+            if Hash::new(&bytes) != hash {
+                return Err("the engine's binary does not match its hash: refused".into());
+            }
+            // written beside and moved in, so a process starting it meanwhile never sees half a binary
+            std::fs::create_dir_all(&run).map_err(err)?;
+            static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let part = run.join(format!("{}.{}.{n}", hash.to_hex(), std::process::id()));
+            std::fs::write(&part, &bytes).map_err(err)?;
+            std::fs::set_permissions(&part, std::fs::Permissions::from_mode(0o755)).map_err(err)?;
+            std::fs::rename(&part, &path).map_err(err)?;
+            if !good(&path) {
+                return Err("the engine's binary on disk does not match its hash: refused".into());
+            }
+        }
+        Ok(Pinned { engine, build: pinned, toolchain: build.toolchain, path })
+    }
+}
+
+pub mod baker;
+pub mod gpu;
+pub mod plugin;
 
 #[cfg(feature = "bevy")]
 pub mod bevy;

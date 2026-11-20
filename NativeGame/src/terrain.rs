@@ -2,29 +2,78 @@
 //! centimetre bumps), meshes that follow it near the eye and out to the horizon, and stones and pebbles as real
 //! generated shapes lying on it. No textures: every colour is carried by the geometry, from measured reflectances.
 //!
-//! The large terms are plain sums of sines, so the wind shader (`assets/shaders/wind.wesl`) can compute the same
-//! ground and know how high a blade's point is above it.
+//! The functions the shaders compute too (the large shape, the hash and noise, the small shape, where the ground is
+//! bare) are written once here, as data with their Rust form beside their WGSL form; `wgsl` writes the shaders'
+//! module from the same data (`shared.rs`), so the GPU's grass stands on exactly the land built here.
 
 use bevy::asset::RenderAssetUsages;
 use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::prelude::*;
 
-/// The large shape of the land: hills and swells. Also in `wind.wesl` (`ground`): keep the two the same.
-pub fn big(x: f32, z: f32) -> f32 {
-    22.0 * (0.0011 * x + 0.3).sin() * (0.0013 * z + 1.7).cos()
-        + 9.0 * (0.0031 * x - 0.0024 * z + 0.9).sin()
-        + 4.0 * (0.0110 * x + 0.7).sin() * (0.0093 * z - 1.1).cos()
-        + 2.5 * (0.0057 * x + 0.0043 * z + 2.0).sin()
-        + 0.45 * (0.071 * x - 0.052 * z + 0.3).sin() * (0.048 * x + 0.083 * z + 1.9).sin()
-        + 0.25 * (0.15 * x + 0.11 * z + 4.0).sin()
+/// One wave of a term of the large shape: `sin` or `cos` of `kx·x + kz·z + phase`.
+#[derive(Clone, Copy)]
+enum Wave {
+    Sin,
+    Cos,
 }
 
+struct Factor(Wave, f32, f32, f32);
+
+/// A term of the large shape: its height in metres times its waves.
+struct Term(f32, &'static [Factor]);
+
+use Wave::{Cos, Sin};
+
+/// The large shape of the land: hills and swells.
+const BIG: [Term; 6] = [
+    Term(22.0, &[Factor(Sin, 0.0011, 0.0, 0.3), Factor(Cos, 0.0, 0.0013, 1.7)]),
+    Term(9.0, &[Factor(Sin, 0.0031, -0.0024, 0.9)]),
+    Term(4.0, &[Factor(Sin, 0.0110, 0.0, 0.7), Factor(Cos, 0.0, 0.0093, -1.1)]),
+    Term(2.5, &[Factor(Sin, 0.0057, 0.0043, 2.0)]),
+    Term(0.45, &[Factor(Sin, 0.071, -0.052, 0.3), Factor(Sin, 0.048, 0.083, 1.9)]),
+    Term(0.25, &[Factor(Sin, 0.15, 0.11, 4.0)]),
+];
+
+impl Factor {
+    fn at(&self, x: f32, z: f32) -> f32 {
+        let a = self.1 * x + self.2 * z + self.3;
+        match self.0 {
+            Sin => a.sin(),
+            Cos => a.cos(),
+        }
+    }
+    fn wgsl(&self) -> String {
+        let mut a = Vec::new();
+        if self.1 != 0.0 {
+            a.push(format!("{:?} * p.x", self.1));
+        }
+        if self.2 != 0.0 {
+            a.push(format!("{:?} * p.y", self.2));
+        }
+        a.push(format!("{:?}", self.3));
+        let f = match self.0 {
+            Sin => "sin",
+            Cos => "cos",
+        };
+        format!("{f}({})", a.join(" + ").replace("+ -", "- "))
+    }
+}
+
+/// The large shape of the land at (x, z), in metres.
+pub fn big(x: f32, z: f32) -> f32 {
+    BIG.iter().fold(0.0, |h, t| h + t.1.iter().fold(t.0, |a, f| a * f.at(x, z)))
+}
+
+/// The hash's multipliers (x, z, seed, mix) and its shifts.
+const HASH: [u32; 4] = [0x8da6_b343, 0xd816_3841, 0x9E37_79B1, 0x85eb_ca6b];
+const SHIFTS: [u32; 3] = [13, 16, 8];
+
 fn hash(x: i32, z: i32, seed: u32) -> f32 {
-    let mut h = (x as u32).wrapping_mul(0x8da6_b343) ^ (z as u32).wrapping_mul(0xd816_3841) ^ seed.wrapping_mul(0x9E37_79B1);
-    h ^= h >> 13;
-    h = h.wrapping_mul(0x85eb_ca6b);
-    h ^= h >> 16;
-    (h >> 8) as f32 / (1u32 << 24) as f32
+    let mut h = (x as u32).wrapping_mul(HASH[0]) ^ (z as u32).wrapping_mul(HASH[1]) ^ seed.wrapping_mul(HASH[2]);
+    h ^= h >> SHIFTS[0];
+    h = h.wrapping_mul(HASH[3]);
+    h ^= h >> SHIFTS[1];
+    (h >> SHIFTS[2]) as f32 / (1u32 << (32 - SHIFTS[2])) as f32
 }
 
 /// Smooth value noise, cells `cell` metres wide.
@@ -39,14 +88,94 @@ pub fn noise(x: f32, z: f32, cell: f32, seed: u32) -> f32 {
     a + (b - a) * sz
 }
 
-/// The small shape: tussock mounds and the crumbly unevenness of a meadow's floor, a few centimetres.
+/// The small shape: tussock mounds and the crumbly unevenness of a meadow's floor, a few centimetres. Octaves of
+/// noise: (height, cell, seed).
+const SMALL: [(f32, f32, u32); 3] = [(0.10, 1.6, 1), (0.06, 0.55, 2), (0.025, 0.16, 3)];
+
 fn small(x: f32, z: f32) -> f32 {
-    0.10 * noise(x, z, 1.6, 1) + 0.06 * noise(x, z, 0.55, 2) + 0.025 * noise(x, z, 0.16, 3)
+    SMALL.iter().fold(0.0, |h, &(w, cell, seed)| h + w * noise(x, z, cell, seed))
 }
 
 /// The height of the ground at (x, z), in metres.
 pub fn height(x: f32, z: f32) -> f32 {
     big(x, z) + small(x, z)
+}
+
+/// Three octaves of noise from a cell: (the cell's share, weight); each octave takes the next seed. The biome's
+/// ground layers lie by this noise (`ground.wesl`), and so does the bare ground the grass leaves out.
+const OCTAVES: [(f32, f32); 3] = [(1.0, 0.65), (0.3125, 0.25), (0.09375, 0.10)];
+
+pub fn fbm(x: f32, z: f32, cell: f32, seed: u32) -> f32 {
+    OCTAVES.iter().zip(0..).fold(0.0, |n, (&(share, w), k)| n + noise(x, z, cell * share, seed + k) * w)
+}
+
+/// The bare ground: its noise's cell and first seed, and where that noise rises from 0 to 1 bare. The meadow's
+/// recipe lays its open-ground layer by the same (`biome.rs`).
+pub const BARE_CELL: f32 = 16.0;
+pub const BARE_SEED: u32 = 20;
+pub const BARE_FROM: f32 = 0.74;
+pub const BARE_SOFT: f32 = 0.06;
+
+/// The shaders' twins of the functions above, written from the same data (the WGSL of `shared.rs`'s module).
+pub fn wgsl() -> String {
+    let big = BIG
+        .iter()
+        .map(|t| std::iter::once(format!("{:?}", t.0)).chain(t.1.iter().map(Factor::wgsl)).collect::<Vec<_>>().join(" * "))
+        .collect::<Vec<_>>()
+        .join("\n        + ");
+    let small = SMALL.iter().map(|&(w, cell, seed)| format!("{w:?} * tnoise(p, {cell:?}, {seed}u)")).collect::<Vec<_>>().join(" + ");
+    let fbm = OCTAVES
+        .iter()
+        .zip(0..)
+        .map(|(&(share, w), k)| format!("tnoise(p, cell * {share:?}, seed + {k}u) * {w:?}"))
+        .collect::<Vec<_>>()
+        .join(" + ");
+    let [hx, hz, hs, hm] = HASH;
+    let [s0, s1, s2] = SHIFTS;
+    let unit = (1u32 << (32 - s2)) as f32;
+    format!(
+        "// `terrain::big`: the large shape of the land.
+fn ground(p: vec2<f32>) -> f32 {{
+    return {big};
+}}
+
+// `terrain::hash` and `terrain::noise`, bit for bit, so the blades stand exactly on the land the CPU built.
+fn thash(x: i32, z: i32, seed: u32) -> f32 {{
+    var h = (bitcast<u32>(x) * {hx:#x}u) ^ (bitcast<u32>(z) * {hz:#x}u) ^ (seed * {hs:#x}u);
+    h = h ^ (h >> {s0}u);
+    h = h * {hm:#x}u;
+    h = h ^ (h >> {s1}u);
+    return f32(h >> {s2}u) / {unit:?};
+}}
+
+fn tnoise(p: vec2<f32>, cell: f32, seed: u32) -> f32 {{
+    let q = p / cell;
+    let i = floor(q);
+    let f = q - i;
+    let s = f * f * (3.0 - 2.0 * f);
+    let ix = i32(i.x);
+    let iz = i32(i.y);
+    let a = thash(ix, iz, seed) + (thash(ix + 1, iz, seed) - thash(ix, iz, seed)) * s.x;
+    let b = thash(ix, iz + 1, seed) + (thash(ix + 1, iz + 1, seed) - thash(ix, iz + 1, seed)) * s.x;
+    return a + (b - a) * s.y;
+}}
+
+// `terrain::height`: the large shape and the small one.
+fn land(p: vec2<f32>) -> f32 {{
+    return ground(p) + ({small});
+}}
+
+// `terrain::fbm`
+fn fbm(p: vec2<f32>, cell: f32, seed: u32) -> f32 {{
+    return {fbm};
+}}
+
+// `terrain::bare`: where the ground is bare, no grass grows.
+fn bare(p: vec2<f32>) -> f32 {{
+    return smoothstep(0.0, 1.0, clamp((fbm(p, {BARE_CELL:?}, {BARE_SEED}u) - {BARE_FROM:?}) / {BARE_SOFT:?}, 0.0, 1.0));
+}}
+"
+    )
 }
 
 fn normal_of(f: &dyn Fn(f32, f32) -> f32, x: f32, z: f32, e: f32) -> Vec3 {
@@ -83,8 +212,7 @@ fn sward(x: f32, z: f32) -> Vec3 {
 /// How bare the ground is at (x, z), 0 under a full sward to 1 in a bare patch: irregular patches of earth and gravel,
 /// a few metres across, as a grazed or trodden meadow has them. The grass leaves them out.
 pub fn bare(x: f32, z: f32) -> f32 {
-    let n = noise(x, z, 16.0, 20) * 0.65 + noise(x, z, 5.0, 21) * 0.25 + noise(x, z, 1.5, 22) * 0.10;
-    let t = ((n - 0.74) / 0.06).clamp(0.0, 1.0); // rarer: a few patches, not a mottled field
+    let t = ((fbm(x, z, BARE_CELL, BARE_SEED) - BARE_FROM) / BARE_SOFT).clamp(0.0, 1.0); // rarer: a few patches, not a mottled field
     t * t * (3.0 - 2.0 * t)
 }
 
