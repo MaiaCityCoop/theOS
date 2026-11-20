@@ -124,8 +124,12 @@ fn blade(slot: vec3<f32>, side: f32, t: f32, w: Wind, time: f32, before: f32) ->
     let d = distance(p, w.eye.xz);
     let reach = REACH * s;
     var keep = 1.0 - smoothstep(0.7 * reach, reach, d);
+    // the last level thins out and its blades shorten toward its edge, down into the lawn's height there, so the
+    // real field ends in the lawn and not in a line of blade tips
+    var shrink = 1.0;
     if (level == 2u) {
-        keep = 1.0 - smoothstep(0.45 * reach, reach, d);
+        keep = 1.0 - smoothstep(0.6 * reach, reach, d);
+        shrink = 1.0 - 0.55 * smoothstep(0.35 * reach, reach, d);
     }
     if (level > 0u) {
         keep = min(keep, smoothstep(0.35 * reach, 0.5 * reach, d));
@@ -144,7 +148,7 @@ fn blade(slot: vec3<f32>, side: f32, t: f32, w: Wind, time: f32, before: f32) ->
     let lush = tnoise(p, 7.0, 40u);
     // a grazed meadow: 12 to 45 cm. Width: 3 to 8 mm, wider on coarser levels, and never under about a pixel at its
     // distance, or a far blade would flicker away between the pixels
-    let height = w.deep.w + w.light.w * (0.67 * lush * lush + 0.33 * thash(ci, cj, seed + 5u));
+    let height = (w.deep.w + w.light.w * (0.67 * lush * lush + 0.33 * thash(ci, cj, seed + 5u))) * shrink;
     // coarser levels have a quarter of the blades each: twice as wide, and never under about a pixel and a half
     let width = max((0.0018 + 0.0022 * thash(ci, cj, seed + 6u)) * pow(2.0, f32(level)), 0.0011 * d);
     let yaw = thash(ci, cj, seed + 7u) * 6.2831853;

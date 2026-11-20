@@ -523,7 +523,7 @@ fn enter(
     let _ = std::fs::write(path, serde_json::to_string_pretty(&biome).unwrap_or_default());
     let ground = grounds.add(crate::wind::Ground {
         base: StandardMaterial { base_color: Color::WHITE, perceptual_roughness: 0.95, reflectance: 0.3, cull_mode: None, ..default() },
-        extension: crate::wind::GroundLook { biome: biome.uniform(), lawn: Vec4::ZERO, lawn_albedo: None, lawn_height: None },
+        extension: crate::wind::GroundLook { biome: biome.uniform(), lawn: Vec4::ZERO, lawn_albedo: None, lawn_height: None, sun: Vec4::Y },
     });
     // the land beyond the grass, to the horizon, rebuilt around the eye as it moves (`stream`)
     let far = meshes.add(crate::terrain::far(0.0, 0.0, None));
@@ -602,6 +602,8 @@ fn hours(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut hour: ResMut<Hour
 #[allow(clippy::type_complexity)]
 fn sun(
     hour: Res<Hour>,
+    field: Option<Res<Field>>,
+    mut grounds: ResMut<Assets<crate::wind::Ground>>,
     mut sun: Query<&mut Transform, (With<Sun>, Without<Moon>, Without<Stars>, Without<Eye2>)>,
     mut moon: Query<(&mut Transform, &mut DirectionalLight, &mut SunDisk), (With<Moon>, Without<Sun>, Without<Stars>, Without<Eye2>)>,
     mut stars: Query<(&mut Transform, &mut Visibility, &MeshMaterial3d<StandardMaterial>), (With<Stars>, Without<Sun>, Without<Moon>, Without<Eye2>)>,
@@ -610,6 +612,13 @@ fn sun(
 ) {
     let a = (hour.0 - 7.0) / 12.0 * std::f32::consts::PI; // 0 at sunrise, π at sunset
     let to_sun = Vec3::new(a.cos(), a.sin() * 0.85 + 0.02, -a.sin() * 0.5).normalize();
+    // the lawn's blades shade each other along the sun's direction
+    if let Some(field) = field.as_ref()
+        && grounds.get(&field.ground).is_some_and(|g| g.extension.sun.truncate().distance(to_sun) > 0.002)
+        && let Some(mut g) = grounds.get_mut(&field.ground)
+    {
+        g.extension.sun = to_sun.extend(0.0);
+    }
     for mut t in &mut sun {
         *t = Transform::from_translation(to_sun).looking_at(Vec3::ZERO, Vec3::Y);
     }

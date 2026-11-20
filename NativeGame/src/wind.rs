@@ -82,6 +82,9 @@ pub struct GroundLook {
     #[texture(104)]
     #[sampler(105)]
     pub lawn_height: Option<Handle<Image>>,
+    /// xyz: toward the sun (for the lawn's shadows among its own blades).
+    #[uniform(106)]
+    pub sun: Vec4,
 }
 
 impl MaterialExtension for GroundLook {

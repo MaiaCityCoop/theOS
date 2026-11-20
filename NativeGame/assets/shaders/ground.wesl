@@ -24,6 +24,7 @@ struct Biome {
 @group(constants::MATERIAL_BIND_GROUP) @binding(103) var lawn_albedo_smp: sampler;
 @group(constants::MATERIAL_BIND_GROUP) @binding(104) var lawn_height: texture_2d<f32>;
 @group(constants::MATERIAL_BIND_GROUP) @binding(105) var lawn_height_smp: sampler;
+@group(constants::MATERIAL_BIND_GROUP) @binding(106) var<uniform> sun: vec4<f32>;
 
 // The baked lawn (`src/lawn.rs`): 16 azimuths × these slopes (degrees), each view 192 texels over 1 m.
 const LAWN_SLOPES = array<f32, 6>(8.0, 12.0, 18.0, 27.0, 40.0, 62.0);
@@ -32,21 +33,50 @@ struct LawnHit {
     colour: vec3<f32>,
     normal: vec3<f32>,
     cover: f32,
+    // how high the blade the ray meets is, as a share of the slab (0 at the roots)
+    height: f32,
+    // how much of the sun it gets, past the blades between it and the sun
+    lit: f32,
 };
 
-// One view's answer: where the ray crosses the tip plane in view (a, s), wrapped over 1 m tiles each shifted by its
-// own random offset.
-fn lawn_view(p: vec2<f32>, a: u32, s: u32, gx: vec2<f32>, gy: vec2<f32>) -> vec4<f32> {
-    let azr = f32(a) / 16.0 * 6.2831853;
-    let elr = radians(LAWN_SLOPES[s]);
-    let f = vec3<f32>(cos(elr) * cos(azr), sin(elr), cos(elr) * sin(azr));
-    let top = p + f.xz / f.y * lawn.y;
+struct LawnSample {
+    c: vec4<f32>,
+    h: f32,
+};
+
+// The atlas place of a tip-plane point in view (a, s), on its 1 m tile shifted by the tile's own random offset.
+fn lawn_uv(top: vec2<f32>, a: u32, s: u32) -> vec2<f32> {
     let cell = floor(top + 0.5);
     let shift = vec2<f32>(thash(i32(cell.x), i32(cell.y), 120u), thash(i32(cell.x), i32(cell.y), 121u));
     let inset = 0.5 / 192.0;
     let uv = clamp(fract(top + 0.5 + shift), vec2<f32>(inset), vec2<f32>(1.0 - inset));
-    let atlas = (vec2<f32>(f32(a), f32(s)) + uv) / vec2<f32>(16.0, 6.0);
-    return textureSampleGrad(lawn_albedo, lawn_albedo_smp, atlas, gx, gy);
+    return (vec2<f32>(f32(a), f32(s)) + uv) / vec2<f32>(16.0, 6.0);
+}
+
+fn lawn_dir(a: u32, s: u32) -> vec3<f32> {
+    let azr = f32(a) / 16.0 * 6.2831853;
+    let elr = radians(LAWN_SLOPES[s]);
+    return vec3<f32>(cos(elr) * cos(azr), sin(elr), cos(elr) * sin(azr));
+}
+
+fn lawn_slope(el: f32) -> u32 {
+    var s = 0u;
+    for (var k = 0u; k < 5u; k = k + 1u) {
+        if (el >= LAWN_SLOPES[k]) {
+            s = k;
+        }
+    }
+    return s;
+}
+
+// One view's answer: colour, coverage and the struck blade's height where the ray crosses the tip plane in (a, s).
+fn lawn_view(p: vec2<f32>, a: u32, s: u32, gx: vec2<f32>, gy: vec2<f32>) -> LawnSample {
+    let f = lawn_dir(a, s);
+    let atlas = lawn_uv(p + f.xz / f.y * lawn.y, a, s);
+    var o: LawnSample;
+    o.c = textureSampleGrad(lawn_albedo, lawn_albedo_smp, atlas, gx, gy);
+    o.h = textureSampleGrad(lawn_height, lawn_height_smp, atlas, gx, gy).r;
+    return o;
 }
 
 // What the eye's ray through ground point `p` (looking back along `V`) meets first in the lawn: the two baked
@@ -56,12 +86,7 @@ fn lawn_at(p: vec2<f32>, V: vec3<f32>, dx: vec2<f32>, dy: vec2<f32>) -> LawnHit 
     var hit: LawnHit;
     // the two baked slopes around the view's, blended in log of the angle (bands of one slope showed as arcs)
     let el = clamp(degrees(asin(clamp(V.y, 0.0, 1.0))), LAWN_SLOPES[0], LAWN_SLOPES[5]);
-    var s = 0u;
-    for (var k = 0u; k < 5u; k = k + 1u) {
-        if (el >= LAWN_SLOPES[k]) {
-            s = k;
-        }
-    }
+    let s = lawn_slope(el);
     let s1 = min(s + 1u, 5u);
     let ts = select(clamp((log(el) - log(LAWN_SLOPES[s])) / (log(LAWN_SLOPES[s1]) - log(LAWN_SLOPES[s])), 0.0, 1.0), 0.0, s1 == s);
     let x = fract(atan2(V.z, V.x) / 6.2831853) * 16.0;
@@ -70,14 +95,31 @@ fn lawn_at(p: vec2<f32>, V: vec3<f32>, dx: vec2<f32>, dy: vec2<f32>) -> LawnHit 
     let t = smoothstep(0.0, 1.0, fract(x));
     let gx = dx / vec2<f32>(16.0, 6.0);
     let gy = dy / vec2<f32>(16.0, 6.0);
-    let c = mix(
-        mix(lawn_view(p, a0, s, gx, gy), lawn_view(p, a1, s, gx, gy), t),
-        mix(lawn_view(p, a0, s1, gx, gy), lawn_view(p, a1, s1, gx, gy), t),
-        ts,
-    );
+    let v00 = lawn_view(p, a0, s, gx, gy);
+    let v10 = lawn_view(p, a1, s, gx, gy);
+    let v01 = lawn_view(p, a0, s1, gx, gy);
+    let v11 = lawn_view(p, a1, s1, gx, gy);
+    let c = mix(mix(v00.c, v10.c, t), mix(v01.c, v11.c, t), ts);
+    // the stored height is coverage-weighted in the smaller copies: divided back out
+    let h = mix(mix(v00.h, v10.h, t), mix(v01.h, v11.h, t), ts) / max(c.a, 0.05);
     hit.colour = c.rgb;
     hit.cover = c.a;
     hit.normal = vec3<f32>(0.0, 1.0, 0.0);
+    hit.height = clamp(h, 0.0, 1.0);
+    // the struck point, on the eye's ray, at its height; then toward the sun: the view nearest the sun's direction
+    // says the height of the first blade on the line from there to the sun (SmartImposter's lawn self-shadowing)
+    let yh = hit.height * lawn.y;
+    let at = p + V.xz / max(V.y, 0.02) * yh;
+    let L = normalize(sun.xyz);
+    let sel = clamp(degrees(asin(clamp(L.y, 0.0, 1.0))), LAWN_SLOPES[0], LAWN_SLOPES[5]);
+    let ss = lawn_slope(sel);
+    let sa = u32(round(fract(atan2(L.z, L.x) / 6.2831853) * 16.0)) % 16u;
+    let fs = lawn_dir(sa, ss);
+    let toward = lawn_uv(at + fs.xz / fs.y * (lawn.y - yh), sa, ss);
+    let sh = textureSampleLevel(lawn_height, lawn_height_smp, toward, 1.0);
+    let sc = textureSampleLevel(lawn_albedo, lawn_albedo_smp, toward, 1.0).a;
+    let blocker = sh.r / max(sc, 0.05) * lawn.y;
+    hit.lit = 1.0 - smoothstep(yh + 0.01, yh + 0.08, blocker) * sc;
     return hit;
 }
 
@@ -186,14 +228,17 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
         let eye_d = distance(p, view.world_position.xz);
         let pdx = dpdx(p);
         let pdy = dpdy(p);
-        let lawn_on = lawn.x * smoothstep(12.0, 18.0, eye_d) * (1.0 - bare);
+        let lawn_on = lawn.x * smoothstep(7.0, 15.0, eye_d) * (1.0 - bare);
         if (lawn_on > 0.0) {
             let hit = lawn_at(p, pbr_input.V, pdx, pdy);
             // between the blades: the ground in their shade
             // the biome's own variation over the field (lusher, drier, mossier, damper patches) tints the baked blades:
             // the layers' colour here against the sward's base
             let tint = clamp(colour / max(biome.colours[0].rgb, vec3<f32>(1e-3)), vec3<f32>(0.5), vec3<f32>(2.0));
-            let struck = mix(colour * 0.6, hit.colour * 1.15 * tint, hit.cover);
+            // lower in the sward, less sky reaches it; in the shade of the blades nearer the sun, less sun
+            let ao = mix(0.35, 1.0, pow(hit.height, 0.7));
+            let shade = mix(0.45, 1.0, hit.lit);
+            let struck = mix(colour * 0.4, hit.colour * 1.25 * tint * ao * shade, hit.cover);
             colour = mix(colour, struck, lawn_on);
             // a sward lit as many blades facing every way: from above, as SmartImposter's normal spread does for grass
             pbr_input.N = normalize(mix(pbr_input.N, vec3<f32>(0.0, 1.0, 0.0), lawn_on));
