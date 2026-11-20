@@ -131,7 +131,8 @@ fn the_baker_bakes_one_at_a_time() {
         .iter()
         .map(|id| {
             let (db, id) = (db.clone(), id.clone());
-            std::thread::spawn(move || avendb::baker::bake(&db, &id))
+            let gpu = dir.join("gpu");
+            std::thread::spawn(move || avendb::baker::bake_in(&db, &id, &gpu))
         })
         .collect();
     for t in threads {
@@ -156,7 +157,7 @@ fn the_baker_as_a_plugin_bakes_the_changed_asset_and_reports_a_failure() {
     let (db, dir) = with_stub_engine("plugin");
     let stone = db.new("asset", "stone").unwrap();
     let _wind = db.new("shader", "wind").unwrap();
-    let mut w = Watcher::new(&db, vec![Box::new(avendb::baker::Baker)]).unwrap();
+    let mut w = Watcher::new(&db, vec![Box::new(avendb::baker::Baker { gpu: dir.join("gpu") })]).unwrap();
     assert_eq!(w.pass(&db).unwrap(), vec![("baker".to_string(), stone.clone())], "the asset only, not the shader or the engine");
     db.set_text(&stone, "{\"size\": 2}").unwrap();
     assert_eq!(w.pass(&db).unwrap().len(), 1);
@@ -164,7 +165,7 @@ fn the_baker_as_a_plugin_bakes_the_changed_asset_and_reports_a_failure() {
     assert_eq!(log.matches(&format!("start {stone}")).count(), 2, "{log}");
     // a failing engine: the bake says so
     std::fs::write(dir.join("broken"), &stone).unwrap();
-    let e = avendb::baker::bake(&db, &stone).unwrap_err();
+    let e = avendb::baker::bake_in(&db, &stone, &dir.join("gpu")).unwrap_err();
     assert!(e.contains("exit 3"), "{e}");
     drop((w, db));
     let _ = std::fs::remove_dir_all(dir);

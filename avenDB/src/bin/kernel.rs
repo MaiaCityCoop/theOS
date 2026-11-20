@@ -17,7 +17,7 @@ fn main() {
     let engine = db.pinned_engine().unwrap_or_else(|e| fail(&e));
     eprintln!("kernel: engine {}, build {}, {}", engine.engine, &engine.build[..12], engine.toolchain);
     // the plugins: each names the doc kinds it watches; what it does is its own
-    let plugins: Vec<Box<dyn Plugin>> = vec![Box::new(avendb::baker::Baker)];
+    let plugins: Vec<Box<dyn Plugin>> = vec![Box::new(avendb::baker::Baker::new())];
     let stop = Arc::new(AtomicBool::new(false));
     let watcher = match Watcher::new(&db, plugins) {
         Ok(w) => Some(w.watch(db.clone(), stop.clone())),
