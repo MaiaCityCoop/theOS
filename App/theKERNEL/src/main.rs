@@ -1,40 +1,51 @@
 //! The kernel: the one thing installed. It opens theDB, follows the root doc to its engine, takes the build the
 //! engine pins, checks the binary against its hash, and starts it; while the engine runs, the kernel holds the store
-//! and serves it to the engine and to every other process on the machine, and calls its plugins when a doc they watch
-//! changes (in the background: the engine never waits for them). Arguments pass through to the engine.
+//! and serves it to the engine and to every other process on the machine. Arguments pass through to the engine.
 //!
 //!     kernel [args...]
+//!
+//! Told to stop (Ctrl-C or a TERM), it stops the engine, writes what the store holds to disk and closes it: a store
+//! closed by a plain kill can lose what other processes wrote through it last.
 
-use thedb::TheDB;
-use thedb::plugin::{Plugin, Watcher};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use thedb::TheDB;
+
+static STOP: AtomicBool = AtomicBool::new(false);
+
+extern "C" fn stop(_: i32) {
+    STOP.store(true, Ordering::Relaxed);
+}
+
+unsafe extern "C" {
+    fn signal(signum: i32, handler: extern "C" fn(i32)) -> usize;
+}
 
 fn main() {
+    // SIGINT and SIGTERM
+    unsafe {
+        signal(2, stop);
+        signal(15, stop);
+    }
     let args: Vec<String> = std::env::args().skip(1).collect();
     let dir = TheDB::here();
-    let db = Arc::new(TheDB::open(&dir).unwrap_or_else(|e| fail(&e)));
+    let db = TheDB::open(&dir).unwrap_or_else(|e| fail(&e));
     let engine = db.pinned_engine().unwrap_or_else(|e| fail(&e));
     eprintln!("kernel: engine {}, build {}, {}", engine.engine, &engine.build[..12], engine.toolchain);
-    // the plugins: each names the doc kinds it watches; what it does is its own. None yet: day 1 has nothing to
-    // derive from a doc.
-    let plugins: Vec<Box<dyn Plugin>> = vec![];
-    let stop = Arc::new(AtomicBool::new(false));
-    let watcher = match Watcher::new(&db, plugins) {
-        Ok(w) => Some(w.watch(db.clone(), stop.clone())),
-        Err(e) => {
-            eprintln!("kernel: no plugins run: {e}");
-            None
+    let mut child = std::process::Command::new(&engine.path).args(&args).env("THEDB", &dir).spawn().unwrap_or_else(|e| fail(&e.to_string()));
+    let code = loop {
+        if let Some(status) = child.try_wait().unwrap_or_else(|e| fail(&e.to_string())) {
+            break status.code().unwrap_or(1);
         }
+        if STOP.load(Ordering::Relaxed) {
+            let _ = child.kill();
+            let _ = child.wait();
+            break 0;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
     };
-    let status = std::process::Command::new(&engine.path).args(&args).env("THEDB", &dir).status().unwrap_or_else(|e| fail(&e.to_string()));
-    // a plugin's call in progress ends before the store is let go
-    stop.store(true, Ordering::Relaxed);
-    if let Some(w) = watcher {
-        let _ = w.join();
-    }
+    let _ = db.sync();
     drop(db);
-    std::process::exit(status.code().unwrap_or(1));
+    std::process::exit(code);
 }
 
 fn fail(e: &str) -> ! {

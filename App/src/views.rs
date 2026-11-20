@@ -80,7 +80,7 @@ pub struct Boxed {
     /// What a click does: opens this doc, by id.
     #[serde(default)]
     pub open: Option<String>,
-    /// Or: `home`, `play`.
+    /// Or: `home`, `play`, `thedb` (theDB's view of the store).
     #[serde(default)]
     pub act: Option<String>,
     /// Where a layer sits over the world: its distances from the window's edges, in pixels.
@@ -234,6 +234,7 @@ pub fn draw(commands: &mut Commands, fonts: &crate::ui::Fonts, spec: &Spec, pare
             let act = match b.act.as_deref() {
                 Some("home") => Some(crate::ui::Act::Home),
                 Some("play") => Some(crate::ui::Act::PlayPause),
+                Some("thedb") => Some(crate::ui::Act::Open(View::TheDB)),
                 _ => None,
             };
             if let Some(a) = act {
@@ -270,7 +271,7 @@ fn layers(view: View) -> impl Fn(Commands, Res<crate::ui::Fonts>, Option<Res<Int
         let ids = match view {
             View::Game => &l.game,
             View::Studio => &l.studio,
-            View::Home => return,
+            View::Home | View::TheDB => return,
         };
         for id in ids {
             if let Some(v) = read(id) {
