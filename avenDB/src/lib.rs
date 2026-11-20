@@ -48,13 +48,13 @@ pub struct AvenDb {
 }
 
 impl AvenDb {
-    /// The store of this machine: `~/avenDB`, one for every checkout, session and tool on it (`AVENDB` names
-    /// another).
+    /// The store: `avenDB/` at the root of the repository's main checkout, one for every worktree, session and tool
+    /// on this machine (git ignores its files). `AVENDB` names another.
     pub fn here() -> PathBuf {
         if let Ok(d) = std::env::var("AVENDB") {
             return d.into();
         }
-        Path::new(&std::env::var("HOME").unwrap_or_else(|_| ".".into())).join("avenDB")
+        main_checkout(Path::new(env!("CARGO_MANIFEST_DIR"))).join("avenDB")
     }
 
     /// Opens (or makes) the store in `dir`.
@@ -136,6 +136,12 @@ impl AvenDb {
     pub fn commit(&self, id: &str, doc: &LoroDoc) -> Result<Hash> {
         flat(id)?;
         doc.commit();
+        // a doc is a CRDT: what another worktree or process committed to it meanwhile is merged in, never overwritten
+        if let Some(head) = self.head(id)?
+            && let Some(theirs) = self.get(head)?
+        {
+            doc.import(&theirs).map_err(err)?;
+        }
         let snapshot = doc.export(ExportMode::Snapshot).map_err(err)?;
         let hash = self.put(snapshot)?;
         self.rt.block_on(async { self.store.tags().set(format!("{DOC}{id}"), hash).await.map_err(err) })?;
@@ -223,6 +229,25 @@ impl AvenDb {
         }
         Ok(doc.get_text("text").to_string().into_bytes())
     }
+}
+
+/// The root of the repository's main checkout, from any folder in it or in one of its worktrees (a worktree's `.git`
+/// is a file naming `<main>/.git/worktrees/<name>`).
+fn main_checkout(from: &Path) -> PathBuf {
+    for dir in from.ancestors() {
+        let git = dir.join(".git");
+        if git.is_dir() {
+            return dir.to_path_buf();
+        }
+        if let Ok(link) = std::fs::read_to_string(&git)
+            && let Some(at) = link.trim().strip_prefix("gitdir: ")
+            && let Some(main_git) = Path::new(at).ancestors().find(|a| a.file_name().is_some_and(|n| n == ".git"))
+            && let Some(main) = main_git.parent()
+        {
+            return main.to_path_buf();
+        }
+    }
+    from.to_path_buf()
 }
 
 // ---- parts: a doc that holds several files, each a blob by name (a place's height, cover, map layers) ----

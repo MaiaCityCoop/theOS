@@ -81,3 +81,18 @@ fn ids_are_flat_and_parts_are_blobs() {
     drop(db);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn two_writers_of_one_doc_both_keep_their_edit() {
+    let (db, dir) = fresh("merge");
+    db.set_text("notes.txt", "meadow").unwrap();
+    // two worktrees each take the doc as it is now and edit it
+    let (a, b) = (db.doc("notes.txt").unwrap(), db.doc("notes.txt").unwrap());
+    a.get_text("text").insert(0, "a ").unwrap();
+    b.get_text("text").insert(6, " b").unwrap();
+    db.commit("notes.txt", &a).unwrap();
+    db.commit("notes.txt", &b).unwrap();
+    assert_eq!(db.text("notes.txt").unwrap().as_deref(), Some("a meadow b"), "the second commit merges, it does not overwrite");
+    drop(db);
+    let _ = std::fs::remove_dir_all(dir);
+}

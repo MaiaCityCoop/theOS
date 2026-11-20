@@ -6,3 +6,10 @@ Stories/objects/
 # the artifact library: the authors' own work stays on this machine (Artifacts/store.js)
 Artifacts/items/*/source.md
 Artifacts/items/*/thumb.jpg
+
+# avenDB's store (intent 0049): the docs and blobs, one for the machine at the main checkout's root, never in git
+avenDB/blobs.db
+avenDB/data/
+avenDB/temp/
+avenDB/rpc.*
+avenDB/target/

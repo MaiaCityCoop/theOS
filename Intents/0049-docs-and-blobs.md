@@ -154,7 +154,21 @@ measured on `main` when this definition is approved)
 
 ## Build
 
-_Filled while building._
+- **Baselines on main (2026-11-20, MacBook):** the Meadow settled (its bakes in place) after 8.9 s on every start;
+  peak memory 0.6–0.8 GB; 6,374 lines in `NativeGame/src`; 6 environment switches.
+- **The store (deliverable 1):** `avenDB/`, iroh-blobs 0.105 (file store) and Loro 1.18. One store for the machine, in
+  `avenDB/` at the main checkout's root (git ignores its files), so every worktree and session shares it. A doc's id
+  is one flat name (`ground.wesl`, `clover.asset`, `mertola.place`), never a path; a place is one doc whose files are
+  its parts. A commit merges what others committed to the doc meanwhile (Loro), so parallel worktrees never overwrite
+  each other. The store's files open in one process only: the first process owns them and serves the store to the
+  others on 127.0.0.1 (iroh-blobs' RPC, trusting only the owner's certificate). `avendb` in a shell: import, put,
+  part, cat, ls, head. 5 tests pass.
+- **Bevy reads only avenDB (deliverable 2):** avenDB is Bevy's default asset source, watched; `blob://` the second.
+  Shaders, fonts, the library, the biome, the shot lists, Mértola, and every Earth tile and canopy piece fetched (once,
+  by its own name) come from it. With `NativeGame/assets` renamed away the gate's four pictures are unchanged and
+  Mértola renders; editing `ground.wesl` from a shell while the Meadow ran reloaded it on screen.
+- **Not yet:** the repository's seed copies (`assets/`, `library/`, `biomes/`, `timelines/`) are still there, read by
+  nothing; the bakes are still made at every start; the engine is still built from the repository.
 
 ## Propose
 
