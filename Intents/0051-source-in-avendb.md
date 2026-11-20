@@ -1,8 +1,8 @@
 ---
 id: "0051"
 title: The engine's source in avenDB, with branches and checked merges
-state: propose         # idea | define | build | propose | story | archived
-outcome:               # accepted | rejected, set only when archived
+state: archived        # idea | define | build | propose | story | archived
+outcome: accepted      # accepted | rejected, set only when archived
 opened: 2026-11-20
 story:                 # Stories/0051-slug/, set at propose
 ---
@@ -158,11 +158,11 @@ binaries, so two views building at once take turns.
 
 ## Story
 
-_Filled after the human's yes._
+_Not written: Samuel accepted and moved on to intent 0050; the story is told with 0050's._
 
 ## Archived
 
-_accepted or rejected, the date, the reason in a line._
+accepted, 2026-11-20 (Samuel: "please accept everything"): the engine's source lives in theDB with branches and checked merges; git gets snapshots.
 
 ---
 
@@ -176,7 +176,7 @@ _accepted or rejected, the date, the reason in a line._
 - [x] 6 git for snapshots only
 - [x] Measure the agent-ready time
 - [ ] Large parts through the store's connection (the lawn)
-- [ ] Samuel accepts or rejects
+- [x] Samuel accepts or rejects: accepted
 
 ## Changelog
 

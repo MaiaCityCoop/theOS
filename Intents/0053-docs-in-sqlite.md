@@ -19,7 +19,7 @@ Samuel, 2026-11-20:
 
 ## Define
 
-_Waiting for Samuel's approval._
+_Approved by Samuel, 2026-11-20 ("approve docs in SQL, but don't start implementing yet"). Not built yet._
 
 **What is there (theDB, 2026-11-20).** A doc is a Loro document; every commit exports the **whole snapshot** as a blob
 and moves a tag (`doc/<id>`, `branch/<b>/<id>`) to it. 126 docs; `DATA/data` is 1.8 GB, most of it engine builds
@@ -99,7 +99,7 @@ same history at least 10 % smaller; nothing slower.
 
 ## Todo
 
-- [ ] Samuel approves the definition
+- [x] Samuel approves the definition (2026-11-20; not to be built yet)
 - [ ] Research written (`Research/0053-docs-in-sqlite.md`)
 - [ ] 1–4
 
