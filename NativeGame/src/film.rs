@@ -1,10 +1,9 @@
-//! What drives the eye: the walker in the Game, the shot list in the Studio. Live, every frame; nothing is rendered
+//! What drives the eye in the Studio: the shot list (the Game's and a place's eye is the rig, src/rig.rs). Live, every frame; nothing is rendered
 //! ahead.
 
 use crate::camera::{self, Timeline, vfov};
 use crate::world::Eye;
 use crate::{Still, View};
-use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use std::path::Path;
@@ -36,47 +35,10 @@ impl Studio {
 /// The kept shot list the Studio opens with.
 pub const FIRST_SHOTS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/timelines/first-shots.json");
 
-/// The walker of the Game: W A S D to move, the mouse (held) to look, Shift to run, E and Q to rise and sink.
-#[derive(Resource)]
-pub struct Walker {
-    pub pos: Vec3,
-    pub yaw: f32,
-    pub pitch: f32,
-}
-
 pub fn plugin(app: &mut App) {
     let opened = std::fs::read_to_string(Path::new(FIRST_SHOTS)).ok().and_then(|t| Timeline::from_json(&t).ok());
     app.insert_resource(Studio::paused_at(opened.unwrap_or_else(|| camera::five_shots(1)), 0.0))
-        .insert_resource(Walker { pos: Vec3::new(0.0, 1.6, 0.0), yaw: 0.0, pitch: -4.0 })
-        .add_systems(Update, (walk.run_if(in_state(View::Game)), play.run_if(in_state(View::Studio))));
-}
-
-fn walk(
-    time: Res<Time>,
-    keys: Res<ButtonInput<KeyCode>>,
-    buttons: Res<ButtonInput<MouseButton>>,
-    motion: Res<AccumulatedMouseMotion>,
-    mut walker: ResMut<Walker>,
-    mut eye: Query<(&mut Transform, &mut Projection), With<Eye>>,
-) {
-    if buttons.pressed(MouseButton::Left) {
-        walker.yaw += motion.delta.x * 0.15;
-        walker.pitch = (walker.pitch - motion.delta.y * 0.15).clamp(-89.0, 89.0);
-    }
-    let (sy, cy) = walker.yaw.to_radians().sin_cos();
-    let (ahead, right) = (Vec3::new(sy, 0.0, -cy), Vec3::new(cy, 0.0, sy));
-    let axis = |a: KeyCode, b: KeyCode| (keys.pressed(a) as i32 - keys.pressed(b) as i32) as f32;
-    let m = (ahead * axis(KeyCode::KeyW, KeyCode::KeyS) + right * axis(KeyCode::KeyD, KeyCode::KeyA)
-        + Vec3::Y * axis(KeyCode::KeyE, KeyCode::KeyQ))
-    .normalize_or_zero();
-    let speed = if keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]) { 18.0 } else { 4.0 };
-    walker.pos += m * speed * time.delta_secs();
-    walker.pos.y = walker.pos.y.max(0.3);
-    let (sp, cp) = walker.pitch.to_radians().sin_cos();
-    let cam = camera::Camera { pos: walker.pos, look: walker.pos + Vec3::new(sy * cp, sp, -cy * cp), mm: 35.0, roll: 0.0 };
-    if let Ok((mut t, mut p)) = eye.single_mut() {
-        aim(&cam, &mut t, &mut p);
-    }
+        .add_systems(Update, play.run_if(in_state(View::Studio)));
 }
 
 fn play(time: Res<Time>, keys: Res<ButtonInput<KeyCode>>, mut studio: ResMut<Studio>, mut eye: Query<(&mut Transform, &mut Projection), With<Eye>>) {

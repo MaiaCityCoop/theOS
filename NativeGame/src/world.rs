@@ -11,6 +11,10 @@ pub const GRASS: Color = Color::srgb(0.30, 0.55, 0.20);
 #[derive(Component)]
 pub struct Eye;
 
+/// The green plain, hidden while a real place is shown.
+#[derive(Component)]
+pub struct Plain;
+
 pub fn plugin(app: &mut App) {
     app.insert_resource(ClearColor(SKY)).add_systems(Startup, spawn);
 }
@@ -26,6 +30,7 @@ fn spawn(
     mut images: ResMut<Assets<Image>>,
 ) {
     commands.spawn((
+        Plain,
         Mesh3d(meshes.add(Plane3d::default().mesh().size(PLANE_M, PLANE_M))),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: GRASS,
