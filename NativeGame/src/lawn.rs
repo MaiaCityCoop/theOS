@@ -35,10 +35,10 @@ pub struct LawnBake {
 
 impl Material for LawnBake {
     fn vertex_shader() -> ShaderRef {
-        "shaders/lawn_bake.wesl".into()
+        ShaderRef::Path(crate::root::shader(&crate::root::root().shaders.lawn_bake).into())
     }
     fn fragment_shader() -> ShaderRef {
-        "shaders/lawn_bake.wesl".into()
+        ShaderRef::Path(crate::root::shader(&crate::root::root().shaders.lawn_bake).into())
     }
     fn enable_prepass() -> bool {
         false
@@ -67,6 +67,8 @@ struct Baker {
     atlas: Handle<Image>,
     got: std::sync::Arc<std::sync::Mutex<(Vec<u8>, u32)>>,
     done: std::sync::Arc<std::sync::atomic::AtomicU32>,
+    /// What the atlas is kept under once made.
+    key: String,
 }
 
 pub fn plugin(app: &mut App) {
@@ -95,7 +97,9 @@ fn bake(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut images: Re
             let _ = tiled.merge(&copy);
         }
     }
-    let mesh = meshes.add(tiled);
+    // made once: the same master, settings and shader give the same atlases, kept in avenDB
+    let settings = format!("{RES} {AZIMUTHS} {SLOPES:?} {TOP} msaa4 mips5");
+    let key = crate::bakes::key("lawn", &[&crate::bakes::mesh_bytes(&master), settings.as_bytes()], &[&crate::root::root().shaders.lawn_bake]);
     let n = AZIMUTHS * SLOPES.len() as u32;
     let (w, h) = (AZIMUTHS * RES, SLOPES.len() as u32 * RES);
     let atlas = |format: TextureFormat| {
@@ -120,6 +124,20 @@ fn bake(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut images: Re
         img
     };
     let done = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+    if let (Some(a), Some(h)) = (crate::bakes::get(&key, "albedo"), crate::bakes::get(&key, "height")) {
+        let kept = |data: Vec<u8>, format| {
+            let mut img = atlas(format);
+            img.data = Some(data);
+            img.texture_descriptor.mip_level_count = MIPS;
+            img
+        };
+        let (albedo, height) = (images.add(kept(a, TextureFormat::Rgba8UnormSrgb)), images.add(kept(h, TextureFormat::Rgba8Unorm)));
+        done.store(2, std::sync::atomic::Ordering::SeqCst);
+        info!("the lawn: baked before, read from avenDB");
+        commands.insert_resource(Lawn { albedo, height, done });
+        return;
+    }
+    let mesh = meshes.add(tiled);
     let albedo = images.add(atlas(TextureFormat::Rgba8UnormSrgb));
     let height = images.add(atlas(TextureFormat::Rgba8Unorm));
     for (mode, (layer, (target, format))) in [(albedo.clone(), TextureFormat::Rgba8UnormSrgb), (height.clone(), TextureFormat::Rgba8Unorm)].into_iter().enumerate().map(|(m, t)| (m, (LAYERS[m], t))) {
@@ -133,7 +151,7 @@ fn bake(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut images: Re
             })
             .collect();
         commands.spawn((
-            Baker { k: -WARM, mode: mode as u32, material, views: views.clone(), atlas: target, got: Default::default(), done: done.clone() },
+            Baker { k: -WARM, mode: mode as u32, material, views: views.clone(), atlas: target, got: Default::default(), done: done.clone(), key: key.clone() },
             Camera3d::default(),
             Camera { order: -90, clear_color: ClearColorConfig::Custom(Color::NONE), ..default() },
             RenderTarget::Image(views[0].clone().into()),
@@ -163,7 +181,7 @@ fn shoot(mut commands: Commands, mut bakers: Query<(Entity, &mut Baker, &mut Ren
             cam.is_active = false;
             for (k, view) in b.views.iter().enumerate() {
                 let (a, s) = (k as u32 % AZIMUTHS, k as u32 / AZIMUTHS);
-                let (got, atlas, srgb, done) = (b.got.clone(), b.atlas.clone(), b.mode == 0, b.done.clone());
+                let (got, atlas, srgb, done, key) = (b.got.clone(), b.atlas.clone(), b.mode == 0, b.done.clone(), b.key.clone());
                 commands.spawn(bevy::render::gpu_readback::ReadbackOnce::texture(view.clone())).observe(
                     move |ev: On<bevy::render::gpu_readback::ReadbackComplete>, mut images: ResMut<Assets<Image>>| {
                         let Ok(mut g) = got.lock() else { return };
@@ -187,6 +205,7 @@ fn shoot(mut commands: Commands, mut bakers: Query<(Entity, &mut Baker, &mut Ren
                                 let _ = std::fs::write(std::path::Path::new(&dir).join(format!("lawn-{}.rgba", if srgb { "albedo" } else { "height" })), &data);
                             }
                             let (data, levels) = mips(&data, srgb);
+                            crate::bakes::put(&key, if srgb { "albedo" } else { "height" }, &data);
                             img.data = Some(data);
                             img.texture_descriptor.mip_level_count = levels;
                             done.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -204,6 +223,9 @@ fn shoot(mut commands: Commands, mut bakers: Query<(Entity, &mut Baker, &mut Ren
 /// The atlas with its smaller copies, each texel the coverage-weighted mean of four (so empty texels between blades
 /// do not darken them), colours averaged in linear light. Five halvings: a frame of 192 texels stays whole down to 6.
 /// Without them a far pixel picks one texel of many blades and the lawn shimmers, or must be flattened.
+/// The atlas's levels: the base and five halvings (`mips`).
+const MIPS: u32 = 6;
+
 fn mips(base: &[u8], srgb: bool) -> (Vec<u8>, u32) {
     let to_lin = |b: u8| if srgb { (b as f32 / 255.0).powf(2.2) } else { b as f32 / 255.0 };
     let to_byte = |x: f32| ((if srgb { x.max(0.0).powf(1.0 / 2.2) } else { x }).clamp(0.0, 1.0) * 255.0 + 0.5) as u8;

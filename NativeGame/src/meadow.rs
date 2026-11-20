@@ -1,7 +1,7 @@
 //! The Meadow: a standalone test of how real Bevy can look on this hardware. Grass in wind, a physical sky and a
 //! sun, nothing else; measured at 1080p.
 
-use crate::View;
+use crate::contract::World;
 use crate::film::Walker;
 use crate::world::{Eye, Plain};
 use bevy::camera::Exposure;
@@ -19,9 +19,6 @@ use bevy::camera::visibility::RenderLayers;
 use bevy::window::{PresentMode, PrimaryWindow};
 use std::path::PathBuf;
 
-/// The hour of the day in the Meadow, 0 to 24; the sun follows it. The slider and `[` `]` move it.
-#[derive(Resource)]
-pub struct Hour(pub f32);
 
 #[derive(Component)]
 struct Sun;
@@ -78,10 +75,10 @@ struct PatchTile {
     b: u32,
 }
 
-fn lay_patches(state: Res<State<View>>, eye: Query<&GlobalTransform, With<Eye2>>, mut tiles: Query<(&PatchTile, &mut Transform, &mut Visibility)>) {
+fn lay_patches(state: Res<State<World>>, eye: Query<&GlobalTransform, With<Eye2>>, mut tiles: Query<(&PatchTile, &mut Transform, &mut Visibility)>) {
     let Ok(eye) = eye.single() else { return };
     let at = eye.translation();
-    let hide = at.y - crate::terrain::height(at.x, at.z) > HIGH || *state.get() == View::Library;
+    let hide = at.y - crate::terrain::height(at.x, at.z) > HIGH || *state.get() == World::Library;
     let n = crate::patches::TILE as f32;
     for (tile, mut t, mut v) in &mut tiles {
         let s = 2f32.powi(tile.level as i32);
@@ -92,7 +89,7 @@ fn lay_patches(state: Res<State<View>>, eye: Query<&GlobalTransform, With<Eye2>>
 }
 
 /// Gives the ground the baked lawn once it exists (it is baked at startup).
-fn attach_lawn(lawn: Option<Res<crate::lawn::Lawn>>, field: Option<Res<Field>>, mut grounds: ResMut<Assets<crate::wind::Ground>>, mut waited: Local<u32>) {
+fn attach_lawn(time: Res<Time>, lawn: Option<Res<crate::lawn::Lawn>>, field: Option<Res<Field>>, mut grounds: ResMut<Assets<crate::wind::Ground>>, mut waited: Local<u32>) {
     let (Some(lawn), Some(field)) = (lawn, field) else { return };
     // both atlases filled, and a few frames for their pictures to reach the GPU
     if lawn.done.load(std::sync::atomic::Ordering::SeqCst) < 2 {
@@ -108,6 +105,8 @@ fn attach_lawn(lawn: Option<Res<crate::lawn::Lawn>>, field: Option<Res<Field>>, 
         g.extension.lawn = Vec4::new(1.0, crate::lawn::TOP, 0.0, 0.0);
         g.extension.lawn_albedo = Some(lawn.albedo.clone());
         g.extension.lawn_height = Some(lawn.height.clone());
+        // the startup measure (intent 0049's 10 % gate): the Meadow settled, its bakes in place
+        info!("settled: the Meadow's bakes in place after {:.2} s", time.elapsed_secs());
     }
 }
 
@@ -139,10 +138,10 @@ fn spawn_patches(
 
 /// Lays each level's tiles around the eye, on whole cells, so every blade stays fixed to the world; hides them all
 /// high above, where the far land alone is drawn.
-fn lay(state: Res<State<View>>, eye: Query<&GlobalTransform, With<Eye2>>, mut tiles: Query<(&Tile, &mut Transform, &mut Visibility)>) {
+fn lay(state: Res<State<World>>, eye: Query<&GlobalTransform, With<Eye2>>, mut tiles: Query<(&Tile, &mut Transform, &mut Visibility)>) {
     let Ok(eye) = eye.single() else { return };
     let at = eye.translation();
-    let high = at.y - crate::terrain::height(at.x, at.z) > HIGH || *state.get() == View::Library;
+    let high = at.y - crate::terrain::height(at.x, at.z) > HIGH || *state.get() == World::Library;
     let n = crate::grass::TILE as f32;
     let half = (crate::grass::TILES / 2) as f32;
     for (tile, mut t, mut v) in &mut tiles {
@@ -159,16 +158,6 @@ fn lay(state: Res<State<View>>, eye: Query<&GlobalTransform, With<Eye2>>, mut ti
         let reach = REACH * s;
         let empty = near > reach + 0.5 * s || (tile.level > 0 && far < 0.35 * reach - s);
         *v = if high || empty { Visibility::Hidden } else { Visibility::Inherited };
-    }
-}
-
-/// Focuses the lens where the eye looks: on the land straight ahead, or far when it looks over it.
-fn focus(mut cam: Query<(&GlobalTransform, &mut bevy::post_process::dof::DepthOfField), With<Eye2>>) {
-    for (g, mut dof) in &mut cam {
-        let (at, ahead) = (g.translation(), g.forward().as_vec3());
-        let above = at.y - crate::terrain::height(at.x, at.z);
-        let d = if ahead.y < -0.02 { above / -ahead.y } else { 60.0 };
-        dof.focal_distance = d.clamp(1.5, 400.0);
     }
 }
 
@@ -209,7 +198,7 @@ fn class(ring: i32) -> i32 {
 /// Grows and drops chunks around the camera; at most a few new ones a frame, nearest first.
 fn stream(
     mut commands: Commands,
-    state: Res<State<View>>,
+    state: Res<State<World>>,
     field: Option<ResMut<Field>>,
     eye: Query<&GlobalTransform, With<Eye2>>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -273,7 +262,7 @@ fn stream(
             let (x, z) = key;
             let s = share(c);
             // in the Library only the land: no grass, plants or stones around its turntable
-            let bare = *state.get() == View::Library;
+            let bare = *state.get() == World::Library;
             field.growing.insert(
                 key,
                 (
@@ -345,20 +334,17 @@ pub struct Measure {
 
 pub fn plugin(app: &mut App) {
     app.add_plugins(FrameTimeDiagnosticsPlugin::default())
-        .insert_resource(Hour(18.5))
         // the grass world is the Meadow's and the Studio's: the Studio films its shots over it
-        .add_systems(OnEnter(View::Meadow), enter)
-        .add_systems(OnExit(View::Meadow), leave)
-        .add_systems(OnEnter(View::Studio), enter)
-        .add_systems(OnExit(View::Studio), leave)
+        .add_systems(OnEnter(World::Meadow), enter)
+        .add_systems(OnExit(World::Meadow), leave)
         // the Library shows its assets in this same world: its sky, sun, haze and land, without the grass
-        .add_systems(OnEnter(View::Library), enter)
-        .add_systems(OnExit(View::Library), leave)
+        .add_systems(OnEnter(World::Library), enter)
+        .add_systems(OnExit(World::Library), leave)
         .add_systems(
             Update,
-            (stream, lay, spawn_patches, lay_patches, attach_lawn, reframe, focus, crate::clouds::drift).run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio | View::Library)),
+            (stream, lay, spawn_patches, lay_patches, attach_lawn, reframe, crate::clouds::drift).run_if(|w: Res<State<World>>| matches!(w.get(), World::Meadow | World::Library)),
         )
-        .add_systems(Update, (hours, sun, sky_light).chain().run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow | View::Studio | View::Library)));
+        .add_systems(Update, (hours, sun, sky_light).chain().run_if(|w: Res<State<World>>| matches!(w.get(), World::Meadow | World::Library)));
 }
 
 /// The sky's light on the land (reflections and the ambient from the sky) only changes when the sun moves. Bevy makes it
@@ -455,6 +441,8 @@ fn enter(
     }
     commands.insert_resource(GlobalAmbientLight::NONE);
     *walker = Walker { pos: Vec3::new(0.0, 1.6, 0.0), yaw: 0.0, pitch: -6.0 };
+    // the world's land, for the contract: shots' and the walker's heights are above it
+    commands.insert_resource(crate::contract::Land(std::sync::Arc::new(crate::terrain::height)));
 
     commands.spawn((GrassWorld, Atmosphere::earth(media.add(ScatteringMedium::earth(256, 256)))));
     commands.spawn((
@@ -518,6 +506,7 @@ fn enter(
         GrassWorld,
         MEADOW,
         Eye2,
+        crate::contract::WorldEye,
         Camera3d::default(),
         Camera { order: 1, ..default() },
         bevy::camera::RenderTarget::Image(frame.into()),
@@ -564,17 +553,6 @@ fn enter(
             falloff: FogFalloff::from_visibility_colors(45_000.0, Color::srgb(0.35, 0.48, 0.66), Color::srgb(0.80, 0.85, 0.92)),
         });
     }
-    // the lens's depth of field cost about 10 ms a frame here: only when asked for (MEADOW_DOF=1)
-    if std::env::var_os("MEADOW_DOF").is_some() {
-        // a 35 mm lens at f/1.8: what is far off softens, as in a photograph
-        cam.insert(bevy::post_process::dof::DepthOfField {
-            mode: bevy::post_process::dof::DepthOfFieldMode::Gaussian,
-            aperture_f_stops: 1.8,
-            focal_distance: 6.0,
-            max_circle_of_confusion_diameter: 12.0,
-            ..default()
-        });
-    }
     if !off("AO") {
         cam.insert(ScreenSpaceAmbientOcclusion { quality_level: bevy::pbr::ScreenSpaceAmbientOcclusionQualityLevel::Low, ..default() }); // soft shading where blades crowd and meet the ground
     }
@@ -595,11 +573,12 @@ fn enter(
     });
     // the land: its own material, no texture (the colour is in the geometry, from terrain.rs)
     // the recipe: the file in biomes/ if there is one, else the built-in meadow (written there, to be edited)
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/biomes/meadow.json");
-    let biome = std::fs::read_to_string(path).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_else(crate::biome::Biome::meadow);
+    let id = crate::root::root().biome.as_str();
+    let db = crate::db();
+    let biome = db.file(id).ok().flatten().and_then(|t| serde_json::from_slice(&t).ok()).unwrap_or_else(crate::biome::Biome::meadow);
     crate::biome::set(biome.clone());
     // the recipe kept beside the code, as the file future biomes will be
-    let _ = std::fs::write(path, serde_json::to_string_pretty(&biome).unwrap_or_default());
+    let _ = db.set_file(id, serde_json::to_string_pretty(&biome).unwrap_or_default().as_bytes());
     let ground = grounds.add(crate::wind::Ground {
         base: StandardMaterial { base_color: Color::WHITE, perceptual_roughness: 0.95, reflectance: 0.3, cull_mode: None, ..default() },
         extension: crate::wind::GroundLook { biome: biome.uniform(), lawn: Vec4::ZERO, lawn_albedo: None, lawn_height: None, sun: Vec4::Y },
@@ -667,20 +646,20 @@ fn leave(
     commands.insert_resource(GlobalAmbientLight::default());
 }
 
-fn hours(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut hour: ResMut<Hour>) {
+fn hours(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut clock: ResMut<crate::contract::Clock>) {
     let step = time.delta_secs() * 2.0;
     if keys.pressed(KeyCode::BracketRight) {
-        hour.0 = (hour.0 + step).min(24.0);
+        clock.hour = (clock.hour + step).min(24.0);
     }
     if keys.pressed(KeyCode::BracketLeft) {
-        hour.0 = (hour.0 - step).max(0.0);
+        clock.hour = (clock.hour - step).max(0.0);
     }
 }
 
 /// The sun at the hour: rising in the east (+X), highest at 13:00 in the south (-Z), setting in the west.
 #[allow(clippy::type_complexity)]
 fn sun(
-    hour: Res<Hour>,
+    clock: Res<crate::contract::Clock>,
     field: Option<Res<Field>>,
     mut grounds: ResMut<Assets<crate::wind::Ground>>,
     mut sun: Query<&mut Transform, (With<Sun>, Without<Moon>, Without<Stars>, Without<Eye2>)>,
@@ -689,7 +668,7 @@ fn sun(
     mut eye: Query<(&GlobalTransform, &mut Exposure), With<Eye2>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let a = (hour.0 - 7.0) / 12.0 * std::f32::consts::PI; // 0 at sunrise, π at sunset
+    let a = (clock.hour - 7.0) / 12.0 * std::f32::consts::PI; // 0 at sunrise, π at sunset
     let to_sun = Vec3::new(a.cos(), a.sin() * 0.85 + 0.02, -a.sin() * 0.5).normalize();
     // the lawn's blades shade each other along the sun's direction
     if let Some(field) = field.as_ref()

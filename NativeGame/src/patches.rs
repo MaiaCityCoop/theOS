@@ -48,10 +48,10 @@ pub struct PatchField {
 
 impl Material for PatchField {
     fn vertex_shader() -> ShaderRef {
-        "shaders/patch_field.wesl".into()
+        ShaderRef::Path(crate::root::shader(&crate::root::root().shaders.patch_field).into())
     }
     fn fragment_shader() -> ShaderRef {
-        "shaders/patch_field.wesl".into()
+        ShaderRef::Path(crate::root::shader(&crate::root::root().shaders.patch_field).into())
     }
     fn enable_prepass() -> bool {
         false

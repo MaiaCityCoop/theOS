@@ -4,7 +4,7 @@
 //! point and looks down at it. Between the keys every value eases over the height's logarithm: speed and Shift's run,
 //! how far it looks down, the lens. W A S D move the point, Q E turn, the held mouse looks around.
 
-use crate::View;
+use crate::contract::World;
 use crate::place::Ground;
 use crate::place::PlaceEye as Eye;
 use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseScrollUnit};
@@ -100,7 +100,7 @@ pub struct Captures;
 
 pub fn plugin(app: &mut App) {
     app.insert_resource(Walker::new(0.0, 0.0, 0.0))
-        .add_systems(Update, drive.run_if(|s: Res<State<View>>| matches!(s.get(), View::Place)));
+        .add_systems(Update, drive.run_if(in_state(crate::View::Place)).run_if(in_state(World::Place)));
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -113,7 +113,8 @@ fn drive(
     captured: Query<&bevy::picking::hover::Hovered, With<Captures>>,
     ground: Option<Res<Ground>>,
     mut w: ResMut<Walker>,
-    mut eye: Query<(&mut Transform, &mut Projection), With<Eye>>,
+    cams: Query<&Projection, With<Eye>>,
+    mut eye: ResMut<crate::contract::Eye>,
 ) {
     let dt = time.delta_secs();
     let g = |x: f32, z: f32| ground.as_ref().map_or(0.0, |g| g.at(x, z));
@@ -180,12 +181,11 @@ fn drive(
         _ => y,
     };
     w.eye_y = Some(eased);
-    if let Ok((mut t, mut p)) = eye.single_mut() {
-        *t = Transform::from_xyz(cx, eased, cz).with_rotation(Quat::from_euler(EulerRot::YXZ, w.yaw, pitch, 0.0));
-        if let Projection::Perspective(pp) = p.as_mut() {
-            pp.fov = v.fov.to_radians();
-        }
-    }
+    // the eye, for the contract: where it stands, where it looks, and the lens that sees the height's field of view
+    let at = Vec3::new(cx, eased, cz);
+    let ahead = Quat::from_euler(EulerRot::YXZ, w.yaw, pitch, 0.0) * Vec3::NEG_Z;
+    let aspect = cams.iter().find_map(|p| if let Projection::Perspective(pp) = p { Some(pp.aspect_ratio) } else { None }).unwrap_or(16.0 / 9.0);
+    *eye = crate::contract::Eye { pos: at, look: at + ahead, roll: 0.0, lens: crate::contract::Lens::seeing(v.fov.to_radians(), aspect) };
 }
 
 #[cfg(test)]

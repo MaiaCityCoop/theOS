@@ -3,7 +3,7 @@
 //! runs on its own, two game hours a real minute, as TheGame's clock), and the date, which moves the sun through the
 //! seasons. Closed by default. The camera does not take what the panel does.
 
-use crate::View;
+use crate::contract::World;
 use crate::rig::Captures;
 use crate::sun::Sun;
 use crate::ui::{CREAM, FOREST, FOREST2, GLASS, SAND, SUN};
@@ -34,7 +34,7 @@ struct Auto;
 struct AutoText;
 
 pub fn plugin(app: &mut App) {
-    app.add_systems(OnEnter(View::Place), spawn).add_systems(Update, show.run_if(in_state(View::Place)).run_if(resource_exists::<Sun>));
+    app.add_systems(OnEnter(World::Place), spawn.run_if(in_state(crate::View::Place))).add_systems(Update, show.run_if(in_state(World::Place)).run_if(resource_exists::<Sun>));
 }
 
 fn hhmm(hour: f32) -> String {
@@ -57,14 +57,14 @@ pub fn date(day: u32) -> String {
 }
 
 fn spawn(mut commands: Commands, assets: Res<AssetServer>, still: Option<Res<crate::Still>>) {
-    let sans: Handle<Font> = assets.load("fonts/DMSans-Variable.ttf");
-    let mono: Handle<Font> = assets.load("fonts/DMMono-Regular.ttf");
+    let sans: Handle<Font> = assets.load(crate::root::font(&crate::root::root().fonts.sans));
+    let mono: Handle<Font> = assets.load(crate::root::font(&crate::root::root().fonts.mono));
     let txt = |font: &Handle<Font>, size: f32, color: Color, words: &str| {
         (Text::new(words), TextFont { font: font.clone().into(), font_size: FontSize::Px(size), ..default() }, TextColor(color))
     };
     let root = commands
         .spawn((
-            DespawnOnExit(View::Place),
+            DespawnOnExit(World::Place),
             Captures,
             Hovered::default(),
             Node {
@@ -155,9 +155,9 @@ fn spawn(mut commands: Commands, assets: Res<AssetServer>, still: Option<Res<cra
                         BackgroundColor(CREAM),
                         children![(AutoText, txt(&sans, 13.0, FOREST, "Auto"), Pickable::IGNORE)],
                     ))
-                    .observe(|mut click: On<PointerClick>, mut sun: ResMut<Sun>| {
+                    .observe(|mut click: On<PointerClick>, mut clock: ResMut<crate::contract::Clock>| {
                         click.propagate(false);
-                        sun.auto = !sun.auto;
+                        clock.auto = !clock.auto;
                     });
                 }
             })
@@ -174,33 +174,34 @@ fn along(e: Entity, x: f32, tracks: &Query<(&Slider, &ComputedNode, &UiGlobalTra
     Some((*s, ((x - (centre - width / 2.0)) / width.max(1.0)).clamp(0.0, 1.0)))
 }
 
-fn set(sun: &mut Sun, s: Slider, t: f32) {
+fn set(clock: &mut crate::contract::Clock, s: Slider, t: f32) {
     match s {
         // setting the hour by hand stops Auto, as in TheGame
         Slider::Hour => {
-            sun.hour = (t * 24.0).min(23.99);
-            sun.auto = false;
+            clock.hour = (t * 24.0).min(23.99);
+            clock.auto = false;
         }
-        Slider::Day => sun.day = 1 + (t * 364.0).round() as u32,
+        Slider::Day => clock.day = 1 + (t * 364.0).round() as u32,
     }
 }
 
-fn press(mut ev: On<PointerPress>, tracks: Query<(&Slider, &ComputedNode, &UiGlobalTransform)>, mut sun: ResMut<Sun>) {
+fn press(mut ev: On<PointerPress>, tracks: Query<(&Slider, &ComputedNode, &UiGlobalTransform)>, mut clock: ResMut<crate::contract::Clock>) {
     ev.propagate(false);
     if let Some((s, t)) = along(ev.entity, ev.pointer.position.x, &tracks) {
-        set(&mut sun, s, t);
+        set(&mut clock, s, t);
     }
 }
 
-fn drag(mut ev: On<PointerDrag>, tracks: Query<(&Slider, &ComputedNode, &UiGlobalTransform)>, mut sun: ResMut<Sun>) {
+fn drag(mut ev: On<PointerDrag>, tracks: Query<(&Slider, &ComputedNode, &UiGlobalTransform)>, mut clock: ResMut<crate::contract::Clock>) {
     ev.propagate(false);
     if let Some((s, t)) = along(ev.entity, ev.pointer.position.x, &tracks) {
-        set(&mut sun, s, t);
+        set(&mut clock, s, t);
     }
 }
 
 fn show(
     sun: Res<Sun>,
+    clock: Res<crate::contract::Clock>,
     mut pill: Query<&mut Text, (With<PillText>, Without<Value>, Without<AutoText>)>,
     mut values: Query<(&Value, &mut Text), (Without<PillText>, Without<AutoText>)>,
     mut knobs: Query<(&Knob, &mut Node)>,
@@ -209,29 +210,29 @@ fn show(
 ) {
     if let Ok(mut t) = pill.single_mut() {
         let up = if sun.elevation > 0.0 { format!("sun {:.0}°", sun.elevation) } else { "night".into() };
-        t.0 = format!("{}  ·  {}  ·  {up}{}", hhmm(sun.hour), date(sun.day), if sun.auto { "  ·  running" } else { "" });
+        t.0 = format!("{}  ·  {}  ·  {up}{}", hhmm(clock.hour), date(clock.day), if clock.auto { "  ·  running" } else { "" });
     }
     for (v, mut t) in &mut values {
         t.0 = match v.0 {
-            Slider::Hour => hhmm(sun.hour),
-            Slider::Day => date(sun.day),
+            Slider::Hour => hhmm(clock.hour),
+            Slider::Day => date(clock.day),
         };
     }
     for (k, mut n) in &mut knobs {
         let t = match k.0 {
-            Slider::Hour => sun.hour / 24.0,
-            Slider::Day => (sun.day as f32 - 1.0) / 364.0,
+            Slider::Hour => clock.hour / 24.0,
+            Slider::Day => (clock.day as f32 - 1.0) / 364.0,
         };
         n.left = Val::Px(t * TRACK - 8.0);
     }
     for mut t in &mut auto {
-        let words = if sun.auto { "Auto · on" } else { "Auto" };
+        let words = if clock.auto { "Auto · on" } else { "Auto" };
         if t.0 != words {
             t.0 = words.into();
         }
     }
     for mut b in &mut auto_bg {
-        b.0 = if sun.auto { SUN } else { CREAM };
+        b.0 = if clock.auto { SUN } else { CREAM };
     }
 }
 

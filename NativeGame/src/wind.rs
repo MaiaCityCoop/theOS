@@ -28,10 +28,10 @@ pub struct WindParams {
 
 impl MaterialExtension for Wind {
     fn vertex_shader() -> ShaderRef {
-        "shaders/grass_wind.wesl".into()
+        ShaderRef::Path(crate::root::shader(&crate::root::root().shaders.grass_wind).into())
     }
     fn prepass_vertex_shader() -> ShaderRef {
-        "shaders/grass_wind_prepass.wesl".into()
+        ShaderRef::Path(crate::root::shader(&crate::root::root().shaders.grass_wind_prepass).into())
     }
 }
 
@@ -89,6 +89,6 @@ pub struct GroundLook {
 
 impl MaterialExtension for GroundLook {
     fn fragment_shader() -> ShaderRef {
-        "shaders/ground.wesl".into()
+        ShaderRef::Path(crate::root::shader(&crate::root::root().shaders.ground).into())
     }
 }

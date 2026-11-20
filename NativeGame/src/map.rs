@@ -5,7 +5,7 @@
 //! the site itself (6 km, its land cover with relief shading, made when the place opens), the region (40 km, from the
 //! same elevation and land-cover tiles), and the land of Natural Earth at 300 km, 3,000 km and 20,000 km.
 
-use crate::View;
+use crate::contract::World;
 use crate::rig::{Captures, Walker};
 use bevy::picking::hover::Hovered;
 use crate::place::{CN, Ground, SIZE_M, Site, Source, baked, colour, fetch, hash};
@@ -37,7 +37,6 @@ fn pixel_latlon(site: &Site, i: usize, j: usize, km: f32) -> (f64, f64) {
 }
 
 pub fn bake(site: &Site, dem: &mut Source, cover: &mut Source) -> Result<(), String> {
-    let io = |e: std::io::Error| e.to_string();
     // the region: relief shading from the elevation, coloured by land cover, water from WorldCover
     let h: Vec<f32> = (0..N * N).map(|k| {
         let (lat, lon) = pixel_latlon(site, k % N, k / N, REGION_KM);
@@ -56,11 +55,11 @@ pub fn bake(site: &Site, dem: &mut Source, cover: &mut Source) -> Result<(), Str
             rgb.extend(c.map(|v| (v.clamp(0.0, 1.0) * 255.0) as u8));
         }
     }
-    std::fs::write(site.dir.join("region.bin"), rgb).map_err(io)?;
+    site.write("region.bin", &rgb)?;
 
     // the land at three scales, from Natural Earth's 1:10 million land polygons (public domain)
     let land = fetch(LAND_URL).ok_or("Natural Earth's land could not be fetched")?;
-    let json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(land).map_err(io)?).map_err(|e| e.to_string())?;
+    let json: serde_json::Value = serde_json::from_slice(&land).map_err(|e| e.to_string())?;
     let mut rings: Vec<Vec<(f64, f64)>> = Vec::new();
     for f in json["features"].as_array().unwrap() {
         let g = &f["geometry"];
@@ -76,7 +75,7 @@ pub fn bake(site: &Site, dem: &mut Source, cover: &mut Source) -> Result<(), Str
         }
     }
     for (km, file) in LANDS {
-        std::fs::write(site.dir.join(file), rasterise(site, &rings, km)).map_err(io)?;
+        site.write(file, &rasterise(site, &rings, km))?;
     }
     Ok(())
 }
@@ -179,9 +178,9 @@ struct MapLabel;
 const M: usize = 320;
 
 pub fn plugin(app: &mut App) {
-    app.add_systems(OnEnter(View::Place), spawn.after(crate::place::enter))
+    app.add_systems(OnEnter(World::Place), spawn.after(crate::place::enter).run_if(in_state(crate::View::Place)))
         .add_systems(Update, (follow.run_if(resource_exists::<Map>), baked_yet.run_if(resource_exists::<Baking>)))
-        .add_systems(OnExit(View::Place), |mut c: Commands| c.remove_resource::<Map>());
+        .add_systems(OnExit(World::Place), |mut c: Commands| c.remove_resource::<Map>());
 }
 
 fn spawn(mut commands: Commands, ground: Option<Res<Ground>>, site: Res<Site>, start: Option<Res<Start>>, mut images: ResMut<Assets<Image>>, assets: Res<AssetServer>) {
@@ -202,12 +201,12 @@ fn spawn(mut commands: Commands, ground: Option<Res<Ground>>, site: Res<Site>, s
     }
     let mut layers = vec![Layer { km: SIZE_M / 1000.0, n: CN, px: near }];
     // the baked layers; the region's colours are stored as they are shown
-    if let Ok(rgb) = std::fs::read(site.dir.join("region.bin")) {
+    if let Some(rgb) = site.read("region.bin") {
         let px = rgb.chunks_exact(3).map(|c| [c[0], c[1], c[2]]).collect();
         layers.push(Layer { km: REGION_KM, n: N, px });
     }
     for (km, file) in LANDS {
-        if let Ok(mask) = std::fs::read(site.dir.join(file)) {
+        if let Some(mask) = site.read(file) {
             layers.push(Layer { km, n: N, px: mask.iter().map(|&m| to_srgb(if m > 0 { LAND } else { SEA })).collect() });
         }
     }
@@ -221,13 +220,13 @@ fn spawn(mut commands: Commands, ground: Option<Res<Ground>>, site: Res<Site>, s
     img.sampler = bevy::image::ImageSampler::linear();
     let image = images.add(img);
 
-    let mono: Handle<Font> = assets.load("fonts/DMMono-Regular.ttf");
+    let mono: Handle<Font> = assets.load(crate::root::font(&crate::root::root().fonts.mono));
     let forest = Color::srgb(0.090, 0.212, 0.333);
     let sun = Color::srgb(0.949, 0.710, 0.267);
     let inner = D - 8.0;
     commands
         .spawn((
-            DespawnOnExit(View::Place),
+            DespawnOnExit(World::Place),
             Node { position_type: PositionType::Absolute, left: Val::Px(20.0), bottom: Val::Px(20.0), flex_direction: FlexDirection::Column, align_items: AlignItems::Start, row_gap: Val::Px(8.0), ..default() },
         ))
         .with_children(|p| {
@@ -343,7 +342,7 @@ fn jump(
     site: Res<Site>,
     baking: Option<Res<Baking>>,
     mut commands: Commands,
-    mut next: ResMut<NextState<View>>,
+    mut next: ResMut<NextState<World>>,
     mut walker: ResMut<Walker>,
 ) {
     click.propagate(false);
@@ -366,7 +365,7 @@ fn jump(
     let there = Site::around(lat.clamp(-84.0, 84.0), (lon + 540.0).rem_euclid(360.0) - 180.0);
     if baked(&there) {
         commands.insert_resource(there);
-        next.set(View::Place);
+        next.set(World::Place);
         return;
     }
     let done = Arc::new(Mutex::new(None));
@@ -383,13 +382,13 @@ fn jump(
 }
 
 /// When the bake is done, the place opens: the Place view is entered again, now for the new site.
-fn baked_yet(baking: Res<Baking>, mut commands: Commands, mut next: ResMut<NextState<View>>) {
+fn baked_yet(baking: Res<Baking>, mut commands: Commands, mut next: ResMut<NextState<World>>) {
     let Some(result) = baking.done.lock().unwrap().take() else { return };
     commands.remove_resource::<Baking>();
     match result {
         Ok(site) => {
             commands.insert_resource(site);
-            next.set(View::Place);
+            next.set(World::Place);
         }
         Err(e) => error!("the place could not be baked: {e}"),
     }

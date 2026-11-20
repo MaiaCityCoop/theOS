@@ -10,7 +10,6 @@
 
 use crate::place::{SIZE_M, Site};
 use std::io::Read;
-use std::path::Path;
 
 const R: f64 = 6_378_137.0; // the Mercator sphere
 const ZOOM: u32 = 9;
@@ -39,6 +38,17 @@ fn quadkey(tx: u32, ty: u32) -> String {
 fn range(url: &str, a: u64, b: u64) -> Option<Vec<u8>> {
     let out = std::process::Command::new("curl").args(["-sSfL", "--retry", "2", "-r", &format!("{a}-{b}"), url]).output().ok()?;
     (out.status.success() && !out.stdout.is_empty()).then_some(out.stdout)
+}
+
+/// Bytes a..=b of a URL, fetched once and kept in avenDB: a part of the Earth's doc under the URL and range.
+fn kept(url: &str, a: u64, b: u64) -> Option<Vec<u8>> {
+    let (db, earth, at) = (crate::db(), &crate::root::root().earth, format!("{url} bytes {a}-{b}"));
+    if let Some(got) = db.part(earth, &at).ok().flatten() {
+        return Some(got.to_vec());
+    }
+    let got = range(url, a, b)?;
+    db.set_part(earth, &at, &got).ok()?;
+    Some(got)
 }
 
 /// The rows of one tile that a window crosses, decoded: heights in metres, one byte a pixel.
@@ -82,16 +92,7 @@ fn tags(head: &[u8]) -> Option<std::collections::HashMap<u16, (u16, u64, u64)>> 
 fn read_tile(tx: u32, ty: u32, want: ((f64, f64), (f64, f64))) -> Option<Window> {
     let url = format!("{URL}/{}.tif", quadkey(tx, ty));
     // the header: the directory and the strips' offsets and sizes, which this map keeps in its first megabyte
-    let cache = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("target/place-data/chm/{}.head", quadkey(tx, ty)));
-    let head = match std::fs::read(&cache) {
-        Ok(h) => h,
-        Err(_) => {
-            let h = range(&url, 0, (1 << 20) + 65_535)?;
-            std::fs::create_dir_all(cache.parent()?).ok()?;
-            std::fs::write(&cache, &h).ok()?;
-            h
-        }
-    };
+    let head = kept(&url, 0, (1 << 20) + 65_535)?;
     let t = tags(&head)?;
     let (width, height) = (t.get(&256)?.2 as usize, t.get(&257)?.2 as usize);
     let (offsets_at, counts_at) = (t.get(&273)?.2 as usize, t.get(&279)?.2 as usize);
@@ -109,7 +110,7 @@ fn read_tile(tx: u32, ty: u32, want: ((f64, f64), (f64, f64))) -> Option<Window>
     let off = |r: usize| u64_at(offsets_at + 8 * r);
     let len = |r: usize| u64_at(counts_at + 8 * r);
     let (a, b) = (off(r0)?, off(r1)? + len(r1)? - 1);
-    let bytes = range(&url, a, b)?;
+    let bytes = kept(&url, a, b)?;
     let mut rows = Vec::with_capacity(r1 - r0 + 1);
     for r in r0..=r1 {
         let s = (off(r)? - a) as usize;
@@ -202,7 +203,8 @@ pub fn trees(site: &Site) -> Vec<Tree> {
 }
 
 /// The trees as a package file: x and z in decimetres (i16), height and crown radius in quarter metres (u8).
-pub fn save(trees: &[Tree], path: &Path) -> std::io::Result<()> {
+/// The bytes of a package's `trees.bin`.
+pub fn bytes(trees: &[Tree]) -> Vec<u8> {
     let mut b = Vec::with_capacity(trees.len() * 6);
     for t in trees {
         b.extend(((t.x * 10.0).round() as i16).to_le_bytes());
@@ -210,12 +212,12 @@ pub fn save(trees: &[Tree], path: &Path) -> std::io::Result<()> {
         b.push((t.h * 4.0).round().min(255.0) as u8);
         b.push((t.r * 4.0).round().min(255.0) as u8);
     }
-    std::fs::write(path, b)
+    b
 }
 
-pub fn load(path: &Path) -> Option<Vec<Tree>> {
-    let b = std::fs::read(path).ok()?;
-    Some(
+/// The trees of a package's `trees.bin`.
+pub fn parse(b: &[u8]) -> Vec<Tree> {
+    {
         b.chunks_exact(6)
             .map(|c| Tree {
                 x: i16::from_le_bytes([c[0], c[1]]) as f32 / 10.0,
@@ -223,8 +225,8 @@ pub fn load(path: &Path) -> Option<Vec<Tree>> {
                 h: c[4] as f32 / 4.0,
                 r: c[5] as f32 / 4.0,
             })
-            .collect(),
-    )
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -240,8 +242,6 @@ mod tests {
     #[test]
     fn trees_survive_the_package() {
         let t = vec![Tree { x: -2999.9, z: 1234.5, h: 9.25, r: 4.0 }, Tree { x: 0.0, z: -0.1, h: 3.0, r: 1.5 }];
-        let p = std::env::temp_dir().join("nativegame-trees-test.bin");
-        save(&t, &p).unwrap();
-        assert_eq!(load(&p).unwrap(), t);
+        assert_eq!(parse(&bytes(&t)), t);
     }
 }

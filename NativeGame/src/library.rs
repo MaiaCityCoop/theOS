@@ -6,7 +6,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/library");
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Asset {
@@ -63,27 +62,18 @@ pub fn shelf() -> Vec<Asset> {
     all
 }
 
-/// Every asset by name: the files in `library/`, and any built-in one that has no file yet (then written).
+/// Every asset by name: the root's library, each asset a doc holding its recipe as JSON. A built-in asset the library
+/// lacks is listed but not kept (the library is what the root names).
 pub fn read() -> BTreeMap<String, Asset> {
-    let _ = std::fs::create_dir_all(DIR);
+    let db = crate::db();
     let mut all = BTreeMap::new();
-    for a in builtin() {
-        let path = format!("{DIR}/{}.json", a.name.replace(' ', "-"));
-        let a = match std::fs::read_to_string(&path).ok().and_then(|t| serde_json::from_str::<Asset>(&t).ok()) {
-            Some(kept) => kept,
-            None => {
-                let _ = std::fs::write(&path, serde_json::to_string_pretty(&a).unwrap_or_default() + "\n");
-                a
-            }
-        };
-        all.insert(a.name.clone(), a);
-    }
-    if let Ok(dir) = std::fs::read_dir(DIR) {
-        for f in dir.flatten() {
-            if let Some(a) = std::fs::read_to_string(f.path()).ok().and_then(|t| serde_json::from_str::<Asset>(&t).ok()) {
-                all.entry(a.name.clone()).or_insert(a);
-            }
+    for id in &crate::root::root().library {
+        if let Some(a) = db.file(id).ok().flatten().and_then(|b| serde_json::from_slice::<Asset>(&b).ok()) {
+            all.insert(a.name.clone(), a);
         }
+    }
+    for a in builtin() {
+        all.entry(a.name.clone()).or_insert(a);
     }
     all
 }

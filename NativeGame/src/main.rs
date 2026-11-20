@@ -7,12 +7,14 @@
 //!     cargo run -- --bake-place [lat lon]         a real place's package (Mértola's by default), from open data
 //!     cargo run -- --place-still <out.png> [km] [hour]  an agent's still of the real place, the map that many km across, at a solar hour
 
+mod bakes;
 mod biome;
 mod camera;
 mod canopy;
 mod dial;
 mod film;
 mod clouds;
+mod contract;
 mod grass;
 mod impostor;
 mod lawn;
@@ -21,11 +23,13 @@ mod map;
 mod meadow;
 mod patches;
 mod place;
+mod root;
 mod rig;
 mod sun;
 mod terrain;
 mod ui;
 mod wind;
+mod views;
 mod workshop;
 mod world;
 
@@ -41,6 +45,16 @@ pub enum View {
     Meadow,
     Library,
     Place,
+}
+
+/// The store, one for the app: avenDB beside this repository (or where `AVENDB` says).
+pub fn db() -> std::sync::Arc<avendb::AvenDb> {
+    static DB: std::sync::OnceLock<std::sync::Arc<avendb::AvenDb>> = std::sync::OnceLock::new();
+    DB.get_or_init(|| {
+        let dir = std::env::var("AVENDB").map(Into::into).unwrap_or_else(|_| avendb::AvenDb::here());
+        std::sync::Arc::new(avendb::AvenDb::open(dir).expect("avenDB opens"))
+    })
+    .clone()
 }
 
 /// Set when the app runs only to take one still for an agent: no interface, one picture, then it quits.
@@ -73,17 +87,23 @@ fn main() {
     let hour: Option<f32> = args.get(4).and_then(|s| s.parse().ok());
     let still = (args.get(1).map(String::as_str) == Some("--still")).then(|| {
         let usage = "--still <shots.json> <seconds> <out.png>";
-        let shots = std::fs::read_to_string(args.get(2).expect(usage)).expect("the shot list reads");
-        let timeline = camera::Timeline::from_json(&shots).expect("the shot list parses");
+        let timeline = film::shots(args.get(2).expect(usage)).expect("the shot list reads and parses");
         (timeline, Still { time: args.get(3).and_then(|s| s.parse().ok()).expect(usage), out: args.get(4).expect(usage).into() })
     });
 
     let measure = (args.get(1).map(String::as_str) == Some("--meadow")).then(|| {
         let hour = args.get(3).and_then(|h| h.parse().ok()).unwrap_or(18.5);
-        (meadow::Measure { out: args.get(2).expect("--meadow <out.png> [hour]").into() }, meadow::Hour(hour))
+        (meadow::Measure { out: args.get(2).expect("--meadow <out.png> [hour]").into() }, contract::Clock { hour, ..default() })
     });
 
     let mut app = App::new();
+    // everything the engine loads comes from avenDB (intent 0049): an asset's path is a doc's id, watched, so a new
+    // version of a shader reloads while the app runs; `blob://<hash>` is a blob or a doc's exact version
+    {
+        use bevy::asset::{AssetApp, io::AssetSourceId};
+        app.register_asset_source(AssetSourceId::Default, avendb::bevy::docs_source(db()))
+            .register_asset_source("blob", avendb::bevy::blobs_source(db()));
+    }
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window {
             title: "NativeGame".into(),
@@ -93,12 +113,10 @@ fn main() {
         }),
         ..default()
     })
-    // the assets beside the code, however the binary is started: run directly (not by cargo), Bevy looked for them
-    // beside the binary, found no shaders or fonts, and drew the world without grass, ground or text
-    .set(AssetPlugin { file_path: concat!(env!("CARGO_MANIFEST_DIR"), "/assets").into(), ..default() }))
+    .set(AssetPlugin { watch_for_changes_override: Some(true), ..default() }))
     .init_state::<View>()
     .add_plugins((world::plugin, film::plugin, meadow::plugin, wind::plugin, workshop::plugin, impostor::plugin, patches::plugin, lawn::plugin))
-    .add_plugins((place::plugin, map::plugin, rig::plugin, sun::plugin, dial::plugin));
+    .add_plugins((place::plugin, map::plugin, rig::plugin, sun::plugin, dial::plugin, contract::plugin, views::plugin));
     if args.get(1).map(String::as_str) == Some("--shelf") {
         let dir: PathBuf = args.get(2).expect("--shelf <dir>").into();
         let _ = std::fs::create_dir_all(&dir);
@@ -109,10 +127,10 @@ fn main() {
         return;
     }
     if args.get(1).map(String::as_str) == Some("--gate") {
-        let dir: PathBuf = args.get(2).expect("--gate <dir>").into();
+        let dir: PathBuf = args.get(2).expect("--gate <dir> [shots id]").into();
         let _ = std::fs::create_dir_all(&dir);
-        let anchors = std::fs::read_to_string(film::ANCHORS).expect("the anchors read");
-        let timeline = camera::Timeline::from_json(&anchors).expect("the anchors parse");
+        // the Meadow's anchors, or any shot list given by its doc id
+        let timeline = film::shots(args.get(3).map(String::as_str).unwrap_or(film::anchors())).expect("the shot list reads and parses");
         app.insert_resource(film::Studio::paused_at(timeline, 0.0))
             .insert_resource(film::Gate { dir })
             .insert_state(View::Studio)
@@ -132,7 +150,7 @@ fn main() {
                 app.insert_resource(map::Start(km));
             }
             if let Some(hour) = hour {
-                app.insert_resource(sun::Sun { day: sun::now().0, hour, elevation: 0.0, azimuth: 0.0, auto: false });
+                app.insert_resource(contract::Clock { day: sun::now().0, hour, ..default() }).insert_resource(sun::Sun::default());
             }
         }
         (Some((timeline, still)), None) => {

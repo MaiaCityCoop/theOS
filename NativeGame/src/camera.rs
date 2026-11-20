@@ -7,20 +7,6 @@
 use bevy::math::Vec3;
 use serde::{Deserialize, Serialize};
 
-/// The lens kit: ARRI/ZEISS Master Anamorphic primes. A 2x squeeze on a 4:3 Super 35 gate, unsqueezed 42.6 mm wide.
-pub const LENS_WIDTH_MM: f32 = 42.6;
-pub const FOCALS: [f32; 9] = [28.0, 35.0, 40.0, 50.0, 60.0, 75.0, 100.0, 135.0, 180.0];
-
-/// How wide a focal length sees, in radians.
-pub fn hfov(mm: f32) -> f32 {
-    2.0 * (LENS_WIDTH_MM / 2.0 / mm.clamp(FOCALS[0], FOCALS[8])).atan()
-}
-
-/// How tall a focal length sees in a picture of `aspect` (width over height), in radians.
-pub fn vfov(mm: f32, aspect: f32) -> f32 {
-    2.0 * ((hfov(mm) / 2.0).tan() / aspect.max(1e-3)).atan()
-}
-
 /// One position of the camera: where it is, where it looks, its lens and its roll in degrees.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Key {
@@ -30,6 +16,12 @@ pub struct Key {
     pub mm: f32,
     #[serde(default, skip_serializing_if = "is_zero")]
     pub roll: f32,
+    /// The aperture as an f-stop; without it everything is sharp.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aperture: Option<f32>,
+    /// The focus distance, metres; without it the lens focuses on what it looks at.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focus: Option<f32>,
 }
 fn default_mm() -> f32 {
     35.0
@@ -89,6 +81,19 @@ pub struct Shot {
     /// The shot's wind (0 calm to 2.5 a storm), or `[from, to]` across the shot. Without it the shot keeps the wind.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wind: Option<Over>,
+    /// The world the shot is in: a doc's id (a biome is the Meadow, a place a real place, an asset the Library with
+    /// it on the shelf). Without it the Meadow.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world: Option<String>,
+    /// In a shot of the interface: the pointer's path, as shares of the window's width and height, evenly through the
+    /// shot; and the shares of the shot where it clicks.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pointer: Vec<[f32; 2]>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub clicks: Vec<f32>,
+    /// Layers of the interface laid over the shot while it plays: layer docs, by id.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub layers: Vec<String>,
     pub keys: Vec<Key>,
 }
 
@@ -125,11 +130,21 @@ pub struct Camera {
     pub look: Vec3,
     pub mm: f32,
     pub roll: f32,
+    pub aperture: Option<f32>,
+    pub focus: Option<f32>,
 }
 
 impl From<&Key> for Camera {
     fn from(k: &Key) -> Self {
-        Camera { pos: k.pos.into(), look: k.look.into(), mm: k.mm, roll: k.roll }
+        Camera { pos: k.pos.into(), look: k.look.into(), mm: k.mm, roll: k.roll, aperture: k.aperture, focus: k.focus }
+    }
+}
+
+/// Between two optional values, evenly in their logarithm; one alone holds.
+fn stops(a: Option<f32>, b: Option<f32>, u: f32) -> Option<f32> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some((a.max(1e-3).ln() + (b.max(1e-3).ln() - a.max(1e-3).ln()) * u).exp()),
+        (a, b) => a.or(b),
     }
 }
 
@@ -138,6 +153,20 @@ fn catmull_rom(a: f32, b: f32, c: f32, d: f32, t: f32) -> f32 {
 }
 
 impl Shot {
+    /// The pointer at `q`, the share of the shot played: on a straight path through its points, eased as the shot.
+    pub fn pointer_at(&self, q: f32) -> Option<bevy::math::Vec2> {
+        let p = &self.pointer;
+        match p.len() {
+            0 => None,
+            1 => Some(p[0].into()),
+            n => {
+                let f = self.ease.at(q.clamp(0.0, 1.0)) * (n - 1) as f32;
+                let j = (f.floor() as usize).min(n - 2);
+                Some(bevy::math::Vec2::from(p[j]).lerp(p[j + 1].into(), f - j as f32))
+            }
+        }
+    }
+
     /// The camera at `q`, the share of the shot played (0 to 1).
     pub fn at(&self, q: f32) -> Camera {
         let k = &self.keys;
@@ -158,6 +187,9 @@ impl Shot {
             look: curve(a.look, b.look, c.look, d.look),
             roll: b.roll + (c.roll - b.roll) * u,
             mm: (b.mm.ln() + (c.mm.ln() - b.mm.ln()) * u).exp(), // a zoom runs evenly in stops
+            // an aperture and a focus pull run evenly in stops and in log distance, as a focus puller's hand
+            aperture: stops(b.aperture, c.aperture, u),
+            focus: stops(b.focus, c.focus, u),
         }
     }
 }
@@ -207,10 +239,10 @@ impl Rng {
 }
 
 fn key(pos: Vec3, look: Vec3, mm: f32, roll: f32) -> Key {
-    Key { pos: pos.to_array(), look: look.to_array(), mm, roll }
+    Key { pos: pos.to_array(), look: look.to_array(), mm, roll, aperture: None, focus: None }
 }
 fn shot(name: &str, kind: &str, secs: f32, ease: Ease, why: &str, keys: Vec<Key>) -> Shot {
-    Shot { name: name.into(), kind: kind.into(), secs, ease, why: why.into(), hour: None, wind: None, keys }
+    Shot { name: name.into(), kind: kind.into(), secs, ease, why: why.into(), hour: None, wind: None, world: None, pointer: vec![], clicks: vec![], layers: vec![], keys }
 }
 
 /// Five shots of different sizes and moves over the plane, the same for the same seed.
@@ -305,13 +337,6 @@ mod tests {
                 assert!(c.pos.distance(Vec3::from(k.pos)) < 0.05, "{} key {i}: {:?} vs {:?}", s.name, c.pos, k.pos);
             }
         }
-    }
-
-    #[test]
-    fn the_lens_sees_as_the_legacy_kit() {
-        assert!(close(hfov(28.0).to_degrees(), 74.5, 0.1));
-        assert!(close(hfov(180.0).to_degrees(), 13.5, 0.1));
-        assert!(close(vfov(28.0, 1.0), hfov(28.0), 1e-6));
     }
 
     #[test]
