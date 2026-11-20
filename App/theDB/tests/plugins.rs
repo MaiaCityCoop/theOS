@@ -1,6 +1,5 @@
-//! Deliverable 3 of intent 0050: the kernel's plugins. A changed head calls exactly the plugins watching its kind,
-//! once; an unchanged head calls nothing; a branch's edit calls nothing until merged; a kernel started again calls nothing it handled; the baker bakes one asset
-//! at a time and says when the engine fails.
+//! The kernel's plugins (intent 0050). A changed head calls exactly the plugins watching its kind, once; an unchanged
+//! head calls nothing; a branch's edit calls nothing until merged; a kernel started again calls nothing it handled.
 
 use thedb::TheDB;
 use thedb::plugin::{Plugin, Watcher};
@@ -96,79 +95,6 @@ fn a_kernel_started_again_calls_nothing_it_handled() {
     db.set_text(&stone, "{\"size\": 3}").unwrap();
     w.pass(&db).unwrap();
     assert_eq!(take(&assets), vec![stone]);
-    drop((w, db));
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-/// A store whose pinned engine is a script standing in for the engine's `--bake`: it logs its turn, notes any overlap
-/// with another bake, and fails for the asset named "broken".
-fn with_stub_engine(name: &str) -> (Arc<TheDB>, std::path::PathBuf) {
-    let (db, dir) = fresh(name);
-    let stub = r#"#!/bin/sh
-log="$THEDB/bake.log"
-[ "$1" = "--bake" ] || { echo "no --bake: $*" >> "$log"; exit 2; }
-mkdir "$THEDB/busy" 2>/dev/null || echo overlap >> "$log"
-echo "start $2" >> "$log"
-sleep 0.2
-echo "end $2" >> "$log"
-rmdir "$THEDB/busy"
-case "$(cat "$THEDB/broken" 2>/dev/null)" in *"$2"*) exit 3;; esac
-exit 0
-"#;
-    let engine = db.new("engine", "stub").unwrap();
-    db.publish(&engine, stub.as_bytes(), &[], "sh").unwrap();
-    let root = db.root().unwrap().unwrap();
-    db.set_text(&root, &format!("{{\n  \"engine\": \"{engine}\"\n}}\n")).unwrap();
-    (db, dir)
-}
-
-#[test]
-fn the_baker_bakes_one_at_a_time() {
-    let (db, dir) = with_stub_engine("queue");
-    let assets: Vec<String> = (0..4).map(|i| db.new("asset", &format!("asset {i}")).unwrap()).collect();
-    // four bakes asked for at once, from four threads: they wait their turn
-    let threads: Vec<_> = assets
-        .iter()
-        .map(|id| {
-            let (db, id) = (db.clone(), id.clone());
-            let gpu = dir.join("gpu");
-            std::thread::spawn(move || thedb::baker::bake_in(&db, &id, &gpu))
-        })
-        .collect();
-    for t in threads {
-        t.join().unwrap().expect("each bake exits 0");
-    }
-    let log = std::fs::read_to_string(dir.join("bake.log")).unwrap();
-    assert!(!log.contains("overlap") && !log.contains("no --bake"), "{log}");
-    let lines: Vec<&str> = log.lines().collect();
-    assert_eq!(lines.len(), 8, "{log}");
-    for pair in lines.chunks(2) {
-        assert_eq!(pair[0].replace("start", "end"), pair[1], "each bake ends before the next starts: {log}");
-    }
-    for id in &assets {
-        assert!(log.contains(&format!("start {id}")), "{id} baked: {log}");
-    }
-    drop(db);
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-#[test]
-fn the_baker_as_a_plugin_bakes_the_changed_asset_and_reports_a_failure() {
-    let (db, dir) = with_stub_engine("plugin");
-    let stone = db.new("asset", "stone").unwrap();
-    let wind = db.new("shader", "wind").unwrap();
-    let mut w = Watcher::new(&db, vec![Box::new(thedb::baker::Baker { gpu: dir.join("gpu") })]).unwrap();
-    // the asset, and the engine (a new build checks every asset again); never the shader
-    let called: Vec<String> = w.pass(&db).unwrap().into_iter().map(|(_, id)| id).collect();
-    assert!(called.contains(&stone) && !called.contains(&wind) && called.len() == 2, "{called:?}");
-    db.set_text(&stone, "{\"size\": 2}").unwrap();
-    assert_eq!(w.pass(&db).unwrap().len(), 1);
-    let log = std::fs::read_to_string(dir.join("bake.log")).unwrap();
-    assert_eq!(log.matches(&format!("start {stone}")).count(), 3, "once for itself, once for the engine, once for its edit: {log}");
-    // a failing engine: the bake says so
-    std::fs::write(dir.join("broken"), &stone).unwrap();
-    let e = thedb::baker::bake_in(&db, &stone, &dir.join("gpu")).unwrap_err();
-    assert!(e.contains("exit 3"), "{e}");
     drop((w, db));
     let _ = std::fs::remove_dir_all(dir);
 }

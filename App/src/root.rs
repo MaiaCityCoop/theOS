@@ -7,44 +7,26 @@ use serde::{Deserialize, Serialize};
 pub struct Root {
     pub shaders: Shaders,
     pub fonts: Fonts,
-    /// The asset library: each asset's doc (its recipe as JSON).
-    pub library: Vec<String>,
-    /// The Meadow's biome recipe.
-    pub biome: String,
-    /// The Studio's shot list it opens with, and the Meadow's four anchors.
-    pub first_shots: String,
-    pub anchors: String,
-    /// Mértola's package: one doc, each file a part.
-    pub mertola: String,
-    /// The Earth: every open-data file fetched, a part of this doc by its source URL; and the places baked on a
-    /// map's click, by where they are.
-    pub earth: String,
-    /// Bakes made once: each result a part of this doc, under the hash of what it was made from.
-    pub bakes: String,
+    /// The world: its settings (the sky's colour, the ground's, its grid lines').
+    pub world: String,
+    /// The stories timeline: the shot list the Studio opens and the gate holds.
+    pub timeline: String,
     /// The dashboard: a view doc.
     pub home: String,
-    /// The layers each view lays over its world: layer docs, in order.
+    /// The layers each view lays over the world: layer docs, in order.
     pub layers: Layers,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Layers {
-    pub meadow: Vec<String>,
-    pub library: Vec<String>,
-    pub place: Vec<String>,
+    pub game: Vec<String>,
     pub studio: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Shaders {
-    pub ground: String,
-    pub wind: String,
-    pub grass_wind: String,
-    pub grass_wind_prepass: String,
-    pub impostor: String,
-    pub bake_normal: String,
-    pub lawn_bake: String,
-    pub patch_field: String,
+    /// The ground's grid (`world::Grid`): its fragment shader.
+    pub grid: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

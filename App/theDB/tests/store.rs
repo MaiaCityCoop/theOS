@@ -111,3 +111,37 @@ fn two_writers_of_one_doc_both_keep_their_edit() {
     drop(db);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// A JSON doc is a map: two branches that add the same key, and each an entry to one list, merge into JSON that
+/// parses, with the key once and both entries (as text, the root doc once got a key twice this way).
+#[test]
+fn json_docs_merge_by_key() {
+    let (mut db, dir) = fresh("json");
+    let root = db.new("root", "root").unwrap();
+    db.set_text(&root, r#"{"shaders": {"wind": "w"}, "library": ["a"], "n": 1.5}"#).unwrap();
+    let read = |db: &TheDB| -> serde_json::Value { serde_json::from_str(&db.text(&root).unwrap().unwrap()).unwrap() };
+    assert_eq!(read(&db)["n"], 1.5);
+    for (b, lib) in [("one", "b"), ("two", "c")] {
+        db.set_branch(None).unwrap();
+        db.make_branch(b, "").unwrap();
+        db.set_branch(Some(b)).unwrap();
+        db.set_text(&root, &format!(r#"{{"shaders": {{"wind": "w", "master_wind": "m"}}, "library": ["a", "{lib}"], "n": 1.5}}"#)).unwrap();
+    }
+    db.set_branch(None).unwrap();
+    for b in ["one", "two"] {
+        let changed = db.changed_on(b).unwrap();
+        db.merge_into_main(&changed).unwrap();
+    }
+    let text = db.text(&root).unwrap().unwrap();
+    assert_eq!(text.matches("master_wind").count(), 1, "the key once: {text}");
+    let v = read(&db);
+    assert_eq!(v["shaders"]["master_wind"], "m");
+    let lib: Vec<&str> = v["library"].as_array().unwrap().iter().map(|x| x.as_str().unwrap()).collect();
+    assert!(lib.contains(&"a") && lib.contains(&"b") && lib.contains(&"c") && lib.len() == 3, "{lib:?}");
+    // a text that is no JSON object stays text
+    let wind = db.new("shader", "wind").unwrap();
+    db.set_text(&wind, "fn sway() {}").unwrap();
+    assert_eq!(db.text(&wind).unwrap().as_deref(), Some("fn sway() {}"));
+    drop(db);
+    let _ = std::fs::remove_dir_all(dir);
+}

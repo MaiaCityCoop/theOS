@@ -1,8 +1,8 @@
 //! What drives the eye: the walker in the Game, the shot list in the Studio. Live, every frame; nothing is rendered
 //! ahead.
 
-use crate::camera::{self, Timeline};
-use crate::contract::{Clock, Eye, Land, Lens, World};
+use crate::camera::Timeline;
+use crate::contract::{Eye, Lens, World};
 use crate::{Still, View};
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
@@ -14,25 +14,18 @@ pub struct Studio {
     pub timeline: Timeline,
     pub time: f32,
     pub playing: bool,
-    pub seed: u64,
 }
 
 impl Studio {
     pub fn paused_at(timeline: Timeline, time: f32) -> Self {
-        Studio { timeline, time, playing: false, seed: 1 }
+        Studio { timeline, time, playing: false }
     }
     pub fn duration(&self) -> f32 {
         self.timeline.duration()
     }
-    pub fn new_shots(&mut self) {
-        self.seed += 1;
-        self.timeline = camera::five_shots(self.seed);
-        self.time = 0.0;
-        self.playing = true;
-    }
-    /// Opens a kept shot list from `timelines/` and plays it from the start.
-    pub fn open(&mut self, path: &str) {
-        if let Some(t) = shots(path) {
+    /// Opens a shot list (a doc's id) and plays it from the start.
+    pub fn open(&mut self, id: &str) {
+        if let Some(t) = shots(id) {
             self.timeline = t;
             self.time = 0.0;
             self.playing = true;
@@ -40,13 +33,9 @@ impl Studio {
     }
 }
 
-/// The kept shot list the Studio opens with.
-pub fn first_shots() -> &'static str {
-    &crate::root::root().first_shots
-}
-/// The Meadow's storytelling anchors: the same four shots at every stage of the scene.
-pub fn anchors() -> &'static str {
-    &crate::root::root().anchors
+/// The stories timeline: the shot list the Studio opens with, and the one the gate holds.
+pub fn timeline() -> &'static str {
+    &crate::root::root().timeline
 }
 
 /// A shot list: the theDB doc `id`, or else a file at that path (a list an agent wrote and passed on the command line).
@@ -63,15 +52,19 @@ pub struct Walker {
     pub pitch: f32,
 }
 
+/// What aims the eye, each frame; the world's camera and its ground follow after it.
+#[derive(SystemSet, Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct Aim;
+
 pub fn plugin(app: &mut App) {
-    let opened = shots(first_shots());
-    app.insert_resource(Studio::paused_at(opened.unwrap_or_else(|| camera::five_shots(1)), 0.0))
-        .insert_resource(Walker { pos: Vec3::new(0.0, 1.6, 0.0), yaw: 0.0, pitch: -4.0 })
+    // the walker starts in the middle of a 10 m square, between the grid's stronger lines
+    app.insert_resource(Studio::paused_at(shots(timeline()).expect("the root's timeline reads and parses"), 0.0))
+        .insert_resource(Walker { pos: Vec3::new(5.5, 1.6, 5.5), yaw: 0.0, pitch: -4.0 })
         .add_observer(capture)
-        .add_systems(Update, (choose_world, walk.run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow)), play.run_if(in_state(View::Studio))));
+        .add_systems(Update, (choose_world, (walk.run_if(in_state(View::Game)), play.run_if(in_state(View::Studio))).in_set(Aim)));
 }
 
-/// The walker's eye height range: a blade's height above the ground up to 12 km, as the legacy game's camera.
+/// The walker's eye height range: just above the grid's lines up to 12 km, as the legacy game's camera.
 const LOWEST: f32 = 0.1;
 const HIGHEST: f32 = 12_000.0;
 
@@ -83,7 +76,6 @@ fn walk(
     motion: Res<AccumulatedMouseMotion>,
     scroll: Res<bevy::input::mouse::AccumulatedMouseScroll>,
     cursor: Query<&bevy::window::CursorOptions>,
-    land: Res<Land>,
     mut walker: ResMut<Walker>,
     mut eye: ResMut<Eye>,
 ) {
@@ -93,7 +85,7 @@ fn walk(
         walker.yaw += motion.delta.x * 0.12;
         walker.pitch = (walker.pitch - motion.delta.y * 0.12).clamp(-89.0, 89.0);
     }
-    // rise and sink: each notch of the wheel multiplies the eye's height, so a few take it from the grass to 12 km
+    // rise and sink: each notch of the wheel multiplies the eye's height, so a few take it from the ground to 12 km
     let notches = match scroll.unit {
         bevy::input::mouse::MouseScrollUnit::Line => scroll.delta.y,
         bevy::input::mouse::MouseScrollUnit::Pixel => scroll.delta.y / 40.0,
@@ -113,14 +105,13 @@ fn walk(
     walker.pos += m * speed * time.delta_secs();
     walker.pos.y = walker.pos.y.clamp(LOWEST, HIGHEST);
     let (sp, cp) = walker.pitch.to_radians().sin_cos();
-    // the walker's height is above the world's land: on the Meadow's hills the eye rises and falls with the ground
-    let at = walker.pos + Vec3::Y * land.at(walker.pos.x, walker.pos.z);
+    let at = walker.pos;
     *eye = Eye { pos: at, look: at + Vec3::new(sy * cp, sp, -cy * cp), roll: 0.0, lens: Lens { mm: 35.0, ..default() } };
 }
 
 /// A click into the world (not on the interface) captures the mouse for looking; Escape lets it go.
 pub fn capture(press: On<bevy::picking::events::PointerPress>, windows: Query<(), With<Window>>, mut cursor: Query<&mut bevy::window::CursorOptions>, state: Res<State<View>>) {
-    if windows.get(press.entity).is_err() || !matches!(state.get(), View::Meadow) {
+    if windows.get(press.entity).is_err() || *state.get() != View::Game {
         return;
     }
     for mut c in &mut cursor {
@@ -129,14 +120,7 @@ pub fn capture(press: On<bevy::picking::events::PointerPress>, windows: Query<()
     }
 }
 
-fn play(
-    time: Res<Time>,
-    keys: Res<ButtonInput<KeyCode>>,
-    mut studio: ResMut<Studio>,
-    land: Res<Land>,
-    mut clock: ResMut<Clock>,
-    mut eye: ResMut<Eye>,
-) {
+fn play(time: Res<Time>, keys: Res<ButtonInput<KeyCode>>, mut studio: ResMut<Studio>, mut eye: ResMut<Eye>) {
     if keys.just_pressed(KeyCode::Space) {
         if studio.time >= studio.duration() {
             studio.time = 0.0;
@@ -151,40 +135,24 @@ fn play(
         }
     }
     let Some(cam) = studio.timeline.at(studio.time) else { return };
-    // the shots' heights are above the world's land: the camera and its aim follow the ground
-    let (pos, look) = (cam.pos + Vec3::Y * land.at(cam.pos.x, cam.pos.z), cam.look + Vec3::Y * land.at(cam.look.x, cam.look.z));
     // focused where it looks, unless the shot pulls focus itself
-    let focus = cam.focus.unwrap_or_else(|| pos.distance(look));
-    *eye = Eye { pos, look, roll: cam.roll, lens: Lens { mm: cam.mm, aperture: cam.aperture, focus, ..default() } };
-    // the shot's own hour and wind, where it gives them (a value, or [from, to] across the shot)
-    if let Some((i, q)) = studio.timeline.shot_at(studio.time) {
-        let shot = &studio.timeline.clips[i];
-        if let Some(h) = &shot.hour {
-            clock.hour = h.at(q);
-        }
-        if let Some(w) = &shot.wind {
-            clock.wind = w.at(q);
-        }
-    }
+    let focus = cam.focus.unwrap_or_else(|| cam.pos.distance(cam.look));
+    *eye = Eye { pos: cam.pos, look: cam.look, roll: cam.roll, lens: Lens { mm: cam.mm, aperture: cam.aperture, focus, ..default() } };
 }
 
-/// The world shown: the view's own, or in the Studio the world of the shot playing (named by a doc's id, its kind
-/// saying which world it is).
+/// What is shown: the Game's world, or in the Studio what the shot playing films (the world, or the view doc it
+/// names).
 fn choose_world(view: Res<State<View>>, studio: Res<Studio>, world: Res<State<World>>, mut next: ResMut<NextState<World>>, mut kinds: Local<std::collections::HashMap<String, World>>) {
     let want = match view.get() {
         View::Home => World::None,
-        View::Meadow => World::Meadow,
-        View::Library => World::Library,
-        View::Place => World::Place,
+        View::Game => World::Grid,
         View::Studio => {
             let id = studio.timeline.shot_at(studio.time).and_then(|(i, _)| studio.timeline.clips[i].world.clone());
             match id {
-                None => World::Meadow,
+                None => World::Grid,
                 Some(id) => *kinds.entry(id.clone()).or_insert_with(|| match crate::db().meta(&id).map(|m| m.0).as_deref() {
-                    Ok("place") => World::Place,
-                    Ok("asset") => World::Library,
                     Ok("view") => World::Interface,
-                    _ => World::Meadow,
+                    _ => World::Grid,
                 }),
             }
         }
@@ -206,9 +174,8 @@ pub fn take_still(mut commands: Commands, still: Res<Still>, mut frames: Local<u
     }
 }
 
-/// The gate: the Meadow's four anchors (`timelines/meadow-anchors.json`), each held at its middle with its own hour and
-/// wind, 1080p without vsync; for each, the frame time over 90 frames and one picture, then quit. The same shots before
-/// and after a change show what it did (`gate.py` puts two runs side by side).
+/// The gate: the timeline's shots (or any shot list's), each held at its middle, 1080p without vsync; for each, the
+/// frame time over 90 frames and one picture, then quit. The same shots before and after a change show what it did.
 #[derive(Resource)]
 pub struct Gate {
     pub dir: std::path::PathBuf,
@@ -248,7 +215,7 @@ pub fn gate(
     let start: f32 = clips[..*shot].iter().map(|c| c.secs).sum();
     studio.time = start + clips[*shot].secs * 0.5;
     studio.playing = false;
-    // the first shot waits for the shaders to compile and the grass to grow; the others for the grass to stream
+    // the first shot waits for the shaders to compile; the others for the picture to settle
     let settle = if *shot == 0 { 400 } else { 180 };
     if *n > settle && frames.len() < 90 {
         frames.push(time.delta_secs() * 1000.0);

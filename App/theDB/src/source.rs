@@ -449,6 +449,10 @@ impl TheDB {
         let mut passed = true;
         for (tid, tree) in &trees {
             let view = self.dir().join("cache").join("views").join(format!("check-{tid}"));
+            // written anew each time: a file left from the last check with its old time made cargo take a build of
+            // other source for this one (a merge was refused for a test that passed, and could as well have passed
+            // for one that fails)
+            let _ = std::fs::remove_dir_all(&view);
             self.write_tree(Some(&trial), tid, &view, true)?;
             for c in &tree.shape.check {
                 let (ok, text) = self.run_in(&view, c)?;

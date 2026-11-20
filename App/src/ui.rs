@@ -1,5 +1,5 @@
-//! The interface, drawn by Bevy in theOS's look (brand/brand.css: Meadow): the dashboard with its three tiles, the
-//! Game's few words, and the Studio's shot strip.
+//! The interface's live parts and its input, in theOS's look (brand/brand.css): what a click does, the frame time, the
+//! Studio's shot strip and playhead. What is drawn where is a doc (`views.rs`).
 
 use crate::View;
 use crate::film::Studio;
@@ -30,14 +30,6 @@ pub enum Act {
     Open(View),
     Home,
     PlayPause,
-    NewShots,
-    Anchors,
-    /// The Library's asset at this place on the shelf.
-    Pick(usize),
-    /// The Library: the asset as its full mesh, or as its far view.
-    FarView,
-    /// The Place: the terrain in its natural colours, or in its land cover classes.
-    CoverView,
 }
 
 /// When the current view opened, in real seconds since the start.
@@ -69,8 +61,6 @@ pub fn plugin(app: &mut App) {
         .add_observer(press)
         .add_observer(scrub_press)
         .add_observer(scrub_drag)
-        .add_observer(slide_press)
-        .add_observer(slide_drag)
         .add_systems(Update, (hover, escape));
 }
 
@@ -90,105 +80,21 @@ fn text(font: &Handle<Font>, size: f32, color: Color, words: impl Into<String>) 
 }
 
 
-
-// ---- the dashboard: drawn from its view doc (`views.rs`) ----
-
-// ---- the real place: the walker on real ground, and a line of help ----
-
-
-// ---- the Library: Home, and what the shelf shows ----
-
-
-/// An entry of the Library's list, and its words.
-#[derive(Component)]
-pub(crate) struct ShelfItem(pub usize);
-#[derive(Component)]
-pub(crate) struct ShelfLabel;
-
-pub(crate) fn shelf_marks(shelf: Option<Res<crate::workshop::Shelf>>, mut items: Query<(&ShelfItem, &mut BackgroundColor, &Children)>, mut labels: Query<&mut TextColor, With<ShelfLabel>>) {
-    let Some(s) = shelf else { return };
-    for (item, mut bg, kids) in &mut items {
-        let on = item.0 == s.at;
-        bg.0 = if on { FOREST } else { Color::NONE };
-        for k in kids.iter() {
-            if let Ok(mut c) = labels.get_mut(k) {
-                c.0 = if on { CREAM } else { FOREST };
-            }
-        }
-    }
-}
-
-// ---- the Meadow: the test scene, Home, the frame time and the hour ----
+// ---- the Game: the frame time ----
 
 #[derive(Component)]
 pub(crate) struct FrameTime;
 
 
-
-
-/// A slider of the Meadow: what it sets.
-#[derive(Component, Clone, Copy, PartialEq)]
-pub(crate) enum Slide {
-    Wind,
-    Hour,
-}
-#[derive(Component)]
-pub(crate) struct Fill(pub Slide);
-#[derive(Component)]
-pub(crate) struct Readout(pub Slide);
-
-
-fn slide_press(ev: On<PointerPress>, bars: Query<(&Slide, &ComputedNode, &UiGlobalTransform)>, clock: ResMut<crate::contract::Clock>) {
-    slide_to(ev.entity, ev.pointer.position.x, &bars, clock);
-}
-fn slide_drag(ev: On<PointerDrag>, bars: Query<(&Slide, &ComputedNode, &UiGlobalTransform)>, clock: ResMut<crate::contract::Clock>) {
-    slide_to(ev.entity, ev.pointer.position.x, &bars, clock);
-}
-fn slide_to(
-    e: Entity,
-    x: f32,
-    bars: &Query<(&Slide, &ComputedNode, &UiGlobalTransform)>,
-    mut clock: ResMut<crate::contract::Clock>,
-) {
-    let Ok((what, node, at)) = bars.get(e) else { return };
-    let (centre, width) = (at.translation.x * node.inverse_scale_factor, node.size.x * node.inverse_scale_factor);
-    let q = ((x - (centre - width / 2.0)) / width.max(1.0)).clamp(0.0, 1.0);
-    match what {
-        Slide::Wind => clock.wind = q * crate::wind::MAX,
-        Slide::Hour => clock.hour = q * 24.0,
-    }
-}
-pub(crate) fn slide_show(
-    clock: Res<crate::contract::Clock>,
-    mut fills: Query<(&Fill, &mut Node)>,
-    mut readouts: Query<(&Readout, &mut Text)>,
-) {
-    let q = |w: Slide| match w {
-        Slide::Wind => clock.wind / crate::wind::MAX,
-        Slide::Hour => clock.hour / 24.0,
-    };
-    for (f, mut n) in &mut fills {
-        n.width = Val::Percent(q(f.0) * 100.0);
-    }
-    for (r, mut t) in &mut readouts {
-        let words = match r.0 {
-            Slide::Wind => format!("{:.0} %", clock.wind / crate::wind::MAX * 100.0),
-            Slide::Hour => format!("{:02}:{:02}", clock.hour as u32 % 24, (clock.hour.fract() * 60.0) as u32),
-        };
-        if t.0 != words {
-            t.0 = words;
-        }
-    }
-}
-
-pub(crate) fn frame_time(d: Res<bevy::diagnostic::DiagnosticsStore>, clock: Res<crate::contract::Clock>, mut t: Query<&mut Text, With<FrameTime>>) {
-    if let (Some(ms), Ok(mut t)) = (crate::meadow::frame_ms(&d), t.single_mut()) {
-        t.0 = format!("{ms:.1} ms · {:.0} fps · {:02}:{:02}", 1000.0 / ms, clock.hour as u32, ((clock.hour.fract()) * 60.0) as u32);
+/// The frame time, smoothed, in milliseconds, and the frames a second it makes.
+pub(crate) fn frame_time(d: Res<bevy::diagnostic::DiagnosticsStore>, mut t: Query<&mut Text, With<FrameTime>>) {
+    let ms = d.get(&bevy::diagnostic::FrameTimeDiagnosticsPlugin::FRAME_TIME).and_then(|f| f.smoothed());
+    if let (Some(ms), Ok(mut t)) = (ms, t.single_mut()) {
+        t.0 = format!("{ms:.1} ms · {:.0} fps", 1000.0 / ms);
     }
 }
 
 // ---- the Studio: the world through the virtual camera, the shots as a strip under it ----
-
 
 /// The strip shows the shot list it is given: one card per shot, as wide as the shot is long, and the playhead.
 pub(crate) fn strip_follows(mut commands: Commands, f: Res<Fonts>, s: Res<Studio>, strip: Query<Entity, With<Strip>>, mut shown: Local<Option<String>>) {
@@ -276,8 +182,6 @@ fn press(
     time: Res<Time<Real>>,
     mut next: ResMut<NextState<View>>,
     mut s: ResMut<Studio>,
-    shelf: Option<ResMut<crate::workshop::Shelf>>,
-    cover: Option<ResMut<crate::place::CoverView>>,
 ) {
     let Ok(act) = acts.get(click.entity) else { return };
     // a box that opens a doc: a shot list opens in the Studio
@@ -295,24 +199,6 @@ fn press(
     match *act {
         Act::Open(v) => next.set(v),
         Act::Home => next.set(View::Home),
-        Act::NewShots => s.new_shots(),
-        Act::Anchors => s.open(crate::film::anchors()),
-        Act::Pick(k) => {
-            if let Some(mut shelf) = shelf {
-                shelf.at = k;
-                shelf.dirty = true;
-            }
-        }
-        Act::FarView => {
-            if let Some(mut shelf) = shelf {
-                shelf.far = !shelf.far;
-            }
-        }
-        Act::CoverView => {
-            if let Some(mut c) = cover {
-                c.0 = !c.0;
-            }
-        }
         Act::PlayPause => {
             if s.time >= s.duration() {
                 s.time = 0.0;
@@ -377,14 +263,10 @@ pub fn navtest(
     use bevy::camera::RenderTarget;
     use bevy::picking::pointer::{Location, PointerAction, PointerButton, PointerId, PointerInput};
     use bevy::window::WindowRef;
-    const STEPS: [(Act, View); 8] = [
-        (Act::Open(View::Library), View::Library),
-        (Act::Home, View::Home),
+    const STEPS: [(Act, View); 4] = [
         (Act::Open(View::Studio), View::Studio),
         (Act::Home, View::Home),
-        (Act::Open(View::Meadow), View::Meadow),
-        (Act::Home, View::Home),
-        (Act::Open(View::Place), View::Place),
+        (Act::Open(View::Game), View::Game),
         (Act::Home, View::Home),
     ];
     // a pointer of its own, so the real mouse over the window cannot move it
