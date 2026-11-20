@@ -1,0 +1,223 @@
+//! The nav pill, at the bottom of every view, as on maia.city: Home on the left, the star in the middle, the badge
+//! on the right. The star opens the proposals: a modal over the view, with a card for every proposal on every line,
+//! and Accept and Refuse on each open one. That click is the human step (HITL): theOS signs the merge with its host
+//! key, and an agent, which has only its line's key, cannot.
+
+use crate::View;
+use crate::ui::{CLAY, CREAM, FOREST, FOREST2, Fonts, PAPER, SAND, SUN};
+use bevy::asset::RenderAssetUsages;
+use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
+use bevy::picking::events::PointerClick;
+use bevy::prelude::*;
+
+/// What the pill and the modal do on a click.
+#[derive(Component, Clone, PartialEq, Eq, Debug)]
+pub enum PillAct {
+    Proposals,
+    Close,
+    Accept(String),
+    Refuse(String),
+}
+
+/// Whether the proposals are open, what they are, and what last went wrong.
+#[derive(Resource, Default)]
+pub struct Modal {
+    pub open: bool,
+    list: Vec<(String, thedb::proposals::Proposal)>,
+    error: Option<String>,
+    dirty: bool,
+}
+
+#[derive(Component)]
+struct Pill;
+#[derive(Component)]
+struct Sheet;
+
+#[derive(Resource)]
+struct Icons {
+    star: Handle<Image>,
+    home: Handle<Image>,
+    hexagon: Handle<Image>,
+}
+
+fn png(images: &mut Assets<Image>, bytes: &[u8]) -> Handle<Image> {
+    images.add(Image::from_buffer(bytes, ImageType::Extension("png"), CompressedImageFormats::NONE, true, ImageSampler::linear(), RenderAssetUsages::RENDER_WORLD).expect("an icon of the pill decodes"))
+}
+
+pub fn plugin(app: &mut App) {
+    app.init_resource::<Modal>()
+        .add_systems(Startup, (icons, spawn).chain())
+        .add_systems(Update, (show, draw))
+        .add_observer(click);
+}
+
+fn icons(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
+    commands.insert_resource(Icons {
+        star: png(&mut images, include_bytes!("../assets/star.png")),
+        home: png(&mut images, include_bytes!("../assets/home.png")),
+        hexagon: png(&mut images, include_bytes!("../assets/hexagon.png")),
+    });
+}
+
+fn spawn(mut commands: Commands, icons: Res<Icons>, fonts: Res<Fonts>) {
+    commands
+        .spawn((
+            Pill,
+            GlobalZIndex(20),
+            Node { position_type: PositionType::Absolute, left: Val::Px(0.0), right: Val::Px(0.0), bottom: Val::Px(22.0), justify_content: JustifyContent::Center, ..default() },
+            Pickable::IGNORE,
+        ))
+        .with_children(|row| {
+            row.spawn((
+                Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(18.0), height: Val::Px(62.0), padding: UiRect::horizontal(Val::Px(22.0)), border_radius: BorderRadius::all(Val::Px(999.0)), border: UiRect::all(Val::Px(1.0)), ..default() },
+                BackgroundColor(Color::srgba(0.984, 0.965, 0.918, 0.86)),
+                BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.7)),
+                BoxShadow::new(Color::srgba(0.047, 0.094, 0.149, 0.18), Val::Px(0.0), Val::Px(10.0), Val::Px(0.0), Val::Px(28.0)),
+            ))
+            .with_children(|p| {
+                p.spawn((crate::ui::Act::Home, Hover, Node { width: Val::Px(34.0), height: Val::Px(34.0), ..default() }, ImageNode::new(icons.home.clone())));
+                p.spawn((
+                    PillAct::Proposals,
+                    Hover,
+                    Node { width: Val::Px(74.0), height: Val::Px(74.0), margin: UiRect::vertical(Val::Px(-10.0)), border_radius: BorderRadius::all(Val::Percent(50.0)), border: UiRect::all(Val::Px(4.0)), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
+                    BackgroundColor(FOREST),
+                    BorderColor::all(Color::srgba(0.949, 0.710, 0.267, 0.55)),
+                    BoxShadow::new(Color::srgba(0.047, 0.094, 0.149, 0.35), Val::Px(0.0), Val::Px(14.0), Val::Px(0.0), Val::Px(34.0)),
+                    children![(ImageNode::new(icons.star.clone()), Node { width: Val::Px(44.0), height: Val::Px(44.0), ..default() }, Pickable::IGNORE)],
+                ));
+                p.spawn((
+                    Node { width: Val::Px(44.0), height: Val::Px(39.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
+                    ImageNode::new(icons.hexagon.clone()),
+                    children![(Text::new("MC"), TextFont { font: fonts.sans.clone().into(), font_size: FontSize::Px(15.0), weight: FontWeight::BOLD, ..default() }, TextColor(FOREST), Pickable::IGNORE)],
+                ));
+            });
+        });
+}
+
+/// A button that grows a little under the pointer.
+#[derive(Component)]
+struct Hover;
+
+/// The pill is hidden on the setup screen, and while the proposals are open (their close tab takes its place).
+fn show(state: Res<State<View>>, modal: Res<Modal>, mut pill: Query<&mut Visibility, With<Pill>>, mut hover: Query<(&bevy::picking::hover::Hovered, &mut UiTransform), With<Hover>>) {
+    let shown = *state.get() != View::Setup && !modal.open;
+    for mut v in &mut pill {
+        let want = if shown { Visibility::Inherited } else { Visibility::Hidden };
+        if *v != want {
+            *v = want;
+        }
+    }
+    for (h, mut t) in &mut hover {
+        let s = if h.get() { 1.06 } else { 1.0 };
+        if t.scale.x != s {
+            t.scale = Vec2::splat(s);
+        }
+    }
+}
+
+fn click(mut ev: On<PointerClick>, acts: Query<&PillAct>, mut modal: ResMut<Modal>) {
+    let Ok(act) = acts.get(ev.entity) else { return };
+    ev.propagate(false);
+    let db = crate::db();
+    let done = match act.clone() {
+        PillAct::Proposals => {
+            modal.open = true;
+            Ok(())
+        }
+        PillAct::Close => {
+            modal.open = false;
+            Ok(())
+        }
+        // the human step: this process signs with theOS's host key
+        PillAct::Accept(id) => db.merge(&id),
+        PillAct::Refuse(id) => db.refuse(&id),
+    };
+    modal.error = done.err();
+    if modal.open {
+        modal.list = db.proposals().unwrap_or_default();
+    }
+    modal.dirty = true;
+}
+
+fn draw(mut commands: Commands, fonts: Res<Fonts>, mut modal: ResMut<Modal>, old: Query<Entity, With<Sheet>>) {
+    if !modal.dirty {
+        return;
+    }
+    modal.dirty = false;
+    for e in &old {
+        commands.entity(e).despawn();
+    }
+    if !modal.open {
+        return;
+    }
+    let f = &*fonts;
+    let text = |font: &Handle<Font>, size: f32, color: Color, t: String| (Text::new(t), TextFont { font: font.clone().into(), font_size: FontSize::Px(size), ..default() }, TextColor(color), Pickable::IGNORE);
+    let button = |label: &str, act: PillAct, bg: Color, fg: Color| {
+        (
+            act,
+            Hover,
+            Node { padding: UiRect::axes(Val::Px(18.0), Val::Px(9.0)), border_radius: BorderRadius::all(Val::Px(16.0)), ..default() },
+            BackgroundColor(bg),
+            children![(Text::new(label), TextFont { font: f.sans.clone().into(), font_size: FontSize::Px(15.0), ..default() }, TextColor(fg), Pickable::IGNORE)],
+        )
+    };
+    // the view behind, dimmed; the sheet over it; the close tab under the sheet, where the pill was
+    commands.spawn((Sheet, GlobalZIndex(30), Node { position_type: PositionType::Absolute, left: Val::Px(0.0), right: Val::Px(0.0), top: Val::Px(0.0), bottom: Val::Px(0.0), ..default() }, BackgroundColor(Color::srgba(0.090, 0.212, 0.333, 0.38))));
+    commands
+        .spawn((
+            Sheet,
+            GlobalZIndex(31),
+            Node { position_type: PositionType::Absolute, left: Val::Px(14.0), right: Val::Px(14.0), top: Val::Px(14.0), bottom: Val::Px(46.0), flex_direction: FlexDirection::Column, border_radius: BorderRadius::all(Val::Px(34.0)), overflow: Overflow::clip(), ..default() },
+            BackgroundColor(PAPER),
+            BoxShadow::new(Color::srgba(0.047, 0.094, 0.149, 0.25), Val::Px(0.0), Val::Px(30.0), Val::Px(0.0), Val::Px(80.0)),
+        ))
+        .with_children(|sheet| {
+            sheet.spawn(Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(6.0), padding: UiRect::new(Val::Px(44.0), Val::Px(44.0), Val::Px(28.0), Val::Px(12.0)), ..default() }).with_children(|h| {
+                h.spawn(text(&f.serif, 46.0, FOREST, "Proposals".into()));
+                h.spawn(text(&f.sans, 16.0, FOREST2, "What agents propose from their lines. Nothing reaches main until you accept it here.".into()));
+                if let Some(e) = &modal.error {
+                    h.spawn(text(&f.sans, 15.0, Color::srgb(0.7, 0.2, 0.15), e.clone()));
+                }
+            });
+            sheet
+                .spawn(Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(14.0), padding: UiRect::new(Val::Px(44.0), Val::Px(44.0), Val::Px(8.0), Val::Px(28.0)), overflow: Overflow::scroll_y(), flex_grow: 1.0, min_height: Val::Px(0.0), ..default() })
+                .with_children(|list| {
+                    if modal.list.is_empty() {
+                        list.spawn(text(&f.sans, 17.0, FOREST2, "No proposals. An agent proposes with `theDB propose line-<agent> \"<note>\"`.".into()));
+                    }
+                    for (id, p) in &modal.list {
+                        let open = p.state == thedb::proposals::State::Open;
+                        list.spawn((
+                            Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(8.0), padding: UiRect::all(Val::Px(24.0)), border_radius: BorderRadius::all(Val::Px(24.0)), border: UiRect::left(Val::Px(4.0)), max_width: Val::Px(760.0), ..default() },
+                            BackgroundColor(CREAM),
+                            BorderColor::all(if open { SUN } else { SAND }),
+                        ))
+                        .with_children(|card| {
+                            let state = match p.state {
+                                thedb::proposals::State::Open => "OPEN",
+                                thedb::proposals::State::Merged => "ACCEPTED",
+                                thedb::proposals::State::Refused => "REFUSED",
+                            };
+                            card.spawn(text(&f.sans, 13.0, FOREST2, format!("PROPOSAL · {state} · from {}", p.branch)));
+                            card.spawn(text(&f.sans, 22.0, FOREST, p.note.clone()));
+                            let docs: Vec<String> = p.docs.keys().map(|d| crate::db().meta(d).map(|m| format!("{} {}", m.0, m.1)).unwrap_or_else(|_| d.clone())).collect();
+                            card.spawn(text(&f.mono, 13.0, FOREST2, format!("changes {}", docs.join(", "))));
+                            if open {
+                                card.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(10.0), margin: UiRect::top(Val::Px(6.0)), ..default() }).with_children(|row| {
+                                    row.spawn(button("Accept", PillAct::Accept(id.clone()), CLAY, CREAM));
+                                    row.spawn(button("Refuse", PillAct::Refuse(id.clone()), SAND, FOREST));
+                                });
+                            }
+                        });
+                    }
+                });
+        });
+    commands.spawn((
+        Sheet,
+        PillAct::Close,
+        GlobalZIndex(32),
+        Node { position_type: PositionType::Absolute, left: Val::Percent(50.0), bottom: Val::Px(10.0), margin: UiRect::left(Val::Px(-36.0)), width: Val::Px(72.0), height: Val::Px(36.0), border_radius: BorderRadius::bottom(Val::Px(36.0)), justify_content: JustifyContent::Center, align_items: AlignItems::FlexStart, ..default() },
+        BackgroundColor(PAPER),
+        children![(Text::new("×"), TextFont { font: f.sans.clone().into(), font_size: FontSize::Px(24.0), ..default() }, TextColor(FOREST), Pickable::IGNORE)],
+    ));
+}

@@ -9,6 +9,7 @@
 mod camera;
 mod contract;
 mod film;
+mod pill;
 mod root;
 mod setup;
 mod thedb_view;
@@ -92,7 +93,7 @@ fn main() {
             .insert_state(View::Studio)
             .add_systems(Update, film::take_still);
     } else {
-        app.add_plugins((ui::plugin, thedb_view::plugin, setup::plugin));
+        app.add_plugins((ui::plugin, thedb_view::plugin, setup::plugin, pill::plugin));
         if mode == Some("--navtest") {
             app.add_systems(Update, ui::navtest);
         }
