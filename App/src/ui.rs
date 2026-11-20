@@ -252,6 +252,7 @@ fn release(mut cursor: Query<&mut bevy::window::CursorOptions>) {
 enum Click {
     Act(Act),
     Setup(crate::setup::SetupAct),
+    Pill(fn(&crate::pill::PillAct) -> bool),
     Db(fn(&crate::thedb_view::DbAct) -> bool),
 }
 
@@ -266,6 +267,7 @@ pub fn navtest(
     mut failed: Local<bool>,
     mut setup_first: Local<Option<bool>>,
     setup_buttons: Query<(&crate::setup::SetupAct, &ComputedNode, &UiGlobalTransform)>,
+    pill_buttons: Query<(&crate::pill::PillAct, &ComputedNode, &UiGlobalTransform)>,
     buttons: Query<(&Act, &ComputedNode, &UiGlobalTransform)>,
     db_buttons: Query<(&crate::thedb_view::DbAct, &ComputedNode, &UiGlobalTransform)>,
     db: Option<Res<crate::thedb_view::Db>>,
@@ -282,7 +284,7 @@ pub fn navtest(
     // a store without a master starts on the setup screen: its key made, then saved, then the dashboard
     let setup = [(Click::Setup(crate::setup::SetupAct::Make), View::Setup), (Click::Setup(crate::setup::SetupAct::Saved), View::Home)];
     let with_setup = *setup_first.get_or_insert_with(|| matches!(crate::db().master(), Ok(None)));
-    let views: [(Click, View); 17] = [
+    let views: [(Click, View); 20] = [
         (Click::Act(Act::Open(View::Studio)), View::Studio),
         (Click::Act(Act::Home), View::Home),
         (Click::Act(Act::Open(View::Game)), View::Game),
@@ -300,6 +302,10 @@ pub fn navtest(
         (Click::Db(|a| *a == DbAct::Select), View::TheDB),
         (Click::Db(|a| *a == DbAct::Branch(None)), View::TheDB),
         (Click::Act(Act::Home), View::Home),
+        // the proposals, over the dashboard: opened, the first open one accepted (if there is one), closed
+        (Click::Pill(|a| *a == crate::pill::PillAct::Proposals), View::Home),
+        (Click::Pill(|a| matches!(a, crate::pill::PillAct::Accept(_) | crate::pill::PillAct::Close)), View::Home),
+        (Click::Pill(|a| *a == crate::pill::PillAct::Close), View::Home),
     ];
     let steps: Vec<(Click, View)> = setup.into_iter().filter(|_| with_setup).chain(views).collect();
     // a pointer of its own, so the real mouse over the window cannot move it
@@ -331,6 +337,7 @@ pub fn navtest(
             Click::Act(a) => format!("{a:?}"),
             Click::Db(_) => "in theDB's view".to_string(),
             Click::Setup(a) => format!("{a:?} on the setup screen"),
+            Click::Pill(_) => "on the pill or in the proposals".to_string(),
         };
         println!(
             "navtest: step {} click {what}: now {:?}, {} {}",
@@ -346,6 +353,12 @@ pub fn navtest(
     let found = match click {
         Click::Act(act) => buttons.iter().find(|(a, ..)| **a == act).map(|(_, n, t)| (n, t)),
         Click::Setup(act) => setup_buttons.iter().find(|(a, ..)| **a == act).map(|(_, n, t)| (n, t)),
+        // an Accept before the Close: the first proposal's
+        Click::Pill(pick) => {
+            let mut found: Vec<_> = pill_buttons.iter().filter(|(a, ..)| pick(a)).collect();
+            found.sort_by_key(|(a, ..)| matches!(a, crate::pill::PillAct::Close));
+            found.first().map(|(_, n, t)| (*n, *t))
+        }
         // the first on screen: the topmost, then the leftmost
         Click::Db(pick) => db_buttons.iter().filter(|(a, ..)| pick(a)).min_by(|x, y| (x.2.translation.y, x.2.translation.x).partial_cmp(&(y.2.translation.y, y.2.translation.x)).unwrap_or(std::cmp::Ordering::Equal)).map(|(_, n, t)| (n, t)),
     };

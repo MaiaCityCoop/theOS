@@ -56,6 +56,8 @@ pub fn signature(bytes: &[u8]) -> Result<Signature> {
 pub enum Cap {
     /// Write the line (theDB's branch `line-<agent>`) of that name.
     Line(String),
+    /// Write main and every branch: the host's (theOS's) routine writes, and the merges a person accepts in it.
+    Main,
 }
 
 impl rcan::Capability for Cap {
@@ -106,12 +108,15 @@ const SERVICE: &str = "theOS";
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Who {
     Master,
+    /// The host (theOS on this Mac): its routine writes, by the master's grant of `Cap::Main`.
+    Host,
     Agent(String),
 }
 
 fn account(master: &PublicKey, who: &Who) -> String {
     match who {
         Who::Master => format!("master of {master}"),
+        Who::Host => format!("host of {master}"),
         Who::Agent(name) => format!("agent {name} of {master}"),
     }
 }
@@ -146,17 +151,14 @@ pub fn secret_text(key: &SecretKey) -> String {
     key.to_bytes().iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// Whose key this process signs with: the agent named by `THEOS_AGENT`, or else the master.
-pub fn who_am_i() -> Who {
-    match std::env::var("THEOS_AGENT") {
-        Ok(a) if !a.is_empty() => Who::Agent(a),
-        _ => Who::Master,
-    }
-}
-
-/// The key this process signs with under `master`, from the Keychain.
+/// The key this process signs with under `master`, from the Keychain: the agent's named by `THEOS_AGENT`; else the
+/// host's, for routine writes; else (before the host has a key) the master's. The master's key is otherwise used only
+/// to grant.
 pub fn key_for(master: &PublicKey) -> Option<SecretKey> {
-    keychain_get(master, &who_am_i())
+    match std::env::var("THEOS_AGENT") {
+        Ok(a) if !a.is_empty() => keychain_get(master, &Who::Agent(a)),
+        _ => keychain_get(master, &Who::Host).or_else(|| keychain_get(master, &Who::Master)),
+    }
 }
 
 #[cfg(test)]

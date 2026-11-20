@@ -59,7 +59,8 @@ pub struct Aim;
 pub fn plugin(app: &mut App) {
     // the walker starts in the middle of a 10 m square, between the grid's stronger lines
     app.insert_resource(Studio::paused_at(shots(timeline()).expect("the root's timeline reads and parses"), 0.0))
-        .insert_resource(Walker { pos: Vec3::new(5.5, 1.6, 5.5), yaw: 0.0, pitch: -4.0 })
+        .insert_resource(Walker { pos: Vec3::new(5.5, 0.0, 5.5), yaw: 0.0, pitch: -4.0 })
+        .add_systems(Startup, |module: Option<Res<crate::module::WorldModule>>, mut w: ResMut<Walker>| w.pos.y = module.map_or(0.0, |m| m.eye_height()))
         .add_observer(capture)
         .add_systems(Update, (choose_world, (walk.run_if(in_state(View::Game)), play.run_if(in_state(View::Studio))).in_set(Aim)));
 }
@@ -78,6 +79,7 @@ fn walk(
     cursor: Query<&bevy::window::CursorOptions>,
     mut walker: ResMut<Walker>,
     mut eye: ResMut<Eye>,
+    module: Option<Res<crate::module::WorldModule>>,
 ) {
     // look: with the mouse captured (click into the world), or while a button is held
     let captured = cursor.iter().any(|c| c.grab_mode != bevy::window::CursorGrabMode::None);
@@ -101,7 +103,9 @@ fn walk(
     .normalize_or_zero();
     // walking pace at eye height, faster the higher the eye, as a flight over the land would feel
     let run = if keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]) { 4.5 } else { 1.0 };
-    let speed = 4.0 * run * (walker.pos.y / 1.6).max(1.0).powf(0.9);
+    // faster the higher the eye is above where it starts (the world's module says where)
+    let start = module.as_ref().map_or(1.0, |m| m.eye_height().max(0.01));
+    let speed = 4.0 * run * (walker.pos.y / start).max(1.0).powf(0.9);
     walker.pos += m * speed * time.delta_secs();
     walker.pos.y = walker.pos.y.clamp(LOWEST, HIGHEST);
     let (sp, cp) = walker.pitch.to_radians().sin_cos();

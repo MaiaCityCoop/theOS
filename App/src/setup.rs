@@ -41,9 +41,16 @@ pub fn plugin(app: &mut App) {
 }
 
 /// A store without a master opens on the setup screen.
+/// A store with a master whose host has no key yet gets one now (theOS's routine writes, by the master's grant).
 fn first_start(mut next: ResMut<NextState<View>>) {
-    if matches!(crate::db().master(), Ok(None)) {
-        next.set(View::Setup);
+    match crate::db().master() {
+        Ok(None) => next.set(View::Setup),
+        Ok(Some(_)) => {
+            if let Err(e) = crate::db().ensure_host() {
+                eprintln!("theOS: the host's key: {e}");
+            }
+        }
+        Err(e) => eprintln!("theOS: the store's master: {e}"),
     }
 }
 

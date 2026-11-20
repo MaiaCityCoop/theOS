@@ -512,6 +512,8 @@ impl TheDB {
                 json::heal(doc)?;
                 doc.commit();
             }
+            // what is kept fits the schema the doc names, as merged (schema.rs)
+            self.check_schema(id, doc)?;
             let at = now();
             let hash = sql::keep(&tx, id, doc, base, at)?;
             if !sql::move_head(&tx, on, id, expected, hash, at)? {
@@ -558,11 +560,7 @@ impl TheDB {
             return Ok(());
         }
         // in a signed store, branches are the master's to make (an agent's line comes with its grant)
-        if let Some(master) = self.master()?
-            && self.signer() != Some(master)
-        {
-            return Err("branches are made by the master only".into());
-        }
+        self.is_master_or_host().map_err(|_| "branches are made by the master or theOS's host only".to_string())?;
         sql::make_branch(&self.sql(), name, about, now())
     }
 
@@ -892,6 +890,7 @@ pub mod bevy;
 pub mod access;
 pub mod build;
 pub mod proposals;
+pub mod schema;
 
 pub mod inventory;
 

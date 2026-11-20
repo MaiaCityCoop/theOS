@@ -20,6 +20,7 @@ n0-future = "0.3.0"
 irpc = { version = "0.17", default-features = false, features = ["noq_endpoint_setup"] }
 noq = { version = "1", default-features = false }
 theid = { path = "../theID" }
+jsonschema = { version = "0.61.2", default-features = false }
 
 [features]
 bevy = ["dep:bevy_asset", "dep:async-channel"]

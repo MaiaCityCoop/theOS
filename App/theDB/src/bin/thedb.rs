@@ -19,9 +19,9 @@
 //!     thedb branch <name> [about]       a new branch from main
 //!     thedb branches                    every branch, and how many docs it changes
 //!     thedb diff <branch>               the docs a branch changes: main's version → the branch's
-//!     thedb propose <branch> <note>     a proposal to merge a branch into main
+//!     thedb propose <branch> <note>     a proposal to merge a branch into main, kept on the branch
 //!     thedb proposal <id>               a proposal's state and its check's output
-//!     thedb merge <id>                  the proposal's docs brought into main, one merge at a time
+//!     thedb proposals                   every proposal on every line (accepted or refused in theOS only, by a person)
 //!
 //! Who may write (intent 0054; keys, signatures and grants are theID's). Once a store has a master, main is written by
 //! the master only, and an agent (`THEOS_AGENT=<name>`, `THEDB_BRANCH=line-<name>`) by its own key on its own line.
@@ -32,6 +32,16 @@
 //!     thedb master restore              the master's secret, read from the input, into this Mac's Keychain
 //!     thedb agent <name> [days]         a new agent: its key in the Keychain, the master's grant of line-<name>
 //!     thedb verify                      every signature, and every head signed by whom its branch allows
+//!
+//! Modules (intent 0054): code that is content. A module doc's text is one Rust file; built, it is its part `wasm`.
+//!
+//!     thedb module build <id>           the module built into WebAssembly, kept as its part `wasm` (on this branch)
+//!
+//! Schemas (intent 0056): a JSON Schema kept as a blob, named by its hash; a doc that names one is checked on every
+//! commit.
+//!
+//!     thedb schema put <file>           a schema, checked against JSON Schema's meta-schema; prints its hash
+//!     thedb schema set <id> <hash|none> doc <id> names that schema from now on (checked against it at once)
 //!
 //! Finding docs (intent 0053): answered from SQLite, no doc is opened.
 //!
@@ -116,10 +126,30 @@ fn main() {
         ["proposal", id] => {
             let p = db.proposal(id).unwrap_or_else(|e| fail(&e));
             println!("{:?}  {}  from {}  ({} docs)", p.state, p.note, p.branch, p.docs.len());
-            println!("{}", db.proposal_output(id).unwrap_or_default());
+        }
+        ["module", "build", id] => println!("{}", db.build_module(id).unwrap_or_else(|e| fail(&e))),
+        ["schema", "put", file] => {
+            let bytes = std::fs::read(file).unwrap_or_else(|e| fail(&e.to_string()));
+            println!("{}", db.put_schema(&bytes).unwrap_or_else(|e| fail(&e)));
+        }
+        ["schema", "set", id, hash] => {
+            let h = if *hash == "none" { None } else { Some(hash.parse().unwrap_or_else(|_| fail("not a hash"))) };
+            println!("{}", db.set_schema(id, h).unwrap_or_else(|e| fail(&e)));
+        }
+        ["proposals"] => {
+            for (id, p) in db.proposals().unwrap_or_else(|e| fail(&e)) {
+                println!("{id}  {:?}  {}  from {}  ({} docs)", p.state, p.note, p.branch, p.docs.len());
+            }
         }
         ["master"] => match db.master().unwrap_or_else(|e| fail(&e)) {
-            Some(m) => println!("{m}\n{}", if db.signer() == Some(m) { "its secret is in this Mac's Keychain" } else { "its secret is not on this Mac: theDB master restore" }),
+            Some(m) => {
+                println!("{m}");
+                match db.host().unwrap_or_else(|e| fail(&e)) {
+                    Some((h, _)) => println!("host {h}"),
+                    None => println!("no host yet: theOS makes it when it starts with the master's key"),
+                }
+                println!("this process signs as {}", db.signer().map(|k| k.to_string()).unwrap_or_else(|| "nobody (no key on this Mac)".into()));
+            }
             None => println!("no master: nothing is signed (theDB master init)"),
         },
         ["master", "init"] => {
@@ -149,14 +179,6 @@ fn main() {
             if !v.problems.is_empty() {
                 std::process::exit(1);
             }
-        }
-        ["merge", id] => {
-            let merged = db.merge(id).unwrap_or_else(|e| fail(&e));
-            println!("{}", db.proposal_output(id).unwrap_or_default());
-            if !merged {
-                fail("refused; main is unchanged");
-            }
-            eprintln!("merged into main");
         }
         ["root"] => println!("{}", db.root().unwrap_or_else(|e| fail(&e)).unwrap_or_default()),
         ["root", id] => db.set_root(id).unwrap_or_else(|e| fail(&e)),

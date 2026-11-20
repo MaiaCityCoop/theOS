@@ -497,3 +497,10 @@ pub fn grants_for(conn: &Connection, agent: &str, line: &str) -> Result<Vec<Hash
     let rows = q.query_map([agent, line], |r| r.get::<_, String>(0)).map_err(err)?.collect::<std::result::Result<Vec<_>, _>>().map_err(err)?;
     rows.iter().map(|h| unhex(h)).collect()
 }
+
+/// Every proposal doc and the branch it lives on (its own head there), newest first.
+pub fn proposal_heads(conn: &Connection) -> Result<Vec<(String, String)>> {
+    let mut q = conn.prepare("SELECT h.doc, h.branch FROM heads h JOIN docs d ON d.id = h.doc WHERE d.kind = 'proposal' AND h.branch != ?1 ORDER BY h.at DESC").map_err(err)?;
+    let rows = q.query_map([crate::MAIN], |r| Ok((r.get(0)?, r.get(1)?))).map_err(err)?.collect::<std::result::Result<Vec<_>, _>>().map_err(err)?;
+    Ok(rows)
+}

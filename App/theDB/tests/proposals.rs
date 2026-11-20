@@ -39,7 +39,7 @@ fn a_proposal_brings_a_branch_into_main() {
     db.set_text(&world, r#"{"sky": "e9f2fb", "ground": "4f9d34", "sun": {"elevation": 30}}"#).unwrap();
     db.set_branch(None).unwrap();
     let p = db.propose("sun", "a sun").unwrap();
-    assert!(db.merge(&p).unwrap());
+    db.merge(&p).unwrap();
     assert_eq!(db.proposal(&p).unwrap().state, State::Merged);
     let v: serde_json::Value = serde_json::from_str(&db.text(&world).unwrap().unwrap()).unwrap();
     assert_eq!(v["sun"]["elevation"], 30);
