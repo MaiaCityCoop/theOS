@@ -91,14 +91,14 @@ fn apply_with(map: &LoroMap, want: &Value, exact: bool) -> Result<()> {
             Value::Object(_) => {
                 let child = match map.get(k) {
                     Some(ValueOrContainer::Container(Container::Map(m))) => m,
-                    _ => map.insert_container(k, LoroMap::new()).map_err(err)?,
+                    other => mergeable(map, k, other.is_some(), LoroMap::ensure_mergeable_map)?,
                 };
                 apply_with(&child, v, exact)?;
             }
             Value::Array(a) => {
                 let list = match map.get(k) {
                     Some(ValueOrContainer::Container(Container::List(l))) => l,
-                    _ => map.insert_container(k, LoroList::new()).map_err(err)?,
+                    other => mergeable(map, k, other.is_some(), LoroMap::ensure_mergeable_list)?,
                 };
                 apply_list(&list, a)?;
             }
@@ -106,6 +106,16 @@ fn apply_with(map: &LoroMap, want: &Value, exact: bool) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// The child container at `key`, made mergeable (Research/0059 §1.10): two branches that each add the object or list
+/// at `key` get the same container, so both sides' entries are kept. With a plain `insert_container` each side made
+/// its own, and the merge showed one of them only. What `key` held before (a value, or another kind) goes first.
+fn mergeable<C>(map: &LoroMap, key: &str, held: bool, make: fn(&LoroMap, &str) -> loro::LoroResult<C>) -> Result<C> {
+    if held {
+        map.delete(key).map_err(err)?;
+    }
+    make(map, key).map_err(err)
 }
 
 /// Makes the list hold `want`: what both ends share stays, the middle is replaced, so an entry added at the end on

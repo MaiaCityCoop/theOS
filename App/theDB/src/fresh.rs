@@ -76,7 +76,7 @@ fn names(doc: &LoroDoc) -> Vec<String> {
         return Vec::new();
     }
     if let Some(v) = content(doc).filter(is_engine) {
-        return ["pinned", "tree"].iter().filter_map(|k| v[*k].as_str().map(str::to_string)).collect();
+        return v["pinned"].as_str().map(str::to_string).into_iter().collect();
     }
     let mut out = Vec::new();
     json::strings(&json::whole(doc), &mut out);

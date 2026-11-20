@@ -33,6 +33,20 @@ pub use bytes::Bytes;
 pub use iroh_blobs::Hash;
 pub use loro;
 
+/// Every doc theDB opens or makes, set up as Research/0059 §4.7 says: each change records when it was made (Loro keeps
+/// no time unless asked), and each commit is its own change (Loro otherwise joins one peer's commits within 1000 s
+/// into one change, and the history shows one entry for many).
+pub(crate) fn settle(doc: LoroDoc) -> LoroDoc {
+    doc.set_record_timestamp(true);
+    doc.set_change_merge_interval(-1);
+    doc
+}
+
+/// A new, empty doc, set up as every doc is.
+pub(crate) fn empty() -> LoroDoc {
+    settle(LoroDoc::new())
+}
+
 /// What can go wrong: the store's own errors, as words.
 pub type Result<T> = std::result::Result<T, String>;
 
@@ -196,12 +210,20 @@ impl TheDB {
     /// A process that does not own the blob store and finds no tables is talking to an owner that runs the code from
     /// before SQLite (the new code makes them when it opens): that owner reads heads from tags, this one would write
     /// them to SQLite, and the two would no longer see each other's commits. So it is refused.
+    /// What a store made before the newest tables gains, in one transaction (two processes may open it at once).
+    fn upgrade(&self) -> Result<()> {
+        let mut sql = self.sql();
+        let tx = sql.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(err)?;
+        sql::upgrade(&tx)?;
+        tx.commit().map_err(err)
+    }
+
     fn prepare(&self) -> Result<()> {
         if self.owner.is_none() {
             // an owner that has just opened makes its tables in a moment
             for _ in 0..20 {
                 if sql::ready(&self.sql())? {
-                    return Ok(());
+                    return self.upgrade();
                 }
                 std::thread::sleep(std::time::Duration::from_millis(100));
             }
@@ -210,7 +232,9 @@ impl TheDB {
         let mut sql = self.sql();
         let tx = sql.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(err)?;
         if sql::ready(&tx)? {
-            return Ok(());
+            drop(tx);
+            drop(sql);
+            return self.upgrade();
         }
         sql::create(&tx)?;
         let moved = self.migrate(&tx)?;
@@ -289,7 +313,7 @@ impl TheDB {
     pub(crate) fn doc_seen(&self, branch: Option<&str>, id: &str) -> Result<LoroDoc> {
         match self.head_seen(branch, id)? {
             Some(h) => self.doc_at(h),
-            None => Ok(LoroDoc::new()),
+            None => Ok(empty()),
         }
     }
 
@@ -402,7 +426,7 @@ impl TheDB {
     pub fn doc(&self, id: &str) -> Result<LoroDoc> {
         match self.head(id)? {
             Some(h) => self.doc_at(h),
-            None => Ok(LoroDoc::new()),
+            None => Ok(empty()),
         }
     }
 
@@ -413,7 +437,24 @@ impl TheDB {
             return Ok(doc);
         }
         let bytes = self.get(hash)?.ok_or_else(|| format!("no version {hash}"))?;
-        LoroDoc::from_snapshot(&bytes).map_err(err)
+        LoroDoc::from_snapshot(&bytes).map(settle).map_err(err)
+    }
+
+    /// Doc `id` to write: as `doc`, with a peer id lent to this writer alone (Research/0059 §1.8). Loro gives every
+    /// loaded doc a new random peer, and each peer costs every later version its own entry (500 commits by fresh
+    /// peers made a snapshot 5.8 times as large as by one); a lent peer is used again by the next writer whose doc
+    /// holds every op it made. Given back when the `Edit` is dropped.
+    pub fn edit(&self, id: &str) -> Result<Edit<'_>> {
+        let doc = self.doc(id)?;
+        let peer = sql::lease(&self.sql(), id, &doc.oplog_vv())?;
+        doc.set_peer_id(peer).map_err(err)?;
+        Ok(Edit { db: self, id: id.to_string(), doc, peer })
+    }
+
+    /// The frontiers that name the version `hash` in Loro's terms (the same on every device that holds the doc's
+    /// history), if it was kept with them.
+    pub fn frontiers(&self, hash: Hash) -> Result<Option<loro::Frontiers>> {
+        sql::frontiers(&self.sql(), hash)
     }
 
     /// Brings what the version `hash` has and `into` lacks into `into`.
@@ -437,6 +478,10 @@ impl TheDB {
     /// committing one doc at once, the second merges the first's version, and neither edit is lost.
     pub fn commit_on(&self, branch: Option<&str>, id: &str, doc: &LoroDoc) -> Result<Hash> {
         check(id)?;
+        // a message of its own: Loro joins one peer's consecutive changes that share a message and a second (on
+        // import too, whatever the merge interval), and the history would show one entry for many commits
+        let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+        doc.set_next_commit_message(&format!("theDB {t:x}"));
         doc.commit();
         let on = branch.unwrap_or(MAIN);
         for _ in 0..TRIES {
@@ -520,7 +565,7 @@ impl TheDB {
     pub fn merged(&self, branch: &str, id: &str) -> Result<LoroDoc> {
         let doc = match self.head_on(None, id)? {
             Some(h) => self.doc_at(h)?,
-            None => LoroDoc::new(),
+            None => empty(),
         };
         if let Some(h) = self.head_on(Some(branch), id)? {
             self.bring(&doc, h)?;
@@ -542,7 +587,7 @@ impl TheDB {
     /// A new doc: its id made here, its kind and name kept inside it. Returns the id.
     pub fn new(&self, kind: &str, name: &str) -> Result<String> {
         let id = new_id();
-        let doc = LoroDoc::new();
+        let doc = self.edit(&id)?;
         let meta = doc.get_map("meta");
         meta.insert("kind", kind).map_err(err)?;
         meta.insert("name", name).map_err(err)?;
@@ -604,7 +649,7 @@ impl TheDB {
     /// branches that change it merge by key and never into a text that no longer parses. Returns the hash of the
     /// version that holds it.
     pub fn set_text(&self, id: &str, text: &str) -> Result<Hash> {
-        let doc = self.doc(id)?;
+        let doc = self.edit(id)?;
         if !json::write(&doc, text)?
             && let Some(h) = self.head(id)?
         {
@@ -628,7 +673,7 @@ impl TheDB {
             return self.set_text(id, text);
         }
         let blob = self.put(bytes.to_vec())?.to_hex().to_string();
-        let doc = self.doc(id)?;
+        let doc = self.edit(id)?;
         let map = doc.get_map("file");
         if let Some(h) = self.head(id)?
             && map.get("blob").and_then(|v| v.into_value().ok()).and_then(|v| v.into_string().ok()).is_some_and(|b| *b == blob)
@@ -684,7 +729,7 @@ impl TheDB {
     /// committed. Returns the doc's version hash.
     pub fn set_part(&self, id: &str, name: &str, bytes: &[u8]) -> Result<Hash> {
         let blob = self.put(bytes.to_vec())?.to_hex().to_string();
-        let doc = self.doc(id)?;
+        let doc = self.edit(id)?;
         let parts = doc.get_map("parts");
         if let Some(h) = self.head(id)?
             && parts.get(name).and_then(|v| v.into_value().ok()).and_then(|v| v.into_string().ok()).is_some_and(|b| *b == blob)
@@ -722,14 +767,11 @@ pub struct Build {
 pub struct Engine {
     pub pinned: Option<String>,
     pub builds: Vec<String>,
-    /// The source tree its builds are made from (intent 0051).
-    #[serde(default)]
-    pub tree: Option<String>,
 }
 
 impl TheDB {
-    /// Keeps a build of engine `id`: the binary as a blob, the manifest of its source (each file named by its doc's
-    /// version, `publish_tree`) as a blob, the build as a blob; adds it to the engine's builds and pins it. Returns the
+    /// Keeps a build of engine `id`: the binary as a blob, the manifest of its source (the git commit and each file's
+    /// blob, `publish_git`) as a blob, the build as a blob; adds it to the engine's builds and pins it. Returns the
     /// build's hash.
     pub fn publish(&self, id: &str, binary: &[u8], manifest: &[u8], toolchain: &str) -> Result<Hash> {
         let manifest = self.put(manifest.to_vec())?;
@@ -845,5 +887,29 @@ impl Drop for TheDB {
         if self.owner.is_some() {
             let _ = self.rt.block_on(self.store.shutdown());
         }
+    }
+}
+
+/// A doc being written, with the peer id lent to it (`TheDB::edit`); it reads as the doc itself.
+pub struct Edit<'a> {
+    db: &'a TheDB,
+    id: String,
+    doc: LoroDoc,
+    peer: u64,
+}
+
+impl std::ops::Deref for Edit<'_> {
+    type Target = LoroDoc;
+    fn deref(&self) -> &LoroDoc {
+        &self.doc
+    }
+}
+
+impl Drop for Edit<'_> {
+    fn drop(&mut self) {
+        // the peer is lent again only to a doc that holds exactly this many of its ops; ops never committed were never
+        // kept anywhere, so making their ids again with other content harms nothing
+        let n = self.doc.oplog_vv().get(&self.peer).copied().unwrap_or(0);
+        let _ = sql::give_back(&self.db.sql(), &self.id, self.peer, n);
     }
 }

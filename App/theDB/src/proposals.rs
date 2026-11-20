@@ -3,7 +3,6 @@
 //! one at a time; checking content against its schema comes with intent 0056, and many merges at once with 0057.
 
 use crate::{Hash, Result, TheDB, err};
-use loro::LoroDoc;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -35,7 +34,7 @@ impl TheDB {
         let p = Proposal { branch: branch.into(), note: note.into(), docs, state: State::Open };
         // a proposal lives on main, whatever branch proposes it
         let id = crate::new_id();
-        let doc = LoroDoc::new();
+        let doc = self.edit(&id)?;
         let meta = doc.get_map("meta");
         meta.insert("kind", "proposal").map_err(err)?;
         meta.insert("name", note).map_err(err)?;
