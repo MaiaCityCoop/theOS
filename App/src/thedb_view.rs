@@ -8,7 +8,7 @@
 //! (`thedb::inventory`); the blobs' facts follow one by one, each read once per hash. Nothing here writes.
 
 use crate::View;
-use crate::ui::{Act, CLAY, CREAM, FOREST, FOREST2, Fonts, PAPER, SAND, SUN};
+use crate::ui::{CLAY, CREAM, FOREST, FOREST2, Fonts, PAPER, SAND, SUN};
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
@@ -539,7 +539,7 @@ fn layout(mut commands: Commands, mut db: ResMut<Db>) {
         .spawn((
             DespawnOnExit(View::TheDB),
             // pinned to the window's four edges, so no content can make the view wider than the window
-            Node { position_type: PositionType::Absolute, left: Val::Px(0.0), right: Val::Px(0.0), top: Val::Px(0.0), bottom: Val::Px(0.0), flex_direction: FlexDirection::Column, padding: UiRect::all(Val::Px(24.0)), row_gap: Val::Px(16.0), overflow: Overflow::clip(), ..default() },
+            Node { position_type: PositionType::Absolute, left: Val::Px(0.0), right: Val::Px(0.0), top: Val::Px(0.0), bottom: Val::Px(0.0), flex_direction: FlexDirection::Column, padding: UiRect::new(Val::Px(24.0), Val::Px(24.0), Val::Px(24.0), Val::Px(72.0)), row_gap: Val::Px(16.0), overflow: Overflow::clip(), ..default() },
             BackgroundColor(PAPER),
         ))
         .with_children(|root| {
@@ -660,7 +660,6 @@ fn draw_head(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
     p.spawn(Node { flex_grow: 1.0, ..default() });
     p.spawn((words(f, "mono", 13.0, FOREST2, status(db)), Status));
     p.spawn((button(f, "Refresh", SAND, FOREST), DbAct::Refresh));
-    p.spawn((button(f, "Home", FOREST, CREAM), Act::Home));
 }
 
 /// The header's status: reading, or what was read and how many blobs' facts are known.

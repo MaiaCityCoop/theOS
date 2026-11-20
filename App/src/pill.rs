@@ -59,36 +59,44 @@ fn icons(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     });
 }
 
+/// The pill's own camera: over the whole window and over every view's picture (the Studio films into a frame
+/// smaller than the window), drawn last, clearing nothing.
+#[derive(Resource)]
+struct Overlay(Entity);
+
 fn spawn(mut commands: Commands, icons: Res<Icons>, fonts: Res<Fonts>) {
+    let cam = commands.spawn((Camera2d, Camera { order: 100, clear_color: ClearColorConfig::None, ..default() })).id();
+    commands.insert_resource(Overlay(cam));
     commands
         .spawn((
             Pill,
+            UiTargetCamera(cam),
             GlobalZIndex(20),
-            Node { position_type: PositionType::Absolute, left: Val::Px(0.0), right: Val::Px(0.0), bottom: Val::Px(22.0), justify_content: JustifyContent::Center, ..default() },
+            Node { position_type: PositionType::Absolute, left: Val::Px(0.0), right: Val::Px(0.0), bottom: Val::Px(14.0), justify_content: JustifyContent::Center, ..default() },
             Pickable::IGNORE,
         ))
         .with_children(|row| {
             row.spawn((
-                Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(18.0), height: Val::Px(62.0), padding: UiRect::horizontal(Val::Px(22.0)), border_radius: BorderRadius::all(Val::Px(999.0)), border: UiRect::all(Val::Px(1.0)), ..default() },
+                Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(12.0), height: Val::Px(42.0), padding: UiRect::horizontal(Val::Px(14.0)), border_radius: BorderRadius::all(Val::Px(999.0)), border: UiRect::all(Val::Px(1.0)), ..default() },
                 BackgroundColor(Color::srgba(0.984, 0.965, 0.918, 0.86)),
                 BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.7)),
-                BoxShadow::new(Color::srgba(0.047, 0.094, 0.149, 0.18), Val::Px(0.0), Val::Px(10.0), Val::Px(0.0), Val::Px(28.0)),
+                BoxShadow::new(Color::srgba(0.047, 0.094, 0.149, 0.18), Val::Px(0.0), Val::Px(6.0), Val::Px(0.0), Val::Px(18.0)),
             ))
             .with_children(|p| {
-                p.spawn((crate::ui::Act::Home, Hover, Node { width: Val::Px(34.0), height: Val::Px(34.0), ..default() }, ImageNode::new(icons.home.clone())));
+                p.spawn((crate::ui::Act::Home, Hover, Node { width: Val::Px(22.0), height: Val::Px(22.0), ..default() }, ImageNode::new(icons.home.clone())));
                 p.spawn((
                     PillAct::Proposals,
                     Hover,
-                    Node { width: Val::Px(74.0), height: Val::Px(74.0), margin: UiRect::vertical(Val::Px(-10.0)), border_radius: BorderRadius::all(Val::Percent(50.0)), border: UiRect::all(Val::Px(4.0)), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
+                    Node { width: Val::Px(50.0), height: Val::Px(50.0), margin: UiRect::vertical(Val::Px(-6.0)), border_radius: BorderRadius::all(Val::Percent(50.0)), border: UiRect::all(Val::Px(3.0)), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
                     BackgroundColor(FOREST),
                     BorderColor::all(Color::srgba(0.949, 0.710, 0.267, 0.55)),
-                    BoxShadow::new(Color::srgba(0.047, 0.094, 0.149, 0.35), Val::Px(0.0), Val::Px(14.0), Val::Px(0.0), Val::Px(34.0)),
-                    children![(ImageNode::new(icons.star.clone()), Node { width: Val::Px(44.0), height: Val::Px(44.0), ..default() }, Pickable::IGNORE)],
+                    BoxShadow::new(Color::srgba(0.047, 0.094, 0.149, 0.35), Val::Px(0.0), Val::Px(8.0), Val::Px(0.0), Val::Px(20.0)),
+                    children![(ImageNode::new(icons.star.clone()), Node { width: Val::Px(30.0), height: Val::Px(30.0), ..default() }, Pickable::IGNORE)],
                 ));
                 p.spawn((
-                    Node { width: Val::Px(44.0), height: Val::Px(39.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
+                    Node { width: Val::Px(30.0), height: Val::Px(27.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
                     ImageNode::new(icons.hexagon.clone()),
-                    children![(Text::new("MC"), TextFont { font: fonts.sans.clone().into(), font_size: FontSize::Px(15.0), weight: FontWeight::BOLD, ..default() }, TextColor(FOREST), Pickable::IGNORE)],
+                    children![(Text::new("MC"), TextFont { font: fonts.sans.clone().into(), font_size: FontSize::Px(11.0), weight: FontWeight::BOLD, ..default() }, TextColor(FOREST), Pickable::IGNORE)],
                 ));
             });
         });
@@ -139,7 +147,7 @@ fn click(mut ev: On<PointerClick>, acts: Query<&PillAct>, mut modal: ResMut<Moda
     modal.dirty = true;
 }
 
-fn draw(mut commands: Commands, fonts: Res<Fonts>, mut modal: ResMut<Modal>, old: Query<Entity, With<Sheet>>) {
+fn draw(mut commands: Commands, fonts: Res<Fonts>, overlay: Res<Overlay>, mut modal: ResMut<Modal>, old: Query<Entity, With<Sheet>>) {
     if !modal.dirty {
         return;
     }
@@ -162,10 +170,12 @@ fn draw(mut commands: Commands, fonts: Res<Fonts>, mut modal: ResMut<Modal>, old
         )
     };
     // the view behind, dimmed; the sheet over it; the close tab under the sheet, where the pill was
-    commands.spawn((Sheet, GlobalZIndex(30), Node { position_type: PositionType::Absolute, left: Val::Px(0.0), right: Val::Px(0.0), top: Val::Px(0.0), bottom: Val::Px(0.0), ..default() }, BackgroundColor(Color::srgba(0.090, 0.212, 0.333, 0.38))));
+    let cam = UiTargetCamera(overlay.0);
+    commands.spawn((Sheet, cam.clone(), GlobalZIndex(30), Node { position_type: PositionType::Absolute, left: Val::Px(0.0), right: Val::Px(0.0), top: Val::Px(0.0), bottom: Val::Px(0.0), ..default() }, BackgroundColor(Color::srgba(0.090, 0.212, 0.333, 0.38))));
     commands
         .spawn((
             Sheet,
+            cam.clone(),
             GlobalZIndex(31),
             Node { position_type: PositionType::Absolute, left: Val::Px(14.0), right: Val::Px(14.0), top: Val::Px(14.0), bottom: Val::Px(46.0), flex_direction: FlexDirection::Column, border_radius: BorderRadius::all(Val::Px(34.0)), overflow: Overflow::clip(), ..default() },
             BackgroundColor(PAPER),
@@ -214,6 +224,7 @@ fn draw(mut commands: Commands, fonts: Res<Fonts>, mut modal: ResMut<Modal>, old
         });
     commands.spawn((
         Sheet,
+        cam.clone(),
         PillAct::Close,
         GlobalZIndex(32),
         Node { position_type: PositionType::Absolute, left: Val::Percent(50.0), bottom: Val::Px(10.0), margin: UiRect::left(Val::Px(-36.0)), width: Val::Px(72.0), height: Val::Px(36.0), border_radius: BorderRadius::bottom(Val::Px(36.0)), justify_content: JustifyContent::Center, align_items: AlignItems::FlexStart, ..default() },

@@ -558,11 +558,7 @@ impl TheDB {
             return Ok(());
         }
         // in a signed store, branches are the master's to make (an agent's line comes with its grant)
-        if let Some(master) = self.master()?
-            && self.signer() != Some(master)
-        {
-            return Err("branches are made by the master only".into());
-        }
+        self.is_master_or_host().map_err(|_| "branches are made by the master or theOS's host only".to_string())?;
         sql::make_branch(&self.sql(), name, about, now())
     }
 

@@ -93,6 +93,17 @@ impl TheDB {
         sql::set_meta(&sql, "host_grant", &grant.to_string())
     }
 
+    /// Whether this process signs as the master or the host (a store without a master: anyone). Closing a proposal
+    /// and making a branch need it; an agent, with only its line's key, never has it.
+    pub(crate) fn is_master_or_host(&self) -> Result<()> {
+        let Some(master) = self.master()? else { return Ok(()) };
+        let me = self.signer();
+        if me == Some(master) || self.host()?.is_some_and(|(h, _)| me == Some(h)) {
+            return Ok(());
+        }
+        Err("a proposal is accepted in theOS, by a person: not by an agent".into())
+    }
+
     /// The master's own key, if this process holds it (given, or in this Mac's Keychain).
     fn master_key(&self) -> Option<SecretKey> {
         let master = self.master().ok()??;

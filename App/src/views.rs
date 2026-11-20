@@ -60,7 +60,7 @@ pub struct Boxed {
     pub fill: bool,
     #[serde(default)]
     pub min_h: f32,
-    /// Padding: one value, or across and down.
+    /// Padding: one value, across and down, or left, right, top and bottom.
     #[serde(default)]
     pub pad: Vec<f32>,
     #[serde(default)]
@@ -198,6 +198,7 @@ pub fn draw(commands: &mut Commands, fonts: &crate::ui::Fonts, spec: &Spec, pare
             let pad = match b.pad[..] {
                 [a] => UiRect::all(Val::Px(a)),
                 [x, y] => UiRect::axes(Val::Px(x), Val::Px(y)),
+                [l, r, t, b] => UiRect::new(Val::Px(l), Val::Px(r), Val::Px(t), Val::Px(b)),
                 _ => UiRect::ZERO,
             };
             let at = b.at.clone();

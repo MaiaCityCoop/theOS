@@ -78,7 +78,7 @@ impl TheDB {
         if p.state != State::Open {
             return Err(format!("the proposal is {:?} already", p.state));
         }
-        self.may_accept()?;
+        self.is_master_or_host()?;
         let _lock = Lock::take(&self.dir().join("merge.lock"))?;
         let versions: Vec<(String, Hash)> = p.docs.iter().map(|(d, v)| Ok((d.clone(), v.parse().map_err(err)?))).collect::<Result<_>>()?;
         self.merge_into_main(&versions)?;
@@ -88,18 +88,8 @@ impl TheDB {
     /// Refuses proposal `id`: main stays as it is; the line keeps its work.
     pub fn refuse(&self, id: &str) -> Result<()> {
         let p = self.proposal(id)?;
-        self.may_accept()?;
+        self.is_master_or_host()?;
         self.close(id, p, State::Refused)
-    }
-
-    /// Only the host or the master closes a proposal.
-    fn may_accept(&self) -> Result<()> {
-        let Some(master) = self.master()? else { return Ok(()) };
-        let me = self.signer();
-        if me == Some(master) || self.host()?.is_some_and(|(h, _)| me == Some(h)) {
-            return Ok(());
-        }
-        Err("a proposal is accepted in theOS, by a person: not by an agent".into())
     }
 
     fn close(&self, id: &str, mut p: Proposal, state: State) -> Result<()> {
