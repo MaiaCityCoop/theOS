@@ -97,7 +97,7 @@ fn bake(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut images: Re
             let _ = tiled.merge(&copy);
         }
     }
-    // made once: the same master, settings and shader give the same atlases, kept in avenDB
+    // made once: the same master, settings and shader give the same atlases, kept in theDB
     let settings = format!("{RES} {AZIMUTHS} {SLOPES:?} {TOP} msaa4 mips5");
     let key = crate::bakes::key("lawn", &[&crate::bakes::mesh_bytes(&master), settings.as_bytes()], &[&crate::root::root().shaders.lawn_bake]);
     let n = AZIMUTHS * SLOPES.len() as u32;
@@ -133,7 +133,7 @@ fn bake(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut images: Re
         };
         let (albedo, height) = (images.add(kept(a, TextureFormat::Rgba8UnormSrgb)), images.add(kept(h, TextureFormat::Rgba8Unorm)));
         done.store(2, std::sync::atomic::Ordering::SeqCst);
-        info!("the lawn: baked before, read from avenDB");
+        info!("the lawn: baked before, read from theDB");
         commands.insert_resource(Lawn { albedo, height, done });
         return;
     }

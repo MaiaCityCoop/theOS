@@ -6,7 +6,7 @@
 //!     cargo run -- --bake-place     fetches the source tiles (130 MB, once) and writes Mértola's package
 //!     cargo run                     the dashboard's tile "Place" opens it
 //!
-//! Everything is kept in avenDB (intent 0049), reached by ids from the root: each open-data file fetched, once, a part
+//! Everything is kept in theDB (intent 0049), reached by ids from the root: each open-data file fetched, once, a part
 //! of the Earth's doc under its source URL (the canopy map's headers and rows too, under their URL and range); a
 //! place's package (height.bin, cover.bin, the map's layers, trees.bin, place.json, about 1 MB) one doc, each file a
 //! part. A click on the map outside the square bakes the square
@@ -35,17 +35,17 @@ pub struct Site {
     pub name: String,
     pub lat: f64,
     pub lon: f64,
-    /// Its package in avenDB: the id of one doc, each file a part of it (a blob).
+    /// Its package in theDB: the id of one doc, each file a part of it (a blob).
     pub docs: String,
     pub start: Option<(f32, f32, f32)>,
 }
 
 impl Site {
-    /// A file of the site's package, from avenDB.
+    /// A file of the site's package, from theDB.
     pub fn read(&self, file: &str) -> Option<Vec<u8>> {
         crate::db().part(&self.docs, file).ok().flatten().map(|b| b.to_vec())
     }
-    /// Keeps a file of the site's package in avenDB.
+    /// Keeps a file of the site's package in theDB.
     pub fn write(&self, file: &str, bytes: &[u8]) -> Result<(), String> {
         crate::db().set_part(&self.docs, file, bytes).map(|_| ())
     }
@@ -92,10 +92,10 @@ fn place_doc(lat: f64, lon: f64, name: &str) -> String {
     id
 }
 
-/// An open-data file, downloaded once and kept in avenDB: a part of the Earth's doc under its source URL (its bytes a
+/// An open-data file, downloaded once and kept in theDB: a part of the Earth's doc under its source URL (its bytes a
 /// blob). None when there is none (no elevation tile over open sea), which is kept too (`none <url>`), so it is not
 /// asked for again.
-pub fn fetch((name, url): (&str, &str)) -> Option<avendb::Bytes> {
+pub fn fetch((name, url): (&str, &str)) -> Option<thedb::Bytes> {
     let db = crate::db();
     let earth = &crate::root::root().earth;
     if let Ok(Some(b)) = db.part(earth, url) {
@@ -105,7 +105,7 @@ pub fn fetch((name, url): (&str, &str)) -> Option<avendb::Bytes> {
         return None;
     }
     eprintln!("fetching {name}");
-    // downloaded beside the build, then kept in avenDB; the download itself is not kept
+    // downloaded beside the build, then kept in theDB; the download itself is not kept
     let part = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("target/{name}.part"));
     let ok = std::process::Command::new("curl").args(["-sSfL", "--retry", "2", "-o"]).arg(&part).arg(url).status().is_ok_and(|s| s.success());
     let got = if ok { std::fs::read(&part).ok() } else { None };
@@ -162,18 +162,18 @@ impl Source {
 
 /// A tiled GeoTIFF read a tile at a time, so a 36,000-pixel tile costs only the tiles the site touches.
 pub struct Raster {
-    dec: tiff::decoder::Decoder<std::io::Cursor<avendb::Bytes>>,
+    dec: tiff::decoder::Decoder<std::io::Cursor<thedb::Bytes>>,
     origin: (f64, f64), // lon, lat of the raster's top left corner
     step: (f64, f64),   // degrees a pixel, across and down
     size: (u32, u32),
     tile: (u32, u32),
     across: u32,
     tiles: HashMap<u32, Vec<f32>>,
-    bytes: avendb::Bytes,
+    bytes: thedb::Bytes,
 }
 
 impl Raster {
-    fn open(bytes: avendb::Bytes) -> Option<Raster> {
+    fn open(bytes: thedb::Bytes) -> Option<Raster> {
         use tiff::tags::Tag;
         let mut dec = tiff::decoder::Decoder::new(std::io::Cursor::new(bytes.clone())).ok()?;
         let scale = dec.get_tag_f64_vec(Tag::ModelPixelScaleTag).ok()?;
@@ -222,7 +222,7 @@ impl Raster {
     }
 }
 
-fn raw_tile(dec: &mut tiff::decoder::Decoder<std::io::Cursor<avendb::Bytes>>, bytes: &[u8], index: u32) -> Vec<f32> {
+fn raw_tile(dec: &mut tiff::decoder::Decoder<std::io::Cursor<thedb::Bytes>>, bytes: &[u8], index: u32) -> Vec<f32> {
     use std::io::Read;
     use tiff::tags::Tag;
     let mut read = || -> Option<Vec<f32>> {
@@ -394,7 +394,7 @@ pub fn enter(
     site: Res<Site>,
 ) {
     let Some((_, h, cover)) = read_package(&site) else {
-        error!("no place package in avenDB at {}; run `cargo run -- --bake-place` once", site.docs);
+        error!("no place package in theDB at {}; run `cargo run -- --bake-place` once", site.docs);
         return;
     };
     for mut v in &mut plain {

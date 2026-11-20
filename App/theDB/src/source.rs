@@ -7,7 +7,7 @@
 //!   of (`include`: the paths it covers), the commands a merge must pass (`check`), and how a build is made (`build`,
 //!   the command; `binary`, the path of what it makes). A tree changes on a branch like any doc, so two branches that
 //!   add different files both keep theirs.
-//! - A view is a folder with a stamp (`.avendb.json`): the tree, the branch, and the version of each file written.
+//! - A view is a folder with a stamp (`.thedb.json`): the tree, the branch, and the version of each file written.
 //!   `sync` makes each file's edit against the version it was written from, so a doc changed meanwhile on the branch
 //!   merges instead of being overwritten, and writes the merged text back. Every view builds into one cargo target
 //!   folder, so the dependencies are built once for every agent.
@@ -15,13 +15,13 @@
 //!   tree out, runs the check, and moves main only if it passes; the output is kept in the proposal. Since a CRDT merge
 //!   always succeeds, even into code that does not compile, the check is what stands where a merge conflict would.
 
-use crate::{AvenDb, Hash, Result, err};
+use crate::{TheDB, Hash, Result, err};
 use loro::LoroDoc;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 /// The stamp a view keeps of what it was written from.
-const STAMP: &str = ".avendb.json";
+const STAMP: &str = ".thedb.json";
 
 /// What a tree is made of, besides its files.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default, PartialEq)]
@@ -88,7 +88,7 @@ pub(crate) fn as_text(bytes: &[u8]) -> Option<&str> {
 
 /// Writes `bytes` into `doc` as a file's content (text as the doc's text, anything else as a blob it names), as an edit
 /// of what the doc holds. Whether anything changed.
-fn write_into(db: &AvenDb, doc: &LoroDoc, bytes: &[u8]) -> Result<bool> {
+fn write_into(db: &TheDB, doc: &LoroDoc, bytes: &[u8]) -> Result<bool> {
     if let Some(text) = as_text(bytes) {
         let t = doc.get_text("text");
         if t.to_string() == text && doc.get_map("file").get("blob").is_none() {
@@ -110,7 +110,7 @@ fn write_into(db: &AvenDb, doc: &LoroDoc, bytes: &[u8]) -> Result<bool> {
 }
 
 /// The file `doc` holds.
-fn read_from(db: &AvenDb, doc: &LoroDoc) -> Result<Vec<u8>> {
+fn read_from(db: &TheDB, doc: &LoroDoc) -> Result<Vec<u8>> {
     if let Some(b) = doc.get_map("file").get("blob").and_then(|v| v.into_value().ok()).and_then(|v| v.into_string().ok()) {
         let h: Hash = b.parse().map_err(err)?;
         return Ok(db.get(h)?.ok_or_else(|| format!("no blob {h}"))?.to_vec());
@@ -154,7 +154,7 @@ fn walk(dir: &Path, include: &[String]) -> Vec<String> {
     out
 }
 
-impl AvenDb {
+impl TheDB {
     /// A doc as `branch` sees it, or a new empty doc.
     fn doc_seen(&self, branch: Option<&str>, id: &str) -> Result<LoroDoc> {
         match self.head_seen(branch, id)? {
@@ -368,7 +368,7 @@ impl AvenDb {
 
     /// The one cargo target folder every view builds into.
     pub fn shared_target(&self) -> PathBuf {
-        self.dir().join("target").join("views")
+        self.dir().join("cache").join("target")
     }
 
     /// Runs `command` with `sh -c` in `dir`, building into the shared target. Whether it passed, and its output.
@@ -378,7 +378,7 @@ impl AvenDb {
             .arg(command)
             .current_dir(dir)
             .env("CARGO_TARGET_DIR", self.shared_target())
-            .env_remove("AVENDB_BRANCH")
+            .env_remove("THEDB_BRANCH")
             .output()
             .map_err(err)?;
         let mut text = format!("$ {command}\n");
@@ -448,7 +448,7 @@ impl AvenDb {
         let mut output = String::new();
         let mut passed = true;
         for (tid, tree) in &trees {
-            let view = self.dir().join("views").join(format!("check-{tid}"));
+            let view = self.dir().join("cache").join("views").join(format!("check-{tid}"));
             self.write_tree(Some(&trial), tid, &view, true)?;
             for c in &tree.shape.check {
                 let (ok, text) = self.run_in(&view, c)?;
@@ -494,7 +494,7 @@ impl AvenDb {
         if t.shape.build.is_empty() {
             return Err(format!("the tree {tree} says no build"));
         }
-        let view = self.dir().join("views").join(format!("build-{tree}"));
+        let view = self.dir().join("cache").join("views").join(format!("build-{tree}"));
         self.write_tree(None, tree, &view, true)?;
         let (ok, text) = self.run_in(&view, &t.shape.build)?;
         if !ok {

@@ -1,9 +1,0 @@
-[package]
-name = "kernel"
-version = "0.1.0"
-edition = "2024"
-publish = false
-
-# The kernel: the one thing installed (main.rs). Small on purpose: avenDB and its plugins, never the engine.
-[dependencies]
-avendb = { path = "../../AvenDB" }

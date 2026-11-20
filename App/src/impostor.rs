@@ -228,7 +228,7 @@ pub fn current(asset: &crate::library::Asset) -> bool {
     asset.id.as_deref().is_some_and(|id| crate::bakes::valid(id, "impostor", &key_for(asset)).is_some())
 }
 
-/// `--bake <asset id>`: every derived result of one asset that is not current, made and kept in avenDB, then quit.
+/// `--bake <asset id>`: every derived result of one asset that is not current, made and kept in theDB, then quit.
 /// Run by the kernel's baker when an asset doc changes; a result already current makes it quit at once, writing
 /// nothing (so the change its own write makes ends here).
 #[derive(Resource)]

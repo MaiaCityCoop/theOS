@@ -1,14 +1,14 @@
 //! Checks 1, 3 and 4 of intent 0051: branches read main and keep their own commits; two views on two branches edit one
 //! file and both merge; two branches that each build but break together are refused, main unchanged.
 
-use avendb::AvenDb;
-use avendb::source::{Shape, State};
+use thedb::TheDB;
+use thedb::source::{Shape, State};
 use std::path::{Path, PathBuf};
 
-fn fresh(name: &str) -> (AvenDb, PathBuf) {
-    let dir = std::env::temp_dir().join(format!("avendb-src-{name}-{}", std::process::id()));
+fn fresh(name: &str) -> (TheDB, PathBuf) {
+    let dir = std::env::temp_dir().join(format!("thedb-src-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
-    (AvenDb::open(&dir).expect("the store opens"), dir)
+    (TheDB::open(&dir).expect("the store opens"), dir)
 }
 
 fn write(dir: &Path, path: &str, text: &str) {
@@ -44,10 +44,10 @@ fn a_branch_reads_main_and_keeps_its_own() {
     assert!(db.forget(&a).is_err(), "forget is main's only");
     assert!(db.set_branch(Some("nowhere")).is_err());
     drop(db);
-    // AVENDB_BRANCH puts a process on a branch
-    unsafe { std::env::set_var("AVENDB_BRANCH", "try") };
-    let db = AvenDb::open(&dir).unwrap();
-    unsafe { std::env::remove_var("AVENDB_BRANCH") };
+    // THEDB_BRANCH puts a process on a branch
+    unsafe { std::env::set_var("THEDB_BRANCH", "try") };
+    let db = TheDB::open(&dir).unwrap();
+    unsafe { std::env::remove_var("THEDB_BRANCH") };
     assert_eq!(db.branch(), Some("try"));
     assert_eq!(db.text(&a).unwrap().as_deref(), Some("branch a"));
     drop(db);
@@ -55,12 +55,12 @@ fn a_branch_reads_main_and_keeps_its_own() {
 }
 
 /// A store with a tree of one Rust file, checked by compiling it.
-fn with_tree(name: &str) -> (AvenDb, PathBuf, String, PathBuf) {
+fn with_tree(name: &str) -> (TheDB, PathBuf, String, PathBuf) {
     let (db, dir) = fresh(name);
     let git = dir.join("git");
     write(&git, "src/lib.rs", "pub fn one() -> u32 {\n    1\n}\n\npub fn two() -> u32 {\n    2\n}\n");
     write(&git, "notes.md", "not in the tree\n");
-    let out = std::env::temp_dir().join(format!("avendb-src-{name}-{}.rmeta", std::process::id()));
+    let out = std::env::temp_dir().join(format!("thedb-src-{name}-{}.rmeta", std::process::id()));
     let shape = Shape {
         include: vec!["src".into()],
         check: vec![format!("rustc --edition 2021 --crate-type lib --emit=metadata -o {} src/lib.rs", out.display())],
@@ -84,7 +84,7 @@ fn a_tree_round_trips_through_a_view() {
     db.snapshot(&tree, &snap).unwrap();
     assert_eq!(read(&snap, "src/lib.rs"), read(&git, "src/lib.rs"));
     assert!(!snap.join("src/old.rs").exists(), "a snapshot removes what main does not have");
-    assert!(!snap.join(".avendb.json").exists(), "a snapshot is no view");
+    assert!(!snap.join(".thedb.json").exists(), "a snapshot is no view");
     drop(db);
     let _ = std::fs::remove_dir_all(dir);
 }

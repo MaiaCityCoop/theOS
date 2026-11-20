@@ -1,4 +1,4 @@
-//! Bakes made once (intent 0049): a bake's result is kept in avenDB, keyed by the hash of everything it is made from
+//! Bakes made once (intent 0049): a bake's result is kept in theDB, keyed by the hash of everything it is made from
 //! (the master mesh, the bake's settings, the shaders it draws with, and the engine's own bake code), so the next start
 //! reads it and bakes nothing. A change to any of those makes a new key, and the bake runs again.
 
@@ -29,7 +29,7 @@ pub fn key(kind: &str, inputs: &[&[u8]], shaders: &[&str]) -> String {
         let head = db.head(s).ok().flatten().map(|h| h.to_hex().to_string()).unwrap_or_default();
         all.extend(head.as_bytes());
     }
-    avendb::Hash::new(&all).to_hex().to_string()
+    thedb::Hash::new(&all).to_hex().to_string()
 }
 
 /// A mesh's bytes: its positions, normals, colours, UVs and indices, for a key.
@@ -88,7 +88,7 @@ pub fn part(asset: &str, kind: &str, name: &str) -> Option<Vec<u8>> {
 }
 
 /// The result doc of `kind` for asset `asset`: the one it links, or a new one, linked.
-fn result(asset: &str, kind: &str) -> avendb::Result<String> {
+fn result(asset: &str, kind: &str) -> thedb::Result<String> {
     if let Some(id) = linked(asset, kind) {
         return Ok(id);
     }
@@ -119,7 +119,7 @@ pub fn seal(asset: &str, kind: &str, key: &str, params: &serde_json::Value) {
         db.commit(&id, &doc)
     });
     match done {
-        Ok(_) => bevy::log::info!("baked {kind} of {asset}, kept in avenDB"),
+        Ok(_) => bevy::log::info!("baked {kind} of {asset}, kept in theDB"),
         Err(e) => bevy::log::warn!("a bake could not be sealed: {e}"),
     }
 }

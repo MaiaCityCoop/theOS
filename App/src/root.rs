@@ -59,7 +59,7 @@ pub fn root() -> &'static Root {
     static ROOT: std::sync::OnceLock<Root> = std::sync::OnceLock::new();
     ROOT.get_or_init(|| {
         let db = crate::db();
-        let id = db.root().ok().flatten().expect("avenDB has a root doc");
+        let id = db.root().ok().flatten().expect("theDB has a root doc");
         let text = db.text(&id).ok().flatten().expect("the root doc reads");
         serde_json::from_str(&text).expect("the root doc parses")
     })

@@ -2,15 +2,15 @@
 //! once; an unchanged head calls nothing; a branch's edit calls nothing until merged; a kernel started again calls nothing it handled; the baker bakes one asset
 //! at a time and says when the engine fails.
 
-use avendb::AvenDb;
-use avendb::plugin::{Plugin, Watcher};
+use thedb::TheDB;
+use thedb::plugin::{Plugin, Watcher};
 use std::sync::{Arc, Mutex};
 
 /// A store of its own, with a root.
-fn fresh(name: &str) -> (Arc<AvenDb>, std::path::PathBuf) {
-    let dir = std::env::temp_dir().join(format!("avendb-test-plugins-{name}-{}", std::process::id()));
+fn fresh(name: &str) -> (Arc<TheDB>, std::path::PathBuf) {
+    let dir = std::env::temp_dir().join(format!("thedb-test-plugins-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
-    let db = AvenDb::open(&dir).expect("the store opens");
+    let db = TheDB::open(&dir).expect("the store opens");
     let root = db.new("root", "root").unwrap();
     db.set_text(&root, "{\n  \"library\": []\n}\n").unwrap();
     db.set_root(&root).unwrap();
@@ -31,7 +31,7 @@ impl Plugin for Tally {
     fn kinds(&self) -> &[&str] {
         self.kinds
     }
-    fn changed(&self, _db: &AvenDb, id: &str) -> avendb::Result<()> {
+    fn changed(&self, _db: &TheDB, id: &str) -> thedb::Result<()> {
         self.calls.lock().unwrap().push(id.to_string());
         Ok(())
     }
@@ -85,7 +85,7 @@ fn a_kernel_started_again_calls_nothing_it_handled() {
     // the store closed and opened again, a new watcher: what was handled stays handled
     let db = Arc::into_inner(db).unwrap();
     drop(db);
-    let db = AvenDb::open(&dir).unwrap();
+    let db = TheDB::open(&dir).unwrap();
     let root = db.root().unwrap().unwrap();
     let root_doc: serde_json::Value = serde_json::from_str(&db.text(&root).unwrap().unwrap()).unwrap();
     assert!(root_doc["kernel"].is_string() && root_doc["library"].is_array(), "the root names the kernel's doc and keeps the rest");
@@ -102,17 +102,17 @@ fn a_kernel_started_again_calls_nothing_it_handled() {
 
 /// A store whose pinned engine is a script standing in for the engine's `--bake`: it logs its turn, notes any overlap
 /// with another bake, and fails for the asset named "broken".
-fn with_stub_engine(name: &str) -> (Arc<AvenDb>, std::path::PathBuf) {
+fn with_stub_engine(name: &str) -> (Arc<TheDB>, std::path::PathBuf) {
     let (db, dir) = fresh(name);
     let stub = r#"#!/bin/sh
-log="$AVENDB/bake.log"
+log="$THEDB/bake.log"
 [ "$1" = "--bake" ] || { echo "no --bake: $*" >> "$log"; exit 2; }
-mkdir "$AVENDB/busy" 2>/dev/null || echo overlap >> "$log"
+mkdir "$THEDB/busy" 2>/dev/null || echo overlap >> "$log"
 echo "start $2" >> "$log"
 sleep 0.2
 echo "end $2" >> "$log"
-rmdir "$AVENDB/busy"
-case "$(cat "$AVENDB/broken" 2>/dev/null)" in *"$2"*) exit 3;; esac
+rmdir "$THEDB/busy"
+case "$(cat "$THEDB/broken" 2>/dev/null)" in *"$2"*) exit 3;; esac
 exit 0
 "#;
     let engine = db.new("engine", "stub").unwrap();
@@ -132,7 +132,7 @@ fn the_baker_bakes_one_at_a_time() {
         .map(|id| {
             let (db, id) = (db.clone(), id.clone());
             let gpu = dir.join("gpu");
-            std::thread::spawn(move || avendb::baker::bake_in(&db, &id, &gpu))
+            std::thread::spawn(move || thedb::baker::bake_in(&db, &id, &gpu))
         })
         .collect();
     for t in threads {
@@ -157,7 +157,7 @@ fn the_baker_as_a_plugin_bakes_the_changed_asset_and_reports_a_failure() {
     let (db, dir) = with_stub_engine("plugin");
     let stone = db.new("asset", "stone").unwrap();
     let _wind = db.new("shader", "wind").unwrap();
-    let mut w = Watcher::new(&db, vec![Box::new(avendb::baker::Baker { gpu: dir.join("gpu") })]).unwrap();
+    let mut w = Watcher::new(&db, vec![Box::new(thedb::baker::Baker { gpu: dir.join("gpu") })]).unwrap();
     assert_eq!(w.pass(&db).unwrap(), vec![("baker".to_string(), stone.clone())], "the asset only, not the shader or the engine");
     db.set_text(&stone, "{\"size\": 2}").unwrap();
     assert_eq!(w.pass(&db).unwrap().len(), 1);
@@ -165,7 +165,7 @@ fn the_baker_as_a_plugin_bakes_the_changed_asset_and_reports_a_failure() {
     assert_eq!(log.matches(&format!("start {stone}")).count(), 2, "{log}");
     // a failing engine: the bake says so
     std::fs::write(dir.join("broken"), &stone).unwrap();
-    let e = avendb::baker::bake_in(&db, &stone, &dir.join("gpu")).unwrap_err();
+    let e = thedb::baker::bake_in(&db, &stone, &dir.join("gpu")).unwrap_err();
     assert!(e.contains("exit 3"), "{e}");
     drop((w, db));
     let _ = std::fs::remove_dir_all(dir);

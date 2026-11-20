@@ -7,7 +7,7 @@
 //! every `POLL`, on main only (`doc/<id>`; a branch's tags are its own until merged). It keeps the heads each plugin has handled in a doc of its own, named by the root as `kernel`, so a
 //! kernel started again calls nothing for what it already handled.
 
-use crate::{AvenDb, Result};
+use crate::{TheDB, Result};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -24,7 +24,7 @@ pub trait Plugin: Send + Sync {
     fn kinds(&self) -> &[&str];
     /// Called with doc `id` of a watched kind whose head moved. It returns when it has handled it; what it returns is
     /// logged, and the head counts as handled either way (a failed doc is tried again on its next change or by hand).
-    fn changed(&self, db: &AvenDb, id: &str) -> Result<()>;
+    fn changed(&self, db: &TheDB, id: &str) -> Result<()>;
 }
 
 /// Each plugin's handled heads: plugin → doc id → the head (hex) it was called for.
@@ -44,7 +44,7 @@ impl Watcher {
     /// The watcher of `plugins`, with what they handled before (kept in the kernel's doc, made on first use).
     /// It watches main only: a branch's edits (and a merge's trial branch) call nothing until they are merged, so a
     /// process put on a branch runs no watcher.
-    pub fn new(db: &AvenDb, plugins: Vec<Box<dyn Plugin>>) -> Result<Self> {
+    pub fn new(db: &TheDB, plugins: Vec<Box<dyn Plugin>>) -> Result<Self> {
         if let Some(b) = db.branch() {
             return Err(format!("the plugins watch main, and this process is on branch {b}"));
         }
@@ -55,7 +55,7 @@ impl Watcher {
 
     /// One look at every doc's head: calls each plugin watching the kind of a doc whose head it has not handled.
     /// Returns the calls made, as (plugin, doc id).
-    pub fn pass(&mut self, db: &AvenDb) -> Result<Vec<(String, String)>> {
+    pub fn pass(&mut self, db: &TheDB) -> Result<Vec<(String, String)>> {
         let mut calls = Vec::new();
         for (id, head) in db.docs()? {
             if id == self.doc || self.seen.get(&id) == Some(&head) {
@@ -84,7 +84,7 @@ impl Watcher {
 
     /// Watches until `stop` is set, in a thread of its own: a pass every `POLL`. A plugin's call in progress ends before
     /// the thread does.
-    pub fn watch(mut self, db: Arc<AvenDb>, stop: Arc<AtomicBool>) -> std::thread::JoinHandle<()> {
+    pub fn watch(mut self, db: Arc<TheDB>, stop: Arc<AtomicBool>) -> std::thread::JoinHandle<()> {
         std::thread::spawn(move || {
             while !stop.load(Ordering::Relaxed) {
                 if let Err(e) = self.pass(&db) {
@@ -97,8 +97,8 @@ impl Watcher {
 }
 
 /// The kernel's own doc, named by the root as `kernel`; made, and named in the root, the first time.
-fn kernel_doc(db: &AvenDb) -> Result<String> {
-    let root = db.root()?.ok_or("avenDB has no root")?;
+fn kernel_doc(db: &TheDB) -> Result<String> {
+    let root = db.root()?.ok_or("theDB has no root")?;
     let text = db.text(&root)?.unwrap_or_default();
     let value: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
     if let Some(id) = value["kernel"].as_str() {

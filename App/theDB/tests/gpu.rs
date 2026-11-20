@@ -1,12 +1,12 @@
 //! The GPU lock, as `TheGame/tools/gpu/lock.js` keeps it: a live holder is waited for, a dead one taken back, a lock
 //! with no holder written waited for, and the lock let go when its hold ends.
 
-use avendb::gpu;
+use thedb::gpu;
 use std::sync::mpsc;
 use std::time::Duration;
 
 fn fresh(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("avendb-test-gpu-{name}-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("thedb-test-gpu-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     dir

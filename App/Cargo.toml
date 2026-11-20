@@ -4,13 +4,13 @@ edition = "2024"
 version = "0.1.0"
 publish = false
 
-# theOS and its kernel: one lock, one target
+# theOS, theKERNEL and theDB: one lock, one target
 [workspace]
-members = ["kernel"]
+members = ["theKERNEL", "theDB"]
 
 [dependencies]
 bevy = { version = "0.20.1", default-features = false, features = ["3d", "ui", "default_platform", "file_watcher"] }
-avendb = { path = "../AvenDB", features = ["bevy"] }
+thedb = { path = "theDB", features = ["bevy"] }
 flate2 = "1.1.11"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

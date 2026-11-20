@@ -1,11 +1,11 @@
 //! Check 1 of intent 0049: blobs and docs round-trip, and every version of a doc reads back by its hash.
 
-use avendb::AvenDb;
+use thedb::TheDB;
 
-fn fresh(name: &str) -> (AvenDb, std::path::PathBuf) {
-    let dir = std::env::temp_dir().join(format!("avendb-test-{name}-{}", std::process::id()));
+fn fresh(name: &str) -> (TheDB, std::path::PathBuf) {
+    let dir = std::env::temp_dir().join(format!("thedb-test-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
-    (AvenDb::open(&dir).expect("the store opens"), dir)
+    (TheDB::open(&dir).expect("the store opens"), dir)
 }
 
 #[test]
@@ -14,9 +14,9 @@ fn blobs_round_trip_by_hash() {
     let a = db.put(&b"a shader"[..]).unwrap();
     let b = db.put(&b"a shader"[..]).unwrap();
     assert_eq!(a, b, "the same bytes, the same hash");
-    assert_eq!(a, avendb::Hash::new(b"a shader"), "the hash is BLAKE3 of the bytes");
+    assert_eq!(a, thedb::Hash::new(b"a shader"), "the hash is BLAKE3 of the bytes");
     assert_eq!(db.get(a).unwrap().unwrap().as_ref(), b"a shader");
-    assert!(db.get(avendb::Hash::new(b"never kept")).unwrap().is_none());
+    assert!(db.get(thedb::Hash::new(b"never kept")).unwrap().is_none());
     drop(db);
     let _ = std::fs::remove_dir_all(dir);
 }
@@ -25,7 +25,7 @@ fn blobs_round_trip_by_hash() {
 fn every_version_of_a_doc_reads_back() {
     let (db, dir) = fresh("docs");
     let wind = db.new("shader", "wind.wesl").unwrap();
-    assert!(avendb::is_id(&wind));
+    assert!(thedb::is_id(&wind));
     let v1 = db.set_text(&wind, "one").unwrap();
     let v2 = db.set_text(&wind, "one two").unwrap();
     let v3 = db.set_text(&wind, "one two three").unwrap();
@@ -52,7 +52,7 @@ fn every_version_of_a_doc_reads_back() {
     assert_eq!(db.meta(&wind).unwrap(), ("shader".to_string(), "wind.wesl".to_string()), "the name is inside the doc");
     drop(db);
     // and it is all still there when the store opens again
-    let db = AvenDb::open(&dir).unwrap();
+    let db = TheDB::open(&dir).unwrap();
     assert_eq!(db.text(&wind).unwrap().as_deref(), Some("one two three"));
     assert_eq!(db.doc_at(v1).unwrap().get_text("text").to_string(), "one");
     drop(db);
@@ -66,8 +66,8 @@ fn a_second_process_reaches_the_store_through_its_owner() {
     let biome = owner.new("biome", "meadow").unwrap();
     owner.set_root(&biome).unwrap();
     let v1 = owner.set_text(&biome, "grass").unwrap();
-    // a second opening, as `avendb` in a shell while the app runs
-    let other = AvenDb::open(&dir).expect("the second opening reaches the owner");
+    // a second opening, as `thedb` in a shell while the app runs
+    let other = TheDB::open(&dir).expect("the second opening reaches the owner");
     assert!(!other.owns());
     assert_eq!(other.root().unwrap().as_deref(), Some(biome.as_str()), "both reach the same root");
     assert_eq!(other.text(&biome).unwrap().as_deref(), Some("grass"));

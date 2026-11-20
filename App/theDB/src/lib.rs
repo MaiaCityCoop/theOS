@@ -1,4 +1,4 @@
-//! avenDB: where everything we make is kept, as **docs** and **blobs** (intent 0049).
+//! theDB: where everything we make is kept, as **docs** and **blobs** (intent 0049).
 //!
 //! - A **blob** is immutable bytes named by their BLAKE3 hash (as IPFS): an image, a font, a bake, an engine build.
 //! - A **doc** is a Loro document with its whole history, named by an id (as IPNS): one shader, one asset, one recipe,
@@ -10,7 +10,7 @@
 //!
 //! One store on this device, on disk (iroh-blobs' file store); no sync between devices. Its files can be open in one
 //! process only, so the first process to open it owns it and serves it to the others on this machine (iroh-blobs'
-//! RPC over QUIC on 127.0.0.1, trusting only the owner's own certificate): the app and `avendb` in a shell work on the
+//! RPC over QUIC on 127.0.0.1, trusting only the owner's own certificate): the app and `thedb` in a shell work on the
 //! same store at once, and a commit made by either is seen by both. The API is blocking: the store runs on its own
 //! small runtime, so the engine and the tools call it from anywhere.
 
@@ -86,25 +86,25 @@ fn new_id() -> String {
 }
 
 /// The store.
-pub struct AvenDb {
+pub struct TheDB {
     rt: tokio::runtime::Runtime,
     store: Store,
     /// Set in the process that owns the store's files (and serves them to the others).
     owner: Option<FsStore>,
     /// The store's folder.
     dir: PathBuf,
-    /// The branch this process reads and writes (`AVENDB_BRANCH`); none is main.
+    /// The branch this process reads and writes (`THEDB_BRANCH`); none is main.
     branch: Option<String>,
 }
 
-impl AvenDb {
-    /// The store: `avenDB/` at the root of the repository's main checkout, one for every worktree, session and tool
-    /// on this machine (git ignores its files). `AVENDB` names another.
+impl TheDB {
+    /// The store: `theDB/` at the root of the repository's main checkout, one for every worktree, session and tool
+    /// on this machine (git ignores its files). `THEDB` names another.
     pub fn here() -> PathBuf {
-        if let Ok(d) = std::env::var("AVENDB") {
+        if let Ok(d) = std::env::var("THEDB") {
             return d.into();
         }
-        main_checkout(Path::new(env!("CARGO_MANIFEST_DIR"))).join("AvenDB")
+        main_checkout(Path::new(env!("CARGO_MANIFEST_DIR"))).join("DATA")
     }
 
     /// Opens (or makes) the store in `dir`.
@@ -113,10 +113,10 @@ impl AvenDb {
         std::fs::create_dir_all(dir.as_ref()).map_err(err)?;
         let dir = dir.as_ref();
         let (port, cert) = (dir.join("rpc.port"), dir.join("rpc.cert"));
-        let branch = match std::env::var("AVENDB_BRANCH") {
+        let branch = match std::env::var("THEDB_BRANCH") {
             Ok(b) if b.is_empty() || b == "main" => None,
             Ok(b) if is_branch(&b) => Some(b),
-            Ok(b) => return Err(format!("AVENDB_BRANCH is not a branch's name (lowercase letters, digits, dashes): {b:?}")),
+            Ok(b) => return Err(format!("THEDB_BRANCH is not a branch's name (lowercase letters, digits, dashes): {b:?}")),
             Err(_) => None,
         };
         // a store whose owner is closing, or has gone without tidying up, answers nothing: wait a little and take it
@@ -132,7 +132,7 @@ impl AvenDb {
                     std::fs::write(&port, at.port().to_string()).map_err(err)?;
                     let store: Store = (*fs).clone();
                     rt.spawn(store.clone().listen(endpoint));
-                    return Ok(AvenDb { rt, store, owner: Some(fs), dir: dir.to_path_buf(), branch });
+                    return Ok(TheDB { rt, store, owner: Some(fs), dir: dir.to_path_buf(), branch });
                 }
                 Err(e) => {
                     // another process owns it: talk to that one, if it answers
@@ -147,7 +147,7 @@ impl AvenDb {
                     };
                     let answers = rt.block_on(async { tokio::time::timeout(std::time::Duration::from_secs(2), store.tags().get(ROOT)).await.is_ok_and(|r| r.is_ok()) });
                     if answers {
-                        return Ok(AvenDb { rt, store, owner: None, dir: dir.to_path_buf(), branch });
+                        return Ok(TheDB { rt, store, owner: None, dir: dir.to_path_buf(), branch });
                     }
                     std::thread::sleep(std::time::Duration::from_millis(250));
                 }
@@ -412,7 +412,7 @@ impl AvenDb {
 
 // ---- files: what the engine loads by path (a shader, a font, a recipe) ----
 
-impl AvenDb {
+impl TheDB {
     /// Keeps a file as doc `id`: text as the doc's text (so its history shows each edit), anything else as a blob the
     /// doc names (`blob` in its root map). The same content commits nothing. Returns the version's hash.
     pub fn set_file(&self, id: &str, bytes: &[u8]) -> Result<Hash> {
@@ -475,7 +475,7 @@ fn main_checkout(from: &Path) -> PathBuf {
 
 // ---- parts: a doc that holds several files, each a blob by name (a place's height, cover, map layers) ----
 
-impl AvenDb {
+impl TheDB {
     /// Keeps `bytes` as the part `name` of doc `id` (a blob the doc names in its map `parts`). Unchanged, nothing is
     /// committed. Returns the doc's version hash.
     pub fn set_part(&self, id: &str, name: &str, bytes: &[u8]) -> Result<Hash> {
@@ -523,7 +523,7 @@ pub struct Engine {
     pub tree: Option<String>,
 }
 
-impl AvenDb {
+impl TheDB {
     /// Keeps a build of engine `id`: the binary as a blob, the manifest of its source (each file named by its doc's
     /// version, `publish_tree`) as a blob, the build as a blob; adds it to the engine's builds and pins it. Returns the
     /// build's hash.
@@ -568,23 +568,23 @@ pub struct Pinned {
     pub path: PathBuf,
 }
 
-impl AvenDb {
+impl TheDB {
     /// The engine the root names, at its pinned build: the binary is written once beside the store under its hash
     /// (`run/<hash>`) and checked against that hash every time, so what runs is what the build names.
     pub fn pinned_engine(&self) -> Result<Pinned> {
         use std::os::unix::fs::PermissionsExt;
-        let root = self.root()?.ok_or("avenDB has no root")?;
+        let root = self.root()?.ok_or("theDB has no root")?;
         let root_doc: serde_json::Value = serde_json::from_str(&self.text(&root)?.unwrap_or_default()).map_err(err)?;
         let engine = root_doc["engine"].as_str().ok_or("the root names no engine")?.to_string();
         let pinned = self.engine(&engine)?.pinned.ok_or("the engine pins no build")?;
         let build = self.build(&pinned)?;
         let hash: Hash = build.binary.parse().map_err(|_| "the build's binary is no hash")?;
-        let run = self.dir.join("run");
+        let run = self.dir.join("cache").join("run");
         let path = run.join(hash.to_hex().as_str());
         let good = |p: &Path| std::fs::read(p).is_ok_and(|b| Hash::new(&b) == hash);
         if !good(&path) {
             if path.exists() {
-                eprintln!("avendb: the cached engine binary does not match its hash: refused, and written again from the store");
+                eprintln!("thedb: the cached engine binary does not match its hash: refused, and written again from the store");
             }
             let bytes = self.get(hash)?.ok_or("the store lacks the engine's binary")?;
             if Hash::new(&bytes) != hash {
@@ -615,7 +615,7 @@ pub mod bevy;
 
 pub mod source;
 
-impl Drop for AvenDb {
+impl Drop for TheDB {
     fn drop(&mut self) {
         // the owner lets the store write what it holds before its runtime goes; a client just goes
         if self.owner.is_some() {

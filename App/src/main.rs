@@ -5,7 +5,7 @@
 //!     cargo run -- --shots <seed> <out.json>      five new shots from a seed, kept as a shot list
 //!     cargo run -- --meadow <out.png> [hour]      measure the Meadow at 1080p for ten seconds, one picture, quit
 //!     cargo run -- --bake-place [lat lon]         a real place's package (Mértola's by default), from open data
-//!     cargo run -- --bake <asset id>              an asset's far views made and kept in avenDB if not current, then quit
+//!     cargo run -- --bake <asset id>              an asset's far views made and kept in theDB if not current, then quit
 //!     cargo run -- --place-still <out.png> [km] [hour]  an agent's still of the real place, the map that many km across, at a solar hour
 
 mod bakes;
@@ -50,12 +50,12 @@ pub enum View {
     Place,
 }
 
-/// The store, one for the app: avenDB beside this repository (or where `AVENDB` says).
-pub fn db() -> std::sync::Arc<avendb::AvenDb> {
-    static DB: std::sync::OnceLock<std::sync::Arc<avendb::AvenDb>> = std::sync::OnceLock::new();
+/// The store, one for the app: theDB beside this repository (or where `THEDB` says).
+pub fn db() -> std::sync::Arc<thedb::TheDB> {
+    static DB: std::sync::OnceLock<std::sync::Arc<thedb::TheDB>> = std::sync::OnceLock::new();
     DB.get_or_init(|| {
-        let dir = std::env::var("AVENDB").map(Into::into).unwrap_or_else(|_| avendb::AvenDb::here());
-        std::sync::Arc::new(avendb::AvenDb::open(dir).expect("avenDB opens"))
+        let dir = std::env::var("THEDB").map(Into::into).unwrap_or_else(|_| thedb::TheDB::here());
+        std::sync::Arc::new(thedb::TheDB::open(dir).expect("theDB opens"))
     })
     .clone()
 }
@@ -109,12 +109,12 @@ fn main() {
         return;
     }
     let mut app = App::new();
-    // everything the engine loads comes from avenDB (intent 0049): an asset's path is a doc's id, watched, so a new
+    // everything the engine loads comes from theDB (intent 0049): an asset's path is a doc's id, watched, so a new
     // version of a shader reloads while the app runs; `blob://<hash>` is a blob or a doc's exact version
     {
         use bevy::asset::{AssetApp, io::AssetSourceId};
-        app.register_asset_source(AssetSourceId::Default, avendb::bevy::docs_source(db()))
-            .register_asset_source("blob", avendb::bevy::blobs_source(db()));
+        app.register_asset_source(AssetSourceId::Default, thedb::bevy::docs_source(db()))
+            .register_asset_source("blob", thedb::bevy::blobs_source(db()));
     }
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window {

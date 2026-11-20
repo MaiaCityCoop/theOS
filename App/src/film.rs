@@ -49,7 +49,7 @@ pub fn anchors() -> &'static str {
     &crate::root::root().anchors
 }
 
-/// A shot list: the avenDB doc `id`, or else a file at that path (a list an agent wrote and passed on the command line).
+/// A shot list: the theDB doc `id`, or else a file at that path (a list an agent wrote and passed on the command line).
 pub fn shots(id: &str) -> Option<Timeline> {
     let bytes = crate::db().file(id).ok().flatten().or_else(|| std::fs::read(id).ok())?;
     Timeline::from_json(std::str::from_utf8(&bytes).ok()?).ok()

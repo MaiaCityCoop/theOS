@@ -40,7 +40,7 @@ fn range(url: &str, a: u64, b: u64) -> Option<Vec<u8>> {
     (out.status.success() && !out.stdout.is_empty()).then_some(out.stdout)
 }
 
-/// Bytes a..=b of a URL, fetched once and kept in avenDB: a part of the Earth's doc under the URL and range.
+/// Bytes a..=b of a URL, fetched once and kept in theDB: a part of the Earth's doc under the URL and range.
 fn kept(url: &str, a: u64, b: u64) -> Option<Vec<u8>> {
     let (db, earth, at) = (crate::db(), &crate::root::root().earth, format!("{url} bytes {a}-{b}"));
     if let Some(got) = db.part(earth, &at).ok().flatten() {

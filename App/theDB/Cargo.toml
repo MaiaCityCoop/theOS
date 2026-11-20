@@ -1,8 +1,12 @@
 [package]
-name = "avendb"
+name = "thedb"
 version = "0.1.0"
 edition = "2024"
 publish = false
+
+[[bin]]
+name = "theDB"
+path = "src/bin/thedb.rs"
 
 [dependencies]
 iroh-blobs = { version = "0.105.0", default-features = false, features = ["fs-store", "rpc"] }

@@ -1,5 +1,5 @@
 //! The interface as docs (intent 0049): a view, and every layer laid over a world (a chip, a bar of chips, the sun and
-//! wind sliders, the Library's list, the Studio's bar), is a doc in avenDB: a tree of boxes and words in the brand's
+//! wind sliders, the Library's list, the Studio's bar), is a doc in theDB: a tree of boxes and words in the brand's
 //! look, and this is what draws it. Everything in it is data: where a layer sits, its words or the live value they
 //! show (the frame time, the asset's caption, the playhead), what a click does (Home, Play, open a doc by id), a slider
 //! of the clock, a list made from the library. A layer can include another by id, so one Home chip serves every view;

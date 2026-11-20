@@ -1,10 +1,10 @@
-//! Bevy reads avenDB: two asset sources, and nothing from disk.
+//! Bevy reads theDB: two asset sources, and nothing from disk.
 //!
 //! - The default source: an asset path is a doc's id and the kind of file it holds, for Bevy's loaders
 //!   (`<id>.wesl`, `<id>.ttf`): the doc read as it is now, and watched, so a commit to it reloads it while the app runs.
 //! - `blob://<hash>`: exact content, a blob or a doc's version by its hash; never changes, never watched.
 
-use crate::{AvenDb, Hash};
+use crate::{TheDB, Hash};
 use bevy_asset::io::{
     AssetReader, AssetReaderError, AssetSourceBuilder, AssetSourceEvent, AssetWatcher, PathStream, VecReader,
 };
@@ -25,7 +25,7 @@ fn id_of(path: &Path) -> String {
 type Loaded = Arc<std::sync::Mutex<HashMap<String, Vec<PathBuf>>>>;
 
 /// Reads docs by id.
-pub struct Docs(pub Arc<AvenDb>, Loaded);
+pub struct Docs(pub Arc<TheDB>, Loaded);
 
 impl AssetReader for Docs {
     async fn read<'a>(&'a self, path: &'a Path) -> Result<VecReader, AssetReaderError> {
@@ -58,7 +58,7 @@ impl AssetReader for Docs {
 }
 
 /// Reads blobs, and docs' versions, by hash.
-pub struct Blobs(pub Arc<AvenDb>);
+pub struct Blobs(pub Arc<TheDB>);
 
 impl AssetReader for Blobs {
     async fn read<'a>(&'a self, path: &'a Path) -> Result<VecReader, AssetReaderError> {
@@ -95,7 +95,7 @@ impl Drop for Watch {
     }
 }
 
-fn watch(db: Arc<AvenDb>, loaded: Loaded, tell: async_channel::Sender<AssetSourceEvent>) -> Watch {
+fn watch(db: Arc<TheDB>, loaded: Loaded, tell: async_channel::Sender<AssetSourceEvent>) -> Watch {
     let stop = Arc::new(AtomicBool::new(false));
     let done = stop.clone();
     std::thread::spawn(move || {
@@ -122,7 +122,7 @@ fn watch(db: Arc<AvenDb>, loaded: Loaded, tell: async_channel::Sender<AssetSourc
 }
 
 /// The default source: docs by id, watched.
-pub fn docs_source(db: Arc<AvenDb>) -> AssetSourceBuilder {
+pub fn docs_source(db: Arc<TheDB>) -> AssetSourceBuilder {
     let loaded: Loaded = Default::default();
     let (r, w, lr, lw) = (db.clone(), db, loaded.clone(), loaded);
     AssetSourceBuilder::new(move || Box::new(Docs(r.clone(), lr.clone())))
@@ -130,6 +130,6 @@ pub fn docs_source(db: Arc<AvenDb>) -> AssetSourceBuilder {
 }
 
 /// `blob://`: blobs and docs' versions by hash.
-pub fn blobs_source(db: Arc<AvenDb>) -> AssetSourceBuilder {
+pub fn blobs_source(db: Arc<TheDB>) -> AssetSourceBuilder {
     AssetSourceBuilder::new(move || Box::new(Blobs(db.clone())))
 }

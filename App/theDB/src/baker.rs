@@ -1,10 +1,10 @@
 //! The baker (intent 0050): the kernel's first plugin. It watches the asset docs; when one changes it runs the pinned
 //! engine as `<engine> --bake <asset id>`, which makes every derived result of that asset no longer valid, writes it
-//! to avenDB and exits 0 (non-zero on failure; with every result valid it writes nothing). Bakes draw on the GPU, so
+//! to theDB and exits 0 (non-zero on failure; with every result valid it writes nothing). Bakes draw on the GPU, so
 //! each waits its turn in the machine's one GPU lock and queue (`gpu`, the same as `TheGame/tools/gpu/lock.js`), from
-//! the kernel and from `avendb bake` alike.
+//! the kernel and from `thedb bake` alike.
 
-use crate::{AvenDb, Result};
+use crate::{TheDB, Result};
 use std::path::{Path, PathBuf};
 
 /// The doc kind the baker watches: the Library's assets.
@@ -35,31 +35,31 @@ impl crate::plugin::Plugin for Baker {
     fn kinds(&self) -> &[&str] {
         &[KIND]
     }
-    fn changed(&self, db: &AvenDb, id: &str) -> Result<()> {
+    fn changed(&self, db: &TheDB, id: &str) -> Result<()> {
         bake_in(db, id, &self.gpu)
     }
 }
 
 /// Bakes asset `id`, waiting its turn in this machine's GPU lock.
-pub fn bake(db: &AvenDb, id: &str) -> Result<()> {
+pub fn bake(db: &TheDB, id: &str) -> Result<()> {
     bake_in(db, id, &crate::gpu::shared())
 }
 
 /// Bakes asset `id`: waits its turn in the GPU lock in `gpu`, runs the pinned engine's `--bake` on it holding the lock,
 /// and logs start, end and exit code.
-pub fn bake_in(db: &AvenDb, id: &str, gpu: &Path) -> Result<()> {
+pub fn bake_in(db: &TheDB, id: &str, gpu: &Path) -> Result<()> {
     let engine = db.pinned_engine()?;
     let name = db.meta(id).map(|m| m.1).unwrap_or_default();
-    let owner = std::env::var("GPU_OWNER").unwrap_or_else(|_| "avenDB baker".into());
+    let owner = std::env::var("GPU_OWNER").unwrap_or_else(|_| "theDB baker".into());
     let hold = crate::gpu::take(gpu, &owner, &format!("bake {id} {name}"))?;
     eprintln!("baker: {id} {name}: started");
     let start = std::time::Instant::now();
     // the engine bakes on the branch this process is on: main's, from the kernel
     let mut command = std::process::Command::new(&engine.path);
-    command.arg("--bake").arg(id).env("AVENDB", db.dir());
+    command.arg("--bake").arg(id).env("THEDB", db.dir());
     match db.branch() {
-        Some(b) => command.env("AVENDB_BRANCH", b),
-        None => command.env_remove("AVENDB_BRANCH"),
+        Some(b) => command.env("THEDB_BRANCH", b),
+        None => command.env_remove("THEDB_BRANCH"),
     };
     if let Some(token) = hold.token() {
         command.env("GPU_LOCK_TOKEN", token);

@@ -26,7 +26,7 @@ pub struct Asset {
     /// One unless its silhouette varies enough from seed to seed to show.
     #[serde(default = "one_u32", skip_serializing_if = "is_one")]
     pub variants: u32,
-    /// Its doc's id in avenDB, where it has one.
+    /// Its doc's id in theDB, where it has one.
     #[serde(skip)]
     pub id: Option<String>,
 }
