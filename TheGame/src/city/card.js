@@ -1,4 +1,4 @@
-// A village's card: what the picked plot is, on the brand's clear glass (brand/brand.css: .glass, .g-*), at the left.
+// A village's card: what the picked plot is, on the brand's clear glass (Brand/brand.css: .glass, .g-*), at the left.
 // Its name, who lives there now and how many it is a home for, its land, where it lies, and whether it is open; a village
 // beside an open one can be opened from here.
 import CITY from '../../world/city.js';

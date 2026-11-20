@@ -8,7 +8,7 @@ with YAML frontmatter and the CLI checks it: deaths, promises and payoffs, open 
 and links. `_index.md` files are generated; never edit their tables by hand.
 
 **Read it in the dashboard:** Stories → The Compass (http://localhost:5180/#stories). The page only shows
-it, as everywhere in TheOS. `OS/compass.js` reads these files as they stand and serves them at `/api/compass`.
+it, as everywhere in TheOS. `Website/compass.js` reads these files as they stand and serves them at `/api/compass`.
 
 **Change it only with the CLI.** No Node is installed here, so run the bundled copy with bun, from this
 folder, never from the plugin's checkout:

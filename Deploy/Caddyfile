@@ -1,0 +1,98 @@
+# The website (Website/) and the game (TheGame/) over HTTPS, each on its own name. setup-host.sh writes this file to
+# /etc/caddy/Caddyfile with the environment's two names put in. Caddy obtains and renews each certificate once
+# that name's DNS record points here, and redirects HTTP to HTTPS.
+# The release being served is the directory /srv/maia-city/current links to (deploy.sh switches it).
+
+(files) {
+	# /callback is callback.html, /api/stories is api/stories/index.json (a list whose path is also its items' folder);
+	# anything else that is not a file is a 404, never a page. What the build also wrote compressed beside itself
+	# (.br: the game's, TheGame/vite.config.js) is sent so where the browser takes it.
+	handle {
+		try_files {path} {path}.html {path}/index.json
+		file_server {
+			precompressed br
+		}
+	}
+}
+
+# The game's API (API/, run by Deploy/compose.yml on 127.0.0.1:8083): only its own paths, on the game's own name, so the
+# game calls it on its own origin and its session cookie belongs to that name alone. Every other /api/ path of the game
+# (its scenes) stays a file.
+(api) {
+	@api path /api/session /api/me /api/me/* /api/health
+	handle @api {
+		reverse_proxy 127.0.0.1:8083
+	}
+}
+
+(public) {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+	# Vite names these by content hash, so they never change.
+	@hashed path /assets/*
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+	# Nor do the brand's files a page asks for by their content (?v=: TheGame/vite.config.js).
+	@versioned {
+		path /brand/*
+		query v=*
+	}
+	header @versioned Cache-Control "public, max-age=31536000, immutable"
+	header ?Cache-Control "no-cache"
+}
+
+# A hashed file asked for and not there: a page of a build the host no longer serves asking for its own (deploy.sh
+# serves the build before besides the new one, so it takes two deploys while a page is open). Each such request is
+# logged, its page in its Referer, so the next one is on record; nothing else is. {args[0]}: the site's name.
+(lost) {
+	log {
+		output file /var/log/caddy/{args[0]}-lost.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+		format json
+	}
+	@not_lost {
+		not {
+			path /assets/*
+			not file
+		}
+	}
+	log_skip @not_lost
+}
+
+@WEBSITE_HOST@ {
+	root * /srv/maia-city/current/website
+	import public
+	import lost website
+	import files
+	header Content-Security-Policy "frame-ancestors 'self'"
+}
+
+@GAME_HOST@ {
+	root * /srv/maia-city/current/game
+	import public
+	import lost game
+	import api
+	import files
+	# The website frames the game; nothing else may.
+	header Content-Security-Policy "frame-ancestors 'self' https://@WEBSITE_HOST@"
+}
+
+# Only for deploy.sh's check on this machine: the same files, plain HTTP, never reachable from outside.
+http://127.0.0.1:8081 {
+	bind 127.0.0.1
+	root * /srv/maia-city/current/website
+	import files
+}
+
+http://127.0.0.1:8082 {
+	bind 127.0.0.1
+	root * /srv/maia-city/current/game
+	import api
+	import files
+}

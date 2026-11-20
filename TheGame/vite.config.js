@@ -26,14 +26,14 @@ const storyList = () => {
 };
 const timelineNames = () => { try { return readdirSync(TIMELINES).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5)).sort(); } catch { return []; } };
 
-// The deployed game has no server: a build writes those answers as files beside the pages, with the brand (../brand)
+// The deployed game has no server: a build writes those answers as files beside the pages, with the brand (../Brand)
 // and the scenes (../Stories/scenes). A scene's media (Stories/objects/) is not in git, so a build has none.
-// Caddy serves them as they are (deploy/Caddyfile).
+// Caddy serves them as they are (Deploy/Caddyfile).
 // Two things for the start (intent 0026): the brand's files a page names are asked for by their content (?v=, the start
 // of their hash), so the host keeps them for good like the scripts, and a second visit asks for none of them; and every
 // file that compresses is written compressed beside itself as well (brotli at its best, .br), which the host sends
 // where it is accepted, a fifth less than what it compresses as it sends.
-const BRAND = resolve(ROOT, '../brand'), versionOf = (f) => createHash('sha256').update(readFileSync(resolve(BRAND, f))).digest('hex').slice(0, 10);
+const BRAND = resolve(ROOT, '../Brand'), versionOf = (f) => createHash('sha256').update(readFileSync(resolve(BRAND, f))).digest('hex').slice(0, 10);
 const SQUEEZE = new Set(['.js', '.css', '.html', '.json', '.svg']);
 const squeeze = (dir) => { for (const n of readdirSync(dir)) { const f = join(dir, n), st = statSync(f); if (st.isDirectory()) squeeze(f); else if (SQUEEZE.has(extname(n)) && st.size >= 1024) writeFileSync(f + '.br', brotliCompressSync(readFileSync(f), { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 11, [zlibConstants.BROTLI_PARAM_SIZE_HINT]: st.size } })); } };
 const publish = {
@@ -43,7 +43,7 @@ const publish = {
   closeBundle() { squeeze(resolve(ROOT, 'dist')); },
   writeBundle(options) {
     const out = options.dir, put = (path, body) => { const f = resolve(out, path); mkdirSync(dirname(f), { recursive: true }); writeFileSync(f, body); };
-    cpSync(resolve(ROOT, '../brand'), resolve(out, 'brand'), { recursive: true });
+    cpSync(resolve(ROOT, '../Brand'), resolve(out, 'brand'), { recursive: true });
     const stories = storyList();
     put('story/list', JSON.stringify(stories));
     for (const { id } of stories) if (existsSync(resolve(STORIES, id, 'timeline.json'))) put(`story/${id}/timeline.json`, readFileSync(resolve(STORIES, id, 'timeline.json')));
@@ -110,9 +110,9 @@ export default {
         const names = timelineNames();
         res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(names));
       });
-      // the brand, one file for every page of TheOS: ../brand
+      // the brand, one file for every page of TheOS: ../Brand
       server.middlewares.use(B + '/brand', (req, res) => {
-        const f = resolve(server.config.root, '../brand', new URL(req.url, 'http://x').pathname.replace(/^\/+/, '').replace(/\.\./g, ''));
+        const f = resolve(server.config.root, '../Brand', new URL(req.url, 'http://x').pathname.replace(/^\/+/, '').replace(/\.\./g, ''));
         if (!existsSync(f)) { res.statusCode = 404; res.end(''); return; }
         res.setHeader('content-type', f.endsWith('.css') ? 'text/css' : f.endsWith('.svg') ? 'image/svg+xml' : 'application/octet-stream'); res.end(readFileSync(f));
       });

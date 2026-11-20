@@ -63,7 +63,7 @@ job.
    current best practice and the state of the art (papers, conference talks, the docs and source of
    the engines and libraries that solved it, recent releases), on the web, not from memory. Write
    the sources, the options weighed and the pattern chosen, with the reason, into
-   `research_notes/NNNN-topic.md`, and cite it in Define.
+   `Research/NNNN-topic.md`, and cite it in Define.
 5. **Set the code gates.** The numbers below, measured now on `main` over the touched area, with
    the target the intent commits to. They are checks like any other, and every merge holds them.
 
@@ -133,21 +133,21 @@ real trade-off the definition does not settle (say, more detail against 60 fps),
   (`SendMessage`) with the PR, the numbers and what is open. It never merges. It never asks the
   human: it decides in the direction of the intent, writes the decision and why into the PR, and
   sends a real blocker to the master while it goes on with what it can do.
-- **The engine (NativeGame and avenDB) is worked in avenDB, not in git** (intent 0051). Its source is
-  the tree the engine doc names (`avendb builds <engine>`; `avendb files <tree>`). A worker on the
+- **The engine (App/: theOS, theKERNEL and theDB) is worked in theDB, not in git** (intent 0051). Its source is
+  the tree the engine doc names (`theDB builds <engine>`; `theDB files <tree>`). A worker on the
   engine makes a branch and a view instead of a worktree, and proposes instead of opening a PR:
 
-      avendb branch 0050-tree "the procedural tree"
-      AVENDB_BRANCH=0050-tree avendb checkout <tree> avenDB/views/0050-tree
+      theDB branch 0050-tree "the procedural tree"
+      THEDB_BRANCH=0050-tree theDB checkout <tree> DATA/cache/views/0050-tree
       … edit and build in the view (cargo builds into the one shared target) …
-      avendb sync avenDB/views/0050-tree        as often as it likes: its edits onto its branch
-      avendb propose 0050-tree "what it does"   then tells the master the proposal's id
+      theDB sync DATA/cache/views/0050-tree        as often as it likes: its edits onto its branch
+      theDB propose 0050-tree "what it does"   then tells the master the proposal's id
 
-  The engine run from a view on a branch (`AVENDB_BRANCH=…`) reads that branch's shaders and recipes
-  too. The master merges with `avendb merge <proposal>`: the merged tree is checked (the tree's
+  The engine run from a view on a branch (`THEDB_BRANCH=…`) reads that branch's shaders and recipes
+  too. The master merges with `theDB merge <proposal>`: the merged tree is checked (the tree's
   `check`: builds and tests) and main moves only if it passes; a refused proposal keeps the
-  compiler's output (`avendb proposal <id>`). Several workers can share the main checkout's folder,
-  each in its own view. git gets snapshots: `avendb snapshot <tree> .` and a commit.
+  compiler's output (`theDB proposal <id>`). Several workers can share the main checkout's folder,
+  each in its own view. git gets snapshots: `theDB snapshot <tree> .` and a commit.
 - A brief is complete in itself: the task, the files, the invariants to keep, the checks, what done
   looks like, whom to report to. The master relays between sessions that cannot reach each other.
 - **One task, one session.** Every task runs in a code session of its own, never as a subagent
@@ -275,7 +275,7 @@ iPhone, and 0038's rebuild of it did not (the same walk: p50 50 ms and 1254 hitc
   pushed that `vite build` would refuse.
 - **One writer for the intent's file: the master.** A PR's notes go in its body, and the master
   folds them in. A branch that merges `main` takes the intent's file from `main` afterwards.
-- A change outside CI's paths (`research_notes/`, `.claude/`) merges at once: no build, no deploy.
+- A change outside CI's paths (`Research/`, `.claude/`) merges at once: no build, no deploy.
 - `next` deploys itself after CI passes on `main`; the master checks `next.maia.city/version.json`
   names the merged commit, and that the game answers.
 
@@ -321,9 +321,9 @@ It plays at `http://localhost:5173/timeline.html?story=NNNN-slug`, and from the 
 | --- | --- |
 | `Intents/` | the intents, `TEMPLATE.md` |
 | `Stories/` | a folder per proposed intent: `story.md`, `timeline.json` |
-| `brand/` | `MaiaCity.svg`, the mark, and `brand.css`, the one look of every page: Meadow (cream, forest, clay, gold; Fraunces at its softest with Outfit; the arch, the seed and the sun; everything round, glass over the game). New interface takes its colours and shapes from there, never its own. `brand/sheets/` keeps the drafts it was chosen from |
+| `Brand/` | `MaiaCity.svg`, the mark, and `brand.css`, the one look of every page: Meadow (cream, forest, clay, gold; Fraunces at its softest with Outfit; the arch, the seed and the sun; everything round, glass over the game). New interface takes its colours and shapes from there, never its own. `Brand/sheets/` keeps the drafts it was chosen from |
 | `TheGame/` | the world and the virtual camera |
-| `OS/` | the dashboard over the three: `bun run dev` at the repository's root starts it (port 5180) with the game (5173) |
+| `Website/` | the dashboard over the three: `bun run dev` at the repository's root starts it (port 5180) with the game (5173) |
 
 ## Do not
 

@@ -1,5 +1,5 @@
 // The game's API: who is signed in, and each person's avatar. Bun and Postgres only (Bun.sql, WebCrypto); no packages.
-// Caddy sends it these paths of the game's own name (deploy/Caddyfile), so the game calls it on its own origin:
+// Caddy sends it these paths of the game's own name (Deploy/Caddyfile), so the game calls it on its own origin:
 //
 //   POST   /api/session      { id_token }   the ID token aven.id just gave the game, checked (token.js) and taken once;
 //                                          opens a session: an HttpOnly cookie for SESSION_HOURS. 200 { sub, name, citizen }
@@ -143,7 +143,7 @@ export function api({ sql, keyFor, issuer, clientId, origins, commit = null, rol
   };
 }
 
-// Run as the server (Dockerfile): the settings come from the environment (deploy/compose.yml).
+// Run as the server (Dockerfile): the settings come from the environment (Deploy/compose.yml).
 if (import.meta.main) {
   const need = (k) => process.env[k] || (console.error(`${k} is not set.`), process.exit(2));
   const issuer = need('ISSUER'), sql = new SQL(need('DATABASE_URL'));
@@ -151,7 +151,7 @@ if (import.meta.main) {
     try { const applied = await migrate(sql); if (applied.length) console.log('Applied', applied.join(', ')); break; }
     catch (e) { if (i >= 30) throw e; console.warn('Waiting for Postgres:', e?.message || e); await Bun.sleep(1000); }
   }
-  // the release's commit (deploy/bundle.sh writes version.json beside src/), so a deploy can tell this API from the last
+  // the release's commit (Deploy/bundle.sh writes version.json beside src/), so a deploy can tell this API from the last
   const commit = (await Bun.file(join(import.meta.dir, '../version.json')).json().catch(() => null))?.commit ?? null;
   const clientId = process.env.CLIENT_ID || 'maia-city';
   const rolesOf = rolesReader(issuer, clientId, process.env.AVEN_ROLES_SECRET || '');

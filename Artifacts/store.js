@@ -1,6 +1,6 @@
 // The artifact library (../Artifacts/items/<id>/): outside sources, one folder each, as they stand on disk.
 // artifact.json is ours and is committed; source.md (the verbatim extract) and thumb.jpg (the source's image) are the
-// authors' work and stay on this machine (.gitignore). Read by server/repo.js; changed only by artifacts.js.
+// authors' work and stay on this machine (.gitignore). Read by Server/repo.js; changed only by artifacts.js.
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 

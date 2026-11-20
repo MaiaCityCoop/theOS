@@ -1,0 +1,302 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&display=swap');
+
+/* TheOS: the brand, in one file. Meadow (chosen from Brand/sheets/10-meadow.html).
+
+   Round and earthy, grown from the mark. Three shapes carry it:
+   - the ARCH, the glasshouse window: a day is a window; the game's picture sits in a round one
+   - the SEED, a dot: every day that is still to come
+   - the SUN, eight rays: wherever today is, whatever plays, the place you are
+   Cream paper, forest for the words, clay for what counts, gold for the light. Words are set in
+   DM Serif Display, a warm, sturdy serif; everything else in DM Sans, its own sans, and data in DM Mono: one family. Nothing has a hard corner: buttons, chips and
+   lines are pills. Over the game, panels are round glass. */
+:root {
+  --paper: #f7f0e3;
+  --cream: #fbf6ea;
+  --sand: #ece1cc;
+  --sand2: #dfd2b8;
+  --forest: #173655;
+  --forest2: #46596e;
+  --navy: #173655;          /* TheOS's own blue, from its mark. --forest and --navy are now the one brand dark: the green is gone */
+  --navy2: #18243c;
+  --moss: #5f7f52;
+  --leaf: #8fb46c;
+  --clay: #4f9d34;          /* what counts: a vivid plant green, readable as text on the paper */
+  --sun: #f2b544;           /* the light itself */
+  --sunlight: #ffe2a0;
+  --river: #2f5f73;
+  --sky: #9fc2e6;
+  --muted: #7f8a78;
+  --faint: #a99f88;
+  /* names older pages use */
+  --ink: var(--forest); --ink-2: var(--forest2); --line: var(--sand2); --gold: var(--clay); --teal: var(--river); --sage: var(--sand2); --mist: var(--sand);
+  --surface: var(--cream); --card: var(--cream); --green: var(--forest);
+  --radius: 28px;
+  --radius-s: 16px;
+  --shadow: 0 18px 50px rgba(23, 54, 85, .16);
+  --serif: 'DM Serif Display', ui-serif, 'New York', 'Iowan Old Style', Georgia, serif;   /* titles: the big words */
+  --sans: 'DM Sans', -apple-system, 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif;   /* everything else; one family with the titles' */
+  --mono: 'DM Mono', ui-monospace, 'SF Mono', Menlo, monospace;   /* data: sizes, times, files */
+  --soft: normal;   /* (the old titles' own axes; the new ones have none) */
+  --sunmark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpolygon points='12,1.2 13.4,8.6 17.3,6.7 15.4,10.6 22.8,12 15.4,13.4 17.3,17.3 13.4,15.4 12,22.8 10.6,15.4 6.7,17.3 8.6,13.4 1.2,12 8.6,10.6 6.7,6.7 10.6,8.6' fill='%23f2b544' stroke='%23f2b544' stroke-width='1.6' stroke-linejoin='round'/%3E%3Ccircle cx='12' cy='12' r='4.3' fill='%23ffe2a0'/%3E%3C/svg%3E");
+  --sunmark-light: var(--sunmark);
+  --playmark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3.6 2.4v9.2L11.4 7z' fill='%231f3a2c' stroke='%231f3a2c' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* ---- the mark and the name ---- */
+.mark { display: inline-flex; align-items: center; gap: 12px; font: 500 22px/1 var(--serif); font-variation-settings: var(--soft); letter-spacing: -.01em; color: var(--forest); text-decoration: none; white-space: nowrap; }
+.mark::before { content: ''; width: 40px; height: 40px; border-radius: 12px; background: url('MaiaCity.svg') center/cover no-repeat; box-shadow: 0 2px 10px rgba(23, 54, 85, .16); }
+
+/* ---- pieces ---- */
+.label { font: 500 12px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.sun::before, .chip.live::before { content: ''; display: inline-block; width: 15px; height: 15px; margin-right: 8px; vertical-align: -3px; background: var(--sunmark) center/contain no-repeat; }
+.btn { font: 500 15px/1 var(--sans); color: var(--cream); background: var(--forest); border: 0; border-radius: 999px; height: 48px; padding: 0 24px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 11px; transition: transform .25s cubic-bezier(.3, 1.6, .5, 1), background .2s; }
+.btn:hover { transform: translateY(-2px); background: #1d4268; }
+.btn.play { padding-left: 7px; }
+.btn.play::before { content: ''; width: 34px; height: 34px; border-radius: 50%; background: var(--sun) var(--playmark) 55% 50%/13px no-repeat; }
+.btn.light { background: var(--cream); color: var(--forest); box-shadow: 0 8px 28px rgba(10, 24, 16, .28); }
+.btn.light:hover { background: #fff; }
+.btn.sunny { background: var(--sun); color: var(--forest); }
+.btn.sunny:hover { background: #f7c666; }
+.btn.quiet, .btn.dark.quiet { background: none; color: var(--forest); box-shadow: inset 0 0 0 1.5px var(--sand2); }
+.btn.quiet:hover { background: var(--sand); }
+.btn.small { height: 38px; font-size: 14px; padding: 0 17px; }
+.btn.small.play { padding-left: 5px; }
+.btn.small.play::before { width: 28px; height: 28px; background-size: 11px; }
+.chip { display: inline-flex; align-items: center; font: 500 12px/1 var(--sans); letter-spacing: .02em; color: var(--forest2); background: var(--sand); border-radius: 999px; padding: 7px 12px; white-space: nowrap; text-transform: capitalize; }
+.chip.live { color: var(--forest); background: rgba(242, 181, 68, .24); }
+.chip.live::before { width: 13px; height: 13px; margin-right: 6px; vertical-align: 0; }
+
+/* ---- liquid glass: the one look of every card, side and pill over the game or a picture ----
+   Use the class .glass, or these tokens where a rule must carry it itself; never a glass of its own
+   (.glass2 is the same, its older name). The rules:
+   - the glass is light and clear: a thin cream sheen, strongly blurred, nothing dimmed; it takes its colour
+     from the picture behind it
+   - words on it are always light, never dark, and carry no shadow at all. They hold by how they are set, in
+     three levels: a title in the brand's serif, large enough for its fine strokes; names and values in the
+     sans at 550; labels and running text quieter, at 450 to 600. A number stands as a figure (.g-fig): large,
+     weight 300, its unit small beside it; nothing on glass is lighter or smaller than that
+   - a card (.g-card) is laid out in parts with a rule between them (.g-part): its header, its figures, its
+     values each as a label over the value (.g-cell), its file; never rows of label and value side by side
+   - only over a bright picture (the film's sky) the glass dims what is behind it (.dim, --glass-blur-dim):
+     there light words on light glass would be lost; nowhere else
+   - one thin, even light edge (no brighter top line), one soft shadow under the glass;
+     pieces in a stack (a list's items) take .flat: no shadow under them, or each would darken the next
+   - a chosen item is brighter glass (--glass-on) with the sun beside it; a hovered one a little brighter
+   - a solid thing on glass (a button, a tick, the badge) is cream with navy on it (--glass-solid, -ink);
+     a quiet button is an outline of light
+   - glass over glass is not done: one layer; over a film that plays, no blur (the studio's pill stays navy) */
+:root {
+  --glass: linear-gradient(180deg, rgba(251, 246, 234, .17), rgba(251, 246, 234, .05));
+  --glass-blur: blur(20px) saturate(.85) brightness(.92);   /* the picture's colour held back, as the library's section cards: grey-clear, not green */
+  --glass-blur-dim: blur(20px) saturate(.85) brightness(.7);   /* only where the picture behind is bright (sky) */
+  --glass-edge: 1px solid rgba(255, 255, 255, .5);
+  --glass-inner: 0 0 0 transparent;   /* no bright line along the top: the even edge alone draws the glass */
+  --glass-shadow: var(--glass-inner), 0 12px 30px rgba(12, 24, 38, .16);
+  --glass-hover: rgba(255, 255, 255, .12);
+  --glass-on: linear-gradient(180deg, rgba(255, 255, 255, .46), rgba(255, 255, 255, .26));   /* a chosen item: brighter glass */
+  --glass-line: rgba(255, 255, 255, .3);          /* a rule between parts of a card */
+  --glass-track: rgba(23, 54, 85, .22);           /* an empty track (the film's line) */
+  --glass-solid: var(--cream);                    /* a solid thing on glass, */
+  --glass-solid-ink: var(--navy);                 /* and what is written on it */
+  --pill-h: 44px;   /* every pill at the bottom, border included: the nav pill's wings, the library's Back, the studio's pages; never another height */
+  --side-w: 236px;  /* the library's two sides, the list and the card, one width */
+  /* a phone's safe area: what its status bar, notch and home bar cover, where the page is drawn under them
+     (viewport-fit=cover; as a web app on the home screen, the status bar's black-translucent). An iframe is not given
+     it, so a page framed in the dashboard is told the dashboard's and sets these on its <html> (cine/menu.js) */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --edge: max(14px, var(--safe-l), var(--safe-r));   /* every game screen keeps its overlays this far from the window's edge, and out of a phone's notch */
+  --edge-t: max(14px, var(--safe-t));   /* and from the top: on a phone, just under its status bar */
+  --edge-b: max(18px, var(--safe-b));   /* and from the bottom, where the pill is: on a phone, on the home bar's line, not 18px above it */
+  /* the words on glass: always light, no shadow */
+  --glass-font: var(--sans);
+  --on-glass: #ffffff;                            /* titles and names, values */
+  --on-glass-2: rgba(255, 255, 255, .93);          /* lines under a name, descriptions */
+  --on-glass-3: rgba(255, 255, 255, .84);          /* labels, the names of values */
+}
+.glass, .glass2 { font-family: var(--glass-font); color: var(--on-glass); text-shadow: none; -webkit-font-smoothing: antialiased; background:var(--glass); -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur); border:var(--glass-edge); box-shadow:var(--glass-shadow); }
+.glass.dim { -webkit-backdrop-filter: var(--glass-blur-dim); backdrop-filter: var(--glass-blur-dim); }
+.glass.flat { box-shadow: var(--glass-inner); }   /* in a stack: no shadow under it */
+
+/* words on glass, everywhere the same, in three levels: a title; names and values; labels and running text.
+   A label, a title (.big: a card's own), a name (in a list, or a value), the one line under a name, a text,
+   a figure with its unit (in a row of figures), a label over its value (a cell), a chip, a file's line, a hint */
+.g-label { display: block; font: 600 10.5px/1 var(--glass-font); letter-spacing: .16em; text-transform: uppercase; color: var(--on-glass-3); margin: 0; }
+.g-title { font: 400 24px/1.08 var(--serif); letter-spacing: 0; color: var(--on-glass); margin: 0; }
+.g-title.big { font-size: 28px; line-height: 1; margin: 8px 0 8px; }
+.g-name { display: block; font: 550 14px/1.3 var(--glass-font); color: var(--on-glass); }
+.g-sub { display: block; font: 450 12.5px/1.3 var(--glass-font); color: var(--on-glass-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-text { font: 450 13px/1.45 var(--glass-font); color: var(--on-glass-2); margin: 0; }
+.g-fig { font: 300 30px/1 var(--glass-font); letter-spacing: -.01em; font-variant-numeric: tabular-nums; color: var(--on-glass); white-space: nowrap; }
+.g-fig i { font: 500 14px/1 var(--glass-font); font-style: normal; letter-spacing: 0; margin-left: 2px; color: var(--on-glass-2); }
+.g-figs { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+.g-figs.fit { grid-auto-columns: auto; justify-content: start; gap: 20px; }   /* figures of unequal width: a range beside a number */
+.g-figs > div { display: grid; gap: 9px; min-width: 0; }
+.g-figs .g-label { white-space: nowrap; }
+.g-cells { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 16px 14px; }
+.g-cell { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.g-cell.wide { grid-column: 1 / -1; }
+.g-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.g-chip { display: inline-flex; align-items: center; gap: 7px; height: 27px; padding: 0 11px 0 7px; border-radius: 999px; background: rgba(255, 255, 255, .14); box-shadow: inset 0 0 0 1px var(--glass-line); font: 500 12.5px/1 var(--glass-font); color: var(--on-glass); white-space: nowrap; }
+.g-chip i { width: 13px; height: 13px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(255, 255, 255, .55); }
+.g-pills { display: flex; flex-wrap: wrap; gap: 5px; }   /* a thing's variants (its moves, its layers): a pill each (.g-btn), the chosen one solid, its few words under the row */
+.g-pills .g-btn { padding: 6px 10px; }
+.g-pills + .g-sub { white-space: normal; }
+.g-more > summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; }   /* a longer text, closed until asked for */
+.g-more > summary::-webkit-details-marker { display: none; }
+.g-more > summary::after { content: '+'; font: 500 15px/0.6 var(--glass-font); letter-spacing: 0; }
+.g-more[open] > summary::after { content: '\2013'; }
+.g-more > .g-text { margin-top: 9px; }
+.g-file { display: block; font: 400 11.5px/1.2 var(--mono); color: var(--on-glass-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-hint { font: 500 10.5px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--on-glass-3); text-shadow: 0 1px 3px rgba(0, 0, 0, .45); }
+/* tabs at the top of a card (Info | Detail), and a list of choices in it (a card's levels of detail) */
+.g-tabs { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(255, 255, 255, .1); box-shadow: inset 0 0 0 1px var(--glass-line); }
+.g-tabs button { flex: 1; height: 28px; border: 0; border-radius: 999px; background: none; cursor: pointer; font: 550 12.5px/1 var(--glass-font); color: var(--on-glass-2); }
+.g-tabs button:hover { background: var(--glass-hover); }
+.g-tabs button.on { background: var(--glass-solid); color: var(--glass-solid-ink); }
+.g-pick { display: grid; gap: 4px; }
+.g-pick button { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 14px; background: rgba(255, 255, 255, .08); cursor: pointer; text-align: left; color: var(--on-glass); font: inherit; }
+.g-pick button:hover { background: var(--glass-hover); }
+.g-pick button.on { background: var(--glass-on); }
+.g-pick b { font: 300 22px/1 var(--glass-font); font-variant-numeric: tabular-nums; }
+.g-pick .g-file { text-align: right; }
+/* a card on glass: its parts one under the other, a rule between them */
+.g-card { box-sizing: border-box; width: var(--side-w); padding: 16px; border-radius: var(--radius); display: grid; gap: 13px; align-content: start; }
+.g-part { border-top: 1px solid var(--glass-line); padding-top: 13px; }
+.g-btn { font: 650 12px/1 var(--glass-font); color: var(--glass-solid-ink); background: var(--glass-solid); border: 0; border-radius: 999px; padding: 7px 12px; cursor: pointer; text-shadow: none; }
+.g-btn.quiet { background: none; color: var(--on-glass); box-shadow: inset 0 0 0 1.5px var(--on-glass-3); }
+
+/* the game's pill: Home (the dashboard), the large round star (the intents), the city's badge; as in the dashboard */
+.os-pill { position: fixed; left: 50%; bottom: var(--edge-b); transform: translateX(-50%); z-index: 8; display: flex; align-items: center; gap: 12px; padding: 0 12px; height: var(--pill-h); box-sizing: border-box; border-radius: 999px; background:var(--glass); -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur); border:var(--glass-edge); box-shadow:var(--glass-shadow); }
+.os-pill a { text-decoration: none; }
+.os-pill .back { display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--on-glass); font: 500 10.5px/1 var(--sans); letter-spacing: .06em; padding: 0 6px; }
+.os-pill .back svg { width: 22px; height: 20px; }
+.os-pill .back:hover { opacity: .75; }
+.os-pill .home { width: 56px; height: 56px; margin: -6px 0; border-radius: 50%; background: var(--navy) url('star.svg') center/33px no-repeat; box-shadow: 0 0 0 3px rgba(242, 181, 68, .5), 0 14px 34px rgba(12, 24, 38, .35); transition: transform .25s cubic-bezier(.3, 1.6, .5, 1); }
+.os-pill .home:hover { transform: scale(1.05); }
+.os-pill .badge { width: 34px; height: 30px; display: grid; place-items: center; background: var(--glass-solid); color: var(--glass-solid-ink); font: 700 12px/1 var(--sans); letter-spacing: .02em; clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
+body:not(.framed):not(.embed) .os-bar.bottom { bottom: 86px; }
+body.framed .os-bar.bottom { bottom: 96px; }                          /* inside the dashboard, above the dashboard's pill */
+
+/* every game screen, one layout: top left the list (or nothing), top centre the screen's nav (the lenses) or its hint,
+   top right the card; bottom left Back, bottom centre the pill, bottom right the readout */
+.os-top { position: fixed; left: 50%; top: var(--edge-t); transform: translateX(-50%); z-index: 6; max-width: calc(100vw - 2 * var(--side-w) - 4 * var(--edge)); }
+.os-hint { position: fixed; left: 50%; top: calc(var(--edge-t) + 8px); transform: translateX(-50%); z-index: 2; white-space: nowrap; pointer-events: none; max-width: calc(100vw - 2 * var(--side-w) - 4 * var(--edge)); overflow: hidden; text-overflow: ellipsis; }
+.os-top + .os-hint { top: calc(var(--edge-t) + var(--pill-h) + 12px); }   /* under the nav, where there is one */
+/* the stat pill at the top centre: small figures about the view (the height, its band, a scale bar); more stats join it */
+.os-stat { display: flex; align-items: center; gap: 9px; height: 30px; box-sizing: border-box; padding: 0 13px; border-radius: 999px; font: 400 11px/1 var(--mono); color: var(--on-glass-2); white-space: nowrap; pointer-events: none; }
+.os-stat b { font: 500 11.5px/1 var(--mono); color: var(--on-glass); }
+.os-stat i { height: 5px; box-sizing: border-box; border: 1.5px solid var(--on-glass-2); border-top: 0; }
+.os-stat:empty { display: none; }
+/* the clock, top right: the hour, a slider, Auto (intent 0007); a card there moves under it */
+/* the top centre: the page's own nav (.os-top) and the weather pill in one row; the weather opens into a card under it */
+.os-topbar { position: fixed; left: 50%; top: var(--edge-t); transform: translateX(-50%); z-index: 7; display: flex; align-items: stretch; gap: 8px; }   /* the weather pill as tall as the nav beside it */
+.os-topbar > .os-top { position: static; transform: none; max-width: none; }   /* in the row it is as wide as it needs (the side columns' limit went below nothing on a phone: the stat shrank to a dot and its figures ran over the weather) */
+@media (max-width: 700px) {   /* on a phone, two rows: the weather, then the page's nav (or the stat) under it; the hint under both */
+  .os-topbar { flex-direction: column; align-items: center; gap: 6px; }
+  .os-topbar > .os-weather { order: -1; }
+  body.has-weather:has(.os-topbar > .os-top:not(:empty)) .os-hint { top: calc(var(--edge-t) + 30px + 6px + var(--pill-h) + 12px); }
+}
+.os-weather { position: relative; display: flex; }
+.os-weather-pill { display: flex; align-items: center; gap: 8px; min-height: 30px; box-sizing: border-box; padding: 0 12px 0 13px; border-radius: 999px; border: 0; cursor: pointer; font: 500 11.5px/1 var(--mono); color: var(--on-glass); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.os-weather-pill i { font-style: normal; font-size: 10px; color: var(--on-glass-2); transition: transform .2s; }
+.os-weather-pill[aria-expanded="true"] i { transform: rotate(180deg); }
+.os-weather-card { position: absolute; right: 0; top: calc(100% + 8px); width: 300px; box-sizing: border-box; padding: 12px 14px; border-radius: 16px; display: grid; gap: 10px; }
+.os-weather-card[hidden] { display: none; }
+.os-weather-row { display: grid; grid-template-columns: 5.6em 1fr auto; grid-template-rows: auto auto; column-gap: 10px; row-gap: 3px; align-items: center; }
+.os-weather-row .g-label { grid-column: 1; grid-row: 1; }
+.os-weather-row b { grid-column: 1; grid-row: 2; }
+.os-weather-row input { grid-column: 2; grid-row: 1 / 3; }
+.os-weather-row .g-btn { grid-column: 3; grid-row: 1 / 3; }
+.os-weather-row b { font: 500 13px/1 var(--mono); color: var(--on-glass); font-variant-numeric: tabular-nums; }
+.os-weather-row input { min-width: 0; accent-color: var(--sun); }
+.os-weather-row .g-btn { height: 28px; padding: 0 11px; }
+body.has-weather .os-hint { top: calc(var(--edge-t) + var(--pill-h) + 12px); }
+@media (max-width: 700px) { .os-weather-card { width: min(300px, calc(100vw - 2 * var(--edge))); right: 50%; transform: translateX(50%); } }
+/* the bars of Safari's tab on a phone (its status bar and its toolbar) are each painted in one solid colour, taken from
+   the page (WebKit, LocalFrameView::fixedContainerEdges): a fixed element at the middle of that edge, 4px in, at least
+   90% of the page's width and more than 10px deep, or else the page's background. No picture goes under them in a page
+   that does not scroll. Every page that draws the world gives its html and body the brand's blue (--navy), so both bars
+   are that blue: keep anything wide and fixed off the middle of either edge, or Safari takes its colour instead. As a
+   web app on the home screen the picture goes under the status bar (apple-mobile-web-app-capable, black-translucent) */
+/* the joystick on touch screens, bottom left above the bottom line (camera/touch.js has its size) */
+.os-stick { position: fixed; z-index: 7; border-radius: 50%; display: grid; place-items: center; touch-action: none; }
+.os-stick i { border-radius: 50%; background: var(--glass-solid); box-shadow: 0 4px 14px rgba(12, 24, 38, .25); transition: transform .06s; }
+body.embed .os-stick { display: none; }
+@media (max-width: 1100px) { #hud { display: none; } #hud.always { display: block; top: var(--edge-t); bottom: auto; left: var(--edge); right: var(--edge); white-space: pre-wrap; font-size: 9px; } }   /* on a phone or tablet the developer's readout would cover the pill; at ?hud it is shown all the same, at the top, its lines wrapped (src/core/hud.js) */   /* as a picture: none; inside the dashboard it is the game, so it stays */
+.os-stat + .os-hint { top: calc(var(--edge-t) + 30px + 10px); }
+/* the readout: small, out of the way */
+#hud { position: fixed; right: var(--edge); bottom: var(--edge-b); top: auto; left: auto; z-index: 5; padding: 10px 14px; border-radius: 18px; white-space: pre; pointer-events: none; font: 400 10.5px/1.55 var(--mono); color: var(--on-glass-2); }
+
+/* a bar of controls (the film's, the lenses') */
+.os-bar { position: fixed; left: 16px; right: 16px; z-index: 5; border-radius: 34px; font: 550 14px/1.35 var(--glass-font); }
+.os-bar.bottom { bottom: 16px; }
+body.framed .os-pill { display: none; }     /* inside the dashboard, the dashboard is the menu */
+body.embed .os-pill, body.embed .os-bar, body.embed #hud { display: none; }
+body.embed #cap:not(.title) { bottom: 4vh; }    /* framed on the front page: the subtitles under the play and the day's figures */
+body.embed #cap.title { top: 20%; }              /* and the title in the upper third */   /* as a picture: nothing but the film and its subtitles */
+
+/* subtitles: one place, two lines at most, readable over any picture */
+#cap { position: fixed; left: 50%; bottom: 8vh; transform: translateX(-50%); z-index: 4; width: max-content; max-width: min(46ch, 84vw); text-align: center; pointer-events: none; opacity: 0; display: none;
+  font: 500 clamp(16px, 1.6vw, 22px)/1.36 var(--glass-font); letter-spacing: 0; color: var(--on-glass); text-shadow: 0 1px 2px rgba(8, 18, 30, .7), 0 0 14px rgba(8, 18, 30, .45); text-wrap: balance; }   /* the words on glass, over the picture: the shadow is the picture's, not the glass's */
+#cap.on { display: block; }
+/* a dialogue: who speaks stands small over the line */
+#cap[data-who]:not([data-who=''])::before { content: attr(data-who); display: block; margin-bottom: 8px; font: 600 10.5px/1 var(--glass-font); letter-spacing: .16em; text-transform: uppercase; color: var(--sun); }   /* who speaks: a label, as on a card */
+#cap.samuel { font-weight: 450; }   /* the two voices differ by their label and a touch of weight, never by another face */
+#cap.note { font: 600 clamp(11px, 1vw, 13px)/1.4 var(--glass-font); letter-spacing: .16em; text-transform: uppercase; color: var(--on-glass-2); }
+#cap.title { bottom: auto; top: 40%; max-width: 86vw; font: 420 clamp(36px, 5.8vw, 86px)/1 var(--serif); font-variation-settings: var(--soft); letter-spacing: -.03em; text-shadow: 0 2px 50px rgba(8, 18, 30, .5), 0 1px 2px rgba(8, 18, 30, .35); }
+#cap.title small { display: block; margin-bottom: 14px; font: 600 11px/1 var(--glass-font); letter-spacing: .16em; text-transform: uppercase; }
+
+/* ---- the world, loading (every page that draws the world: <html class="os-loading">, src/ui/loading.js steps it) ----
+   the land before dawn: night above, the glow of a sun not yet up along the horizon, the mark turning slowly where it
+   will rise, the city's name, and what is being made: its phase, how many of its parts are made (data-count: "306 / 395",
+   a line kept for it whether it is said or not, by a space that does not break: nothing jumps), a thin line of how far, and under it, quietly, what
+   is being made now (#os-detail: one line, cut short, never wrapping). Pure CSS on html and body, so it is
+   there from the first paint, before any script; it fades into the world's own sky when the first frame is drawn.
+   Behind it, a still of the world with the tent (Brand/loading.js, Brand/loading/*.jpg), seen through the dusk. */
+html.os-loading::before, html.os-loading::after, html.os-loading body::before, html.os-loading body::after { position: fixed; z-index: 99990; pointer-events: none; transition: opacity .9s ease; }
+html.os-loading::before { content: ''; inset: 0;
+  /* a still of the world (Brand/loading.js picks one) seen through the dusk: the land shows, the words stay readable */
+  background: radial-gradient(120% 55% at 50% 108%, rgba(255, 196, 120, .4), rgba(242, 181, 68, .12) 38%, transparent 62%),
+    radial-gradient(60% 40% at 50% 46%, rgba(255, 226, 160, .10), transparent 70%),
+    linear-gradient(180deg, rgba(11, 22, 38, .86) 0%, rgba(19, 36, 59, .7) 34%, rgba(42, 63, 92, .5) 62%, rgba(107, 111, 126, .42) 82%, rgba(201, 154, 116, .5) 100%),
+    var(--os-load-still, none) center / cover no-repeat, #13243b; }
+html.os-loading::after { content: ''; left: 50%; top: 27%; width: 64px; height: 64px; margin: -32px 0 0 -32px; background: var(--sunmark) center/contain no-repeat;
+  filter: drop-shadow(0 0 18px rgba(255, 210, 120, .55)); animation: os-rise 2.6s ease-in-out infinite alternate, os-turn 24s linear infinite; }
+html.os-loading body::before { content: 'Maia City'; left: 0; right: 0; top: calc(27% + 52px); text-align: center; font: 400 36px/1.1 var(--serif); letter-spacing: -.01em; color: #fbf6ea; text-shadow: 0 2px 24px rgba(10, 20, 35, .5); }
+html.os-loading body::after { content: attr(data-step) '\A' attr(data-count) '\A0'; left: 50%; top: calc(27% + 112px); width: 220px; margin-left: -110px; padding-bottom: 14px; text-align: center;
+  font: 500 11px/1.6 var(--mono); letter-spacing: .18em; text-transform: uppercase; color: rgba(251, 246, 234, .72); white-space: pre; overflow: hidden; text-overflow: ellipsis;
+  background: linear-gradient(90deg, #f2b544, #ffe2a0) left bottom / var(--os-load, 4%) 2px no-repeat, linear-gradient(rgba(251, 246, 234, .16), rgba(251, 246, 234, .16)) left bottom / 100% 2px no-repeat;
+  transition: opacity .9s ease; }   /* the line jumps: while the world is being made the page has no time to animate it */
+html.os-loaded::before, html.os-loaded::after, html.os-loaded body::before, html.os-loaded body::after { opacity: 0; }
+@keyframes os-rise { from { transform: translateY(4px) scale(.96); } to { transform: translateY(-4px) scale(1.04); } }
+@keyframes os-turn { to { rotate: 360deg; } }
+@media (prefers-reduced-motion: reduce) { html.os-loading::after { animation: none; } }
+/* what is being made now, under the line of how far (src/ui/loading.js): one quiet line, cut short where it is long */
+#os-detail { display: none; }
+/* what the last start reached, where it was killed (src/core/lastrun.js): quieter still, under it, wrapping if it must */
+#os-last { display: none; }
+html.os-loading:not(.os-loaded) #os-last { display: block; position: fixed; z-index: 99991; left: 50%; top: calc(27% + 194px); width: min(360px, calc(100vw - 48px)); transform: translateX(-50%); pointer-events: none;
+  text-align: center; font: 400 11.5px/1.4 var(--sans); color: rgba(251, 246, 234, .42); }
+html.os-loading:not(.os-loaded) #os-detail { display: block; position: fixed; z-index: 99991; left: 50%; top: calc(27% + 168px); width: min(300px, calc(100vw - 48px)); transform: translateX(-50%); pointer-events: none;
+  text-align: center; font: 400 12px/1.3 var(--sans); color: rgba(251, 246, 234, .5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* what holds the start up, or stopped the page (Brand/loading.js: os:stuck, os:lost): a line under the step, what may
+   help, and a button that reloads; shown only with the veil */
+#os-stuck { display: none; }
+html.os-loading:not(.os-loaded) #os-stuck { display: block; position: fixed; z-index: 99991; left: 50%; top: calc(27% + 248px); width: min(420px, calc(100vw - 32px)); transform: translateX(-50%);
+  text-align: center; font: 400 14px/1.45 var(--sans); color: #fbf6ea; text-shadow: 0 1px 12px rgba(10, 20, 35, .6); }
+#os-stuck p { margin: 0 0 6px; }
+#os-stuck p + p { font-size: 13px; color: rgba(251, 246, 234, .72); }
+#os-stuck button { margin-top: 10px; padding: 9px 20px; border: 1px solid rgba(251, 246, 234, .5); border-radius: 999px; background: rgba(251, 246, 234, .12);
+  font: 500 11px/1 var(--mono); letter-spacing: .18em; text-transform: uppercase; color: #fbf6ea; cursor: pointer; }
+#os-stuck button:hover, #os-stuck button:focus-visible { background: rgba(251, 246, 234, .24); }
+/* which build this is (TheGame/vite.config.js writes it into the game's page): one quiet line at the top right, under the account's pill (30 px tall,
+   TheGame/src/account/index.js; its card, opened, lies over it), and over the veil while it is up, where a start that
+   dies is seen; nothing to press. A crisp shadow under it, and a faint halo: read over a bright sky too, as quiet */
+#os-build { position: fixed; right: var(--edge); top: calc(var(--edge-t) + 36px); z-index: 6; font: 400 10.5px/1 var(--mono); letter-spacing: .04em;
+  color: var(--muted); text-shadow: 0 1px 1px rgba(8, 18, 30, .5), 0 0 3px rgba(8, 18, 30, .35); white-space: nowrap; pointer-events: none; user-select: none; -webkit-user-select: none; }
+html.os-loading:not(.os-loaded) #os-build { z-index: 99991; color: rgba(251, 246, 234, .42); }
+body.framed #os-build { top: calc(88px + var(--safe-t) + 36px); }   /* inside the dashboard, under the pill where it stands there */
+body.embed #os-build { top: var(--edge-t); }   /* a picture in the website: no pill above it */

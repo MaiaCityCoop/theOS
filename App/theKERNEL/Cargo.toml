@@ -1,0 +1,13 @@
+[package]
+name = "thekernel"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "theKERNEL"
+path = "src/main.rs"
+
+# The kernel: the one thing installed (main.rs). Small on purpose: theDB and its plugins, never the engine.
+[dependencies]
+thedb = { path = "../theDB" }

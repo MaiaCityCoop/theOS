@@ -1,4 +1,4 @@
-// Sign in with aven.id: a small pill at the top right of the game, on the brand's glass (brand/brand.css: .glass, .g-*).
+// Sign in with aven.id: a small pill at the top right of the game, on the brand's glass (Brand/brand.css: .glass, .g-*).
 // Signed out it is the button; signed in it names the person and their role, and opens into a card with Sign out, and
 // for a traveler the way to become a citizen (their aven.id account). It stands apart from the world: loaded by its own
 // script, it neither waits for the world nor holds it up, and when aven.id cannot be reached the game plays on.
