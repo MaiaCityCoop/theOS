@@ -12,7 +12,7 @@
 //! part. A click on the map outside the square bakes the square
 //! around that point the same way, in the background, and opens it; a place baked once opens at once.
 
-use crate::View;
+use crate::contract::World;
 use crate::rig::Walker;
 use crate::world::Plain;
 use bevy::pbr::{DistanceFog, FogFalloff};
@@ -286,7 +286,7 @@ pub fn baked(site: &Site) -> bool {
 // ---- the place in the app ----
 
 /// The loaded package: the height field, for the terrain and for the walker's feet.
-#[derive(Resource)]
+#[derive(Resource, Clone)]
 pub struct Ground {
     h: Vec<f32>,
     base: f32,
@@ -311,8 +311,8 @@ impl Ground {
 
 pub fn plugin(app: &mut App) {
     app.insert_resource(Site::mertola())
-        .add_systems(OnEnter(View::Place), (stage, enter).chain())
-        .add_systems(OnExit(View::Place), (leave, unstage));
+        .add_systems(OnEnter(World::Place), (stage, enter).chain())
+        .add_systems(OnExit(World::Place), (leave, unstage));
 }
 
 /// The real place's own eye: a 3D camera with its haze, made when the place opens and gone when it closes (the
@@ -327,7 +327,8 @@ fn stage(mut commands: Commands, mut dash: Query<(Entity, &mut Camera), With<cra
     }
     commands.spawn((
         PlaceEye,
-        DespawnOnExit(View::Place),
+        crate::contract::WorldEye,
+        DespawnOnExit(World::Place),
         IsDefaultUiCamera,
         Camera3d::default(),
         // after the dashboard's camera, should that still be on (a still taken straight into the place)
@@ -342,7 +343,7 @@ fn stage(mut commands: Commands, mut dash: Query<(Entity, &mut Camera), With<cra
     ));
     // the sun's light; `sun.rs` turns and colours it with the hour
     commands.spawn((
-        DespawnOnExit(View::Place),
+        DespawnOnExit(World::Place),
         DirectionalLight { illuminance: 9_000.0, shadow_maps_enabled: true, ..default() },
         bevy::light::CascadeShadowConfigBuilder { num_cascades: 3, first_cascade_far_bound: 40.0, maximum_distance: 600.0, ..default() }.build(),
         Transform::from_xyz(0.3, 1.0, 0.4).looking_at(Vec3::ZERO, Vec3::Y),
@@ -431,7 +432,7 @@ pub fn enter(
         .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uv)
         .with_inserted_indices(Indices::U32(idx));
     commands.spawn((
-        DespawnOnExit(View::Place),
+        DespawnOnExit(World::Place),
         Mesh3d(meshes.add(terrain)),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color_texture: Some(images.add(ground_image(&cover))),
@@ -442,7 +443,7 @@ pub fn enter(
 
     // the land beyond the site, just under its lowest point (the river), so it never floods a valley
     commands.spawn((
-        DespawnOnExit(View::Place),
+        DespawnOnExit(World::Place),
         Mesh3d(meshes.add(Plane3d::default().mesh().size(60_000.0, 60_000.0))),
         MeshMaterial3d(materials.add(StandardMaterial { base_color: Color::srgb(0.30, 0.29, 0.19), perceptual_roughness: 1.0, ..default() })),
         Transform::from_xyz(0.0, -3.0, 0.0),
@@ -560,7 +561,7 @@ pub fn enter(
                 .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, b.n)
                 .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, b.c)
                 .with_inserted_indices(Indices::U32(b.i));
-            commands.spawn((DespawnOnExit(View::Place), Mesh3d(meshes.add(mesh)), MeshMaterial3d(leaves.clone()), Transform::from_translation(centre), range));
+            commands.spawn((DespawnOnExit(World::Place), Mesh3d(meshes.add(mesh)), MeshMaterial3d(leaves.clone()), Transform::from_translation(centre), range));
         }
     }
     info!("place: {} measured trees, {} plants in all", measured.as_ref().map_or(0, Vec::len), plants.len());
@@ -570,6 +571,9 @@ pub fn enter(
         Some((x, z, yaw)) => *walker = Walker::new(x, z, yaw),
         None => walker.place(0.0, 0.0),
     }
+    // the world's land, for the contract
+    let land = ground.clone();
+    commands.insert_resource(crate::contract::Land(std::sync::Arc::new(move |x, z| land.at(x, z))));
     commands.insert_resource(ground);
 }
 

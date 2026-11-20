@@ -1,7 +1,8 @@
 //! What drives the eye: the walker in the Game, the shot list in the Studio. Live, every frame; nothing is rendered
 //! ahead.
 
-use crate::camera::{self, Timeline, vfov};
+use crate::camera::{self, Timeline};
+use crate::contract::{Clock, Eye, Land, Lens, World};
 use crate::{Still, View};
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
@@ -67,7 +68,7 @@ pub fn plugin(app: &mut App) {
     app.insert_resource(Studio::paused_at(opened.unwrap_or_else(|| camera::five_shots(1)), 0.0))
         .insert_resource(Walker { pos: Vec3::new(0.0, 1.6, 0.0), yaw: 0.0, pitch: -4.0 })
         .add_observer(capture)
-        .add_systems(Update, (walk.run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow)), play.run_if(in_state(View::Studio))));
+        .add_systems(Update, (choose_world, walk.run_if(|v: Res<State<View>>| matches!(v.get(), View::Meadow)), play.run_if(in_state(View::Studio))));
 }
 
 /// The walker's eye height range: a blade's height above the ground up to 12 km, as the legacy game's camera.
@@ -82,9 +83,9 @@ fn walk(
     motion: Res<AccumulatedMouseMotion>,
     scroll: Res<bevy::input::mouse::AccumulatedMouseScroll>,
     cursor: Query<&bevy::window::CursorOptions>,
-    state: Res<State<View>>,
+    land: Res<Land>,
     mut walker: ResMut<Walker>,
-    mut eye: Query<(&Camera, &mut Transform, &mut Projection), With<Camera3d>>,
+    mut eye: ResMut<Eye>,
 ) {
     // look: with the mouse captured (click into the world), or while a button is held
     let captured = cursor.iter().any(|c| c.grab_mode != bevy::window::CursorGrabMode::None);
@@ -112,15 +113,9 @@ fn walk(
     walker.pos += m * speed * time.delta_secs();
     walker.pos.y = walker.pos.y.clamp(LOWEST, HIGHEST);
     let (sp, cp) = walker.pitch.to_radians().sin_cos();
-    // the walker's height is above the land under it: on the Meadow's hills the eye rises and falls with the ground
-    let ground = if *state.get() == View::Meadow { crate::terrain::height(walker.pos.x, walker.pos.z) } else { 0.0 };
-    let at = walker.pos + Vec3::Y * ground;
-    let cam = camera::Camera { pos: at, look: at + Vec3::new(sy * cp, sp, -cy * cp), mm: 35.0, roll: 0.0 };
-    for (c, mut t, mut p) in &mut eye {
-        if c.is_active {
-            aim(&cam, &mut t, &mut p);
-        }
-    }
+    // the walker's height is above the world's land: on the Meadow's hills the eye rises and falls with the ground
+    let at = walker.pos + Vec3::Y * land.at(walker.pos.x, walker.pos.z);
+    *eye = Eye { pos: at, look: at + Vec3::new(sy * cp, sp, -cy * cp), roll: 0.0, lens: Lens { mm: 35.0, ..default() } };
 }
 
 /// A click into the world (not on the interface) captures the mouse for looking; Escape lets it go.
@@ -138,9 +133,9 @@ fn play(
     time: Res<Time>,
     keys: Res<ButtonInput<KeyCode>>,
     mut studio: ResMut<Studio>,
-    mut hour: ResMut<crate::meadow::Hour>,
-    mut wind: ResMut<crate::wind::Strength>,
-    mut eye: Query<(&Camera, &mut Transform, &mut Projection), With<Camera3d>>,
+    land: Res<Land>,
+    mut clock: ResMut<Clock>,
+    mut eye: ResMut<Eye>,
 ) {
     if keys.just_pressed(KeyCode::Space) {
         if studio.time >= studio.duration() {
@@ -155,33 +150,46 @@ fn play(
             studio.playing = false;
         }
     }
-    let Some(mut cam) = studio.timeline.at(studio.time) else { return };
-    // the shots' heights are above the land: over the Meadow's hills the camera and its aim follow the ground
-    cam.pos.y += crate::terrain::height(cam.pos.x, cam.pos.z);
-    cam.look.y += crate::terrain::height(cam.look.x, cam.look.z);
+    let Some(cam) = studio.timeline.at(studio.time) else { return };
+    // the shots' heights are above the world's land: the camera and its aim follow the ground
+    let (pos, look) = (cam.pos + Vec3::Y * land.at(cam.pos.x, cam.pos.z), cam.look + Vec3::Y * land.at(cam.look.x, cam.look.z));
+    // focused where it looks, unless the shot pulls focus itself
+    let focus = cam.focus.unwrap_or_else(|| pos.distance(look));
+    *eye = Eye { pos, look, roll: cam.roll, lens: Lens { mm: cam.mm, aperture: cam.aperture, focus, ..default() } };
     // the shot's own hour and wind, where it gives them (a value, or [from, to] across the shot)
     if let Some((i, q)) = studio.timeline.shot_at(studio.time) {
         let shot = &studio.timeline.clips[i];
         if let Some(h) = &shot.hour {
-            hour.0 = h.at(q);
+            clock.hour = h.at(q);
         }
         if let Some(w) = &shot.wind {
-            wind.0 = w.at(q);
-        }
-    }
-    for (c, mut t, mut p) in &mut eye {
-        if c.is_active {
-            aim(&cam, &mut t, &mut p);
+            clock.wind = w.at(q);
         }
     }
 }
 
-/// Stands the eye where the camera is: its place, its aim, its roll, and its lens as the field of view.
-pub fn aim(cam: &camera::Camera, t: &mut Transform, p: &mut Projection) {
-    *t = Transform::from_translation(cam.pos).looking_at(cam.look, Vec3::Y);
-    t.rotate_local_z(-cam.roll.to_radians());
-    if let Projection::Perspective(pp) = p {
-        pp.fov = vfov(cam.mm, pp.aspect_ratio);
+/// The world shown: the view's own, or in the Studio the world of the shot playing (named by a doc's id, its kind
+/// saying which world it is).
+fn choose_world(view: Res<State<View>>, studio: Res<Studio>, world: Res<State<World>>, mut next: ResMut<NextState<World>>, mut kinds: Local<std::collections::HashMap<String, World>>) {
+    let want = match view.get() {
+        View::Home => World::None,
+        View::Meadow => World::Meadow,
+        View::Library => World::Library,
+        View::Place => World::Place,
+        View::Studio => {
+            let id = studio.timeline.shot_at(studio.time).and_then(|(i, _)| studio.timeline.clips[i].world.clone());
+            match id {
+                None => World::Meadow,
+                Some(id) => *kinds.entry(id.clone()).or_insert_with(|| match crate::db().meta(&id).map(|m| m.0).as_deref() {
+                    Ok("place") => World::Place,
+                    Ok("asset") => World::Library,
+                    _ => World::Meadow,
+                }),
+            }
+        }
+    };
+    if *world.get() != want {
+        next.set(want);
     }
 }
 

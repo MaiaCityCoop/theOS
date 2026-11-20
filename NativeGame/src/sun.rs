@@ -2,7 +2,7 @@
 //! hour, and the light, sky and haze that follow from it. It opens on the real date and the place's own solar time;
 //! [ and ] move the hours back and forward. Leaving the place puts the plain's light back.
 
-use crate::View;
+use crate::contract::World;
 use crate::place::Site;
 use crate::place::PlaceEye as Eye;
 use crate::world::{HAZE, SKY};
@@ -10,22 +10,18 @@ use bevy::light::CascadeShadowConfigBuilder;
 use bevy::pbr::DistanceFog;
 use bevy::prelude::*;
 
-/// The day of the year (1 = 1 January), the place's solar hour (12 = the sun at its highest), and where the sun is.
-#[derive(Resource)]
+/// Where the sun is over the place, from the contract's clock (its day of the year and the place's solar hour).
+#[derive(Resource, Default)]
 pub struct Sun {
-    pub day: u32,
-    pub hour: f32,
     /// degrees above the horizon, and clockwise from north
     pub elevation: f32,
     pub azimuth: f32,
-    /// whether the day runs on its own (the time panel's Auto), at two game hours a real minute, as TheGame's clock
-    pub auto: bool,
 }
 
 pub fn plugin(app: &mut App) {
-    app.add_systems(OnEnter(View::Place), rise)
-        .add_systems(Update, shine.run_if(in_state(View::Place)).run_if(resource_exists::<Sun>))
-        .add_systems(OnExit(View::Place), set);
+    app.add_systems(OnEnter(World::Place), rise)
+        .add_systems(Update, shine.run_if(in_state(World::Place)).run_if(resource_exists::<Sun>))
+        .add_systems(OnExit(World::Place), set);
 }
 
 /// Now, as the day of the year and the UTC hour, from the system clock.
@@ -56,12 +52,13 @@ pub fn position(lat: f64, day: u32, hour: f32) -> (f32, f32) {
     (el.to_degrees() as f32, az.rem_euclid(360.0) as f32)
 }
 
-fn rise(mut commands: Commands, site: Res<Site>, old: Option<Res<Sun>>, mut lights: Query<(Entity, &mut DirectionalLight)>) {
+fn rise(mut commands: Commands, site: Res<Site>, old: Option<Res<Sun>>, mut clock: ResMut<crate::contract::Clock>, mut lights: Query<(Entity, &mut DirectionalLight)>) {
     // a place jumped to keeps the hour you set; the first one opens on now, in its own solar time
     if old.is_none() {
         let (day, utc) = now();
         let hour = (utc + site.lon as f32 / 15.0).rem_euclid(24.0);
-        commands.insert_resource(Sun { day, hour, elevation: 0.0, azimuth: 0.0, auto: false });
+        (clock.day, clock.hour) = (day, hour);
+        commands.insert_resource(Sun::default());
     }
     for (e, mut l) in &mut lights {
         l.shadow_maps_enabled = true;
@@ -87,6 +84,7 @@ fn shine(
     keys: Res<ButtonInput<KeyCode>>,
     site: Res<Site>,
     mut sun: ResMut<Sun>,
+    mut clock: ResMut<crate::contract::Clock>,
     mut lights: Query<(&mut DirectionalLight, &mut Transform)>,
     mut ambient: ResMut<GlobalAmbientLight>,
     mut clear: ResMut<ClearColor>,
@@ -94,13 +92,13 @@ fn shine(
 ) {
     // [ and ] move the hours, two an second; past midnight the day turns
     let keyed = (keys.pressed(KeyCode::BracketRight) as i32 - keys.pressed(KeyCode::BracketLeft) as i32) as f32 * 2.0;
-    let step = (keyed + if sun.auto { 2.0 / 60.0 } else { 0.0 }) * time.delta_secs();
+    let step = keyed * time.delta_secs();
     if step != 0.0 {
-        let h = sun.hour + step;
-        sun.day = ((sun.day as i32 - 1 + h.div_euclid(24.0) as i32).rem_euclid(365) + 1) as u32;
-        sun.hour = h.rem_euclid(24.0);
+        let h = clock.hour + step;
+        clock.day = ((clock.day as i32 - 1 + h.div_euclid(24.0) as i32).rem_euclid(365) + 1) as u32;
+        clock.hour = h.rem_euclid(24.0);
     }
-    let (el, az) = position(site.lat, sun.day, sun.hour);
+    let (el, az) = position(site.lat, clock.day, clock.hour);
     (sun.elevation, sun.azimuth) = (el, az);
 
     // the light comes from the sun: north is -z, east +x

@@ -14,6 +14,7 @@ mod canopy;
 mod dial;
 mod film;
 mod clouds;
+mod contract;
 mod grass;
 mod impostor;
 mod lawn;
@@ -91,7 +92,7 @@ fn main() {
 
     let measure = (args.get(1).map(String::as_str) == Some("--meadow")).then(|| {
         let hour = args.get(3).and_then(|h| h.parse().ok()).unwrap_or(18.5);
-        (meadow::Measure { out: args.get(2).expect("--meadow <out.png> [hour]").into() }, meadow::Hour(hour))
+        (meadow::Measure { out: args.get(2).expect("--meadow <out.png> [hour]").into() }, contract::Clock { hour, ..default() })
     });
 
     let mut app = App::new();
@@ -114,7 +115,7 @@ fn main() {
     .set(AssetPlugin { watch_for_changes_override: Some(true), ..default() }))
     .init_state::<View>()
     .add_plugins((world::plugin, film::plugin, meadow::plugin, wind::plugin, workshop::plugin, impostor::plugin, patches::plugin, lawn::plugin))
-    .add_plugins((place::plugin, map::plugin, rig::plugin, sun::plugin, dial::plugin));
+    .add_plugins((place::plugin, map::plugin, rig::plugin, sun::plugin, dial::plugin, contract::plugin));
     if args.get(1).map(String::as_str) == Some("--shelf") {
         let dir: PathBuf = args.get(2).expect("--shelf <dir>").into();
         let _ = std::fs::create_dir_all(&dir);
@@ -147,7 +148,7 @@ fn main() {
                 app.insert_resource(map::Start(km));
             }
             if let Some(hour) = hour {
-                app.insert_resource(sun::Sun { day: sun::now().0, hour, elevation: 0.0, azimuth: 0.0, auto: false });
+                app.insert_resource(contract::Clock { day: sun::now().0, hour, ..default() }).insert_resource(sun::Sun::default());
             }
         }
         (Some((timeline, still)), None) => {

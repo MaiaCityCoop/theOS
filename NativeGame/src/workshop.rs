@@ -5,6 +5,7 @@
 //! from.
 
 use crate::View;
+use crate::contract::World;
 use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
 
@@ -34,9 +35,9 @@ pub struct Caption;
 struct Side(u8);
 
 pub fn plugin(app: &mut App) {
-    app.add_systems(OnEnter(View::Library), enter)
-        .add_systems(OnExit(View::Library), leave)
-        .add_systems(Update, (keys, show, turn).chain().run_if(in_state(View::Library)));
+    app.add_systems(OnEnter(World::Library), enter)
+        .add_systems(OnExit(World::Library), leave)
+        .add_systems(Update, (keys, show, turn).chain().run_if(in_state(World::Library)));
 }
 
 /// The Meadow's hour, kept while the Library shows its assets in late-morning light, and given back on leaving.
@@ -46,9 +47,9 @@ struct MeadowHour(f32);
 /// The Library's hour: late morning, the sun high enough to light an asset from the side without long shadows.
 const HOUR: f32 = 10.5;
 
-fn enter(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>, mut hour: ResMut<crate::meadow::Hour>) {
-    commands.insert_resource(MeadowHour(hour.0));
-    hour.0 = HOUR;
+fn enter(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>, mut clock: ResMut<crate::contract::Clock>) {
+    commands.insert_resource(MeadowHour(clock.hour));
+    clock.hour = HOUR;
     let names: Vec<String> = crate::library::shelf().into_iter().map(|a| a.name).collect();
     commands.insert_resource(Shelf { names, at: 0, seed: 1, dirty: true, zoom: 1.0 });
     // two turntables on the land at the origin: the master on the left, its impostor on the right
@@ -65,9 +66,9 @@ fn enter(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials
     commands.spawn((Room, Turn, Side(1), LAYER, Transform::from_xyz(0.0, ground, 0.0), Visibility::default()));
 }
 
-fn leave(mut commands: Commands, room: Query<Entity, With<Room>>, kept: Option<Res<MeadowHour>>, mut hour: ResMut<crate::meadow::Hour>) {
+fn leave(mut commands: Commands, room: Query<Entity, With<Room>>, kept: Option<Res<MeadowHour>>, mut clock: ResMut<crate::contract::Clock>) {
     if let Some(k) = kept {
-        hour.0 = k.0;
+        clock.hour = k.0;
     }
     commands.remove_resource::<MeadowHour>();
     for e in &room {
@@ -107,7 +108,8 @@ fn show(
     mut impostors: ResMut<Assets<crate::impostor::Impostor>>,
     mut turn: Query<(Entity, &Side, &mut Transform), (With<Turn>, Without<Camera3d>)>,
     old: Query<Entity, With<Specimen>>,
-    mut cam: Query<&mut Transform, (With<crate::meadow::Eye2>, Without<Turn>)>,
+    mut eye: ResMut<crate::contract::Eye>,
+    view: Res<State<View>>,
     mut caption: Query<&mut Text, With<Caption>>,
 ) {
     let Some(mut s) = shelf else { return };
@@ -115,10 +117,13 @@ fn show(
     let Some(a) = s.names.get(s.at).and_then(|n| library.get(n)) else { return };
     // the camera stands back by the asset's size
     let size = a.size[1].max(0.05);
-    for mut t in &mut cam {
+    // in the Library view the eye stands back by the asset's size; filmed by the Studio, the shot holds the eye
+    if *view.get() == View::Library {
         let d = size * 3.2 * s.zoom;
         let ground = crate::terrain::height(0.0, 0.0) + PLINTH;
-        *t = Transform::from_xyz(0.0, ground + d * 0.6, d).looking_at(Vec3::new(0.0, ground + size * 0.25, 0.0), Vec3::Y);
+        (eye.pos, eye.look, eye.roll) = (Vec3::new(0.0, ground + d * 0.6, d), Vec3::new(0.0, ground + size * 0.25, 0.0), 0.0);
+        // the lens that sees 45° tall, as the turntables were framed for
+        eye.lens = crate::contract::Lens::seeing(45f32.to_radians(), 16.0 / 9.0);
     }
     for (_, side, mut t) in &mut turn {
         t.translation.x = if side.0 == 0 { -size * 0.75 } else { size * 0.75 };
@@ -150,7 +155,7 @@ fn show(
     // the atlas itself, small, bottom right: the 8 × 8 views of the master as baked
     commands.spawn((
         Specimen,
-        DespawnOnExit(View::Library), // it stayed over the Game after leaving
+        DespawnOnExit(World::Library), // it stayed over the Game after leaving
         ImageNode::new(baked.albedo.clone()),
         Node { position_type: PositionType::Absolute, right: Val::Px(12.0), bottom: Val::Px(12.0), width: Val::Px(256.0), height: Val::Px(256.0), ..default() },
         BackgroundColor(Color::srgb(0.15, 0.15, 0.15)),

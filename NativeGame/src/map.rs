@@ -5,7 +5,7 @@
 //! the site itself (6 km, its land cover with relief shading, made when the place opens), the region (40 km, from the
 //! same elevation and land-cover tiles), and the land of Natural Earth at 300 km, 3,000 km and 20,000 km.
 
-use crate::View;
+use crate::contract::World;
 use crate::rig::{Captures, Walker};
 use bevy::picking::hover::Hovered;
 use crate::place::{CN, Ground, SIZE_M, Site, Source, baked, colour, fetch, hash};
@@ -178,9 +178,9 @@ struct MapLabel;
 const M: usize = 320;
 
 pub fn plugin(app: &mut App) {
-    app.add_systems(OnEnter(View::Place), spawn.after(crate::place::enter))
+    app.add_systems(OnEnter(World::Place), spawn.after(crate::place::enter))
         .add_systems(Update, (follow.run_if(resource_exists::<Map>), baked_yet.run_if(resource_exists::<Baking>)))
-        .add_systems(OnExit(View::Place), |mut c: Commands| c.remove_resource::<Map>());
+        .add_systems(OnExit(World::Place), |mut c: Commands| c.remove_resource::<Map>());
 }
 
 fn spawn(mut commands: Commands, ground: Option<Res<Ground>>, site: Res<Site>, start: Option<Res<Start>>, mut images: ResMut<Assets<Image>>, assets: Res<AssetServer>) {
@@ -226,7 +226,7 @@ fn spawn(mut commands: Commands, ground: Option<Res<Ground>>, site: Res<Site>, s
     let inner = D - 8.0;
     commands
         .spawn((
-            DespawnOnExit(View::Place),
+            DespawnOnExit(World::Place),
             Node { position_type: PositionType::Absolute, left: Val::Px(20.0), bottom: Val::Px(20.0), flex_direction: FlexDirection::Column, align_items: AlignItems::Start, row_gap: Val::Px(8.0), ..default() },
         ))
         .with_children(|p| {
@@ -342,7 +342,7 @@ fn jump(
     site: Res<Site>,
     baking: Option<Res<Baking>>,
     mut commands: Commands,
-    mut next: ResMut<NextState<View>>,
+    mut next: ResMut<NextState<World>>,
     mut walker: ResMut<Walker>,
 ) {
     click.propagate(false);
@@ -365,7 +365,7 @@ fn jump(
     let there = Site::around(lat.clamp(-84.0, 84.0), (lon + 540.0).rem_euclid(360.0) - 180.0);
     if baked(&there) {
         commands.insert_resource(there);
-        next.set(View::Place);
+        next.set(World::Place);
         return;
     }
     let done = Arc::new(Mutex::new(None));
@@ -382,13 +382,13 @@ fn jump(
 }
 
 /// When the bake is done, the place opens: the Place view is entered again, now for the new site.
-fn baked_yet(baking: Res<Baking>, mut commands: Commands, mut next: ResMut<NextState<View>>) {
+fn baked_yet(baking: Res<Baking>, mut commands: Commands, mut next: ResMut<NextState<World>>) {
     let Some(result) = baking.done.lock().unwrap().take() else { return };
     commands.remove_resource::<Baking>();
     match result {
         Ok(site) => {
             commands.insert_resource(site);
-            next.set(View::Place);
+            next.set(World::Place);
         }
         Err(e) => error!("the place could not be baked: {e}"),
     }

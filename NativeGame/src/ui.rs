@@ -322,44 +322,42 @@ fn slider(f: &Fonts, what: Slide, label: &'static str) -> impl Bundle {
     )
 }
 
-fn slide_press(ev: On<PointerPress>, bars: Query<(&Slide, &ComputedNode, &UiGlobalTransform)>, wind: ResMut<crate::wind::Strength>, hour: ResMut<crate::meadow::Hour>) {
-    slide_to(ev.entity, ev.pointer.position.x, &bars, wind, hour);
+fn slide_press(ev: On<PointerPress>, bars: Query<(&Slide, &ComputedNode, &UiGlobalTransform)>, clock: ResMut<crate::contract::Clock>) {
+    slide_to(ev.entity, ev.pointer.position.x, &bars, clock);
 }
-fn slide_drag(ev: On<PointerDrag>, bars: Query<(&Slide, &ComputedNode, &UiGlobalTransform)>, wind: ResMut<crate::wind::Strength>, hour: ResMut<crate::meadow::Hour>) {
-    slide_to(ev.entity, ev.pointer.position.x, &bars, wind, hour);
+fn slide_drag(ev: On<PointerDrag>, bars: Query<(&Slide, &ComputedNode, &UiGlobalTransform)>, clock: ResMut<crate::contract::Clock>) {
+    slide_to(ev.entity, ev.pointer.position.x, &bars, clock);
 }
 fn slide_to(
     e: Entity,
     x: f32,
     bars: &Query<(&Slide, &ComputedNode, &UiGlobalTransform)>,
-    mut wind: ResMut<crate::wind::Strength>,
-    mut hour: ResMut<crate::meadow::Hour>,
+    mut clock: ResMut<crate::contract::Clock>,
 ) {
     let Ok((what, node, at)) = bars.get(e) else { return };
     let (centre, width) = (at.translation.x * node.inverse_scale_factor, node.size.x * node.inverse_scale_factor);
     let q = ((x - (centre - width / 2.0)) / width.max(1.0)).clamp(0.0, 1.0);
     match what {
-        Slide::Wind => wind.0 = q * crate::wind::MAX,
-        Slide::Hour => hour.0 = q * 24.0,
+        Slide::Wind => clock.wind = q * crate::wind::MAX,
+        Slide::Hour => clock.hour = q * 24.0,
     }
 }
 fn slide_show(
-    wind: Res<crate::wind::Strength>,
-    hour: Res<crate::meadow::Hour>,
+    clock: Res<crate::contract::Clock>,
     mut fills: Query<(&Fill, &mut Node)>,
     mut readouts: Query<(&Readout, &mut Text)>,
 ) {
     let q = |w: Slide| match w {
-        Slide::Wind => wind.0 / crate::wind::MAX,
-        Slide::Hour => hour.0 / 24.0,
+        Slide::Wind => clock.wind / crate::wind::MAX,
+        Slide::Hour => clock.hour / 24.0,
     };
     for (f, mut n) in &mut fills {
         n.width = Val::Percent(q(f.0) * 100.0);
     }
     for (r, mut t) in &mut readouts {
         let words = match r.0 {
-            Slide::Wind => format!("{:.0} %", wind.0 / crate::wind::MAX * 100.0),
-            Slide::Hour => format!("{:02}:{:02}", hour.0 as u32 % 24, (hour.0.fract() * 60.0) as u32),
+            Slide::Wind => format!("{:.0} %", clock.wind / crate::wind::MAX * 100.0),
+            Slide::Hour => format!("{:02}:{:02}", clock.hour as u32 % 24, (clock.hour.fract() * 60.0) as u32),
         };
         if t.0 != words {
             t.0 = words;
@@ -367,9 +365,9 @@ fn slide_show(
     }
 }
 
-fn frame_time(d: Res<bevy::diagnostic::DiagnosticsStore>, hour: Res<crate::meadow::Hour>, mut t: Query<&mut Text, With<FrameTime>>) {
+fn frame_time(d: Res<bevy::diagnostic::DiagnosticsStore>, clock: Res<crate::contract::Clock>, mut t: Query<&mut Text, With<FrameTime>>) {
     if let (Some(ms), Ok(mut t)) = (crate::meadow::frame_ms(&d), t.single_mut()) {
-        t.0 = format!("{ms:.1} ms · {:.0} fps · {:02}:{:02}", 1000.0 / ms, hour.0 as u32, ((hour.0.fract()) * 60.0) as u32);
+        t.0 = format!("{ms:.1} ms · {:.0} fps · {:02}:{:02}", 1000.0 / ms, clock.hour as u32, ((clock.hour.fract()) * 60.0) as u32);
     }
 }
 
