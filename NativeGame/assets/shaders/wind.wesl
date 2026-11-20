@@ -127,7 +127,7 @@ fn blade(slot: vec3<f32>, side: f32, t: f32, w: Wind, time: f32, before: f32) ->
     // the last level thins out and its blades shorten toward its edge, down into the lawn's height there, so the
     // real field ends in the lawn and not in a line of blade tips
     var shrink = 1.0;
-    if (level == 2u) {
+    if (level == 3u) {
         keep = 1.0 - smoothstep(0.6 * reach, reach, d);
         shrink = 1.0 - 0.55 * smoothstep(0.35 * reach, reach, d);
     }

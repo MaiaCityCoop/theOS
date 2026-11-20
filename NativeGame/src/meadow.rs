@@ -66,7 +66,7 @@ struct Tile {
 
 /// The finest cell of the GPU grass and its levels (as in `wind.wesl`).
 const FINE: f32 = 0.04;
-const LEVELS: u32 = 3; // real blades to ~18 m, as SmartImposter keeps real grass to ~20 m; the lawn beyond
+const LEVELS: u32 = 4; // real blades to ~35 m; the lawn beyond
 
 /// A tile of the baked patches: its level (cell 1 m × 2^level) and its place in the level's 4 × 4 tiles.
 #[derive(Component)]

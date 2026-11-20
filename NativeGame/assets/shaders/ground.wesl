@@ -228,7 +228,7 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
         let eye_d = distance(p, view.world_position.xz);
         let pdx = dpdx(p);
         let pdy = dpdy(p);
-        let lawn_on = lawn.x * smoothstep(7.0, 15.0, eye_d) * (1.0 - bare);
+        let lawn_on = lawn.x * smoothstep(15.0, 30.0, eye_d) * (1.0 - bare);
         if (lawn_on > 0.0) {
             let hit = lawn_at(p, pbr_input.V, pdx, pdy);
             // between the blades: the ground in their shade
