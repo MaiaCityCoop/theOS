@@ -512,6 +512,8 @@ impl TheDB {
                 json::heal(doc)?;
                 doc.commit();
             }
+            // what is kept fits the schema the doc names, as merged (schema.rs)
+            self.check_schema(id, doc)?;
             let at = now();
             let hash = sql::keep(&tx, id, doc, base, at)?;
             if !sql::move_head(&tx, on, id, expected, hash, at)? {
@@ -888,6 +890,7 @@ pub mod bevy;
 pub mod access;
 pub mod build;
 pub mod proposals;
+pub mod schema;
 
 pub mod inventory;
 

@@ -33,6 +33,12 @@
 //!     thedb agent <name> [days]         a new agent: its key in the Keychain, the master's grant of line-<name>
 //!     thedb verify                      every signature, and every head signed by whom its branch allows
 //!
+//! Schemas (intent 0056): a JSON Schema kept as a blob, named by its hash; a doc that names one is checked on every
+//! commit.
+//!
+//!     thedb schema put <file>           a schema, checked against JSON Schema's meta-schema; prints its hash
+//!     thedb schema set <id> <hash|none> doc <id> names that schema from now on (checked against it at once)
+//!
 //! Finding docs (intent 0053): answered from SQLite, no doc is opened.
 //!
 //!     thedb find kind=<kind>            the docs of a kind
@@ -116,6 +122,14 @@ fn main() {
         ["proposal", id] => {
             let p = db.proposal(id).unwrap_or_else(|e| fail(&e));
             println!("{:?}  {}  from {}  ({} docs)", p.state, p.note, p.branch, p.docs.len());
+        }
+        ["schema", "put", file] => {
+            let bytes = std::fs::read(file).unwrap_or_else(|e| fail(&e.to_string()));
+            println!("{}", db.put_schema(&bytes).unwrap_or_else(|e| fail(&e)));
+        }
+        ["schema", "set", id, hash] => {
+            let h = if *hash == "none" { None } else { Some(hash.parse().unwrap_or_else(|_| fail("not a hash"))) };
+            println!("{}", db.set_schema(id, h).unwrap_or_else(|e| fail(&e)));
         }
         ["proposals"] => {
             for (id, p) in db.proposals().unwrap_or_else(|e| fail(&e)) {
