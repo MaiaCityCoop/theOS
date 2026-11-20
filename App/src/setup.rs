@@ -14,6 +14,7 @@ use bevy::prelude::*;
 pub enum SetupAct {
     Make,
     Copy,
+    CopyPublic,
     Saved,
 }
 
@@ -25,6 +26,7 @@ struct Setup {
     error: Option<String>,
     drawn: bool,
     copied: bool,
+    copied_public: bool,
 }
 
 #[derive(Component)]
@@ -65,6 +67,14 @@ fn click(mut ev: On<PointerClick>, acts: Query<&SetupAct>, mut s: ResMut<Setup>,
                 }
             }
         }
+        SetupAct::CopyPublic => {
+            if let Some(m) = &s.master {
+                match copy(m) {
+                    Ok(()) => s.copied_public = true,
+                    Err(e) => s.error = Some(e),
+                }
+            }
+        }
         SetupAct::Saved => {
             // forgotten here: the Keychain and the password manager hold it now
             s.secret = None;
@@ -79,10 +89,7 @@ fn click(mut ev: On<PointerClick>, acts: Query<&SetupAct>, mut s: ResMut<Setup>,
 /// Puts `secret` on the clipboard for pasting into a password manager, and takes it off again after a minute if
 /// it is still there (macOS keeps no clipboard history of its own; a clipboard manager might).
 fn copy_for_a_minute(secret: &str) -> Result<(), String> {
-    use std::io::Write;
-    let mut c = std::process::Command::new("/usr/bin/pbcopy").stdin(std::process::Stdio::piped()).spawn().map_err(|e| e.to_string())?;
-    c.stdin.take().ok_or("no input to pbcopy")?.write_all(secret.as_bytes()).map_err(|e| e.to_string())?;
-    c.wait().map_err(|e| e.to_string())?;
+    copy(secret)?;
     let secret = secret.to_string();
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_secs(60));
@@ -94,6 +101,15 @@ fn copy_for_a_minute(secret: &str) -> Result<(), String> {
             let _ = c.wait();
         }
     });
+    Ok(())
+}
+
+/// Puts `text` on the clipboard.
+fn copy(text: &str) -> Result<(), String> {
+    use std::io::Write;
+    let mut c = std::process::Command::new("/usr/bin/pbcopy").stdin(std::process::Stdio::piped()).spawn().map_err(|e| e.to_string())?;
+    c.stdin.take().ok_or("no input to pbcopy")?.write_all(text.as_bytes()).map_err(|e| e.to_string())?;
+    c.wait().map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -113,6 +129,14 @@ fn draw(mut commands: Commands, fonts: Res<Fonts>, mut s: ResMut<Setup>, old: Qu
     }
     let f = &*fonts;
     let text = |font: &Handle<Font>, size: f32, color: Color, t: String| (Text::new(t), TextFont { font: font.clone().into(), font_size: FontSize::Px(size), ..default() }, TextColor(color), Pickable::IGNORE);
+    let small_button = |label: &str, act: SetupAct| {
+        (
+            act,
+            Node { padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)), border_radius: BorderRadius::all(Val::Px(12.0)), flex_shrink: 0.0, ..default() },
+            BackgroundColor(SAND),
+            children![(Text::new(label), TextFont { font: f.sans.clone().into(), font_size: FontSize::Px(14.0), ..default() }, TextColor(FOREST), Pickable::IGNORE)],
+        )
+    };
     let button = |label: &str, act: SetupAct, bg: Color, fg: Color| {
         (
             act,
@@ -143,7 +167,10 @@ fn draw(mut commands: Commands, fonts: Res<Fonts>, mut s: ResMut<Setup>, old: Qu
                             BackgroundColor(SAND),
                             children![text(&f.mono, 24.0, FOREST, grouped(secret))],
                         ));
-                        card.spawn(text(&f.mono, 13.0, FOREST2, format!("public key  {master}")));
+                        card.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(12.0), align_items: AlignItems::Center, ..default() }).with_children(|row| {
+                            row.spawn(text(&f.mono, 13.0, FOREST2, format!("public key  {master}")));
+                            row.spawn(small_button(if s.copied_public { "Copied" } else { "Copy" }, SetupAct::CopyPublic));
+                        });
                         if let Some(e) = &s.error {
                             card.spawn(text(&f.sans, 16.0, Color::srgb(0.7, 0.2, 0.15), e.clone()));
                         }
