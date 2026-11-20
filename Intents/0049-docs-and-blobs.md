@@ -184,8 +184,12 @@ measured on `main` when this definition is approved)
   Library on the clover's doc, Mértola from above on its doc. `--gate <dir> <shots id>` photographs any shot list.
 - **The interface as docs (deliverable 6), in part:** a view is a doc (boxes and words in the brand's look; a click
   opens a doc by id), drawn by `views.rs`; the dashboard is made this way, and a view is filmed as a world
-  (`World::Interface`). Not yet: the Library's list, the Studio's strip and the Meadow's and the place's chips are
-  still built in code; a view on a screen inside a world; recording and replaying real input.
+  (`World::Interface`). Every overlay is a layer doc too: a chip, a bar of chips, the sun and wind sliders, the
+  Library's list (made from the library, with templates for its items and headings), the Studio's bar; words can show
+  a live value (frame time, caption, playhead, Play or Pause, title), a box can act (Home, Play, the anchors, new
+  shots) or open a doc; a layer includes others by id (one Home chip in every bar). Each view lists its layers, by
+  id, in the root; a shot lays its own layers over its world while it plays, with their live values. Moving Mértola's
+  hint chip was a change to its doc alone. Not yet: a view on a screen inside a world; recording and replaying input.
 - **The engine in avenDB, and the kernel (deliverable 8):** `avendb publish` keeps a build: every source file a blob,
   the tree a manifest blob, the binary a blob, the build a blob naming them and the toolchain; the engine doc lists its
   builds and pins one. `kernel` opens avenDB, follows the root to the engine's pinned build, checks the binary against

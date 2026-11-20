@@ -45,21 +45,21 @@ fn opened(time: Res<Time<Real>>, mut o: ResMut<Opened>) {
 }
 
 #[derive(Component)]
-struct Strip;
+pub(crate) struct Strip;
 #[derive(Component)]
-struct Playhead;
+pub(crate) struct Playhead;
 #[derive(Component)]
-struct Clock;
+pub(crate) struct Clock;
 #[derive(Component)]
-struct PlayLabel;
+pub(crate) struct PlayLabel;
+/// The Studio's shot list title, live.
+#[derive(Component)]
+pub(crate) struct Title;
 
 pub fn plugin(app: &mut App) {
     app.init_resource::<Fonts>()
+        .insert_resource(crate::views::Interactive)
         .add_systems(OnEnter(View::Home), release)
-        .add_systems(OnEnter(View::Place), place)
-        .add_systems(OnEnter(View::Studio), studio)
-        .add_systems(OnEnter(View::Meadow), meadow)
-        .add_systems(OnEnter(View::Library), library)
         .init_resource::<Opened>()
         .add_systems(Update, opened.run_if(state_changed::<View>))
         .add_observer(press)
@@ -67,7 +67,7 @@ pub fn plugin(app: &mut App) {
         .add_observer(scrub_drag)
         .add_observer(slide_press)
         .add_observer(slide_drag)
-        .add_systems(Update, (hover, escape, (strip_follows, playhead).run_if(in_state(View::Studio)), (frame_time, slide_show).run_if(in_state(View::Meadow)), shelf_marks.run_if(in_state(View::Library))));
+        .add_systems(Update, (hover, escape));
 }
 
 impl FromWorld for Fonts {
@@ -85,96 +85,23 @@ fn text(font: &Handle<Font>, size: f32, color: Color, words: impl Into<String>) 
     (Text::new(words), TextFont { font: font.clone().into(), font_size: FontSize::Px(size), ..default() }, TextColor(color))
 }
 
-fn pill(f: &Fonts, act: Act, words: &'static str, dark: bool) -> impl Bundle {
-    let (bg, fg) = if dark { (FOREST, CREAM) } else { (CREAM, FOREST) };
-    (
-        Hovered::default(),
-        act,
-        Node {
-            height: Val::Px(40.0),
-            padding: UiRect::horizontal(Val::Px(18.0)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::MAX,
-            ..default()
-        },
-        BackgroundColor(bg),
-        children![text(&f.sans, 15.0, fg, words)],
-    )
-}
 
 
 // ---- the dashboard: drawn from its view doc (`views.rs`) ----
 
 // ---- the real place: the walker on real ground, and a line of help ----
 
-fn place(mut commands: Commands, f: Res<Fonts>) {
-    commands.spawn((
-        DespawnOnExit(View::Place),
-        Node { position_type: PositionType::Absolute, top: Val::Px(12.0), left: Val::Px(12.0), column_gap: Val::Px(8.0), ..default() },
-        children![
-            (Hovered::default(), Act::Home, chip_node(), BackgroundColor(CREAM), children![text(&f.sans, CHIP_TEXT, FOREST, "Home")]),
-            (chip_node(), BackgroundColor(GLASS), children![text(&f.mono, CHIP_TEXT, FOREST, "WASD · hold the mouse to look · Shift runs · Q E turn · scroll rises · [ ] hours · map: scroll zooms, click goes")]),
-        ],
-    ));
-}
 
 // ---- the Library: Home, and what the shelf shows ----
 
-fn library(mut commands: Commands, f: Res<Fonts>) {
-    commands.spawn((
-        DespawnOnExit(View::Library),
-        Node { position_type: PositionType::Absolute, top: Val::Px(12.0), left: Val::Px(12.0), right: Val::Px(12.0), column_gap: Val::Px(8.0), ..default() },
-        children![
-            (Hovered::default(), Act::Home, chip_node(), BackgroundColor(CREAM), children![text(&f.sans, CHIP_TEXT, FOREST, "Home")]),
-            (chip_node(), BackgroundColor(GLASS), children![(crate::workshop::Caption, text(&f.mono, CHIP_TEXT, FOREST, "…"))]),
-            (chip_node(), BackgroundColor(GLASS), children![text(&f.mono, CHIP_TEXT, FOREST, "left/right · Space new seed · scroll zoom")]),
-        ],
-    ));
-    // the shelf: every asset of the library, grouped by kind, on the left; the chosen one dark
-    let library = crate::library::shelf();
-    commands
-        .spawn((
-            DespawnOnExit(View::Library),
-            Node {
-                position_type: PositionType::Absolute,
-                top: Val::Px(52.0),
-                left: Val::Px(12.0),
-                width: Val::Px(180.0),
-                padding: UiRect::all(Val::Px(10.0)),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(4.0),
-                border_radius: BorderRadius::all(Val::Px(16.0)),
-                ..default()
-            },
-            BackgroundColor(GLASS),
-        ))
-        .with_children(|list| {
-            let mut kind = String::new();
-            for (k, a) in library.iter().enumerate() {
-                if a.kind != kind {
-                    kind = a.kind.clone();
-                    list.spawn((text(&f.mono, 11.0, CLAY, if kind == "rock" { "ROCKS" } else { "PLANTS" }), Node { margin: UiRect::top(Val::Px(6.0)), ..default() }));
-                }
-                list.spawn((
-                    Hovered::default(),
-                    Act::Pick(k),
-                    ShelfItem(k),
-                    Node { height: Val::Px(26.0), padding: UiRect::horizontal(Val::Px(10.0)), align_items: AlignItems::Center, border_radius: BorderRadius::MAX, ..default() },
-                    BackgroundColor(Color::NONE),
-                    children![(ShelfLabel, text(&f.sans, 13.0, FOREST, &a.name))],
-                ));
-            }
-        });
-}
 
 /// An entry of the Library's list, and its words.
 #[derive(Component)]
-struct ShelfItem(usize);
+pub(crate) struct ShelfItem(pub usize);
 #[derive(Component)]
-struct ShelfLabel;
+pub(crate) struct ShelfLabel;
 
-fn shelf_marks(shelf: Option<Res<crate::workshop::Shelf>>, mut items: Query<(&ShelfItem, &mut BackgroundColor, &Children)>, mut labels: Query<&mut TextColor, With<ShelfLabel>>) {
+pub(crate) fn shelf_marks(shelf: Option<Res<crate::workshop::Shelf>>, mut items: Query<(&ShelfItem, &mut BackgroundColor, &Children)>, mut labels: Query<&mut TextColor, With<ShelfLabel>>) {
     let Some(s) = shelf else { return };
     for (item, mut bg, kids) in &mut items {
         let on = item.0 == s.at;
@@ -190,74 +117,22 @@ fn shelf_marks(shelf: Option<Res<crate::workshop::Shelf>>, mut items: Query<(&Sh
 // ---- the Meadow: the test scene, Home, the frame time and the hour ----
 
 #[derive(Component)]
-struct FrameTime;
+pub(crate) struct FrameTime;
 
-/// The Meadow's overlay: small chips along the top edge, all one height, so the picture keeps the room.
-const CHIP: f32 = 28.0;
-const CHIP_TEXT: f32 = 12.0;
 
-fn chip_node() -> Node {
-    Node { height: Val::Px(CHIP), padding: UiRect::horizontal(Val::Px(12.0)), align_items: AlignItems::Center, border_radius: BorderRadius::MAX, ..default() }
-}
 
-fn meadow(mut commands: Commands, f: Res<Fonts>) {
-    commands.spawn((
-        DespawnOnExit(View::Meadow),
-        Node {
-            position_type: PositionType::Absolute,
-            top: Val::Px(12.0),
-            left: Val::Px(12.0),
-            right: Val::Px(12.0),
-            column_gap: Val::Px(8.0),
-            align_items: AlignItems::FlexStart,
-            ..default()
-        },
-        children![
-            (
-                Hovered::default(),
-                Act::Home,
-                chip_node(),
-                BackgroundColor(CREAM),
-                children![text(&f.sans, CHIP_TEXT, FOREST, "Home")],
-            ),
-            (chip_node(), BackgroundColor(GLASS), children![(FrameTime, text(&f.mono, CHIP_TEXT, FOREST, "…"))]),
-            (chip_node(), BackgroundColor(GLASS), children![text(&f.mono, CHIP_TEXT, FOREST, "click to look · WASD · Shift runs · scroll rises · Esc lets go")]),
-            // the wind and the hour, top right: drag or click a bar
-            (
-                Node { margin: UiRect::left(Val::Auto), flex_direction: FlexDirection::Column, row_gap: Val::Px(6.0), ..default() },
-                children![slider(&f, Slide::Wind, "Wind"), slider(&f, Slide::Hour, "Sun")],
-            ),
-        ],
-    ));
-}
 
 /// A slider of the Meadow: what it sets.
 #[derive(Component, Clone, Copy, PartialEq)]
-enum Slide {
+pub(crate) enum Slide {
     Wind,
     Hour,
 }
 #[derive(Component)]
-struct Fill(Slide);
+pub(crate) struct Fill(pub Slide);
 #[derive(Component)]
-struct Readout(Slide);
+pub(crate) struct Readout(pub Slide);
 
-fn slider(f: &Fonts, what: Slide, label: &'static str) -> impl Bundle {
-    (
-        Node { column_gap: Val::Px(10.0), ..chip_node() },
-        BackgroundColor(GLASS),
-        children![
-            (text(&f.mono, CHIP_TEXT, FOREST, label), Node { width: Val::Px(32.0), ..default() }),
-            (
-                what,
-                Node { width: Val::Px(140.0), height: Val::Px(7.0), border_radius: BorderRadius::MAX, overflow: Overflow::clip(), ..default() },
-                BackgroundColor(SAND),
-                children![(Fill(what), Pickable::IGNORE, Node { width: Val::Percent(50.0), height: Val::Percent(100.0), border_radius: BorderRadius::MAX, ..default() }, BackgroundColor(CLAY))],
-            ),
-            (Readout(what), text(&f.mono, CHIP_TEXT, FOREST, ""), Node { width: Val::Px(40.0), ..default() }),
-        ],
-    )
-}
 
 fn slide_press(ev: On<PointerPress>, bars: Query<(&Slide, &ComputedNode, &UiGlobalTransform)>, clock: ResMut<crate::contract::Clock>) {
     slide_to(ev.entity, ev.pointer.position.x, &bars, clock);
@@ -279,7 +154,7 @@ fn slide_to(
         Slide::Hour => clock.hour = q * 24.0,
     }
 }
-fn slide_show(
+pub(crate) fn slide_show(
     clock: Res<crate::contract::Clock>,
     mut fills: Query<(&Fill, &mut Node)>,
     mut readouts: Query<(&Readout, &mut Text)>,
@@ -302,7 +177,7 @@ fn slide_show(
     }
 }
 
-fn frame_time(d: Res<bevy::diagnostic::DiagnosticsStore>, clock: Res<crate::contract::Clock>, mut t: Query<&mut Text, With<FrameTime>>) {
+pub(crate) fn frame_time(d: Res<bevy::diagnostic::DiagnosticsStore>, clock: Res<crate::contract::Clock>, mut t: Query<&mut Text, With<FrameTime>>) {
     if let (Some(ms), Ok(mut t)) = (crate::meadow::frame_ms(&d), t.single_mut()) {
         t.0 = format!("{ms:.1} ms · {:.0} fps · {:02}:{:02}", 1000.0 / ms, clock.hour as u32, ((clock.hour.fract()) * 60.0) as u32);
     }
@@ -310,56 +185,9 @@ fn frame_time(d: Res<bevy::diagnostic::DiagnosticsStore>, clock: Res<crate::cont
 
 // ---- the Studio: the world through the virtual camera, the shots as a strip under it ----
 
-fn studio(mut commands: Commands, f: Res<Fonts>, s: Res<Studio>) {
-    commands
-        .spawn((
-            DespawnOnExit(View::Studio),
-            Node {
-                position_type: PositionType::Absolute,
-                left: Val::Px(20.0),
-                right: Val::Px(20.0),
-                bottom: Val::Px(20.0),
-                padding: UiRect::all(Val::Px(14.0)),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(12.0),
-                border_radius: BorderRadius::all(Val::Px(28.0)),
-                ..default()
-            },
-            BackgroundColor(GLASS),
-        ))
-        .with_children(|p| {
-            p.spawn(Node { column_gap: Val::Px(10.0), align_items: AlignItems::Center, ..default() }).with_children(|row| {
-                row.spawn(pill(&f, Act::Home, "Home", false));
-                row.spawn((
-                    Hovered::default(),
-                    Act::PlayPause,
-                    Node {
-                        height: Val::Px(40.0),
-                        width: Val::Px(92.0),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::Center,
-                        border_radius: BorderRadius::MAX,
-                        ..default()
-                    },
-                    BackgroundColor(FOREST),
-                    children![(PlayLabel, text(&f.sans, 15.0, CREAM, "Play"))],
-                ));
-                row.spawn((Clock, text(&f.mono, 15.0, FOREST, "0.0 s")));
-                row.spawn((text(&f.serif, 22.0, FOREST, s.timeline.title.clone()), Node { margin: UiRect::left(Val::Px(8.0)), ..default() }));
-                row.spawn((Node { margin: UiRect::left(Val::Auto), ..default() },)).with_children(|r| {
-                    r.spawn(pill(&f, Act::Anchors, "The four anchors", false));
-                    r.spawn(pill(&f, Act::NewShots, "Five new shots", false));
-                });
-            });
-            p.spawn((
-                Strip,
-                Node { height: Val::Px(86.0), column_gap: Val::Px(4.0), ..default() },
-            ));
-        });
-}
 
 /// The strip shows the shot list it is given: one card per shot, as wide as the shot is long, and the playhead.
-fn strip_follows(mut commands: Commands, f: Res<Fonts>, s: Res<Studio>, strip: Query<Entity, With<Strip>>, mut shown: Local<Option<String>>) {
+pub(crate) fn strip_follows(mut commands: Commands, f: Res<Fonts>, s: Res<Studio>, strip: Query<Entity, With<Strip>>, mut shown: Local<Option<String>>) {
     let Ok(strip) = strip.single() else { return };
     if shown.as_deref() == Some(s.timeline.title.as_str()) {
         return;
@@ -396,12 +224,18 @@ fn strip_follows(mut commands: Commands, f: Res<Fonts>, s: Res<Studio>, strip: Q
     });
 }
 
-fn playhead(
+pub(crate) fn playhead(
     s: Res<Studio>,
     mut head: Query<&mut Node, With<Playhead>>,
-    mut clock: Query<&mut Text, (With<Clock>, Without<PlayLabel>)>,
-    mut label: Query<&mut Text, (With<PlayLabel>, Without<Clock>)>,
+    mut clock: Query<&mut Text, (With<Clock>, Without<PlayLabel>, Without<Title>)>,
+    mut label: Query<&mut Text, (With<PlayLabel>, Without<Clock>, Without<Title>)>,
+    mut title: Query<&mut Text, (With<Title>, Without<Clock>, Without<PlayLabel>)>,
 ) {
+    for mut t in &mut title {
+        if t.0 != s.timeline.title {
+            t.0 = s.timeline.title.clone();
+        }
+    }
     let total = s.duration().max(1e-3);
     for mut n in &mut head {
         n.left = Val::Percent((s.time / total * 100.0).clamp(0.0, 100.0));
@@ -550,6 +384,13 @@ pub fn navtest(
         return;
     };
     let phase = *n % 120;
+    // NAVTEST_SHOTS=<dir>: a picture of each view as the test reaches it
+    if phase == 117
+        && let Some(dir) = std::env::var_os("NAVTEST_SHOTS")
+    {
+        let path = std::path::Path::new(&dir).join(format!("{}-{:?}.png", *step, state.get()));
+        commands.spawn(bevy::render::view::screenshot::Screenshot::primary_window()).observe(bevy::render::view::screenshot::save_to_disk(path));
+    }
     if phase == 119 {
         let drawn = ui_cameras.iter().filter(|c| c.is_active).count() == 1;
         let ok = *state.get() == want && drawn;

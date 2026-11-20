@@ -23,6 +23,16 @@ pub struct Root {
     pub bakes: String,
     /// The dashboard: a view doc.
     pub home: String,
+    /// The layers each view lays over its world: layer docs, in order.
+    pub layers: Layers,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct Layers {
+    pub meadow: Vec<String>,
+    pub library: Vec<String>,
+    pub place: Vec<String>,
+    pub studio: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

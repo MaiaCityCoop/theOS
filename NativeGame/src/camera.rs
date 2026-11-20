@@ -91,6 +91,9 @@ pub struct Shot {
     pub pointer: Vec<[f32; 2]>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub clicks: Vec<f32>,
+    /// Layers of the interface laid over the shot while it plays: layer docs, by id.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub layers: Vec<String>,
     pub keys: Vec<Key>,
 }
 
@@ -239,7 +242,7 @@ fn key(pos: Vec3, look: Vec3, mm: f32, roll: f32) -> Key {
     Key { pos: pos.to_array(), look: look.to_array(), mm, roll, aperture: None, focus: None }
 }
 fn shot(name: &str, kind: &str, secs: f32, ease: Ease, why: &str, keys: Vec<Key>) -> Shot {
-    Shot { name: name.into(), kind: kind.into(), secs, ease, why: why.into(), hour: None, wind: None, world: None, pointer: vec![], clicks: vec![], keys }
+    Shot { name: name.into(), kind: kind.into(), secs, ease, why: why.into(), hour: None, wind: None, world: None, pointer: vec![], clicks: vec![], layers: vec![], keys }
 }
 
 /// Five shots of different sizes and moves over the plane, the same for the same seed.
