@@ -105,7 +105,25 @@ surprise beyond his words, so it goes straight to Build.
 
 ## Build
 
-_Filled while building: decisions, and what turned out different from the definition._
+- **Branches (deliverable 1):** tags `branch/<name>/<id>` beside main's `doc/<id>`, and `branches/<name>` for what a
+  branch is for. `head` falls through to main; `commit_on` merges what the doc holds on that branch (or main's, the
+  first time) before it writes, as `commit` always did. `AVENDB_BRANCH` is read in `open`; `forget` is main's only.
+- **Trees and views (deliverables 2, 3):** `avenDB/src/source.rs`. A tree's files are a Loro map (path → source doc),
+  so two branches that add different files both keep them; its shape (`include`, `check`, `build`, `binary`) is one
+  value. `sync` applies a view's edit to the doc *as it was written* and commits that, so Loro merges it with what the
+  branch got meanwhile; the merged text is written back. Views live in `avenDB/views/` (ignored by git). Every view
+  and every check builds into `avenDB/target/views`, so the dependencies are built once.
+- **Proposals (deliverable 4):** a proposal is a doc on main. `merge` takes a lock (`avenDB/merge.lock`), merges the
+  proposal's versions with main's on a trial branch `merge-<proposal>`, writes every tree it touches to a view of
+  that branch, runs the tree's check there, and only on a pass brings the trial's versions into main (merged once
+  more with whatever main got during the check). The last 400 lines of output are kept in the proposal.
+- **Builds (deliverable 5):** `avendb publish <engine> <tree>` builds a view of main with the tree's `build` and names
+  each file by its doc's version; the engine doc now names its tree. `avendb source <build> <dir>` writes any build's
+  source out again (older builds, which named file blobs, too). `publish`'s folder walk is gone.
+- **The engine's tree:** `bmqnnttpxhifmuwar6y3jmt6tz`, 38 files: `NativeGame/` (manifest, lock, README, `src/`) and
+  `avenDB/` (manifest, lock, `src/`, `tests/`). Its check: avenDB's tests, NativeGame's build and tests.
+- **git (deliverable 6):** `avendb snapshot <tree> .` writes main's tree into the git checkout. The intents skill now
+  tells workers on the engine to use a branch and a view and to propose.
 
 ## Propose
 
