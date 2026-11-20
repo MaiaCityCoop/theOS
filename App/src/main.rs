@@ -4,11 +4,13 @@
 //!     cargo run -- --still <shots> <s> <out.png>      an agent's still: the camera of a shot list (a doc's id, or a file) at a time
 //!     cargo run -- --gate <dir> [shots]               each shot of the timeline (or of a shot list) held: its frame time and a picture
 //!     cargo run -- --navtest                          the navigation's self-test: every view opened and left by clicking
+//!                                                     (NAVTEST_SHOTS=<dir>: a picture at each step)
 
 mod camera;
 mod contract;
 mod film;
 mod root;
+mod thedb_view;
 mod ui;
 mod views;
 mod world;
@@ -23,6 +25,8 @@ pub enum View {
     Home,
     Game,
     Studio,
+    /// theDB's docs and blobs, read only (`thedb_view.rs`).
+    TheDB,
 }
 
 /// The store, one for the app: theDB beside this repository (or where `THEDB` says).
@@ -85,7 +89,7 @@ fn main() {
             .insert_state(View::Studio)
             .add_systems(Update, film::take_still);
     } else {
-        app.add_plugins(ui::plugin);
+        app.add_plugins((ui::plugin, thedb_view::plugin));
         if mode == Some("--navtest") {
             app.add_systems(Update, ui::navtest);
         }

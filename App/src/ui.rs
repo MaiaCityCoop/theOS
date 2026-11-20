@@ -247,35 +247,64 @@ fn release(mut cursor: Query<&mut bevy::window::CursorOptions>) {
 
 // ---- the navigation's self-test: clicks the real buttons through the pointer input, as a mouse would ----
 
-/// `--navtest`: from the dashboard into each view and back with Home, by clicking; prints each step, then quits.
+/// A button the self-test clicks: one of the app's, or one of theDB view's (the first that matches).
+#[derive(Clone, Copy)]
+enum Click {
+    Act(Act),
+    Db(fn(&crate::thedb_view::DbAct) -> bool),
+}
+
+/// `--navtest`: from the dashboard into each view and back with Home, by clicking; through theDB's view (a kind, a doc
+/// and an earlier version of it, a font and the blob it is, the blobs and one of them, the branch select open, main chosen); prints each step,
+/// then quits. While theDB's view reads the store the test waits.
+#[allow(clippy::too_many_arguments)]
 pub fn navtest(
     mut commands: Commands,
     mut n: Local<u32>,
     mut step: Local<usize>,
     mut failed: Local<bool>,
     buttons: Query<(&Act, &ComputedNode, &UiGlobalTransform)>,
+    db_buttons: Query<(&crate::thedb_view::DbAct, &ComputedNode, &UiGlobalTransform)>,
+    db: Option<Res<crate::thedb_view::Db>>,
     ui_cameras: Query<&Camera, With<IsDefaultUiCamera>>,
     state: Res<State<View>>,
     window: Query<Entity, With<bevy::window::PrimaryWindow>>,
     mut input: MessageWriter<bevy::picking::pointer::PointerInput>,
     mut exit: MessageWriter<AppExit>,
 ) {
+    use crate::thedb_view::DbAct;
     use bevy::camera::RenderTarget;
     use bevy::picking::pointer::{Location, PointerAction, PointerButton, PointerId, PointerInput};
     use bevy::window::WindowRef;
-    const STEPS: [(Act, View); 4] = [
-        (Act::Open(View::Studio), View::Studio),
-        (Act::Home, View::Home),
-        (Act::Open(View::Game), View::Game),
-        (Act::Home, View::Home),
+    let steps: [(Click, View); 17] = [
+        (Click::Act(Act::Open(View::Studio)), View::Studio),
+        (Click::Act(Act::Home), View::Home),
+        (Click::Act(Act::Open(View::Game)), View::Game),
+        (Click::Act(Act::Home), View::Home),
+        (Click::Act(Act::Open(View::TheDB)), View::TheDB),
+        (Click::Db(|a| *a == DbAct::Kind("layer".into())), View::TheDB),
+        (Click::Db(|a| *a == DbAct::Kind("view".into())), View::TheDB),
+        (Click::Db(|a| matches!(a, DbAct::Doc(_))), View::TheDB),
+        (Click::Db(|a| *a == DbAct::Version(0)), View::TheDB),
+        (Click::Db(|a| *a == DbAct::Kind("font".into())), View::TheDB),
+        (Click::Db(|a| matches!(a, DbAct::Doc(_))), View::TheDB),
+        (Click::Db(|a| matches!(a, DbAct::Blob(_))), View::TheDB),
+        (Click::Db(|a| *a == DbAct::Blobs), View::TheDB),
+        (Click::Db(|a| matches!(a, DbAct::Blob(_))), View::TheDB),
+        (Click::Db(|a| *a == DbAct::Select), View::TheDB),
+        (Click::Db(|a| *a == DbAct::Branch(None)), View::TheDB),
+        (Click::Act(Act::Home), View::Home),
     ];
     // a pointer of its own, so the real mouse over the window cannot move it
     const TEST: PointerId = PointerId::Custom(bevy::asset::uuid::Uuid::from_u128(0x0046_0047));
+    if *state.get() == View::TheDB && db.as_ref().is_some_and(|d| d.reading) {
+        return;
+    }
     *n += 1;
     if *n == 1 {
         commands.spawn(TEST);
     }
-    let Some(&(act, want)) = STEPS.get(*step) else {
+    let Some(&(click, want)) = steps.get(*step) else {
         println!("navtest: {}", if *failed { "FAILED" } else { "all passed" });
         exit.write(if *failed { AppExit::error() } else { AppExit::Success });
         return;
@@ -285,14 +314,18 @@ pub fn navtest(
     if phase == 117
         && let Some(dir) = std::env::var_os("NAVTEST_SHOTS")
     {
-        let path = std::path::Path::new(&dir).join(format!("{}-{:?}.png", *step, state.get()));
+        let path = std::path::Path::new(&dir).join(format!("{:02}-{:?}.png", *step, state.get()));
         commands.spawn(bevy::render::view::screenshot::Screenshot::primary_window()).observe(bevy::render::view::screenshot::save_to_disk(path));
     }
     if phase == 119 {
         let drawn = ui_cameras.iter().filter(|c| c.is_active).count() == 1;
         let ok = *state.get() == want && drawn;
+        let what = match click {
+            Click::Act(a) => format!("{a:?}"),
+            Click::Db(_) => "in theDB's view".to_string(),
+        };
         println!(
-            "navtest: step {} click {act:?}: now {:?}, {} {}",
+            "navtest: step {} click {what}: now {:?}, {} {}",
             *step,
             state.get(),
             if drawn { "drawn" } else { "NOT DRAWN (no one active interface camera)" },
@@ -302,7 +335,12 @@ pub fn navtest(
         *step += 1;
         return;
     }
-    let Some((_, node, at)) = buttons.iter().find(|(a, ..)| **a == act) else { return };
+    let found = match click {
+        Click::Act(act) => buttons.iter().find(|(a, ..)| **a == act).map(|(_, n, t)| (n, t)),
+        // the first on screen: the topmost, then the leftmost
+        Click::Db(pick) => db_buttons.iter().filter(|(a, ..)| pick(a)).min_by(|x, y| (x.2.translation.y, x.2.translation.x).partial_cmp(&(y.2.translation.y, y.2.translation.x)).unwrap_or(std::cmp::Ordering::Equal)).map(|(_, n, t)| (n, t)),
+    };
+    let Some((node, at)) = found else { return };
     let target = RenderTarget::Window(WindowRef::Primary).normalize(window.single().ok()).unwrap();
     let pos = at.translation * node.inverse_scale_factor;
     let location = Location { target, position: pos };
@@ -319,4 +357,3 @@ pub fn navtest(
         _ => {}
     }
 }
-

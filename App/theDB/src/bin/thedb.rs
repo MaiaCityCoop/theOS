@@ -29,8 +29,23 @@
 //!     thedb proposal <id>               a proposal's state and its check's output
 //!     thedb merge <id>                  the merged tree checked; main moves only if it passes
 //!     thedb snapshot <tree> <dir>       main's tree written into the git checkout, for a commit
+//!
+//! Finding docs (intent 0053): answered from SQLite, no doc is opened.
+//!
+//!     thedb find kind=<kind>            the docs of a kind
+//!     thedb find name=<text>            the docs whose name has <text> in it
+//!     thedb find words <text>           the docs whose name or text has every word of <text>
+//!
+//! What leaves the store's folder: the compost (deleted for good after 30 days) and the archive (kept).
+//!
+//!     thedb compost <path> <why>        a file or folder in the store's folder, into the compost
+//!     thedb archive <path> <why>        the same, into the archive
+//!     thedb compost                     what the compost holds, and when each goes
+//!     thedb reach                       what the root reaches: what a clean store would hold
+//!     thedb fresh <what begins>         a clean store of only what the root reaches, checked, put in place; the old
+//!                                       store goes to the compost as "<day> the store before <what begins>"
 
-use thedb::TheDB;
+use thedb::{Find, TheDB};
 use thedb::source::{Shape, view_of};
 use std::io::Write;
 use std::path::Path;
@@ -142,7 +157,43 @@ fn main() {
         ["root"] => println!("{}", db.root().unwrap_or_else(|e| fail(&e)).unwrap_or_default()),
         ["root", id] => db.set_root(id).unwrap_or_else(|e| fail(&e)),
         ["forget", id] => db.forget(id).unwrap_or_else(|e| fail(&e)),
-        _ => fail("usage: thedb new <kind> <name> [file] | put <id> <file> | part <id> <part> <file> | cat <id> [hash] | ls | head <id> | root [<id>] | forget <id>"),
+        // ---- finding docs (intent 0053) ----
+        ["find", "words", text @ ..] if !text.is_empty() => found(db.find(Find::Words(&text.join(" "))).unwrap_or_else(|e| fail(&e))),
+        ["find", by] if by.starts_with("kind=") => found(db.find(Find::Kind(&by[5..])).unwrap_or_else(|e| fail(&e))),
+        ["find", by @ ..] if by.first().is_some_and(|b| b.starts_with("name=")) => found(db.find(Find::Name(&by.join(" ")[5..])).unwrap_or_else(|e| fail(&e))),
+        // ---- the compost, the archive, a clean store ----
+        ["compost"] => {
+            let now = std::time::SystemTime::now();
+            let held = db.composted();
+            for e in &held {
+                let goes = e.goes.map(|g| format!("goes {} (in {} days)", thedb::compost::day(g), thedb::compost::days_left(g, now))).unwrap_or_else(|| "undated: stays until moved by hand".into());
+                println!("{}  {}  {goes}  {}", e.folder, size(e.bytes), e.why);
+            }
+            eprintln!("{} in the compost", held.len());
+        }
+        ["compost", path, why @ ..] if !why.is_empty() => println!("{}", db.compost(path, &why.join(" ")).unwrap_or_else(|e| fail(&e)).display()),
+        ["archive", path, why @ ..] if !why.is_empty() => println!("{}", db.archive(path, &why.join(" ")).unwrap_or_else(|e| fail(&e)).display()),
+        ["reach"] => {
+            let r = db.reach().unwrap_or_else(|e| fail(&e));
+            for (id, h) in &r.docs {
+                let (kind, name) = db.meta(id).unwrap_or_default();
+                println!("doc      {id}  {}  {kind:<8} {name}", &h.to_hex()[..12]);
+            }
+            for (h, id) in &r.versions {
+                println!("version  {}  of {id}", &h.to_hex()[..12]);
+            }
+            for (h, bytes) in &r.blobs {
+                println!("blob     {}  {}", &h.to_hex()[..12], size(*bytes));
+            }
+            let all = db.docs().map(|d| d.len()).unwrap_or(0);
+            eprintln!("the root reaches {} of {all} docs, {} other versions, {} blobs ({})", r.docs.len(), r.versions.len(), r.blobs.len(), size(r.blobs.values().sum()));
+        }
+        ["fresh", why @ ..] if !why.is_empty() => {
+            let f = db.fresh(&why.join(" ")).unwrap_or_else(|e| fail(&e));
+            println!("a clean store: {} docs, {} blobs, {} (before: {}; {} docs were not reached)", f.docs, f.blobs, size(f.after), size(f.before), f.left_docs);
+            println!("the old store: {}", f.composted.display());
+        }
+        _ => fail("usage: thedb new <kind> <name> [file] | put <id> <file> | part <id> <part> <file> | cat <id> [hash] | ls | head <id> | root [<id>] | forget <id> | find kind=<k> | find name=<text> | find words <text> | compost [<path> <why>] | archive <path> <why> | reach | fresh <what begins> (and the branch, tree and build commands: see the top of thedb.rs)"),
     }
 }
 
@@ -163,6 +214,24 @@ fn report(s: thedb::source::Synced) {
     }
     eprintln!("{} edited, {} added, {} removed", s.edited.len(), s.added.len(), s.removed.len());
 }
+
+fn found(list: Vec<thedb::Found>) {
+    for f in &list {
+        println!("{}  {:<8} {}", f.id, f.kind, f.name);
+    }
+    eprintln!("{} found", list.len());
+}
+
+/// Bytes, as a person reads them.
+fn size(bytes: u64) -> String {
+    match bytes {
+        b if b >= 1 << 30 => format!("{:.1} GB", b as f64 / (1u64 << 30) as f64),
+        b if b >= 1 << 20 => format!("{:.1} MB", b as f64 / (1u64 << 20) as f64),
+        b if b >= 1 << 10 => format!("{:.1} kB", b as f64 / 1024.0),
+        b => format!("{b} B"),
+    }
+}
+
 
 fn out(bytes: Vec<u8>) {
     let _ = std::io::stdout().write_all(&bytes);
