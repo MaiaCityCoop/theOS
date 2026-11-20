@@ -54,7 +54,12 @@ process goes through it over a local connection (the kernel owns it, theOS and t
 | Keep snapshots as blobs (today) | nothing to build | a full snapshot per commit; no query; one owner for everything |
 | redb (already linked by iroh-blobs) | pure Rust, no new crate | a key-value store: indexes and search written by hand; one process |
 | **SQLite** (rusqlite, bundled) | queries, indexes, full text, many readers, one well known file | a C library in the build |
-| Loro's own storage (loro-kv) or Automerge-style repo | made for CRDT history | young; no query layer |
+| Loro's own `loro-kv-store` | inside Loro already | it is the sorted-table layer *within one doc's* snapshot (fast load of a large doc), marked not for direct use; no notion of many docs, queries or processes ([docs](https://docs.rs/loro-kv-store), [loro_internal](https://docs.rs/crate/loro-internal/1.13.1/source/src/kv_store.rs)) |
+| An Automerge-style repo | made for CRDT history | another CRDT's ecosystem; no query layer |
+
+Loro stays the CRDT inside each doc either way; SQLite is where many docs are kept, found and read at once, the
+pattern others use with Loro too (e.g. [pylon-runtime's Loro store](https://docs.rs/pylon-runtime/0.3.23/pylon_runtime/loro_store/):
+a doc per row in SQLite, hydrated on demand).
 
 **Deliverables**
 
