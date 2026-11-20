@@ -10,7 +10,7 @@ import { listScenes, objectPath, objectType } from '../Stories/scenes.js';
 import { readCompass } from '../Website/compass.js';
 import { readArtifacts, ITEMS } from '../Artifacts/store.js';
 
-const ROOT = resolve(import.meta.dirname, '..'), BRAND = resolve(ROOT, 'brand'), INTENTS = resolve(ROOT, 'Intents');
+const ROOT = resolve(import.meta.dirname, '..'), BRAND = resolve(ROOT, 'Brand'), INTENTS = resolve(ROOT, 'Intents');
 const STORIES = resolve(ROOT, 'Stories'), SCENES = resolve(STORIES, 'scenes'), TIMELINES = resolve(ROOT, 'TheGame/cine/timelines');
 // the one table of types, by a file's extension
 const MIME = { '.css': 'text/css', '.html': 'text/html; charset=utf-8', '.jpg': 'image/jpeg', '.js': 'text/javascript', '.json': 'application/json', '.md': 'text/plain; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml' };
