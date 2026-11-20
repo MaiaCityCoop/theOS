@@ -49,6 +49,12 @@ Samuel asked for the work outright; it went straight to Build.
 - **Two worlds in one timeline.** A shot names its world; "This is day 1" films the green world in its first shot and
   "day 1, blue" in its second, and the Studio switches the sky and ground as the shot changes.
 
+- **Vibes** (`App/theDB/src/vibe.rs`): a doc of kind `vibe`, checked by the one vibe schema (a blob): its `entry`,
+  its `needs` by role (a doc, a doc's exact version `<id>@<hash>`, or `blob:<hash>`) and the `vibes` it is made of.
+  `theDB vibe <id>` walks the tree and fails on anything missing or a vibe made of itself. Day 1 as vibes, proposed by
+  agent claude: `theOS` (the dashboard, engine, kernel, fonts, layers) made of `This is day 1` (the timeline), made of
+  `the green world` and `the blue world` (each its world, module, shader and schema); the root names `theOS`.
+
 **Checks, as they ran** (on a copy of the live store): an agent's write to main refused; an agent's proposal accepted
 through the pill by `--navtest` (all steps passed); `theDB verify` clean (45 heads); a world with `"ground": "blue"`
 refused by its schema; the gate's pictures of the two shots, green and blue; `cargo test --workspace` passed.
@@ -74,7 +80,7 @@ Keychain, not made and held by the agent's session alone.
 - [x] The world's numbers as a module in theDB
 - [x] Green and blue in one timeline
 - [ ] Samuel accepts the live proposal in theOS
-- [ ] Vibes: one manifest kind for every world, asset and UI (Samuel's next idea)
+- [x] Vibes: one manifest kind for every world, asset and UI (Samuel's next idea)
 - [ ] The `--still` black picture
 
 ## Changelog
@@ -82,7 +88,8 @@ Keychain, not made and held by the agent's session alone.
 ### 2026-11-20
 
 - **Asked:** the items above.
-- **Delivered:** all five, checked on a copy of the store; the live store has the proposal open for Samuel.
+- **Delivered:** all five, checked on a copy of the store; Samuel accepted the live proposal.
+- **Asked:** vibes. **Delivered:** the vibe kind and schema, `theDB vibe`, day 1 as four vibes, proposed for Samuel.
 
 ## Trail
 
