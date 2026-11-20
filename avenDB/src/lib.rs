@@ -344,6 +344,64 @@ impl AvenDb {
     }
 }
 
+// ---- the engine: its source and its builds, kept like everything else ----
+
+/// A build of the engine: its binary, the source tree it was made from (a manifest blob: each file's path in the tree
+/// and its blob), and the toolchain. Kept as a blob of JSON; a build is named by that blob's hash.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct Build {
+    pub binary: String,
+    pub source: String,
+    pub toolchain: String,
+}
+
+/// An engine doc: its builds, newest last, and the one pinned (the one the kernel starts).
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
+pub struct Engine {
+    pub pinned: Option<String>,
+    pub builds: Vec<String>,
+}
+
+impl AvenDb {
+    /// Keeps a build of engine `id`: the binary and every source file as blobs, the tree as a manifest blob, the build
+    /// as a blob; adds it to the engine's builds and pins it. Returns the build's hash.
+    pub fn publish(&self, id: &str, binary: &[u8], source: &[(String, Vec<u8>)], toolchain: &str) -> Result<Hash> {
+        let mut tree = std::collections::BTreeMap::new();
+        for (path, bytes) in source {
+            tree.insert(path.clone(), self.put(bytes.clone())?.to_hex().to_string());
+        }
+        let manifest = self.put(serde_json::to_vec_pretty(&tree).map_err(err)?)?;
+        let build = Build { binary: self.put(binary.to_vec())?.to_hex().to_string(), source: manifest.to_hex().to_string(), toolchain: toolchain.into() };
+        let hash = self.put(serde_json::to_vec_pretty(&build).map_err(err)?)?;
+        let mut engine = self.engine(id)?;
+        engine.builds.push(hash.to_hex().to_string());
+        engine.pinned = Some(hash.to_hex().to_string());
+        self.set_text(id, &serde_json::to_string_pretty(&engine).map_err(err)?)?;
+        Ok(hash)
+    }
+
+    /// Engine `id`: its builds and the pinned one.
+    pub fn engine(&self, id: &str) -> Result<Engine> {
+        Ok(self.text(id)?.and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default())
+    }
+
+    /// Pins build `build` of engine `id`: the kernel starts it from now on.
+    pub fn pin(&self, id: &str, build: &str) -> Result<()> {
+        let mut engine = self.engine(id)?;
+        if !engine.builds.iter().any(|b| b == build) {
+            return Err(format!("engine {id} has no build {build}"));
+        }
+        engine.pinned = Some(build.into());
+        self.set_text(id, &serde_json::to_string_pretty(&engine).map_err(err)?).map(|_| ())
+    }
+
+    /// A build, by its hash.
+    pub fn build(&self, hash: &str) -> Result<Build> {
+        let b = self.get(hash.parse().map_err(err)?)?.ok_or_else(|| format!("no build {hash}"))?;
+        serde_json::from_slice(&b).map_err(err)
+    }
+}
+
 #[cfg(feature = "bevy")]
 pub mod bevy;
 

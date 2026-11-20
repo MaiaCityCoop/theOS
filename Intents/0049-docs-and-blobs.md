@@ -167,8 +167,32 @@ measured on `main` when this definition is approved)
   Shaders, fonts, the library, the biome, the shot lists, Mértola, and every Earth tile and canopy piece fetched (once,
   by its own name) come from it. With `NativeGame/assets` renamed away the gate's four pictures are unchanged and
   Mértola renders; editing `ground.wesl` from a shell while the Meadow ran reloaded it on screen.
+- **Every reference by id:** a doc's id is opaque and flat (26 letters, made once); its kind and name are inside it.
+  One root doc names, by id, every doc the engine uses (shaders, fonts, library, biome, shot lists, Mértola, the
+  Earth's data, the bakes, the dashboard, the engine). Shaders import each other by id. The Earth's open data are parts
+  of one doc under their source URL. Nothing is found by a name or a path.
+- **Bakes made once (deliverable 3):** the lawn's and every impostor's atlases kept under the hash of their master,
+  settings, shader version and bake code. The Meadow settled after 8.9 s on every start; now 0.5 s on a second start.
+- **The contract (deliverable 4):** one Eye (place, aim, roll, lens: focal length, aperture, focus, frame, shutter, any
+  value), one Clock (day, hour, wind, auto), the world's Land, and the World shown as a state of its own, picked by the
+  view or, in the Studio, by the doc a shot names. The Meadow, the Library and Mértola take camera, sun and wind from
+  it; the place's walker, map and dial and the Library's atlas belong to their views, not to a film of their world.
+  Depth of field from the lens (Bevy's bokeh, from f-stops and the frame's height). The frame is the 42.6 mm one the
+  shots were composed in, so the gate's pictures are unchanged.
+- **The timeline crosses worlds (deliverable 7):** the example shot list opens on the dashboard (filmed, a pointer
+  moving to the Game and clicking), then the Meadow, a focus pull (f/1.4 from 0.3 to 30 m, stopped down to f/16), the
+  Library on the clover's doc, Mértola from above on its doc. `--gate <dir> <shots id>` photographs any shot list.
+- **The interface as docs (deliverable 6), in part:** a view is a doc (boxes and words in the brand's look; a click
+  opens a doc by id), drawn by `views.rs`; the dashboard is made this way, and a view is filmed as a world
+  (`World::Interface`). Not yet: the Library's list, the Studio's strip and the Meadow's and the place's chips are
+  still built in code; a view on a screen inside a world; recording and replaying real input.
+- **The engine in avenDB, and the kernel (deliverable 8):** `avendb publish` keeps a build: every source file a blob,
+  the tree a manifest blob, the binary a blob, the build a blob naming them and the toolchain; the engine doc lists its
+  builds and pins one. `kernel` opens avenDB, follows the root to the engine's pinned build, checks the binary against
+  its hash (a corrupted one is refused and written again from the store), starts it and serves the store to it.
+  Pinning build two started build two; pinning build one back started build one.
 - **Not yet:** the repository's seed copies (`assets/`, `library/`, `biomes/`, `timelines/`) are still there, read by
-  nothing; the bakes are still made at every start; the engine is still built from the repository.
+  nothing (deleting them leaves avenDB's folder the only copy); the world flare (deliverable 5) waits, at Samuel's word.
 
 ## Propose
 
@@ -186,16 +210,16 @@ _accepted or rejected, the date, the reason in a line._
 
 ## Todo
 
-- [ ] Samuel approves the definition
+- [x] Samuel approves the definition
 - [ ] Measure the code gates and the 10 % gate on `main`
-- [ ] 1 The store
-- [ ] 2 Bevy reads only docs and blobs
-- [ ] 3 Bakes cached by hash
-- [ ] 4 The Studio's contract
-- [ ] 5 Lenses and the flare
-- [ ] 6 The interface as docs, filmable
-- [ ] 7 The example timeline across worlds: Meadow, dashboard, a real place on Earth (intent 0048's world)
-- [ ] 8 The kernel loader
+- [x] 1 The store
+- [x] 2 Bevy reads only docs and blobs
+- [x] 3 Bakes cached by hash
+- [x] 4 The Studio's contract
+- [ ] 5 Lenses and the flare (the flare waits, at Samuel's word)
+- [ ] 6 The interface as docs, filmable (the dashboard done; the other views, a screen in a world, input replay to do)
+- [x] 7 The example timeline across worlds: Meadow, dashboard, a real place on Earth (intent 0048's world)
+- [x] 8 The kernel loader
 
 ## Changelog
 

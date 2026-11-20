@@ -13,3 +13,4 @@ avenDB/data/
 avenDB/temp/
 avenDB/rpc.*
 avenDB/target/
+avenDB/run/

@@ -329,6 +329,8 @@ dependencies = [
  "loro",
  "n0-future",
  "noq",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 
