@@ -21,6 +21,19 @@
 //!     thedb diff <branch>               the docs a branch changes: main's version → the branch's
 //!     thedb sync <line>                 main brought into a line; prints the conflicts that settled, to check
 //!
+//! Code as docs (intent 0059, step 1d): every file of `App/` a doc (its text a Loro text), the tree a doc mapping
+//! paths to them, named by the root as `source`. Nothing is edited in a folder; git is an archive.
+//!
+//!     thedb source import <repo>        the code of the checkout `repo` (App/, at HEAD, clean) into theDB, on the
+//!                                       branch source-<commit>, proposed as an intent for the owner to accept
+//!     thedb source files                every path in the tree, as this process's branch sees it
+//!     thedb source cat <path>           a file
+//!     thedb source write <dir>          the tree written into dir: only what changed, read only
+//!     thedb publish <engine>            a host build from this process's branch's code (no git), proposed as an intent
+//!     thedb build                       builds this process's branch's code (build/ in the store), in the background
+//!     thedb build status                the last build: its line, state and errors
+//!     thedb archive                     main's code committed onto refs/heads/archive of the store's repository
+//!
 //! Intents (intent 0059): every piece of work, draft → building → checked → proposal → merged | refused. An agent
 //! works on its line (`THEDB_BRANCH`); its owner accepts or refuses in theOS only. `--json` after any of these prints
 //! what it read as JSON, for agents.
@@ -119,9 +132,36 @@ fn main() {
             }
         }
         ["head", id] => println!("{}", db.head(id).unwrap_or_else(|e| fail(&e)).map(|h| h.to_string()).unwrap_or_default()),
+        ["publish", engine] => {
+            let (h, intent) = db.publish_tree(engine).unwrap_or_else(|e| fail(&e));
+            println!("{h}\nproposed as {intent}: theOS runs it once its owner accepts it under the star");
+        }
         ["publish", engine, repo] => {
             let (h, proposal) = db.publish_git(engine, Path::new(repo)).unwrap_or_else(|e| fail(&e));
             println!("{h}\nproposed as {proposal}: theOS runs it once it is accepted under the star");
+        }
+        ["source", "import", repo] => {
+            let (id, n) = db.import_code(Path::new(repo)).unwrap_or_else(|e| fail(&e));
+            println!("{id}\n{n} files brought in, proposed: accepted under the star, theDB holds the code");
+        }
+        ["source", "files"] => {
+            for p in db.files().unwrap_or_else(|e| fail(&e)) {
+                println!("{p}");
+            }
+        }
+        ["source", "cat", path] => out(db.file_bytes(path).unwrap_or_else(|e| fail(&e))),
+        ["source", "write", dir] => {
+            let p = db.project(Path::new(dir)).unwrap_or_else(|e| fail(&e));
+            println!("{} files, {} written, {} removed; tree {}", p.files, p.written, p.removed, p.hash);
+        }
+        ["build"] => println!("{}", serde_json::to_string_pretty(&db.build_start().unwrap_or_else(|e| fail(&e))).unwrap_or_default()),
+        ["build", "status"] => println!("{}", serde_json::to_string_pretty(&db.build_status().unwrap_or_else(|e| fail(&e))).unwrap_or_default()),
+        ["archive"] => {
+            let repo = db.archive_repo().unwrap_or_else(|| fail("the store is not in a git repository"));
+            match db.archive_code(&repo, "theDB main, archived by hand").unwrap_or_else(|e| fail(&e)) {
+                Some(c) => println!("refs/heads/archive is {c}"),
+                None => println!("main has no code to archive"),
+            }
         }
         ["source", build, dir] => eprintln!("{} files", db.checkout_build(build, Path::new(dir)).unwrap_or_else(|e| fail(&e))),
         ["pin", id, build] => println!("proposed as {}: accepted under the star, theOS runs it", db.pin(id, build).unwrap_or_else(|e| fail(&e))),

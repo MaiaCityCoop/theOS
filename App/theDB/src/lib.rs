@@ -960,6 +960,7 @@ pub mod conflict;
 pub mod intents;
 pub mod lock;
 pub mod schema;
+pub mod source;
 pub mod vibe;
 
 pub mod inventory;

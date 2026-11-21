@@ -106,3 +106,66 @@ fn errors_limits_and_the_cut() {
     drop(s);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// An agent changes code through the MCP alone: reads it, edits it on its line, builds it, reads the error, fixes it.
+#[test]
+fn an_agent_edits_and_builds_code_through_execute() {
+    use std::process::Command;
+    let repo = std::env::temp_dir().join(format!("themcp-code-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&repo);
+    std::fs::create_dir_all(repo.join("App/src")).unwrap();
+    std::fs::write(repo.join("App/Cargo.toml"), "[package]\nname = \"hello\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[workspace]\n").unwrap();
+    std::fs::write(repo.join("App/src/main.rs"), "fn main() {\n    println!(\"hello\");\n}\n").unwrap();
+    std::fs::write(repo.join(".gitignore"), "DATA/\n").unwrap();
+    for args in [&["init", "-q", "-b", "main"][..], &["add", "."], &["-c", "user.name=t", "-c", "user.email=t@t.invalid", "commit", "-q", "-m", "a crate"]] {
+        assert!(Command::new("git").arg("-C").arg(&repo).args(args).status().unwrap().success());
+    }
+    let mut db = TheDB::open(repo.join("DATA")).unwrap();
+    let root = db.new("root", "root").unwrap();
+    db.set_text(&root, "{}").unwrap();
+    db.set_root(&root).unwrap();
+    let owner = SecretKey::generate();
+    db.set_owner(owner.clone()).unwrap();
+    db.owner_with(owner);
+    let (code, _) = db.import_code(&repo).unwrap();
+    db.accept(&code).unwrap();
+    let agent = SecretKey::generate();
+    db.grant("ada", agent.public(), 1).unwrap();
+    db.sign_with(agent);
+    let s = Rc::new(Session::new(db, "ada").unwrap());
+
+    let wait = |s: &Rc<Session>| -> Value {
+        for _ in 0..600 {
+            let (text, err) = tool(s, "execute", "theos::build_status()");
+            assert!(!err, "{text}");
+            let v: Value = serde_json::from_str(&text).unwrap();
+            if v["state"] != "running" {
+                return v;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+        panic!("the build did not end");
+    };
+    // a mistake, built: the error names the tree's path
+    let (text, err) = tool(&s, "execute", r#"
+        theos::file_edit("App/src/main.rs", "println!(\"hello\");", "let n: u32 = \"one\";");
+        theos::build().state
+    "#);
+    assert!(!err && text == "running", "{text}");
+    let failed = wait(&s);
+    assert_eq!(failed["state"], "failed");
+    assert!(failed["errors"][0].as_str().unwrap().starts_with("App/src/main.rs:2"), "{failed}");
+    // fixed, built
+    let (text, err) = tool(&s, "execute", r#"
+        theos::file_edit("App/src/main.rs", "let n: u32 = \"one\";", "let n: u32 = 1;\n    println!(\"day {n}\");");
+        theos::build();
+        theos::file_search("day {n}")
+    "#);
+    assert!(!err && text.contains("App/src/main.rs:3:"), "{text}");
+    assert_eq!(wait(&s)["state"], "ok");
+    // main has not changed: the line's work waits for an intent and its owner
+    assert!(s.db.file_search("day {n}", 5).unwrap().len() == 1, "the line sees its edit");
+    drop(s);
+    let _ = Command::new("chmod").args(["-R", "u+w"]).arg(&repo).status();
+    let _ = std::fs::remove_dir_all(&repo);
+}

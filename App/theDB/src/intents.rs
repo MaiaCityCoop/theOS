@@ -294,6 +294,13 @@ impl TheDB {
             }
             i.accepted_by = Some(s);
         }
+        // git as an archive: main's code as it is, kept before a merge that brings code
+        if i.docs.keys().any(|d| matches!(self.meta(d).map(|m| m.0).as_deref(), Ok("source" | "tree" | "root")))
+            && let Some(repo) = self.archive_repo()
+            && let Err(e) = self.archive_code(&repo, &format!("theDB main before “{}”", i.title))
+        {
+            eprintln!("thedb: the archive in git: {e}");
+        }
         self.merge_into_main(&versions)?;
         i.state = State::Merged;
         self.save_intent(id, &i)

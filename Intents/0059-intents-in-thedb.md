@@ -155,7 +155,8 @@ agents watching telemetry. Signing is not described there; here every merge is s
 - [ ] 1b′ · Host builds signed with one stable certificate (so a new build is not asked about by the Keychain again)
 - [x] 1c · theOS's MCP in Code Mode (search, execute; Rhai; one list of operations), as its own process for now
 - [ ] 1c′ · The MCP inside the host, reached over iroh, each session a grant passed on by its agent
-- [ ] 1d · Code as Loro text and a tree doc, imported from git once; the builder's projection; git as an archive
+- [x] 1d · Code as Loro text and a tree doc, imported from git once; the builder's projection; git as an archive;
+  host builds published from a line's code
 - [ ] 1e · Agents kept to the MCP
 - [ ] 2 · Touch ID by default, signed rules
 - [ ] 3 · The builder: builds by tree hash, one queue, publish from a line
@@ -197,5 +198,19 @@ agents watching telemetry. Signing is not described there; here every merge is s
   `tools/call`). `.mcp.json` gives Claude sessions in this repository the server as the agent `claude`. Checked: four
   tests (the protocol, search, an intent worked in one script on the agent's line with main untouched, errors,
   limits and the cut), and the built binary answering over its standard input and output.
+- **Delivered (step 1d):** `theDB/src/source.rs`. Every file of `App/` a doc of kind `source` (its text a Loro text,
+  edited only where it changed, never read as JSON; an icon a blob), the tree a doc of kind `tree` whose map `files`
+  maps each path to its file's doc, named by the root as `source`: a move keeps the file's doc and history. (A Loro
+  movable tree, one op for a folder's move, can replace the map later; the map keeps conflicts visible as they are
+  today, key by key.) `theDB source import <repo>` brings `App/` in from a clean commit, onto `source-<commit>`, as an
+  intent. Files read, written, edited, moved, deleted and searched on a line. The builder: the line's tree written to
+  `build/src` in the store (only what changed, read only but `Cargo.lock`), one `build/target`, one build at a time, in
+  the background; its errors given with the tree's paths; a `Cargo.lock` brought up to date goes back to its line.
+  `theDB publish <engine>` builds the host from a line's code, with no git, and proposes it. Git as an archive: before
+  a merge that brings code, main's tree is committed onto `refs/heads/archive` through a scratch index, touching no
+  branch, index or working tree. theMCP gained `files`, `file_lines`, `file_search`, `file_write`, `file_edit`,
+  `file_move`, `file_delete`, `build`, `build_status` (28 operations). Checked: two tests in theDB (code from git to a
+  line to a failed and a good build to an archived merge; a host build from a line accepted and pinned) and one in
+  theMCP (an agent edits, builds, reads its error, fixes and builds, through `execute` alone); 42 tests in all.
 
 ## Trail
