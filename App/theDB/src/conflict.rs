@@ -41,23 +41,18 @@ fn leaves(v: &Value, path: String, out: &mut BTreeMap<String, Value>) {
     }
 }
 
-/// Everything `doc` holds, by path. A code doc's tree is read node by node (`source::leaves`), not as one value: a
-/// file moved on one side and edited on the other is no conflict.
+/// Everything `doc` holds, by path. A code doc's `files` map is read like any map: each file's `path` and `blob` are
+/// leaves of their own, so a rename on one side and an edit on the other are no conflict.
 fn content(doc: &LoroDoc) -> BTreeMap<String, Value> {
     let mut out = BTreeMap::new();
-    let mut whole = json::whole(doc);
-    if let Some(o) = whole.as_object_mut() {
-        o.remove(crate::source::TREE);
-    }
-    leaves(&whole, String::new(), &mut out);
-    crate::source::leaves(doc, &mut out);
+    leaves(&json::whole(doc), String::new(), &mut out);
     out
 }
 
-/// A code doc's leaf path (`/files/<node>/text`) as a person reads it: the file's path and what of it.
+/// A code doc's leaf (`/files/<id>/blob`) as a person reads it: the file's path and what of it.
 fn readable(path: &str, names: &BTreeMap<String, String>) -> String {
-    match path.strip_prefix(&format!("/{}/", crate::source::TREE)).and_then(|r| r.split_once('/')) {
-        Some((node, what)) => format!("{} ({what})", names.get(node).map(String::as_str).unwrap_or(node)),
+    match path.strip_prefix(&format!("/{}/", crate::source::FILES)).and_then(|r| r.split_once('/')) {
+        Some((id, what)) => format!("{} ({})", names.get(id).map(String::as_str).unwrap_or(id), if what == "blob" { "content" } else { what }),
         None => path.to_string(),
     }
 }
@@ -79,11 +74,11 @@ impl TheDB {
             let at = |vv: &loro::VersionVector| -> Result<BTreeMap<String, Value>> { Ok(content(&all.fork_at(&all.vv_to_frontiers(vv)).map_err(err)?)) };
             let base = at(&mvv.intersection(&lvv))?;
             let (m, l) = (content(&main), content(&line));
-            // a code doc's nodes by their paths, for reading: the line's names first
+            // a code doc's files by their paths, for reading: the line's names first
             let mut names = BTreeMap::new();
             for d in [&all, &main, &line] {
-                for (p, n, _) in crate::source::nodes(d) {
-                    names.insert(n.to_string(), p);
+                for e in crate::source::entries(d) {
+                    names.insert(e.id, e.path);
                 }
             }
             let paths: std::collections::BTreeSet<&String> = base.keys().chain(m.keys()).chain(l.keys()).collect();
@@ -93,19 +88,11 @@ impl TheDB {
                     found.push(Conflict { doc: id.clone(), path: readable(p, &names), base: b.cloned(), main: mv.cloned(), line: lv.cloned() });
                 }
             }
-            // what only the merge shows in a code doc: a file the line has that main took away with its folder, and
-            // two files at one path (made on both sides)
-            let merged = crate::source::nodes(&all);
-            let alive: std::collections::BTreeSet<String> = merged.iter().map(|(_, n, _)| n.to_string()).collect();
-            for (p, n, file) in crate::source::nodes(&line) {
-                if file && !alive.contains(&n.to_string()) {
-                    found.push(Conflict { doc: id.clone(), path: format!("{p} (taken away with its folder on main)"), base: None, main: None, line: Some(Value::String(p.clone())) });
-                }
-            }
+            // what only the merge shows in a code doc: two files at one path, made on both sides
             let mut seen = std::collections::BTreeSet::new();
-            for (p, _, _) in &merged {
-                if !seen.insert(p.clone()) {
-                    found.push(Conflict { doc: id.clone(), path: format!("{p} (made on both sides)"), base: None, main: Some(Value::String(p.clone())), line: Some(Value::String(p.clone())) });
+            for e in crate::source::entries(&all) {
+                if !seen.insert(e.path.clone()) {
+                    found.push(Conflict { doc: id.clone(), path: format!("{} (made on both sides)", e.path), base: None, main: Some(Value::String(e.path.clone())), line: Some(Value::String(e.path.clone())) });
                 }
             }
         }

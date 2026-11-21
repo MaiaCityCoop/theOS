@@ -145,15 +145,16 @@ fn a_host_build_comes_from_a_lines_code() {
     let _ = std::fs::remove_dir_all(&repo);
 }
 
-/// The code is one Loro tree: a folder moved on a line merges with an edit main made inside it meanwhile; what both
-/// sides really changed (one file's text, one new path) is shown by its path, and so is a file whose folder main took.
+/// The code is flat: a file's entry has its own id, its path and its blob. A folder moved on a line (every path under
+/// it) merges with an edit main made inside it meanwhile; what both sides really changed (one file's content, one new
+/// path, a file one side took away while the other changed it) is shown by its path.
 #[test]
 fn a_folder_moves_with_its_edits_and_real_collisions_are_shown() {
-    let repo = repo("tree");
+    let repo = repo("flat");
     let mut db = store(&repo);
     let (code, _) = db.import_code(&repo).unwrap();
     db.accept(&code).unwrap();
-    // a line moves the whole folder, one op; main edits a file in it meanwhile
+    // a line moves the whole folder; main edits a file in it meanwhile
     db.make_branch("line-ada", "").unwrap();
     db.set_branch(Some("line-ada")).unwrap();
     db.file_move("App/src", "App/lib").unwrap();
@@ -166,19 +167,19 @@ fn a_folder_moves_with_its_edits_and_real_collisions_are_shown() {
     assert_eq!(db.files().unwrap(), ["App/Cargo.toml", "App/assets/icon.png", "App/lib/main.rs"]);
     assert!(db.file_text("App/lib/main.rs").unwrap().contains("hello from main"), "main's edit went with the file");
 
-    // both change one file's text, both make one path, and main takes a folder the line added to
+    // both change one file's content, both make one path, and main takes away a file the line changed
     db.make_branch("line-bo", "").unwrap();
     db.set_branch(Some("line-bo")).unwrap();
     db.file_edit("App/lib/main.rs", "hello from main", "hello from bo").unwrap();
     db.file_write("App/lib/new.rs", "// bo's\n").unwrap();
-    db.file_write("App/assets/more.txt", "bo's\n").unwrap();
+    db.file_write_bytes("App/assets/icon.png", &[0x89, b'P', b'N', b'G', 9]).unwrap();
     db.set_branch(None).unwrap();
     db.file_edit("App/lib/main.rs", "hello from main", "hello again").unwrap();
     db.file_write("App/lib/new.rs", "// main's\n").unwrap();
     db.file_delete("App/assets").unwrap();
     let p = db.propose("line-bo", "bo's hello").unwrap();
     let c: Vec<String> = db.intent_conflicts(&p).unwrap().into_iter().map(|c| c.path).collect();
-    for want in ["App/lib/main.rs (text)", "App/lib/new.rs (made on both sides)", "App/assets/more.txt (taken away with its folder on main)"] {
+    for want in ["App/lib/main.rs (content)", "App/lib/new.rs (made on both sides)", "App/assets/icon.png (content)"] {
         assert!(c.iter().any(|x| x == want), "{want} in {c:?}");
     }
     assert!(db.accept(&p).unwrap_err().contains("conflicts with main"));

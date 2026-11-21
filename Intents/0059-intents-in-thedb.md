@@ -69,12 +69,21 @@ Decided with Samuel on the MVP's shape:
 
 **CRDT-native, decided with Samuel** (2026-11-21):
 
-- **Code is one Loro doc, fully native** (Samuel: "fully native Loro docs/maps, no file doc path workarounds"). The
-  host's code is a doc of kind `code` holding a Loro movable tree, `files`: a node for every folder and file, its name
-  in its metadata, a file's text a mergeable Loro text inside its node (an icon: its blob's hash). No paths as keys and
-  no doc per file: a node is the file's identity, a rename or a move (a whole folder too) is one op and merges with
-  edits made inside meanwhile; a path is only how a node is reached. One version of the doc is one state of all the
-  code; a line is its version of that one doc, sharing one history with every other. Every op names its writer.
+- **Code is flat and content-addressed** (Samuel: "fully native Loro, no file doc path workarounds", then "isn't a
+  fully flat hierarchy and pure content-addressable files better than folders and files in a tree?"). Each file's
+  content is a blob by its BLAKE3 hash, kept once, served by iroh as it is. Which files the code has is one small Loro
+  doc of kind `code`: its map `files` holds an entry per file, keyed by the file's own id, with its `path` and its
+  `blob`. No folders (a path is a name the compiler needs), no doc per file, no text CRDT for code. A rename and an
+  edit are two fields, kept when made on two sides at once; an edit replaces the blob, and the same file changed on
+  both sides is a conflict shown by its path, never a silent merge. One version of the doc is one state of all the
+  code; its hash is cheap (names and hashes, not the code). The movable tree tried before is in git (`78421e95`).
+  Why, from Loro's own docs (read from github.com/loro-dev/loro-docs; loro.dev refuses automated reads): "When Not to
+  Use CRDTs": they "merge; they do not reject", so what must be checked (code) is merged by people and checks, not
+  silently; "Choose CRDT types": a value replaced whole versus a text CRDT that keeps both sides, and code wants the
+  first with a conflict shown; the movable tree keeps deleted nodes in memory and needs rules for concurrent moves into
+  cycles, none of which code needs; "CRDTs are not enough": many documents want a small, metadata-first directory, read
+  first, content loaded when needed. It is also the model Anthropic's Scion keeps (a change lists files, each a
+  pointer to content in blob storage) and git's own blobs.
 - **Intents in Loro's own containers**: the map `intent`, the list `tasks` (a map each), the maps `docs` and
   `accepted_by`; every change one op on its own field, so two agents ticking two tasks at once are both kept.
 - **No working folders.** Agents read and edit through the host's API; the builder writes a read-only projection of a
@@ -223,5 +232,11 @@ agents watching telemetry. Signing is not described there; here every merge is s
   (one file's text changed on both sides, one path made on both sides, a file added to a folder main took away);
   intents held in native maps and lists with every change its own op. Checked: 45 tests, among them the folder move
   merging with main's edit and the three collisions refused, and two writers' ticks and new tasks all kept.
+- **Asked:** is one big code doc tree right, or is a flat, content-addressed layout better (Loro's docs consulted).
+  **Delivered:** the flat layout (above): `source.rs` rewritten around `entries` (id, path, blob); a folder's move is
+  every path under it in one commit; a delete takes the files under a name; conflicts are each file's `path` and `blob`
+  as leaves, plus one path made on both sides. Checked: 45 tests, among them a folder moved on a line merging with an
+  edit main made inside it, and one file's content changed on both sides, one path made on both sides and a file one
+  side took away while the other changed it, all refused by path.
 
 ## Trail
