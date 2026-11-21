@@ -122,11 +122,12 @@ pub struct TheDB {
     branch: Option<String>,
     /// The docs: this process's own connection to `theDB.sqlite`.
     sql: std::sync::Mutex<rusqlite::Connection>,
-    /// The key this process signs its commits with (`access`): the master's or an agent's, from the Keychain.
-    /// Read from the Keychain the first time it is needed, so a master made while this process runs is used too.
+    /// The key this process signs its commits with (`access`): the host's or an agent's, kept on this device; read the
+    /// first time it is needed, so a host made while this process runs is used too.
     signer: std::sync::Mutex<Option<access::SecretKey>>,
-    /// The person at this Mac (`access`: their Secure Enclave key), for what only a person decides; from the Keychain.
-    person: std::sync::Mutex<Option<theid::presence::Person>>,
+    /// The owner's key given to this process unlocked, for tests (`access::owner_with`); else it is unlocked by the
+    /// person each time it signs.
+    owner_given: std::sync::Mutex<Option<access::SecretKey>>,
     /// The lock this process runs at (`lock.rs`): every doc read at the version it pins, nothing written.
     lock: Option<Locked>,
 }
@@ -181,7 +182,7 @@ impl TheDB {
         }
         let (store, owner) = Self::open_blobs(&rt, dir)?;
         let sql = sql::open(dir)?;
-        let db = TheDB { rt, store, owner, dir: dir.to_path_buf(), branch, sql: std::sync::Mutex::new(sql), signer: std::sync::Mutex::new(None), person: std::sync::Mutex::new(None), lock: None };
+        let db = TheDB { rt, store, owner, dir: dir.to_path_buf(), branch, sql: std::sync::Mutex::new(sql), signer: std::sync::Mutex::new(None), owner_given: std::sync::Mutex::new(None), lock: None };
         db.prepare()?;
         Ok(db)
     }
@@ -584,8 +585,8 @@ impl TheDB {
         if self.branches()?.iter().any(|b| b == name) {
             return Ok(());
         }
-        // in a signed store, branches are the master's to make (an agent's line comes with its grant)
-        self.is_master_or_host().map_err(|_| "branches are made by the master or theOS's host only".to_string())?;
+        // in a signed store, branches are the owner's (or its host's) to make (an agent's line comes with its grant)
+        self.is_owner_or_host().map_err(|_| "branches are made by the owner or theOS's host only".to_string())?;
         sql::make_branch(&self.sql(), name, about, now())
     }
 
@@ -895,7 +896,7 @@ impl TheDB {
         // what the kernel runs is a person's decision: a build pinned by any other hand is refused
         if !self.pin_approved(&engine, &pinned)? {
             return Err(format!(
-                "build {} of engine {engine} was not approved by a person at this Mac: accept its intent in theOS (Touch ID), or `theDB person pin`",
+                "build {} of engine {engine} was not let run by the owner: accept its intent in theOS (Touch ID), or `theDB owner pin`",
                 &pinned[..12.min(pinned.len())]
             ));
         }

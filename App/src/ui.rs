@@ -322,9 +322,9 @@ pub fn navtest(
     use bevy::camera::RenderTarget;
     use bevy::picking::pointer::{Location, PointerAction, PointerButton, PointerId, PointerInput};
     use bevy::window::WindowRef;
-    // a store without a master starts on the setup screen: its key made, then saved, then the dashboard
+    // a store without an owner starts on the setup screen: its key made, then saved, then the dashboard
     let setup = [(Click::Setup(crate::setup::SetupAct::Make), View::Setup), (Click::Setup(crate::setup::SetupAct::Saved), View::Home)];
-    let with_setup = *setup_first.get_or_insert_with(|| matches!(crate::db().master(), Ok(None)));
+    let with_setup = *setup_first.get_or_insert_with(|| matches!(crate::db().owner(), Ok(None)));
     let views: [(Click, View); 27] = [
         (Click::Act(Act::Open(View::Studio)), View::Studio),
         // the Studio's switcher: the Stories, then a story's card back into the Timeline

@@ -150,7 +150,9 @@ agents watching telemetry. Signing is not described there; here every merge is s
 ## Todo
 
 - [x] 1 · Intents: the doc, states, task board, agent commands, the star lists intents
-- [ ] 1b · Keys through `keyring`; host builds signed with one stable certificate
+- [x] 1b · Owners and agents, one primitive: keys and grants (chains back to the owner); secrets through `keyring`;
+  the owner's key locked by Touch ID; every merge and every build the kernel runs signed by the owner
+- [ ] 1b′ · Host builds signed with one stable certificate (so a new build is not asked about by the Keychain again)
 - [ ] 1c · The host's MCP in Code Mode (search, execute; Rhai; one registry of operations)
 - [ ] 1d · Code as Loro text and a tree doc, imported from git once; the builder's projection; git as an archive
 - [ ] 1e · Agents kept to the MCP
@@ -173,5 +175,14 @@ agents watching telemetry. Signing is not described there; here every merge is s
   old proposal docs read as intents; `theDB intents`, `theDB intent …` with `--json`; the star lists intents by
   Proposals, Working, Done, All, with their tasks. `cargo test` passes (36), with a test of an intent from draft to
   merged.
+- **Asked:** one hierarchy, owners and agents (devices, sessions, peers), each an agent id with its caps, one theID
+  primitive; `keyring`; every merge the owner's. **Delivered (step 1b):** master is now owner (`meta.owner`, read from
+  `meta.master` in older stores); the host is a device with `Cap::Main`; caps `Line`, `Main`, `Intents`, `Read`, `Run`,
+  and grants passed on as chains that lead back to the owner (`pass_on`, `allows_chain`); secrets in each platform's
+  own store (`keyring-core`: the Keychain on a Mac, Windows' and Linux's stores; Android to come); the owner's key
+  locked by a Secure Enclave key (key agreement, HKDF, ChaCha20-Poly1305) that asks for Touch ID on every use; the
+  separate P-256 person key of 0058 gone: once merges are the owner's (`theDB owner protect`), every accept is signed
+  by the owner's own key, kept in the intent, and the kernel runs only a build the owner let run. `cargo test` passes
+  (36), with a real Secure Enclave lock and unlock and a keyring round trip on this Mac.
 
 ## Trail

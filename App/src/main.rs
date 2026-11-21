@@ -33,7 +33,7 @@ pub enum View {
     Studio,
     /// theDB's docs and blobs, read only (`thedb_view.rs`).
     TheDB,
-    /// The first start of a store without a master: its key made and shown once (`setup.rs`).
+    /// The first start of a store without an owner: its key made and shown once (`setup.rs`).
     Setup,
     /// Every world there is to open, from the vibes (`sandboxes.rs`).
     Sandboxes,

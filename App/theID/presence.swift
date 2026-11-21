@@ -1,12 +1,11 @@
-// theID's presence helper: a P-256 key in this Mac's Secure Enclave that signs only while a person is there (Touch ID,
-// or the login password). Run by theID (src/presence.rs), never by hand. The key's blob is useless on any other Mac,
-// and on this one without the person.
+// theID's presence helper: a P-256 key in this device's Secure Enclave, used only while the person is there (Touch
+// ID, or the login password). It locks the owner's key: the key is sealed to the Enclave key's public half (in Rust,
+// src/presence.rs), and opening it needs the Enclave's agreement, which asks the person. Run by theID, never by hand.
 //
 //     theOS make                one key: its blob (base64), then its public key (SEC1, hex)
-//     theOS sign <reason>       input: the blob, then the message (hex); out: the signature (64 bytes, hex). The
+//     theOS agree <reason>      input: the blob, then a public key (SEC1, hex); out: the shared secret (hex). The
 //                               system asks the person, showing "<reason>".
-//     theOS test                a throwaway key that asks nobody: its public key, then 16 lines "message signature"
-//                               (theID's test that the Enclave's signatures check in Rust)
+//     theOS make-test           a key that asks nobody, for theID's own tests
 import CryptoKit
 import Foundation
 import LocalAuthentication
@@ -16,7 +15,7 @@ func fail(_ s: String) -> Never {
     exit(1)
 }
 
-func hex(_ d: Data) -> String { d.map { String(format: "%02x", $0) }.joined() }
+func hex<D: DataProtocol>(_ d: D) -> String { d.map { String(format: "%02x", $0) }.joined() }
 
 func unhex(_ s: Substring) -> Data? {
     var d = Data()
@@ -30,40 +29,39 @@ func unhex(_ s: Substring) -> Data? {
     return d
 }
 
-let args = CommandLine.arguments
-switch args.count > 1 ? args[1] : "" {
-case "make" where args.count == 2:
-    guard SecureEnclave.isAvailable else { fail("this Mac has no Secure Enclave") }
-    // usable only on this Mac, only while it is unlocked, and each use only with the person there
-    guard let ac = SecAccessControlCreateWithFlags(nil, kSecAttrAccessibleWhenUnlockedThisDeviceOnly, [.privateKeyUsage, .userPresence], nil) else {
+func make(_ flags: SecAccessControlCreateFlags) {
+    guard SecureEnclave.isAvailable else { fail("this device has no Secure Enclave") }
+    // usable only on this device, only while it is unlocked, and (with .userPresence) each use only with the person
+    guard let ac = SecAccessControlCreateWithFlags(nil, kSecAttrAccessibleWhenUnlockedThisDeviceOnly, flags, nil) else {
         fail("no access control")
     }
     do {
-        let k = try SecureEnclave.P256.Signing.PrivateKey(accessControl: ac)
+        let k = try SecureEnclave.P256.KeyAgreement.PrivateKey(accessControl: ac)
         print(k.dataRepresentation.base64EncodedString())
         print(hex(k.publicKey.x963Representation))
     } catch { fail("no key made: \(error.localizedDescription)") }
-case "sign" where args.count == 3:
+}
+
+let args = CommandLine.arguments
+switch args.count > 1 ? args[1] : "" {
+case "make" where args.count == 2:
+    make([.privateKeyUsage, .userPresence])
+case "make-test" where args.count == 2:
+    make([.privateKeyUsage])
+case "agree" where args.count == 3:
     let input = String(data: FileHandle.standardInput.readDataToEndOfFile(), encoding: .utf8) ?? ""
     let lines = input.split(separator: "\n")
-    guard lines.count == 2, let blob = Data(base64Encoded: String(lines[0])), let message = unhex(lines[1]) else {
-        fail("input: the key's blob, then the message in hex")
+    guard lines.count == 2, let blob = Data(base64Encoded: String(lines[0])), let theirs = unhex(lines[1]) else {
+        fail("input: the key's blob, then a public key in hex")
     }
     let context = LAContext()
     context.localizedReason = args[2]
     do {
-        let k = try SecureEnclave.P256.Signing.PrivateKey(dataRepresentation: blob, authenticationContext: context)
-        print(hex(try k.signature(for: message).rawRepresentation))
-    } catch { fail("not signed: \(error.localizedDescription)") }
-case "test" where args.count == 2:
-    guard let ac = SecAccessControlCreateWithFlags(nil, kSecAttrAccessibleWhenUnlockedThisDeviceOnly, [.privateKeyUsage], nil),
-          let k = try? SecureEnclave.P256.Signing.PrivateKey(accessControl: ac) else { fail("no Secure Enclave") }
-    print(hex(k.publicKey.x963Representation))
-    for i in 0..<16 {
-        let m = Data("theOS test \(i) \(UUID())".utf8)
-        guard let s = try? k.signature(for: m) else { fail("not signed") }
-        print(hex(m) + " " + hex(s.rawRepresentation))
-    }
+        let k = try SecureEnclave.P256.KeyAgreement.PrivateKey(dataRepresentation: blob, authenticationContext: context)
+        let other = try P256.KeyAgreement.PublicKey(x963Representation: theirs)
+        let shared = try k.sharedSecretFromKeyAgreement(with: other)
+        print(shared.withUnsafeBytes { hex(Data($0)) })
+    } catch { fail("not opened: \(error.localizedDescription)") }
 default:
-    fail("theOS make | theOS sign <reason> | theOS test")
+    fail("theOS make | theOS agree <reason> | theOS make-test")
 }

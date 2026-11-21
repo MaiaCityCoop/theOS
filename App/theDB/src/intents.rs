@@ -77,9 +77,10 @@ pub struct Intent {
     /// Why it went back to building (a failed check, a refusal's word).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
-    /// The person's signature of the accept (`access`): set when it is merged in a store with a person.
+    /// The owner's signature of the accept (`access`), its key unlocked by the person: set when it is merged in a store
+    /// whose merges are the owner's.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub approval: Option<crate::access::Approval>,
+    pub accepted_by: Option<crate::access::Signed>,
 }
 
 /// A doc of the earlier kind `proposal`, read as an intent.
@@ -89,14 +90,12 @@ struct Legacy {
     note: String,
     docs: BTreeMap<String, String>,
     state: String,
-    #[serde(default)]
-    approval: Option<crate::access::Approval>,
 }
 
-/// What a person signs to accept an intent.
+/// What the owner signs to accept an intent.
 pub(crate) const ACCEPT: &str = "theDB accept";
 
-/// What the person's signature of accepting intent `id` covers: its id, its line, and each doc with the version it
+/// What the owner's signature of accepting intent `id` covers: its id, its line, and each doc with the version it
 /// brings.
 pub(crate) fn accept_fields(id: &str, i: &Intent) -> Vec<Vec<u8>> {
     let mut f = vec![id.as_bytes().to_vec(), i.line.clone().unwrap_or_default().into_bytes()];
@@ -122,7 +121,7 @@ impl TheDB {
             docs: BTreeMap::new(),
             state: State::Draft,
             reason: None,
-            approval: None,
+            accepted_by: None,
         };
         let id = crate::new_id();
         self.save_intent(&id, &i)?;
@@ -270,16 +269,16 @@ impl TheDB {
         Ok(i)
     }
 
-    /// Accepts intent `id`: its versions, merged with what main holds now, become main's. A person accepts it in
-    /// theOS; it is signed by the host or the master, never by an agent. In a store with a person (`access`), the
-    /// person at this Mac signs it too, by Touch ID or the login password, and the signature is kept in the intent:
-    /// whoever reads the host's key from the Keychain still cannot accept. One merge at a time.
+    /// Accepts intent `id`: its versions, merged with what main holds now, become main's. Its owner accepts it in
+    /// theOS: the merge is made by the host (or the owner), never by an agent, and, once the owner signs merges
+    /// (`access`), signed by the owner, its key unlocked by the person (Touch ID or the login password); the signature
+    /// is kept in the intent, and whoever holds only the host's key cannot accept. One merge at a time.
     pub fn accept(&self, id: &str) -> Result<()> {
         let mut i = self.intent(id)?;
         if i.state != State::Proposal {
             return Err(format!("the intent is {}, not a proposal", i.state.name()));
         }
-        self.is_master_or_host()?;
+        self.is_owner_or_host()?;
         let _lock = Lock::take(&self.dir().join("merge.lock"))?;
         let versions: Vec<(String, Hash)> = i.docs.iter().map(|(d, v)| Ok((d.clone(), v.parse().map_err(err)?))).collect::<Result<_>>()?;
         // what Loro would settle silently is refused out loud: the agent syncs its line, settles it, proposes again
@@ -287,13 +286,13 @@ impl TheDB {
         if !conflicts.is_empty() {
             return Err(format!("the intent conflicts with main ({}): {}", conflicts.len(), conflicts.iter().map(|c| c.to_string()).collect::<Vec<_>>().join("; ")));
         }
-        if !self.persons()?.is_empty() {
+        if self.owner_signs()? {
             let fields = accept_fields(id, &i);
-            let a = self.approve(ACCEPT, &fields, &format!("accept “{}” into main", i.title))?;
-            if !self.approved(&a, ACCEPT, &fields)? {
-                return Err("the person's signature does not hold".into());
+            let s = self.sign_as_owner(ACCEPT, &fields, &format!("accept “{}” into main", i.title))?;
+            if !self.signed_by_owner(&s, ACCEPT, &fields)? {
+                return Err("the owner's signature does not hold".into());
             }
-            i.approval = Some(a);
+            i.accepted_by = Some(s);
         }
         self.merge_into_main(&versions)?;
         i.state = State::Merged;
@@ -303,7 +302,7 @@ impl TheDB {
     /// Refuses intent `id`: main stays as it is; the line keeps its work.
     pub fn refuse(&self, id: &str) -> Result<()> {
         let mut i = self.open_intent(id)?;
-        self.is_master_or_host()?;
+        self.is_owner_or_host()?;
         i.state = State::Refused;
         self.save_intent(id, &i)
     }
@@ -328,7 +327,7 @@ fn read(doc: &loro::LoroDoc) -> Option<Intent> {
             _ => State::Proposal,
         },
         reason: None,
-        approval: l.approval,
+        accepted_by: None,
     })
 }
 

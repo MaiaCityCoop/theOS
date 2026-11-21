@@ -22,7 +22,7 @@
 //!     thedb sync <line>                 main brought into a line; prints the conflicts that settled, to check
 //!
 //! Intents (intent 0059): every piece of work, draft → building → checked → proposal → merged | refused. An agent
-//! works on its line (`THEDB_BRANCH`); a person accepts or refuses in theOS only. `--json` after any of these prints
+//! works on its line (`THEDB_BRANCH`); its owner accepts or refuses in theOS only. `--json` after any of these prints
 //! what it read as JSON, for agents.
 //!
 //!     thedb intents [open|done|all]     every intent on every line and on main (open by default)
@@ -33,22 +33,22 @@
 //!     thedb intent task <id> <text>     a task added to its board
 //!     thedb intent tick <id> <n>        task n done (untick: `untick`)
 //!     thedb intent building <id> [why]  back to building, and why (also: `draft`)
-//!     thedb intent ready <id>           the line's changes taken as they are, and it waits for a person (proposal)
+//!     thedb intent ready <id>           the line's changes taken as they are, and it waits for its owner (proposal)
 //!     thedb intents from <store dir>    the intents of an older store (composted, archived) onto main, as they stood
 //!
-//! Who may write (intent 0054; keys, signatures and grants are theID's). Once a store has a master, main is written by
-//! the master only, and an agent (`THEOS_AGENT=<name>`, `THEDB_BRANCH=line-<name>`) by its own key on its own line.
+//! Who may write (intents 0054, 0059; keys, signatures and grants are theID's). A store has one owner, who owns main;
+//! theOS's host writes main by its grant, and every merge is signed by the owner, its key unlocked by the person (Touch
+//! ID on a Mac). An agent (`THEOS_AGENT=<name>`, `THEDB_BRANCH=line-<name>`) writes its own line with its own key.
 //!
-//!     thedb master                      the store's master (its public key), and whether this Mac holds its secret
-//!     thedb master init                 a new master: its secret into this Mac's Keychain, shown once to keep in a
-//!                                       password manager; every head as it is now signed by it
-//!     thedb master restore              the master's secret, read from the input, into this Mac's Keychain
-//!     thedb agent <name> [days]         a new agent: its key in the Keychain, the master's grant of line-<name>
-//!     thedb person                      whether accepting needs the person at this Mac (Touch ID)
-//!     thedb person make                 a key in this Mac's Secure Enclave, the master's word for it; then the person
-//!                                       approves the build pinned now (Touch ID). From then on every accept, and
-//!                                       every build the kernel runs, is the person's signature
-//!     thedb person pin                  the person approves the build pinned now (Touch ID), for the kernel
+//!     thedb owner                       the store's owner and host, whether merges are the owner's, and who this is
+//!     thedb owner init                  a new owner: its key locked on this device (Touch ID), shown once to keep in
+//!                                       a password manager; every head as it is now signed by it; a host made
+//!     thedb owner protect               the owner's key this device kept unlocked (before 0059: the master's) locked
+//!                                       with Touch ID, the unlocked copy removed; the build pinned now let run; from
+//!                                       then on every merge is the owner's
+//!     thedb owner restore               the same, with the owner's key read from the input (its backup)
+//!     thedb owner pin                   the owner lets the kernel run the build pinned now (Touch ID)
+//!     thedb agent <name> [days]         a new agent: its key kept on this device, the owner's grant of line-<name>
 //!     thedb verify                      every signature, and every head signed by whom its branch allows
 //!
 //! Locks: the system at a version (lock.rs). `THEDB_LOCK=<hash>` opens any process at one, read only.
@@ -260,47 +260,43 @@ fn main() {
             let h = if *hash == "none" { None } else { Some(hash.parse().unwrap_or_else(|_| fail("not a hash"))) };
             println!("{}", db.set_schema(id, h).unwrap_or_else(|e| fail(&e)));
         }
-        ["master"] => match db.master().unwrap_or_else(|e| fail(&e)) {
-            Some(m) => {
-                println!("{m}");
+        ["owner"] => match db.owner().unwrap_or_else(|e| fail(&e)) {
+            Some(o) => {
+                println!("owner {o}");
                 match db.host().unwrap_or_else(|e| fail(&e)) {
                     Some((h, _)) => println!("host {h}"),
-                    None => println!("no host yet: theOS makes it when it starts with the master's key"),
+                    None => println!("no host yet: theOS makes it when it starts (the owner's key, unlocked once)"),
                 }
-                println!("this process signs as {}", db.signer().map(|k| k.to_string()).unwrap_or_else(|| "nobody (no key on this Mac)".into()));
+                if db.owner_signs().unwrap_or_else(|e| fail(&e)) {
+                    println!("every merge, and every build the kernel runs, is the owner's (Touch ID)");
+                } else {
+                    println!("merges need only theOS's host key: `theDB owner protect` makes them the owner's");
+                }
+                println!("this process signs as {}", db.signer().map(|k| k.to_string()).unwrap_or_else(|| "nobody (no key on this device)".into()));
             }
-            None => println!("no master: nothing is signed (theDB master init)"),
+            None => println!("no owner: nothing is signed (theDB owner init)"),
         },
-        ["master", "init"] => {
-            let key = db.make_master().unwrap_or_else(|e| fail(&e));
-            println!("the master: {}", key.public());
-            println!("\nIts secret, shown this once. Keep it in your password manager now; this Mac's Keychain holds it too.\n");
+        ["owner", "init"] => {
+            let key = db.make_owner().unwrap_or_else(|e| fail(&e));
+            println!("the owner: {}", key.public());
+            println!("\nIts secret, shown this once. Keep it in your password manager now; on this device it is kept locked, opened by Touch ID.\n");
             println!("    {}\n", thedb::theid::secret_text(&key));
         }
-        ["master", "restore"] => {
+        ["owner", "protect"] => {
+            db.protect_owner().unwrap_or_else(|e| fail(&e));
+            println!("the owner's key is locked on this device (Touch ID), the unlocked copy removed; every merge is the owner's");
+        }
+        ["owner", "restore"] => {
             let mut text = String::new();
             std::io::stdin().read_line(&mut text).unwrap_or_else(|e| fail(&e.to_string()));
             let key: thedb::access::SecretKey = text.trim().parse().unwrap_or_else(|_| fail("not a secret key (64 hex digits)"));
-            db.restore_master(key).unwrap_or_else(|e| fail(&e));
-            println!("the master's secret is in this Mac's Keychain");
+            db.restore_owner(key).unwrap_or_else(|e| fail(&e));
+            println!("the owner's key is locked on this device (Touch ID); every merge is the owner's");
         }
-        ["person"] => {
-            let n = db.persons().unwrap_or_else(|e| fail(&e)).len();
-            if n == 0 {
-                println!("no person: accepting an intent needs only theOS's host key (theDB person make)");
-            } else {
-                println!("{n} person key(s) the master stands behind: accepting an intent, and the build the kernel runs, need Touch ID at this Mac");
-            }
-        }
-        ["person", "make"] => {
-            let key = db.make_person().unwrap_or_else(|e| fail(&e));
-            println!("the person at this Mac: {}", thedb::theid::presence::hex(&key));
-            println!("its key stays in this Mac's Secure Enclave; each accept asks for Touch ID or the login password");
-        }
-        ["person", "pin"] => {
+        ["owner", "pin"] => {
             let (engine, build) = db.pinned_now().unwrap_or_else(|e| fail(&e));
-            db.approve_pin(&engine, &build).unwrap_or_else(|e| fail(&e));
-            println!("the build {build} approved: the kernel runs it");
+            db.owner_pin(&engine, &build).unwrap_or_else(|e| fail(&e));
+            println!("the build {build} let run: the kernel starts it");
         }
         ["agent", name, rest @ ..] if rest.len() <= 1 => {
             let days = rest.first().map(|d| d.parse().unwrap_or_else(|_| fail("days: a number"))).unwrap_or(30);

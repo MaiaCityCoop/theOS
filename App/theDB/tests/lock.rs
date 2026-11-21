@@ -13,7 +13,7 @@ fn a_lock_reads_the_system_as_it_was() {
     let root = db.new("root", "root").unwrap();
     db.set_text(&root, &format!(r#"{{"world": "{world}"}}"#)).unwrap();
     db.set_root(&root).unwrap();
-    db.set_master(SecretKey::generate()).unwrap();
+    db.set_owner(SecretKey::generate()).unwrap();
     let lock = db.lock().unwrap();
     db.set_text(&world, r##"{"ground": "#2f6fb0"}"##).unwrap();
     let pins = db.read_lock(lock).unwrap();

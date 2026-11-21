@@ -1,78 +1,68 @@
-//! A person at this Mac: what only a person decides (accepting a proposal into main, the build the kernel runs) is
-//! signed by a key in this Mac's Secure Enclave, which signs only after Touch ID or the login password. Unlike the
-//! Ed25519 keys in the Keychain, no process can read it: an agent can ask, and the person sees the question.
+//! The person's presence, which locks the owner's key (intent 0059). One primitive stays one: the owner signs with its
+//! own Ed25519 key, like every key in theID; what the person's presence adds is that the key is kept locked, and only
+//! the person opens it, each time.
 //!
-//! The Enclave holds P-256 keys only, so a person's key is P-256 (ECDSA over SHA-256); what it signs is laid out as
-//! everything theID signs ([`crate::sign`]: a domain, then each field with its length). Its public key is the master's
-//! word (theDB keeps the master's signature of it). The helper that talks to the Enclave is `presence.swift`, carried
-//! inside this crate and written out beside the user's caches when first needed.
+//! On a Mac the lock is a key in the Secure Enclave (P-256, the only kind it holds), used only after Touch ID or the
+//! login password: the owner's key is sealed to its public half (an ephemeral key's agreement with it, HKDF-SHA256,
+//! ChaCha20-Poly1305), and opening it needs the Enclave's agreement, which asks the person. The Enclave key never
+//! leaves the device; the owner's key is open only inside the process that asked, for the moment it signs. Other
+//! platforms lock the same way with their own hardware (Windows Hello, Android's keystore, a security key or TPM on
+//! Linux): to come.
+//!
+//! The helper that talks to the Enclave is `presence.swift`, carried inside this crate and written out beside the
+//! user's caches when first needed. It is named theOS: the system's question reads "theOS is trying to …".
 
-use crate::{Result, err, signed_bytes};
-use p256::ecdsa::signature::{Signer, Verifier};
-use p256::ecdsa::{Signature, SigningKey, VerifyingKey};
+use crate::{Result, err};
+use chacha20poly1305::aead::{Aead, AeadCore, KeyInit};
+use chacha20poly1305::{ChaCha20Poly1305, Nonce};
+use p256::elliptic_curve::rand_core::OsRng;
+use p256::elliptic_curve::sec1::ToEncodedPoint;
 use std::io::Write;
 use std::path::PathBuf;
 
 const HELPER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/presence"));
+const INFO: &[u8] = b"theOS owner key v1";
 
-/// A person's key: in this Mac's Secure Enclave (its blob, which only that Enclave can use, and its public key), or in
-/// memory, for tests.
-#[derive(Clone)]
-pub enum Person {
-    Enclave { blob: String, public: Vec<u8> },
-    Soft(SigningKey),
+/// Locks `secret` with a new key in this device's Secure Enclave that asks the person on every use. Returns what to
+/// keep: the Enclave key's blob (useless on any other device), the public halves, the nonce and the sealed secret.
+pub fn lock(secret: &[u8]) -> Result<String> {
+    lock_with("make", secret)
 }
 
-impl Person {
-    /// A new key in this Mac's Secure Enclave. Making it asks nothing; each signature asks the person.
-    pub fn make() -> Result<Person> {
-        let out = run(&["make"], "")?;
-        let mut l = out.lines();
-        let blob = l.next().ok_or("the Enclave made no key")?.to_string();
-        let public = unhex(l.next().ok_or("the Enclave gave no public key")?)?;
-        Ok(Person::Enclave { blob, public })
-    }
-
-    /// A key in memory: for tests, never kept.
-    pub fn soft() -> Person {
-        Person::Soft(SigningKey::random(&mut p256::elliptic_curve::rand_core::OsRng))
-    }
-
-    /// The public key (SEC1, uncompressed).
-    pub fn public(&self) -> Vec<u8> {
-        match self {
-            Person::Enclave { public, .. } => public.clone(),
-            Person::Soft(k) => VerifyingKey::from(k).to_encoded_point(false).as_bytes().to_vec(),
-        }
-    }
-
-    /// Signs `fields` as a `domain`, after the person says yes to `reason` ("accept … into main"). 64 bytes.
-    pub fn sign(&self, domain: &str, fields: &[&[u8]], reason: &str) -> Result<Vec<u8>> {
-        let message = signed_bytes(domain, fields);
-        match self {
-            Person::Enclave { blob, .. } => unhex(run(&["sign", reason], &format!("{blob}\n{}\n", hex(&message)))?.trim()),
-            Person::Soft(k) => Ok(Signer::<Signature>::sign(k, &message).to_bytes().to_vec()),
-        }
-    }
-
-    /// As kept in the Keychain: the blob, a space, the public key in hex. (A soft key is never kept.)
-    pub fn to_text(&self) -> Option<String> {
-        match self {
-            Person::Enclave { blob, public } => Some(format!("{blob} {}", hex(public))),
-            Person::Soft(_) => None,
-        }
-    }
-
-    pub fn from_text(t: &str) -> Option<Person> {
-        let (blob, public) = t.trim().split_once(' ')?;
-        Some(Person::Enclave { blob: blob.into(), public: unhex(public).ok()? })
-    }
+fn lock_with(make: &str, secret: &[u8]) -> Result<String> {
+    let out = run(&[make], "")?;
+    let mut l = out.lines();
+    let blob = l.next().ok_or("the Enclave made no key")?.to_string();
+    let enclave = unhex(l.next().ok_or("the Enclave gave no public key")?)?;
+    let theirs = p256::PublicKey::from_sec1_bytes(&enclave).map_err(err)?;
+    let mine = p256::ecdh::EphemeralSecret::random(&mut OsRng);
+    let ephemeral = mine.public_key().to_encoded_point(false).as_bytes().to_vec();
+    let shared = mine.diffie_hellman(&theirs);
+    let cipher = cipher(shared.raw_secret_bytes(), &ephemeral, &enclave)?;
+    let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
+    let sealed = cipher.encrypt(&nonce, secret).map_err(|_| "not sealed")?;
+    Ok(format!("v1 {blob} {} {} {} {}", hex(&enclave), hex(&ephemeral), hex(&nonce), hex(&sealed)))
 }
 
-/// Whether `sig` is the person `public`'s signature of `fields` as a `domain`.
-pub fn verify(public: &[u8], domain: &str, fields: &[&[u8]], sig: &[u8]) -> bool {
-    let (Ok(k), Ok(s)) = (VerifyingKey::from_sec1_bytes(public), Signature::from_slice(sig)) else { return false };
-    k.verify(&signed_bytes(domain, fields), &s).is_ok()
+/// Opens what [`lock`] kept: the system asks the person, showing `reason`.
+pub fn unlock(locked: &str, reason: &str) -> Result<Vec<u8>> {
+    let parts: Vec<&str> = locked.split(' ').collect();
+    let ["v1", blob, enclave, ephemeral, nonce, sealed] = parts.as_slice() else { return Err("not a locked key".into()) };
+    let (enclave, ephemeral, nonce, sealed) = (unhex(enclave)?, unhex(ephemeral)?, unhex(nonce)?, unhex(sealed)?);
+    let shared = unhex(run(&["agree", reason], &format!("{blob}\n{}\n", hex(&ephemeral)))?.trim())?;
+    let cipher = cipher(shared.as_slice().into(), &ephemeral, &enclave)?;
+    if nonce.len() != 12 {
+        return Err("not a nonce".into());
+    }
+    cipher.decrypt(Nonce::from_slice(&nonce), sealed.as_slice()).map_err(|_| "the lock does not open with this device's Enclave".into())
+}
+
+/// The cipher both sides derive from the agreement, bound to both public halves.
+fn cipher(shared: &p256::FieldBytes, ephemeral: &[u8], enclave: &[u8]) -> Result<ChaCha20Poly1305> {
+    let salt = [ephemeral, enclave].concat();
+    let mut key = [0u8; 32];
+    hkdf::Hkdf::<sha2::Sha256>::new(Some(&salt), shared).expand(INFO, &mut key).map_err(|_| "no key derived")?;
+    Ok(ChaCha20Poly1305::new((&key).into()))
 }
 
 /// Runs the helper with `args`, `input` on its input; its output.
@@ -92,10 +82,10 @@ fn run(args: &[&str], input: &str) -> Result<String> {
     String::from_utf8(out.stdout).map_err(err)
 }
 
-/// The helper, written out once per build of it. It is named theOS: the system's question reads "theOS is trying to …".
+/// The helper, written out once per build of it.
 fn helper() -> Result<PathBuf> {
     if HELPER.is_empty() {
-        return Err("this build has no Secure Enclave helper (built off macOS)".into());
+        return Err("no presence on this platform yet: the owner's key cannot be locked here".into());
     }
     use std::hash::{Hash, Hasher};
     let mut h = std::collections::hash_map::DefaultHasher::new();
@@ -130,28 +120,17 @@ pub fn unhex(s: &str) -> Result<Vec<u8>> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn a_persons_signature_holds_for_its_domain_and_fields_only() {
-        let p = Person::soft();
-        let s = p.sign("accept", &[b"a", b"b"], "").unwrap();
-        assert!(verify(&p.public(), "accept", &[b"a", b"b"], &s));
-        assert!(!verify(&p.public(), "pin", &[b"a", b"b"], &s));
-        assert!(!verify(&p.public(), "accept", &[b"ab"], &s));
-        assert!(!verify(&Person::soft().public(), "accept", &[b"a", b"b"], &s));
-    }
-
-    /// The Enclave's signatures check here. Its key in this test asks no person (no Touch ID in a test run).
+    /// A key locked by the Enclave opens with it, and is refused when the sealed part is touched. The Enclave key in
+    /// this test asks nobody (no Touch ID in a test run).
     #[test]
     #[cfg(target_os = "macos")]
-    fn the_enclaves_signatures_hold() {
-        let out = run(&["test"], "").unwrap();
-        let mut l = out.lines();
-        let public = unhex(l.next().unwrap()).unwrap();
-        for line in l {
-            let (msg, sig) = line.split_once(' ').unwrap();
-            let m = unhex(msg).unwrap();
-            let (Ok(k), Ok(s)) = (VerifyingKey::from_sec1_bytes(&public), Signature::from_slice(&unhex(sig).unwrap())) else { panic!() };
-            assert!(k.verify(&m, &s).is_ok());
-        }
+    fn a_locked_key_opens_with_this_devices_enclave() {
+        let secret = [7u8; 32];
+        let locked = lock_with("make-test", &secret).unwrap();
+        assert_eq!(unlock(&locked, "test").unwrap(), secret);
+        let mut parts: Vec<String> = locked.split(' ').map(str::to_string).collect();
+        let flip = if parts[5].starts_with("00") { "01" } else { "00" };
+        parts[5].replace_range(0..2, flip);
+        assert!(unlock(&parts.join(" "), "test").is_err(), "a touched seal does not open");
     }
 }

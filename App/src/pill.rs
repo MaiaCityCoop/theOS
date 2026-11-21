@@ -2,9 +2,9 @@
 //! on the right. The star opens the intents (intent 0059): a modal over the view, with a card for every intent on
 //! every line and on main, its tasks and its state; Accept on each proposal (an intent waiting for a person), Refuse
 //! on each open one. That click is the human step (HITL): theOS signs the merge with its host
-//! key, and an agent, which has only its line's key, cannot. In a store with a person (`theDB person make`), Accept
-//! also asks the person at this Mac for Touch ID or the login password, and their Secure Enclave signs it: the host's
-//! key, readable from the Keychain by any process, is not enough to accept.
+//! key, and an agent, which has only its line's key, cannot. Once merges are the owner's (`theDB owner protect`, or a
+//! store made since), Accept asks for Touch ID or the login password, which unlocks the owner's key for that one
+//! signature: the host's key alone is never enough to accept.
 
 use crate::View;
 use crate::ui::Fonts;
@@ -185,7 +185,7 @@ fn click(mut ev: On<PointerClick>, acts: Query<&PillAct>, mut modal: ResMut<Moda
             modal.open = false;
             Ok(())
         }
-        // the human step: this process signs with theOS's host key, and the person with Touch ID (the window waits)
+        // the human step: the owner signs, its key unlocked by Touch ID (the window waits); the host merges
         PillAct::Accept(id) => {
             let new_build = db.intent(&id).is_ok_and(|p| p.docs.keys().any(|d| db.meta(d).is_ok_and(|m| m.0 == "engine")));
             let done = db.accept(&id);

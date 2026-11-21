@@ -294,10 +294,11 @@ impl TheDB {
             new.adopt(id, *hash, &snapshot, false, at)?;
         }
         new.set_root(&reach.root)?;
-        // the clean store has the same master, who signs its heads as they are
-        if let Some(master) = self.master()? {
-            let key = self.master_key().filter(|k| k.public() == master).ok_or("a signed store is made fresh by its master: its key is not on this Mac")?;
-            new.set_master(key)?;
+        // the clean store has the same owner, who signs its heads as they are, and the same rule for merges
+        if self.owner()?.is_some() {
+            let key = self.owner_key("make a clean store, signed by its owner")?;
+            new.set_owner(key)?;
+            self.owner_rules_into(&new)?;
             return self.same(&new, reach, &special);
         }
         self.same(&new, reach, &special)
