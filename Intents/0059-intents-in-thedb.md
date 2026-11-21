@@ -84,6 +84,15 @@ Decided with Samuel on the MVP's shape:
   cycles, none of which code needs; "CRDTs are not enough": many documents want a small, metadata-first directory, read
   first, content loaded when needed. It is also the model Anthropic's Scion keeps (a change lists files, each a
   pointer to content in blob storage) and git's own blobs.
+- **Code by name, content by hash** (Samuel: "every Rust import defined by its hash, never by import paths"; settled:
+  names for meaning, hashes for content). A unit of code is named as Rust names it: `thedb::access` (a module),
+  `thedb` (a library's root), `theos#main`, `thedb#bin:thedb`, `thedb#test:access`, `theid#build`, `thedb#manifest`,
+  and `theos/Cargo.lock` for the few files that are none of these. The one folder kept is each crate's own (Cargo needs
+  one per crate); every other path is written by the builder where Rust's conventions put the unit, and build errors
+  come back by name (`thedb::access:12:5`). What the code includes is content named by its BLAKE3 hash: the icons are
+  `App/blobs/<hash>`, named in code with `thedb::blob!("<hash>")`. Names in code stay names: a name by content hash
+  would change with every edit and rename every importer up to the root, and the agents who read the code reason by
+  names; definitions stored by hash with names kept beside them (Unison's way, on Rust) is a research intent of its own.
 - **Intents in Loro's own containers**: the map `intent`, the list `tasks` (a map each), the maps `docs` and
   `accepted_by`; every change one op on its own field, so two agents ticking two tasks at once are both kept.
 - **No working folders.** Agents read and edit through the host's API; the builder writes a read-only projection of a
@@ -238,5 +247,13 @@ agents watching telemetry. Signing is not described there; here every merge is s
   as leaves, plus one path made on both sides. Checked: 45 tests, among them a folder moved on a line merging with an
   edit main made inside it, and one file's content changed on both sides, one path made on both sides and a file one
   side took away while the other changed it, all refused by path.
+- **Asked:** assets by hash in code, and module paths instead of file paths, both now. **Delivered:** the six icons
+  moved to `App/blobs/<BLAKE3 hash>` and named in code with `thedb::blob!` (`tests/blobs.rs` checks each is there with
+  its hash, and that nothing in `blobs/` is unnamed); units named as Rust names them (`Unit`: parse, address, place,
+  of), the folders written only by the builder, errors read back by name; theMCP's code operations became `code`,
+  `code_lines`, `code_search`, `code_write`, `code_edit`, `code_move` (a module with its subtree), `code_delete`;
+  cargo builds in the workspace's folder, where `.cargo/config.toml` says where the blobs are. Checked: 47 tests, and
+  this repository's own `App/` imported into a scratch store and written out again: 68 units, the layout identical to
+  git's, file for file.
 
 ## Trail
