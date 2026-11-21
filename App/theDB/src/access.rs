@@ -4,11 +4,11 @@
 //! - **One master.** Its public key is the store's (`meta.master`). It grants, and signs nothing else once the host has
 //!   its key.
 //! - **The host.** theOS on this Mac has a key of its own (`meta.host`), granted `Cap::Main` by the master: it signs
-//!   the routine writes to main, and the merges a person accepts in theOS's Proposals view.
+//!   the routine writes to main, and the merges a person accepts in theOS (the star).
 //! - **Agents on their own lines.** An agent writes the branch `line-<agent>` only, with a grant of the master's
 //!   (`Cap::Line`), kept as a blob; each commit on a line is signed by its agent and names the grant that allows it.
-//! - **Merges by the master.** A proposal is brought into main by the master alone (`proposals.rs`).
-//! - **A person, for what only a person decides.** Accepting a proposal into main, and so the build the kernel runs,
+//! - **Merges by the master.** An intent is brought into main by the host or the master, as a person accepts it (`intents.rs`).
+//! - **A person, for what only a person decides.** Accepting an intent into main, and so the build the kernel runs,
 //!   is signed by the person at this Mac: a key in its Secure Enclave (theID's `presence`) that signs only after Touch
 //!   ID or the login password. The host's and the master's keys are in the Keychain, where any process of this user
 //!   can read them; the person's cannot be read. Its public key is the master's word (`meta.persons`).
@@ -126,7 +126,7 @@ impl TheDB {
         sql::set_meta(&sql, "host_grant", &grant.to_string())
     }
 
-    /// Whether this process signs as the master or the host (a store without a master: anyone). Closing a proposal
+    /// Whether this process signs as the master or the host (a store without a master: anyone). Closing an intent
     /// and making a branch need it; an agent, with only its line's key, never has it.
     pub(crate) fn is_master_or_host(&self) -> Result<()> {
         let Some(master) = self.master()? else { return Ok(()) };
@@ -134,7 +134,7 @@ impl TheDB {
         if me == Some(master) || self.host()?.is_some_and(|(h, _)| me == Some(h)) {
             return Ok(());
         }
-        Err("a proposal is accepted in theOS, by a person: not by an agent".into())
+        Err("an intent is accepted in theOS, by a person: not by an agent".into())
     }
 
     /// The master's own key, if this process holds it (given, or in this Mac's Keychain).
@@ -324,7 +324,7 @@ impl TheDB {
     }
 
     /// Whether a person approved that the kernel run build `build` of engine `engine`: directly (`approve_pin`), or by
-    /// accepting a proposal whose version of the engine pins it. A store without a person: every pin, as before.
+    /// accepting an intent whose version of the engine pins it. A store without a person: every pin, as before.
     pub fn pin_approved(&self, engine: &str, build: &str) -> Result<bool> {
         if self.persons()?.is_empty() {
             return Ok(true);
@@ -338,14 +338,14 @@ impl TheDB {
                 return Ok(true);
             }
         }
-        for (id, p) in self.proposals()? {
-            if p.state != crate::proposals::State::Merged {
+        for (id, p) in self.intents()? {
+            if p.state != crate::intents::State::Merged {
                 continue;
             }
             let Some(version) = p.docs.get(engine) else { continue };
             let Some(a) = &p.approval else { continue };
             let pins_it = version.parse().ok().and_then(|v| self.file_at(v).ok()).and_then(|t| serde_json::from_slice::<crate::Engine>(&t).ok()).is_some_and(|e| e.pinned.as_deref() == Some(build));
-            if pins_it && self.approved(a, crate::proposals::ACCEPT, &crate::proposals::accept_fields(&id, &p))? {
+            if pins_it && self.approved(a, crate::intents::ACCEPT, &crate::intents::accept_fields(&id, &p))? {
                 return Ok(true);
             }
         }
@@ -438,11 +438,11 @@ impl TheDB {
             good.insert((s.branch, s.doc, s.version));
         }
         drop(sql);
-        for (id, p) in self.proposals()? {
+        for (id, p) in self.intents()? {
             if let Some(a) = &p.approval
-                && !self.approved(a, crate::proposals::ACCEPT, &crate::proposals::accept_fields(&id, &p))?
+                && !self.approved(a, crate::intents::ACCEPT, &crate::intents::accept_fields(&id, &p))?
             {
-                v.problems.push(format!("the proposal {id} carries a person's approval that does not hold"));
+                v.problems.push(format!("the intent {id} carries a person's approval that does not hold"));
             }
         }
         let sql = self.sql();

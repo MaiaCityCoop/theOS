@@ -854,7 +854,7 @@ impl TheDB {
     }
 
     /// Proposes pinning build `build` of engine `id` (an earlier one, to go back to it): on a branch of its own, for a
-    /// person to accept in theOS, as every new build is. Returns the proposal's id.
+    /// person to accept in theOS, as every new build is. Returns the intent's id.
     pub fn pin(&self, id: &str, build: &str) -> Result<String> {
         let mut engine = self.engine(id)?;
         if !engine.builds.iter().any(|b| b == build) {
@@ -895,7 +895,7 @@ impl TheDB {
         // what the kernel runs is a person's decision: a build pinned by any other hand is refused
         if !self.pin_approved(&engine, &pinned)? {
             return Err(format!(
-                "build {} of engine {engine} was not approved by a person at this Mac: accept its proposal in theOS (Touch ID), or `theDB person pin`",
+                "build {} of engine {engine} was not approved by a person at this Mac: accept its intent in theOS (Touch ID), or `theDB person pin`",
                 &pinned[..12.min(pinned.len())]
             ));
         }
@@ -956,7 +956,7 @@ pub mod bevy;
 pub mod access;
 pub mod build;
 pub mod conflict;
-pub mod proposals;
+pub mod intents;
 pub mod lock;
 pub mod schema;
 pub mod vibe;

@@ -19,11 +19,22 @@
 //!     thedb branch <name> [about]       a new branch from main
 //!     thedb branches                    every branch, and how many docs it changes
 //!     thedb diff <branch>               the docs a branch changes: main's version → the branch's
-//!     thedb propose <branch> <note>     a proposal to merge a branch into main, kept on the branch
-//!     thedb proposal <id>               a proposal's state and its check's output
 //!     thedb sync <line>                 main brought into a line; prints the conflicts that settled, to check
-//!     thedb proposals from <store dir>  the proposals of an older store (composted, archived) onto main, as they stood
-//!     thedb proposals                   every proposal on every line (accepted or refused in theOS only, by a person)
+//!
+//! Intents (intent 0059): every piece of work, draft → building → checked → proposal → merged | refused. An agent
+//! works on its line (`THEDB_BRANCH`); a person accepts or refuses in theOS only. `--json` after any of these prints
+//! what it read as JSON, for agents.
+//!
+//!     thedb intents [open|done|all]     every intent on every line and on main (open by default)
+//!     thedb intent <id>                 one intent: its why, when it is done, its tasks, its conflicts with main
+//!     thedb intent new <title> [--why <text>] [--done <text>]
+//!                                       a new intent in draft, on this process's line (on main without one)
+//!     thedb intent take <id>            this process's line takes up an intent (building)
+//!     thedb intent task <id> <text>     a task added to its board
+//!     thedb intent tick <id> <n>        task n done (untick: `untick`)
+//!     thedb intent building <id> [why]  back to building, and why (also: `draft`)
+//!     thedb intent ready <id>           the line's changes taken as they are, and it waits for a person (proposal)
+//!     thedb intents from <store dir>    the intents of an older store (composted, archived) onto main, as they stood
 //!
 //! Who may write (intent 0054; keys, signatures and grants are theID's). Once a store has a master, main is written by
 //! the master only, and an agent (`THEOS_AGENT=<name>`, `THEDB_BRANCH=line-<name>`) by its own key on its own line.
@@ -138,13 +149,83 @@ fn main() {
                 println!("{id}  {main} → {}  {kind:<8} {name}", &h.to_hex()[..12]);
             }
         }
-        // ---- proposals ----
-        ["propose", branch, note @ ..] => println!("{}", db.propose(branch, &note.join(" ")).unwrap_or_else(|e| fail(&e))),
-        ["proposal", id] => {
-            let p = db.proposal(id).unwrap_or_else(|e| fail(&e));
-            println!("{:?}  {}  from {}  ({} docs)", p.state, p.note, p.branch, p.docs.len());
-            for c in db.proposal_conflicts(id).unwrap_or_else(|e| fail(&e)) {
-                println!("  CONFLICT {c}");
+        // ---- intents ----
+        ["intents", "from", dir] => println!("{} intents brought onto main", db.intents_from(Path::new(dir)).unwrap_or_else(|e| fail(&e))),
+        ["intents", rest @ ..] if rest.len() <= 2 => {
+            let json = rest.contains(&"--json");
+            let which = rest.iter().find(|w| **w != "--json").copied().unwrap_or("open");
+            let all: Vec<_> = db
+                .intents()
+                .unwrap_or_else(|e| fail(&e))
+                .into_iter()
+                .filter(|(_, i)| match which {
+                    "open" => i.state.is_open(),
+                    "done" => !i.state.is_open(),
+                    "all" => true,
+                    w => fail(&format!("open, done or all, not {w}")),
+                })
+                .collect();
+            if json {
+                let list: Vec<_> = all.iter().map(|(id, i)| serde_json::json!({ "id": id, "intent": i })).collect();
+                println!("{}", serde_json::to_string_pretty(&list).unwrap_or_default());
+            } else {
+                for (id, i) in all {
+                    let done = i.tasks.iter().filter(|t| t.done).count();
+                    println!("{id}  {:<8}  {}  on {}  ({done}/{} tasks, {} docs)", i.state.name(), i.title, i.line.as_deref().unwrap_or("main"), i.tasks.len(), i.docs.len());
+                }
+            }
+        }
+        ["intent", "new", rest @ ..] => {
+            let (mut title, mut why, mut done) = (Vec::new(), String::new(), String::new());
+            let mut it = rest.iter();
+            while let Some(w) = it.next() {
+                match *w {
+                    "--why" => why = it.next().unwrap_or_else(|| fail("--why <text>")).to_string(),
+                    "--done" => done = it.next().unwrap_or_else(|| fail("--done <text>")).to_string(),
+                    w => title.push(w),
+                }
+            }
+            let line = db.branch().map(str::to_string);
+            println!("{}", db.intent_new(line.as_deref(), &title.join(" "), &why, &done).unwrap_or_else(|e| fail(&e)));
+        }
+        ["intent", "take", id] => {
+            let line = db.branch().map(str::to_string).unwrap_or_else(|| fail("a line takes up an intent: THEDB_BRANCH=line-<agent>"));
+            db.intent_take(id, &line).unwrap_or_else(|e| fail(&e));
+        }
+        ["intent", "task", id, text @ ..] if !text.is_empty() => println!("{}", db.intent_task(id, &text.join(" ")).unwrap_or_else(|e| fail(&e))),
+        ["intent", tick @ ("tick" | "untick"), id, n] => {
+            let n = n.parse().unwrap_or_else(|_| fail("a task's number"));
+            db.intent_tick(id, n, *tick == "tick").unwrap_or_else(|e| fail(&e));
+        }
+        ["intent", state @ ("building" | "draft"), id, why @ ..] => {
+            let state = if *state == "draft" { thedb::intents::State::Draft } else { thedb::intents::State::Building };
+            let why = why.join(" ");
+            db.intent_state(id, state, (!why.is_empty()).then_some(why.as_str())).unwrap_or_else(|e| fail(&e));
+        }
+        ["intent", "ready", id] => db.intent_ready(id).unwrap_or_else(|e| fail(&e)),
+        ["intent", id, rest @ ..] if rest.len() <= 1 => {
+            let i = db.intent(id).unwrap_or_else(|e| fail(&e));
+            let conflicts: Vec<String> = if i.state.is_open() { match db.intent_conflicts(id) { Ok(c) => c.iter().map(|c| c.to_string()).collect(), Err(e) => vec![e] } } else { vec![] };
+            if rest.first() == Some(&"--json") {
+                println!("{}", serde_json::to_string_pretty(&serde_json::json!({ "id": id, "intent": i, "conflicts": conflicts })).unwrap_or_default());
+            } else {
+                println!("{}  ({}, on {})", i.title, i.state.name(), i.line.as_deref().unwrap_or("main"));
+                if !i.why.is_empty() {
+                    println!("why: {}", i.why);
+                }
+                if !i.done_when.is_empty() {
+                    println!("done when: {}", i.done_when);
+                }
+                if let Some(r) = &i.reason {
+                    println!("back to building: {r}");
+                }
+                for (n, t) in i.tasks.iter().enumerate() {
+                    println!("  {} {}. {}", if t.done { "[x]" } else { "[ ]" }, n + 1, t.text);
+                }
+                println!("{} docs", i.docs.len());
+                for c in conflicts {
+                    println!("  CONFLICT {c}");
+                }
             }
         }
         ["sync", branch] => {
@@ -179,12 +260,6 @@ fn main() {
             let h = if *hash == "none" { None } else { Some(hash.parse().unwrap_or_else(|_| fail("not a hash"))) };
             println!("{}", db.set_schema(id, h).unwrap_or_else(|e| fail(&e)));
         }
-        ["proposals", "from", dir] => println!("{} proposals brought onto main", db.proposals_from(Path::new(dir)).unwrap_or_else(|e| fail(&e))),
-        ["proposals"] => {
-            for (id, p) in db.proposals().unwrap_or_else(|e| fail(&e)) {
-                println!("{id}  {:?}  {}  from {}  ({} docs)", p.state, p.note, p.branch, p.docs.len());
-            }
-        }
         ["master"] => match db.master().unwrap_or_else(|e| fail(&e)) {
             Some(m) => {
                 println!("{m}");
@@ -212,9 +287,9 @@ fn main() {
         ["person"] => {
             let n = db.persons().unwrap_or_else(|e| fail(&e)).len();
             if n == 0 {
-                println!("no person: accepting a proposal needs only theOS's host key (theDB person make)");
+                println!("no person: accepting an intent needs only theOS's host key (theDB person make)");
             } else {
-                println!("{n} person key(s) the master stands behind: accepting a proposal, and the build the kernel runs, need Touch ID at this Mac");
+                println!("{n} person key(s) the master stands behind: accepting an intent, and the build the kernel runs, need Touch ID at this Mac");
             }
         }
         ["person", "make"] => {

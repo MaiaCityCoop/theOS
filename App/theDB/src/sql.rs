@@ -498,9 +498,9 @@ pub fn grants_for(conn: &Connection, agent: &str, line: &str) -> Result<Vec<Hash
     rows.iter().map(|h| unhex(h)).collect()
 }
 
-/// Every proposal doc and where it lives: the line that proposed it, and main once it is closed. Newest first.
-pub fn proposal_heads(conn: &Connection) -> Result<Vec<(String, String)>> {
-    let mut q = conn.prepare("SELECT h.doc, h.branch FROM heads h JOIN docs d ON d.id = h.doc WHERE d.kind = 'proposal' ORDER BY h.at DESC").map_err(err)?;
+/// Every intent doc (and of the earlier kind `proposal`) and where it lives: its line, main. Newest first.
+pub fn intent_heads(conn: &Connection) -> Result<Vec<(String, String)>> {
+    let mut q = conn.prepare("SELECT h.doc, h.branch FROM heads h JOIN docs d ON d.id = h.doc WHERE d.kind IN ('intent', 'proposal') ORDER BY h.at DESC").map_err(err)?;
     let rows = q.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).map_err(err)?.collect::<std::result::Result<Vec<_>, _>>().map_err(err)?;
     Ok(rows)
 }

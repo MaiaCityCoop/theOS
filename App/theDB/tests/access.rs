@@ -31,13 +31,13 @@ fn the_master_writes_main_an_agent_its_line_and_verify_holds() {
     db.set_branch(Some("other")).unwrap_err();
     // the agent proposes from its own line; an agent cannot accept, the host (theOS) or the master can
     let p = db.propose(&line("ada"), "a higher sun").unwrap();
-    assert_eq!(db.proposals().unwrap().len(), 1);
-    assert!(db.merge(&p).unwrap_err().contains("not by an agent"));
+    assert_eq!(db.intents().unwrap().len(), 1);
+    assert!(db.accept(&p).unwrap_err().contains("not by an agent"));
     db.set_branch(None).unwrap();
     db.sign_with(master);
-    db.merge(&p).unwrap();
+    db.accept(&p).unwrap();
     assert!(db.text(&world).unwrap().unwrap().contains("30"));
-    assert_eq!(db.proposal(&p).unwrap().state, thedb::proposals::State::Merged);
+    assert_eq!(db.intent(&p).unwrap().state, thedb::intents::State::Merged);
     let v = db.verify().unwrap();
     assert!(v.problems.is_empty(), "{:?}", v.problems);
     assert_eq!(v.good, 4, "the world on main and on the line, the proposal on its line and, accepted, on main");
@@ -116,13 +116,13 @@ fn a_person_accepts_and_approves_the_build_the_kernel_runs() {
     let g = db.put(thedb::theid::grant(&master, host.public(), thedb::access::Cap::Main, 1).encode()).unwrap();
     db.set_host_for_test(host.public(), g).unwrap();
     db.sign_with(host);
-    assert!(db.merge(&p).unwrap_err().contains("no person's key"));
+    assert!(db.accept(&p).unwrap_err().contains("no person's key"));
     db.present_with(Person::soft());
-    assert!(db.merge(&p).unwrap_err().contains("not one the master stands behind"));
+    assert!(db.accept(&p).unwrap_err().contains("not one the master stands behind"));
     // the person accepts
     db.present_with(person);
-    db.merge(&p).unwrap();
-    assert!(db.proposal(&p).unwrap().approval.is_some());
+    db.accept(&p).unwrap();
+    assert!(db.intent(&p).unwrap().approval.is_some());
     assert!(db.pin_approved(&engine, "b2").unwrap(), "accepted by the person");
     assert!(!db.pin_approved(&engine, "b1").unwrap());
     db.approve_pin(&engine, "b1").unwrap();

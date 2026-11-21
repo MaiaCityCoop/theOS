@@ -88,7 +88,7 @@ pub struct Boxed {
     /// What a click does: opens this doc, by id.
     #[serde(default)]
     pub open: Option<String>,
-    /// Or: `home`, `play`, `thedb` (theDB's view of the store), `sandboxes` (every world there is to open), `stories` (every story as a card), `proposals` (the proposals, as the star opens them).
+    /// Or: `home`, `play`, `thedb` (theDB's view of the store), `sandboxes` (every world there is to open), `stories` (every story as a card), `intents` (the intents, as the star opens them; `proposals` read the same).
     #[serde(default)]
     pub act: Option<String>,
     /// Where a layer sits over the world: its distances from the window's edges, in pixels.
@@ -265,8 +265,8 @@ pub fn draw(commands: &mut Commands, fonts: &crate::ui::Fonts, spec: &Spec, pare
             if let Some(a) = act {
                 ec.insert((Hovered::default(), a));
             }
-            if b.act.as_deref() == Some("proposals") {
-                ec.insert((Hovered::default(), crate::pill::PillAct::Proposals));
+            if matches!(b.act.as_deref(), Some("intents" | "proposals")) {
+                ec.insert((Hovered::default(), crate::pill::PillAct::Intents));
             }
             if b.widget.as_deref() == Some("strip") {
                 ec.insert(crate::ui::Strip);

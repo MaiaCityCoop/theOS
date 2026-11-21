@@ -67,6 +67,37 @@ Decided with Samuel on the MVP's shape:
 - **Try it, inline.** A data intent is shown inside theOS, which reads the line's docs instead of main's, in a panel of
   its card. A code intent opens its build in a window of its own for now.
 
+**CRDT-native, decided with Samuel** (2026-11-21):
+
+- **Code is Loro text, not files.** Every source file is a Loro text doc; the folders are one Loro tree doc whose nodes
+  keep their identity (a rename or a move is one op, and merges with edits elsewhere). A line is a pointer (each doc at
+  its frontiers), not a copy: every line shares one history, and making one costs nothing. Every op names its writer.
+- **No working folders.** Agents read and edit through the host's API; the builder writes a read-only projection of a
+  state (only the files that changed) for `cargo`, cached by the state's hash. Nothing is written back from a folder.
+- **No hierarchy as storage.** Everything is content-addressed: docs by id, versions and blobs by BLAKE3, found by kind,
+  name, search and the references between them (a graph). A folder tree exists only as data (the tree doc) and only
+  for what needs one: the Rust compiler. The world's dynamic parts (modules, worlds, views) have none.
+- **Writers and keys, bound.** A Loro peer id (a u64) cannot be an iroh key (32 bytes), and one key may write from two
+  places at once, which one peer id must never do; so peer ids stay lent per writer, and each lease records the key
+  that holds it. A commit's signature already covers its frontiers (every peer and counter), so every op leads to the
+  key that signed it: blame by character, to an agent's iroh id.
+- **Runs anywhere, in two layers.** A small native host (kernel, engine, theDB, theID, iroh; Rust, built per platform:
+  macOS, Windows, Linux, iOS, Android) that changes rarely and ships as a signed release; and everything else as docs
+  and WebAssembly modules, loaded live on every device. iOS never runs native code it downloads, so host builds are
+  swapped by the kernel on desktops only; phones fetch modules by hash and never compile. Platform pieces sit behind
+  one interface each: secrets in the `keyring` crate (the system's store on each platform); a person's presence
+  (Secure Enclave, Windows Hello, Android's keystore, a security key or TPM on Linux).
+- **The Keychain through `keyring`.** On macOS an item then trusts only the binary that made it, so `security` in an
+  agent's shell asks the person instead of handing out the host's key; the host's builds are signed with one stable
+  certificate, so a new build is not asked about again.
+- **Agents only through the host's MCP.** The host (the kernel, running with or without a window) serves MCP in Code
+  Mode: two tools, `search` (code run against the catalogue of every operation, returning only what is needed) and
+  `execute` (code run with the `theos` API). The code runs in an embedded JavaScript engine (QuickJS) with no files,
+  no network and limits on time and memory; every call is authorised in the host as the agent the connection is, which
+  writes its own line and intent docs and never accepts. One registry of operations in Rust gives the catalogue, the
+  types, the CLI and the checks. Agents' sessions are kept to it: their project settings allow the theOS tools and
+  deny the store's files, the Keychain and the `theDB` command; the CLI is the person's.
+
 Rules, sandboxes, remote agents, the agent review and automatic rollback come after the MVP.
 
 **Deliverables, in phases** (each its own Changelog entry):
@@ -115,7 +146,11 @@ agents watching telemetry. Signing is not described there; here every merge is s
 
 ## Todo
 
-- [ ] 1 · Intents: the doc, states, task board, agent API, the star lists intents
+- [x] 1 · Intents: the doc, states, task board, agent commands, the star lists intents
+- [ ] 1b · Keys through `keyring`; host builds signed with one stable certificate
+- [ ] 1c · The host's MCP in Code Mode (search, execute; QuickJS; one registry of operations)
+- [ ] 1d · Code as Loro text and a tree doc, imported from git once; the builder's projection; git as an archive
+- [ ] 1e · Agents kept to the MCP
 - [ ] 2 · Touch ID by default, signed rules
 - [ ] 3 · The builder: builds by tree hash, one queue, publish from a line
 - [ ] 4 · Staging sandboxes and checks on intents
@@ -129,5 +164,11 @@ agents watching telemetry. Signing is not described there; here every merge is s
 
 - **Asked:** the above.
 - **Delivered:** the definition.
+- **Asked:** intents with these states, global like issues; code as Loro text; `keyring`; agents only through MCP in
+  Code Mode. **Delivered (step 1):** `theDB/src/intents.rs` (was `proposals.rs`): the intent doc, its states, its task
+  board; `intent_new`, `intent_take`, `intent_task`, `intent_tick`, `intent_state`, `intent_ready`, `accept`, `refuse`;
+  old proposal docs read as intents; `theDB intents`, `theDB intent …` with `--json`; the star lists intents by
+  Proposals, Working, Done, All, with their tasks. `cargo test` passes (36), with a test of an intent from draft to
+  merged.
 
 ## Trail
