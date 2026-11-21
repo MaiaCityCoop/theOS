@@ -17,6 +17,27 @@ pub enum PillAct {
     Close,
     Accept(String),
     Refuse(String),
+    Show(Filter),
+}
+
+/// Which proposals the modal lists: the open ones (the default), the done ones (accepted or refused), or all.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum Filter {
+    #[default]
+    Open,
+    Done,
+    All,
+}
+
+impl Filter {
+    fn keeps(self, p: &thedb::proposals::Proposal) -> bool {
+        let open = p.state == thedb::proposals::State::Open;
+        match self {
+            Filter::Open => open,
+            Filter::Done => !open,
+            Filter::All => true,
+        }
+    }
 }
 
 /// Whether the proposals are open, what they are, and what last went wrong.
@@ -24,6 +45,7 @@ pub enum PillAct {
 pub struct Modal {
     pub open: bool,
     list: Vec<(String, thedb::proposals::Proposal)>,
+    filter: Filter,
     error: Option<String>,
     dirty: bool,
 }
@@ -130,6 +152,11 @@ fn click(mut ev: On<PointerClick>, acts: Query<&PillAct>, mut modal: ResMut<Moda
     let done = match act.clone() {
         PillAct::Proposals => {
             modal.open = true;
+            modal.filter = Filter::Open;
+            Ok(())
+        }
+        PillAct::Show(f) => {
+            modal.filter = f;
             Ok(())
         }
         PillAct::Close => {
@@ -189,16 +216,39 @@ fn draw(mut commands: Commands, fonts: Res<Fonts>, overlay: Res<Overlay>, mut mo
                     h.spawn(text(&f.sans, 15.0, Color::srgb(0.7, 0.2, 0.15), e.clone()));
                 }
             });
-            sheet
-                .spawn(Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(14.0), padding: UiRect::new(Val::Px(44.0), Val::Px(44.0), Val::Px(8.0), Val::Px(28.0)), overflow: Overflow::scroll_y(), flex_grow: 1.0, min_height: Val::Px(0.0), ..default() })
-                .with_children(|list| {
-                    if modal.list.is_empty() {
-                        list.spawn(text(&f.sans, 17.0, crate::theme::colour("forest2"), "No proposals. An agent proposes with `theDB propose line-<agent> \"<note>\"`.".into()));
+            // the filters on the left; the cards, centred, in what is left
+            sheet.spawn(Node { flex_direction: FlexDirection::Row, flex_grow: 1.0, min_height: Val::Px(0.0), column_gap: Val::Px(24.0), padding: UiRect::new(Val::Px(44.0), Val::Px(44.0), Val::Px(8.0), Val::Px(0.0)), ..default() }).with_children(|body| {
+                body.spawn(Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(6.0), width: Val::Px(200.0), flex_shrink: 0.0, ..default() }).with_children(|aside| {
+                    for (label, f2) in [("Open", Filter::Open), ("Done", Filter::Done), ("All", Filter::All)] {
+                        let n = modal.list.iter().filter(|(_, p)| f2.keeps(p)).count();
+                        let on = modal.filter == f2;
+                        aside.spawn((
+                            PillAct::Show(f2),
+                            Hover,
+                            Node { flex_direction: FlexDirection::Row, justify_content: JustifyContent::SpaceBetween, padding: UiRect::axes(Val::Px(14.0), Val::Px(9.0)), border_radius: BorderRadius::all(Val::Px(14.0)), ..default() },
+                            BackgroundColor(if on { crate::theme::colour("picked") } else { Color::NONE }),
+                            children![
+                                (Text::new(label), TextFont { font: f.sans.clone().into(), font_size: FontSize::Px(17.0), ..default() }, TextColor(crate::theme::colour("forest")), Pickable::IGNORE),
+                                (Text::new(n.to_string()), TextFont { font: f.mono.clone().into(), font_size: FontSize::Px(14.0), ..default() }, TextColor(crate::theme::colour("forest2")), Pickable::IGNORE),
+                            ],
+                        ));
                     }
-                    for (id, p) in &modal.list {
+                });
+                body.spawn(Node { flex_direction: FlexDirection::Column, align_items: AlignItems::Center, row_gap: Val::Px(14.0), padding: UiRect::bottom(Val::Px(28.0)), overflow: Overflow::scroll_y(), flex_grow: 1.0, min_width: Val::Px(0.0), min_height: Val::Px(0.0), ..default() })
+                .with_children(|list| {
+                    let shown: Vec<&(String, thedb::proposals::Proposal)> = modal.list.iter().filter(|(_, p)| modal.filter.keeps(p)).collect();
+                    if shown.is_empty() {
+                        let none = match modal.filter {
+                            Filter::Open => "Nothing waits for you. An agent proposes with `theDB propose line-<agent> \"<note>\"`.",
+                            Filter::Done => "Nothing accepted or refused yet.",
+                            Filter::All => "No proposals yet.",
+                        };
+                        list.spawn(text(&f.sans, 17.0, crate::theme::colour("forest2"), none.into()));
+                    }
+                    for (id, p) in shown {
                         let open = p.state == thedb::proposals::State::Open;
                         list.spawn((
-                            Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(8.0), padding: UiRect::all(Val::Px(24.0)), border_radius: BorderRadius::all(Val::Px(24.0)), border: UiRect::left(Val::Px(4.0)), max_width: Val::Px(760.0), ..default() },
+                            Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(8.0), padding: UiRect::all(Val::Px(24.0)), border_radius: BorderRadius::all(Val::Px(24.0)), border: UiRect::left(Val::Px(4.0)), width: Val::Percent(100.0), max_width: Val::Px(760.0), flex_shrink: 0.0, ..default() },
                             BackgroundColor(crate::theme::colour("cream")),
                             BorderColor::all(if open { crate::theme::colour("sun") } else { crate::theme::colour("sand") }),
                         ))
@@ -221,6 +271,7 @@ fn draw(mut commands: Commands, fonts: Res<Fonts>, overlay: Res<Overlay>, mut mo
                         });
                     }
                 });
+            });
         });
     commands.spawn((
         Sheet,

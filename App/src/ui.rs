@@ -275,7 +275,7 @@ pub fn navtest(
     // a store without a master starts on the setup screen: its key made, then saved, then the dashboard
     let setup = [(Click::Setup(crate::setup::SetupAct::Make), View::Setup), (Click::Setup(crate::setup::SetupAct::Saved), View::Home)];
     let with_setup = *setup_first.get_or_insert_with(|| matches!(crate::db().master(), Ok(None)));
-    let views: [(Click, View); 20] = [
+    let views: [(Click, View); 22] = [
         (Click::Act(Act::Open(View::Studio)), View::Studio),
         (Click::Act(Act::Home), View::Home),
         (Click::Act(Act::Open(View::Game)), View::Game),
@@ -295,6 +295,8 @@ pub fn navtest(
         (Click::Act(Act::Home), View::Home),
         // the proposals, over the dashboard: opened, the first open one accepted (if there is one), closed
         (Click::Pill(|a| *a == crate::pill::PillAct::Proposals), View::Home),
+        (Click::Pill(|a| *a == crate::pill::PillAct::Show(crate::pill::Filter::Done)), View::Home),
+        (Click::Pill(|a| *a == crate::pill::PillAct::Show(crate::pill::Filter::Open)), View::Home),
         (Click::Pill(|a| matches!(a, crate::pill::PillAct::Accept(_) | crate::pill::PillAct::Close)), View::Home),
         (Click::Pill(|a| *a == crate::pill::PillAct::Close), View::Home),
     ];
