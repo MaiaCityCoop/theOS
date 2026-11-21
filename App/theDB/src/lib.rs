@@ -911,10 +911,14 @@ impl TheDB {
             // written beside and moved in, so a process starting it meanwhile never sees half a binary
             std::fs::create_dir_all(&run).map_err(err)?;
             let plist = format!(
-                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict>\n<key>CFBundleName</key><string>theOS</string>\n<key>CFBundleDisplayName</key><string>theOS</string>\n<key>CFBundleExecutable</key><string>theOS</string>\n<key>CFBundleIdentifier</key><string>city.maia.theos</string>\n<key>CFBundlePackageType</key><string>APPL</string>\n<key>CFBundleVersion</key><string>{}</string>\n<key>NSHighResolutionCapable</key><true/>\n</dict></plist>\n",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict>\n<key>CFBundleName</key><string>theOS</string>\n<key>CFBundleDisplayName</key><string>theOS</string>\n<key>CFBundleExecutable</key><string>theOS</string>\n<key>CFBundleIdentifier</key><string>city.maia.theos</string>\n<key>CFBundlePackageType</key><string>APPL</string>\n<key>CFBundleVersion</key><string>{}</string>\n<key>CFBundleIconFile</key><string>theOS</string>\n<key>NSHighResolutionCapable</key><true/>\n</dict></plist>\n",
                 &hash.to_hex()[..12]
             );
             std::fs::write(app.join("theOS.app").join("Contents").join("Info.plist"), plist).map_err(err)?;
+            // the app's icon: theOS's star (App/assets/theOS.icns, made from Brand/star.svg)
+            let resources = app.join("theOS.app").join("Contents").join("Resources");
+            std::fs::create_dir_all(&resources).map_err(err)?;
+            std::fs::write(resources.join("theOS.icns"), include_bytes!("../../assets/theOS.icns")).map_err(err)?;
             static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
             let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let part = run.join(format!("theOS.{}.{n}", std::process::id()));

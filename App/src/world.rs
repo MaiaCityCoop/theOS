@@ -30,6 +30,10 @@ impl Settings {
     }
 }
 
+/// The world the Game opens: one chosen in the Sandboxes (a world doc's id), or the root's.
+#[derive(Resource, Default)]
+pub struct GameWorld(pub Option<String>);
+
 /// The world shown now: its doc's id and what it says. The Game shows the root's world; a shot in the Studio may name
 /// another (the green and the blue of one timeline).
 #[derive(Resource)]
@@ -91,6 +95,7 @@ pub fn plugin(app: &mut App) {
     app.add_plugins(MaterialPlugin::<Grid>::default())
         .insert_resource(ClearColor(colour(&settings.sky)))
         .insert_resource(Shown { id, settings })
+        .init_resource::<GameWorld>()
         .add_systems(Startup, spawn)
         .add_systems(Update, show_the_shots_world.run_if(in_state(World::Grid)))
         .add_systems(Update, find_the_module.run_if(not(resource_exists::<crate::module::WorldModule>)))
@@ -162,6 +167,7 @@ fn show_the_shots_world(
     mut commands: Commands,
     view: Res<State<crate::View>>,
     studio: Res<crate::film::Studio>,
+    game: Res<GameWorld>,
     mut shown: ResMut<Shown>,
     mut clear: ResMut<ClearColor>,
     mut grids: ResMut<Assets<Grid>>,
@@ -176,7 +182,7 @@ fn show_the_shots_world(
             .and_then(|(i, _)| studio.timeline.clips[i].world.clone())
             .filter(|id| *kinds.entry(id.clone()).or_insert_with(|| crate::db().meta(id).is_ok_and(|m| m.0 == "world")))
             .unwrap_or(root),
-        _ => root,
+        _ => game.0.clone().unwrap_or(root),
     };
     // the ground is made on entering the world, a frame after this may first run: wait for it
     if want == shown.id || ground.is_empty() {

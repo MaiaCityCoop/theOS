@@ -105,7 +105,7 @@ impl TheDB {
     }
 
     /// The master's own key, if this process holds it (given, or in this Mac's Keychain).
-    fn master_key(&self) -> Option<SecretKey> {
+    pub(crate) fn master_key(&self) -> Option<SecretKey> {
         let master = self.master().ok()??;
         self.key().filter(|k| k.public() == master).or_else(|| theid::keychain_get(&master, &Who::Master))
     }

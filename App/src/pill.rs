@@ -213,7 +213,7 @@ fn draw(mut commands: Commands, fonts: Res<Fonts>, overlay: Res<Overlay>, mut mo
             Sheet,
             cam.clone(),
             GlobalZIndex(31),
-            Node { position_type: PositionType::Absolute, left: Val::Px(14.0), right: Val::Px(14.0), top: Val::Px(14.0), bottom: Val::Px(46.0), flex_direction: FlexDirection::Column, border_radius: BorderRadius::all(Val::Px(34.0)), overflow: Overflow::clip(), ..default() },
+            Node { position_type: PositionType::Absolute, left: Val::Px(14.0), right: Val::Px(14.0), top: Val::Px(14.0), bottom: Val::Px(42.0), flex_direction: FlexDirection::Column, border_radius: BorderRadius::all(Val::Px(34.0)), overflow: Overflow::clip(), ..default() },
             BackgroundColor(crate::theme::colour("paper")),
             BoxShadow::new(Color::srgba(0.047, 0.094, 0.149, 0.25), Val::Px(0.0), Val::Px(30.0), Val::Px(0.0), Val::Px(80.0)),
         ))
@@ -287,8 +287,10 @@ fn draw(mut commands: Commands, fonts: Res<Fonts>, overlay: Res<Overlay>, mut mo
         cam.clone(),
         PillAct::Close,
         GlobalZIndex(32),
-        Node { position_type: PositionType::Absolute, left: Val::Percent(50.0), bottom: Val::Px(10.0), margin: UiRect::left(Val::Px(-36.0)), width: Val::Px(72.0), height: Val::Px(36.0), border_radius: BorderRadius::bottom(Val::Px(36.0)), justify_content: JustifyContent::Center, align_items: AlignItems::FlexStart, ..default() },
+        // a round button, over the sheet's lower edge
+        Node { position_type: PositionType::Absolute, left: Val::Percent(50.0), bottom: Val::Px(14.0), margin: UiRect::left(Val::Px(-28.0)), width: Val::Px(56.0), height: Val::Px(56.0), border_radius: BorderRadius::all(Val::Percent(50.0)), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
         BackgroundColor(crate::theme::colour("paper")),
+        BoxShadow::new(Color::srgba(0.047, 0.094, 0.149, 0.22), Val::Px(0.0), Val::Px(8.0), Val::Px(0.0), Val::Px(20.0)),
         children![(Text::new("×"), TextFont { font: f.sans.clone().into(), font_size: FontSize::Px(24.0), ..default() }, TextColor(crate::theme::colour("forest")), Pickable::IGNORE)],
     ));
 }

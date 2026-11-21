@@ -80,7 +80,7 @@ pub struct Boxed {
     /// What a click does: opens this doc, by id.
     #[serde(default)]
     pub open: Option<String>,
-    /// Or: `home`, `play`, `thedb` (theDB's view of the store).
+    /// Or: `home`, `play`, `thedb` (theDB's view of the store), `sandboxes` (every world there is to open), `proposals` (the proposals, as the star opens them).
     #[serde(default)]
     pub act: Option<String>,
     /// Where a layer sits over the world: its distances from the window's edges, in pixels.
@@ -93,6 +93,12 @@ pub struct Boxed {
     /// Pushed to the far end of its row.
     #[serde(default)]
     pub end: bool,
+    /// A grid of this many equal columns (instead of a row or a column), its children placed by `span`.
+    #[serde(default)]
+    pub grid: u16,
+    /// In a grid: how many of its columns this box spans.
+    #[serde(default)]
+    pub span: u16,
     /// A live part only code draws: `strip` (the Studio's shots and playhead).
     #[serde(default)]
     pub widget: Option<String>,
@@ -202,6 +208,8 @@ pub fn draw(commands: &mut Commands, fonts: &crate::ui::Fonts, spec: &Spec, pare
                 row_gap: Val::Px(b.gap),
                 column_gap: Val::Px(b.gap),
                 align_items: if b.center { AlignItems::Center } else if b.start { AlignItems::FlexStart } else { AlignItems::Stretch },
+                // centred on both axes: a lone glyph in a round button sits in its middle
+                justify_content: if b.center { JustifyContent::Center } else { JustifyContent::FlexStart },
                 border_radius: BorderRadius::all(Val::Px(b.radius)),
                 ..default()
             };
@@ -211,6 +219,14 @@ pub fn draw(commands: &mut Commands, fonts: &crate::ui::Fonts, spec: &Spec, pare
             }
             if b.end {
                 node.margin.left = Val::Auto;
+            }
+            if b.grid > 0 {
+                node.display = Display::Grid;
+                node.grid_template_columns = RepeatedGridTrack::flex(b.grid, 1.0);
+                node.grid_auto_rows = vec![GridTrack::auto()];
+            }
+            if b.span > 0 {
+                node.grid_column = GridPlacement::span(b.span);
             }
             let mut ec = commands.spawn((node, BackgroundColor(b.bg.as_deref().map(colour).unwrap_or(Color::NONE))));
             if b.shadow {
@@ -223,10 +239,14 @@ pub fn draw(commands: &mut Commands, fonts: &crate::ui::Fonts, spec: &Spec, pare
                 Some("home") => Some(crate::ui::Act::Home),
                 Some("play") => Some(crate::ui::Act::PlayPause),
                 Some("thedb") => Some(crate::ui::Act::Open(View::TheDB)),
+                Some("sandboxes") => Some(crate::ui::Act::Open(View::Sandboxes)),
                 _ => None,
             };
             if let Some(a) = act {
                 ec.insert((Hovered::default(), a));
+            }
+            if b.act.as_deref() == Some("proposals") {
+                ec.insert((Hovered::default(), crate::pill::PillAct::Proposals));
             }
             if b.widget.as_deref() == Some("strip") {
                 ec.insert(crate::ui::Strip);
@@ -259,7 +279,7 @@ fn layers(view: View) -> impl Fn(Commands, Res<crate::ui::Fonts>, Option<Res<Int
         let ids = match view {
             View::Game => &l.game,
             View::Studio => &l.studio,
-            View::Home | View::TheDB | View::Setup => return,
+            View::Home | View::TheDB | View::Setup | View::Sandboxes | View::Stories => return,
         };
         for id in ids {
             if let Some(v) = read(id) {
