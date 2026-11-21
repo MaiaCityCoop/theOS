@@ -34,6 +34,14 @@ pub struct Words {
     pub end: bool,
     #[serde(default)]
     pub margin_y: f32,
+    /// The line's height, as a multiple of the size (0: the font's own, 1.2).
+    #[serde(default)]
+    pub leading: f32,
+    /// Space between the letters, in pixels (an eyebrow's spaced capitals).
+    #[serde(default)]
+    pub tracking: f32,
+    #[serde(default)]
+    pub bold: bool,
     /// A live value the words show instead: `frame` (the frame time), `playhead` (the Studio's time), `play` (Play or
     /// Pause), `title` (the shot list's title).
     #[serde(default)]
@@ -169,7 +177,14 @@ pub fn draw(commands: &mut Commands, fonts: &crate::ui::Fonts, spec: &Spec, pare
             if w.end {
                 node.margin.left = Val::Auto;
             }
-            let mut ec = commands.spawn((Text::new(w.text.clone()), TextFont { font: font.into(), font_size: FontSize::Px(w.size), ..default() }, TextColor(colour(&w.color)), node));
+            let weight = if w.bold { FontWeight::BOLD } else { FontWeight::default() };
+            let mut ec = commands.spawn((Text::new(w.text.clone()), TextFont { font: font.into(), font_size: FontSize::Px(w.size), weight, ..default() }, TextColor(colour(&w.color)), node));
+            if w.leading > 0.0 {
+                ec.insert(bevy::text::LineHeight::RelativeToFont(w.leading));
+            }
+            if w.tracking != 0.0 {
+                ec.insert(bevy::text::LetterSpacing::Px(w.tracking));
+            }
             match w.bind.as_deref() {
                 Some("frame") => {
                     ec.insert(crate::ui::FrameTime);

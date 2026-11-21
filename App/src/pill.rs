@@ -55,6 +55,10 @@ struct Pill;
 #[derive(Component)]
 struct Sheet;
 
+/// theOS's star, for whoever draws it besides the pill (the Studio's playhead).
+#[derive(Resource)]
+pub struct Star(pub Handle<Image>);
+
 #[derive(Resource)]
 struct Icons {
     star: Handle<Image>,
@@ -74,8 +78,10 @@ pub fn plugin(app: &mut App) {
 }
 
 fn icons(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
+    let star = png(&mut images, include_bytes!("../assets/star.png"));
+    commands.insert_resource(Star(star.clone()));
     commands.insert_resource(Icons {
-        star: png(&mut images, include_bytes!("../assets/star.png")),
+        star,
         home: png(&mut images, include_bytes!("../assets/home.png")),
         hexagon: png(&mut images, include_bytes!("../assets/hexagon.png")),
     });
