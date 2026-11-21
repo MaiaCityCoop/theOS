@@ -15,8 +15,13 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 wasmi = "2.0.2"
 
+# Debug info is what made the build folder grow past 30 GB: on macOS each crate's debug info stays in loose object
+# files beside the build, and a crate built again with another hash leaves its old ones behind. Our own crates keep
+# line tables (backtraces name the lines); the dependencies keep none. `theDB publish` sweeps the rest.
 [profile.dev]
 opt-level = 1
+debug = "line-tables-only"
 
 [profile.dev.package."*"]
 opt-level = 3
+debug = false

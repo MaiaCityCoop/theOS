@@ -22,6 +22,7 @@
 //!     thedb propose <branch> <note>     a proposal to merge a branch into main, kept on the branch
 //!     thedb proposal <id>               a proposal's state and its check's output
 //!     thedb sync <line>                 main brought into a line; prints the conflicts that settled, to check
+//!     thedb proposals from <store dir>  the proposals of an older store (composted, archived) onto main, as they stood
 //!     thedb proposals                   every proposal on every line (accepted or refused in theOS only, by a person)
 //!
 //! Who may write (intent 0054; keys, signatures and grants are theID's). Once a store has a master, main is written by
@@ -173,6 +174,7 @@ fn main() {
             let h = if *hash == "none" { None } else { Some(hash.parse().unwrap_or_else(|_| fail("not a hash"))) };
             println!("{}", db.set_schema(id, h).unwrap_or_else(|e| fail(&e)));
         }
+        ["proposals", "from", dir] => println!("{} proposals brought onto main", db.proposals_from(Path::new(dir)).unwrap_or_else(|e| fail(&e))),
         ["proposals"] => {
             for (id, p) in db.proposals().unwrap_or_else(|e| fail(&e)) {
                 println!("{id}  {:?}  {}  from {}  ({} docs)", p.state, p.note, p.branch, p.docs.len());

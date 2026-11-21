@@ -40,7 +40,7 @@ fn the_master_writes_main_an_agent_its_line_and_verify_holds() {
     assert_eq!(db.proposal(&p).unwrap().state, thedb::proposals::State::Merged);
     let v = db.verify().unwrap();
     assert!(v.problems.is_empty(), "{:?}", v.problems);
-    assert_eq!(v.good, 3, "the world on main and on the line, the proposal on the line");
+    assert_eq!(v.good, 4, "the world on main and on the line, the proposal on its line and, accepted, on main");
     drop(db);
     let _ = std::fs::remove_dir_all(dir);
 }

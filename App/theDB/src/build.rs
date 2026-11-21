@@ -27,15 +27,19 @@ impl TheDB {
             return Err(format!("{SOURCE}/ has changes not committed: a build is made from a commit"));
         }
         let commit = git(repo, &["rev-parse", "HEAD"])?;
+        // cargo says what this build is made of (its artifacts), and everything else in the build folder is swept
         let built = std::process::Command::new("cargo")
-            .args(["build", "--manifest-path", &format!("{SOURCE}/Cargo.toml"), "--workspace"])
+            .args(["build", "--manifest-path", &format!("{SOURCE}/Cargo.toml"), "--workspace", "--message-format=json-render-diagnostics"])
             .current_dir(repo)
             .env_remove("CARGO_TARGET_DIR")
-            .status()
+            .stderr(std::process::Stdio::inherit())
+            .output()
             .map_err(err)?;
-        if !built.success() {
+        if !built.status.success() {
             return Err("the build failed".into());
         }
+        let swept = sweep(&repo.join(SOURCE).join("target").join("debug"), &String::from_utf8_lossy(&built.stdout))?;
+        eprintln!("thedb: the build folder swept: {} files and folders of earlier builds, {:.1} GB", swept.0, swept.1 as f64 / 1e9);
         let mut files = BTreeMap::new();
         for path in git(repo, &["ls-files", "--", SOURCE])?.lines() {
             let bytes = std::fs::read(repo.join(path)).map_err(|e| format!("{path}: {e}"))?;
@@ -105,4 +109,63 @@ impl TheDB {
         self.set_part(id, "wasm", &wasm)?;
         Ok(Hash::new(&wasm))
     }
+}
+
+/// `name-<16 hex>`: what cargo names one build of a crate, its files and folders after it.
+fn stem(file: &str) -> Option<String> {
+    let base = file.split('.').next()?;
+    let base = base.strip_prefix("lib").unwrap_or(base);
+    let (name, hash) = base.rsplit_once('-')?;
+    (hash.len() == 16 && hash.bytes().all(|b| b.is_ascii_hexdigit()) && !name.is_empty()).then(|| base.to_string())
+}
+
+fn size(p: &Path) -> u64 {
+    match std::fs::symlink_metadata(p) {
+        Ok(m) if m.is_dir() => std::fs::read_dir(p).map(|d| d.flatten().map(|e| size(&e.path())).sum()).unwrap_or(0),
+        Ok(m) => m.len(),
+        Err(_) => 0,
+    }
+}
+
+/// Sweeps the build folder `debug` of every build of a crate this build did not use (cargo's messages `json` say which
+/// it used): the stale copies a new dependency, feature or toolchain leaves behind, which cargo never removes and which
+/// grew the folder past 30 GB. Tests and tools rebuild what they need. Returns how many entries went, and their bytes.
+pub fn sweep(debug: &Path, json: &str) -> Result<(usize, u64)> {
+    let mut keep = std::collections::BTreeSet::new();
+    for line in json.lines() {
+        let Ok(m) = serde_json::from_str::<serde_json::Value>(line) else { continue };
+        let paths = m.get("filenames").and_then(|f| f.as_array()).into_iter().flatten().filter_map(|f| f.as_str()).chain(m.get("out_dir").and_then(|o| o.as_str()));
+        for p in paths {
+            for part in Path::new(p).iter().filter_map(|c| c.to_str()) {
+                if let Some(s) = stem(part) {
+                    keep.insert(s);
+                }
+            }
+        }
+    }
+    if keep.is_empty() {
+        return Ok((0, 0));
+    }
+    let mut gone = (0usize, 0u64);
+    // deps: files; build: a folder per build script and per output; incremental: a folder per crate build
+    for dir in ["deps", "build", "incremental", ".fingerprint"] {
+        let Ok(entries) = std::fs::read_dir(debug.join(dir)) else { continue };
+        for e in entries.flatten() {
+            let name = e.file_name().to_string_lossy().to_string();
+            let Some(s) = stem(&name) else { continue };
+            // incremental folders carry their own hash: kept for crates of this build by name
+            let kept = if dir == "incremental" { keep.iter().any(|k| k.rsplit_once('-').map(|(n, _)| n) == s.rsplit_once('-').map(|(n, _)| n)) } else { keep.contains(&s) };
+            if kept {
+                continue;
+            }
+            let p = e.path();
+            let bytes = size(&p);
+            let removed = if p.is_dir() { std::fs::remove_dir_all(&p) } else { std::fs::remove_file(&p) };
+            if removed.is_ok() {
+                gone.0 += 1;
+                gone.1 += bytes;
+            }
+        }
+    }
+    Ok(gone)
 }

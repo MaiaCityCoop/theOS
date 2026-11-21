@@ -14,7 +14,9 @@ use bevy::window::PrimaryWindow;
 
 /// The band the player takes at the top of the Studio: the switcher's room above it, its share of the window's height.
 const TOP: f32 = 72.0;
-const SHARE: f32 = 0.62;
+const SHARE: f32 = 0.58;
+/// The player's corners: a frame of the room's colour this wide, rounded inside.
+const CORNER: f32 = 16.0;
 
 pub fn plugin(app: &mut App) {
     app.add_systems(OnEnter(View::Stories), stories)
@@ -119,7 +121,8 @@ fn frame(
     let (w, h) = (win.width(), win.height());
     // the player: 16:9, as wide as fits in the band, centred
     let band = (h - TOP) * SHARE;
-    let ph = band.min((w - 72.0) * 9.0 / 16.0).max(1.0);
+    // about half the window wide, as the reference has it, so the lanes below get their room
+    let ph = band.min(w * 0.5 * 9.0 / 16.0).max(1.0);
     let pw = ph * 16.0 / 9.0;
     let (px, py) = ((w - pw) / 2.0, TOP);
     if studio {
@@ -134,12 +137,21 @@ fn frame(
                 c.clear_color = ClearColorConfig::None;
                 commands.entity(e).insert(IsDefaultUiCamera);
             }
-            // four paper panels around the player: above, below, left, right
+            // four panels of the room around the player (above, below, left, right), then a frame over its edge whose
+            // inner corners are rounded: the player's own corners
             for _ in 0..4 {
                 commands.spawn((Around, DespawnOnExit(View::Studio), Node { position_type: PositionType::Absolute, ..default() }, BackgroundColor(crate::theme::colour("night")), ZIndex(-10), Pickable::IGNORE));
             }
+            commands.spawn((
+                Around,
+                DespawnOnExit(View::Studio),
+                Node { position_type: PositionType::Absolute, border: UiRect::all(Val::Px(CORNER)), border_radius: BorderRadius::all(Val::Px(CORNER * 2.0)), ..default() },
+                BorderColor::all(crate::theme::colour("night")),
+                ZIndex(-9),
+                Pickable::IGNORE,
+            ));
         }
-        let rects = [(0.0, 0.0, w, py), (0.0, py + ph, w, h - py - ph), (0.0, py, px, ph), (px + pw, py, w - px - pw, ph)];
+        let rects = [(0.0, 0.0, w, py), (0.0, py + ph, w, h - py - ph), (0.0, py, px, ph), (px + pw, py, w - px - pw, ph), (px - CORNER, py - CORNER, pw + 2.0 * CORNER, ph + 2.0 * CORNER)];
         for ((_, mut n), (l, t, rw, rh)) in around.iter_mut().zip(rects) {
             (n.left, n.top, n.width, n.height) = (Val::Px(l), Val::Px(t), Val::Px(rw), Val::Px(rh.max(0.0)));
         }
