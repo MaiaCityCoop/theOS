@@ -211,6 +211,6 @@ agents watching telemetry. Signing is not described there; here every merge is s
   branch, index or working tree. theMCP gained `files`, `file_lines`, `file_search`, `file_write`, `file_edit`,
   `file_move`, `file_delete`, `build`, `build_status` (28 operations). Checked: two tests in theDB (code from git to a
   line to a failed and a good build to an archived merge; a host build from a line accepted and pinned) and one in
-  theMCP (an agent edits, builds, reads its error, fixes and builds, through `execute` alone); 42 tests in all.
+  theMCP (an agent edits, builds, reads its error, fixes and builds, through `execute` alone); 43 tests in all.
 
 ## Trail
