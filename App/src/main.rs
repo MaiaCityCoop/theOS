@@ -12,6 +12,7 @@ mod film;
 mod module;
 mod pill;
 mod root;
+mod sandboxes;
 mod setup;
 mod theme;
 mod thedb_view;
@@ -33,6 +34,8 @@ pub enum View {
     TheDB,
     /// The first start of a store without a master: its key made and shown once (`setup.rs`).
     Setup,
+    /// Every world there is to open, from the vibes (`sandboxes.rs`).
+    Sandboxes,
 }
 
 /// The store, one for the app: theDB beside this repository (or where `THEDB` says).
@@ -95,7 +98,7 @@ fn main() {
             .insert_state(View::Studio)
             .add_systems(Update, film::take_still);
     } else {
-        app.add_plugins((ui::plugin, thedb_view::plugin, setup::plugin, pill::plugin));
+        app.add_plugins((ui::plugin, thedb_view::plugin, setup::plugin, pill::plugin, sandboxes::plugin));
         if mode == Some("--navtest") {
             app.add_systems(Update, ui::navtest);
         }

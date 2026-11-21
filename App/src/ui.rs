@@ -173,13 +173,16 @@ fn press(
     time: Res<Time<Real>>,
     mut next: ResMut<NextState<View>>,
     mut s: ResMut<Studio>,
+    mut game: ResMut<crate::world::GameWorld>,
 ) {
     let Ok(act) = acts.get(click.entity) else { return };
-    // a box that opens a doc: a shot list opens in the Studio
-    if let Ok(crate::views::OpenDoc(id)) = docs.get(click.entity)
-        && crate::views::opens(id) == View::Studio
-    {
-        s.open(id);
+    // a box that opens a doc: a shot list opens in the Studio, a world in the Game
+    if let Ok(crate::views::OpenDoc(id)) = docs.get(click.entity) {
+        match crate::views::opens(id) {
+            View::Studio => s.open(id),
+            View::Game => game.0 = crate::db().meta(id).is_ok_and(|m| m.0 == "world").then(|| id.clone()),
+            _ => {}
+        }
     }
     click.propagate(false);
     // a view that has just opened ignores clicks for a moment: the click that opened it must not land on what is now
@@ -275,9 +278,13 @@ pub fn navtest(
     // a store without a master starts on the setup screen: its key made, then saved, then the dashboard
     let setup = [(Click::Setup(crate::setup::SetupAct::Make), View::Setup), (Click::Setup(crate::setup::SetupAct::Saved), View::Home)];
     let with_setup = *setup_first.get_or_insert_with(|| matches!(crate::db().master(), Ok(None)));
-    let views: [(Click, View); 22] = [
+    let views: [(Click, View); 25] = [
         (Click::Act(Act::Open(View::Studio)), View::Studio),
         (Click::Act(Act::Home), View::Home),
+        (Click::Act(Act::Open(View::Game)), View::Game),
+        (Click::Act(Act::Home), View::Home),
+        (Click::Act(Act::Open(View::Sandboxes)), View::Sandboxes),
+        // a sandbox's card: the Game, in that world
         (Click::Act(Act::Open(View::Game)), View::Game),
         (Click::Act(Act::Home), View::Home),
         (Click::Act(Act::Open(View::TheDB)), View::TheDB),
@@ -298,7 +305,8 @@ pub fn navtest(
         (Click::Pill(|a| *a == crate::pill::PillAct::Show(crate::pill::Filter::Done)), View::Home),
         (Click::Pill(|a| *a == crate::pill::PillAct::Show(crate::pill::Filter::Open)), View::Home),
         (Click::Pill(|a| matches!(a, crate::pill::PillAct::Accept(_) | crate::pill::PillAct::Close)), View::Home),
-        (Click::Pill(|a| *a == crate::pill::PillAct::Close), View::Home),
+        // closed, if the step before accepted one; with nothing open it closed already, and the star opens it again
+        (Click::Pill(|a| matches!(a, crate::pill::PillAct::Close | crate::pill::PillAct::Proposals)), View::Home),
     ];
     let steps: Vec<(Click, View)> = setup.into_iter().filter(|_| with_setup).chain(views).collect();
     // a pointer of its own, so the real mouse over the window cannot move it
