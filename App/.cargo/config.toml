@@ -1,0 +1,5 @@
+# Content by hash (intent 0059): every file the code includes is a blob in `blobs/`, named by its BLAKE3 hash, and
+# the code names it by that hash (`thedb::blob!("<hash>")`). This says where `blobs/` is, for every crate here.
+# Cargo reads this file when it runs in this folder: build here (the builder does).
+[env]
+THEOS_BLOBS = { value = "blobs", relative = true }

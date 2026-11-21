@@ -28,9 +28,10 @@ impl TheDB {
         }
         let commit = git(repo, &["rev-parse", "HEAD"])?;
         // cargo says what this build is made of (its artifacts), and everything else in the build folder is swept
+        // in the workspace's own folder, where cargo reads its `.cargo/config.toml` (`THEOS_BLOBS`)
         let built = std::process::Command::new("cargo")
-            .args(["build", "--manifest-path", &format!("{SOURCE}/Cargo.toml"), "--workspace", "--message-format=json-render-diagnostics"])
-            .current_dir(repo)
+            .args(["build", "--workspace", "--message-format=json-render-diagnostics"])
+            .current_dir(repo.join(SOURCE))
             .env_remove("CARGO_TARGET_DIR")
             .stderr(std::process::Stdio::inherit())
             .output()

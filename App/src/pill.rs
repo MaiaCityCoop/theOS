@@ -92,14 +92,18 @@ pub fn plugin(app: &mut App) {
         .add_observer(click);
 }
 
+/// The pill's icons, each named by its content's hash (intent 0059): the star, play, pause, home, the hexagon.
 fn icons(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
-    let star = png(&mut images, include_bytes!("../assets/star.png"));
+    let star = png(&mut images, thedb::blob!("c0d170598d64ae33c8c4b8b875f0acd566d98b3fdd9f8a574ae68dc3621e87ba"));
     commands.insert_resource(Star(star.clone()));
-    commands.insert_resource(PlayIcons { play: png(&mut images, include_bytes!("../assets/play.png")), pause: png(&mut images, include_bytes!("../assets/pause.png")) });
+    commands.insert_resource(PlayIcons {
+        play: png(&mut images, thedb::blob!("e4bbfbca5bf128651767078827dbaf90f3ce04e951bb3265d1a937e573d566b6")),
+        pause: png(&mut images, thedb::blob!("e898406e0bff6abd938c1912c63ad4b1314c62d3cf82a4848b7d5cc56511ce8f")),
+    });
     commands.insert_resource(Icons {
         star,
-        home: png(&mut images, include_bytes!("../assets/home.png")),
-        hexagon: png(&mut images, include_bytes!("../assets/hexagon.png")),
+        home: png(&mut images, thedb::blob!("65229ca5c5eb78db50881e80028ab2d30ad20c669d42fa9443096d67067fa507")),
+        hexagon: png(&mut images, thedb::blob!("2de7e3d89c43a8e61d5aed28a8f24e9b481f14d82dd807af8ff1a83764907d4c")),
     });
 }
 

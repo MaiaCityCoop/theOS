@@ -21,14 +21,15 @@
 //!     thedb diff <branch>               the docs a branch changes: main's version → the branch's
 //!     thedb sync <line>                 main brought into a line; prints the conflicts that settled, to check
 //!
-//! Code as docs (intent 0059, step 1d): every file of `App/` a doc (its text a Loro text), the tree a doc mapping
-//! paths to them, named by the root as `source`. Nothing is edited in a folder; git is an archive.
+//! Code (intent 0059, step 1d): every unit named as Rust names it (`thedb::access`, `theos#main`, `thedb#manifest`,
+//! `theos/Cargo.lock`), its content a blob by hash, listed in one small Loro doc the root names as `code`. Folders
+//! exist only where the builder writes the code for cargo; git is an archive.
 //!
 //!     thedb source import <repo>        the code of the checkout `repo` (App/, at HEAD, clean) into theDB, on the
 //!                                       branch source-<commit>, proposed as an intent for the owner to accept
-//!     thedb source files                every path in the tree, as this process's branch sees it
-//!     thedb source cat <path>           a file
-//!     thedb source write <dir>          the tree written into dir: only what changed, read only
+//!     thedb source units                every unit's name, as this process's branch sees the code
+//!     thedb source cat <unit>           a unit (`thedb::access`, `theos#main`, `theos/Cargo.lock`)
+//!     thedb source write <dir>          the code written into dir as cargo needs it: only what changed, read only
 //!     thedb publish <engine>            a host build from this process's branch's code (no git), proposed as an intent
 //!     thedb build                       builds this process's branch's code (build/ in the store), in the background
 //!     thedb build status                the last build: its line, state and errors
@@ -144,12 +145,12 @@ fn main() {
             let (id, n) = db.import_code(Path::new(repo)).unwrap_or_else(|e| fail(&e));
             println!("{id}\n{n} files brought in, proposed: accepted under the star, theDB holds the code");
         }
-        ["source", "files"] => {
-            for p in db.files().unwrap_or_else(|e| fail(&e)) {
-                println!("{p}");
+        ["source", "units"] => {
+            for a in db.code_units().unwrap_or_else(|e| fail(&e)) {
+                println!("{a}");
             }
         }
-        ["source", "cat", path] => out(db.file_bytes(path).unwrap_or_else(|e| fail(&e))),
+        ["source", "cat", address] => out(db.code_bytes(address).unwrap_or_else(|e| fail(&e))),
         ["source", "write", dir] => {
             let p = db.project(Path::new(dir)).unwrap_or_else(|e| fail(&e));
             println!("{} files, {} written, {} removed; tree {}", p.files, p.written, p.removed, p.hash);
