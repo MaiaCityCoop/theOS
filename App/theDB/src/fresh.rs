@@ -117,6 +117,13 @@ impl TheDB {
         }
         let mut reach = Reach { root: root.clone(), ..Default::default() };
         let mut seen: BTreeSet<String> = BTreeSet::new();
+        // every proposal on main is kept, as it is: the history of what was proposed and decided. Its names are not
+        // followed: the versions it brought are main's history, and its old builds are not kept for it
+        for found in self.find(crate::Find::Kind("proposal"))? {
+            if let Some(head) = self.head_on(None, &found.id)? {
+                reach.docs.insert(found.id.clone(), head);
+            }
+        }
         let mut todo: Vec<String> = vec![root];
         while let Some(word) = todo.pop() {
             if !seen.insert(word.clone()) {

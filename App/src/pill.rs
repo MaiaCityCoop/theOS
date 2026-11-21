@@ -57,6 +57,13 @@ struct Pill;
 #[derive(Component)]
 struct Sheet;
 
+/// The Studio's play and pause icons.
+#[derive(Resource)]
+pub struct PlayIcons {
+    pub play: Handle<Image>,
+    pub pause: Handle<Image>,
+}
+
 /// theOS's star, for whoever draws it besides the pill (the Studio's playhead).
 #[derive(Resource)]
 pub struct Star(pub Handle<Image>);
@@ -75,13 +82,14 @@ fn png(images: &mut Assets<Image>, bytes: &[u8]) -> Handle<Image> {
 pub fn plugin(app: &mut App) {
     app.init_resource::<Modal>()
         .add_systems(Startup, (icons, spawn).chain())
-        .add_systems(Update, (show, draw))
+        .add_systems(Update, (show, draw, crate::ui::play_icon))
         .add_observer(click);
 }
 
 fn icons(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     let star = png(&mut images, include_bytes!("../assets/star.png"));
     commands.insert_resource(Star(star.clone()));
+    commands.insert_resource(PlayIcons { play: png(&mut images, include_bytes!("../assets/play.png")), pause: png(&mut images, include_bytes!("../assets/pause.png")) });
     commands.insert_resource(Icons {
         star,
         home: png(&mut images, include_bytes!("../assets/home.png")),

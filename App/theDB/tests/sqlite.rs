@@ -356,7 +356,7 @@ fn fresh_keeps_only_what_the_root_reaches() {
     let root = db.new("root", "root").unwrap();
     db.set_text(&root, &format!(r#"{{"engine": "{engine}", "world": "{world}", "kernel": "{kernel}", "fonts": {{"mono": "{font}"}}}}"#)).unwrap();
     db.set_root(&root).unwrap();
-    // what is not reached: a doc, a blob, a branch, a proposal, the old docs 0 and 1
+    // what is not reached: a doc, a blob, a branch, the old docs 0 and 1
     let stray = db.new("note", "stray").unwrap();
     db.set_text(&stray, "nobody names me").unwrap();
     let stray_blob = db.put(b"a stray blob".to_vec()).unwrap();
@@ -364,10 +364,11 @@ fn fresh_keeps_only_what_the_root_reaches() {
     db.set_branch(Some("a-branch")).unwrap();
     db.set_text(&world, r#"{"recipe": "changed on a branch"}"#).unwrap();
     db.set_branch(None).unwrap();
-    db.new("proposal", "a proposal").unwrap();
+    // a proposal on main is history: kept, though the root names it nowhere
+    let proposal = db.new("proposal", "a proposal").unwrap();
     let before: Vec<(String, Hash)> = db.docs().unwrap();
     let reach = db.reach().unwrap();
-    let mut want: Vec<String> = vec![root.clone(), engine.clone(), grid.clone(), recipe.clone(), world.clone(), font.clone(), kernel.clone()];
+    let mut want: Vec<String> = vec![root.clone(), engine.clone(), grid.clone(), recipe.clone(), world.clone(), font.clone(), kernel.clone(), proposal.clone()];
     want.sort();
     assert_eq!(reach.docs.keys().cloned().collect::<Vec<_>>(), want, "what the root reaches");
     let heads: std::collections::BTreeMap<String, Hash> = before.iter().cloned().collect();
@@ -387,7 +388,7 @@ fn fresh_keeps_only_what_the_root_reaches() {
     ids.sort();
     assert_eq!(ids, want, "only what was reached");
     assert!(db.branches().unwrap().is_empty(), "no branches");
-    assert!(db.find(Find::Kind("proposal")).unwrap().is_empty(), "no proposals");
+    assert_eq!(db.find(Find::Kind("proposal")).unwrap().len(), 1, "the proposal on main, kept as history");
     for id in &want {
         if *id == engine || *id == kernel {
             continue;

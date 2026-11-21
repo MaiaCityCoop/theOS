@@ -33,6 +33,11 @@ fn both_sides_changing_one_key_is_refused_until_the_line_settles_it() {
     assert!(db.proposal_conflicts(&p2).unwrap().is_empty());
     db.merge(&p2).unwrap();
     assert!(db.text(&w).unwrap().unwrap().contains("30"));
+    // a closed proposal is on main too, listed once; the open one stays on its line
+    let all = db.proposals().unwrap();
+    assert_eq!(all.len(), 2, "{all:?}");
+    assert!(db.head_on(None, &p2).unwrap().is_some(), "the merged proposal is main's history");
+    assert!(db.head_on(None, &p).unwrap().is_none(), "the refused-by-conflict one is still open, on its line");
     drop(db);
     let _ = std::fs::remove_dir_all(dir);
 }

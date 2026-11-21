@@ -39,6 +39,19 @@ pub(crate) struct Playhead;
 pub(crate) struct Clock;
 #[derive(Component)]
 pub(crate) struct PlayLabel;
+/// The Studio's play button as an icon: play, or pause while it plays.
+#[derive(Component)]
+pub(crate) struct PlayIcon;
+
+pub(crate) fn play_icon(s: Res<Studio>, icons: Option<Res<crate::pill::PlayIcons>>, mut q: Query<&mut ImageNode, With<PlayIcon>>) {
+    let Some(icons) = icons else { return };
+    let want = if s.playing { &icons.pause } else { &icons.play };
+    for mut img in &mut q {
+        if img.image != *want {
+            img.image = want.clone();
+        }
+    }
+}
 /// The Studio's shot list title, live.
 #[derive(Component)]
 pub struct Title;
@@ -88,6 +101,11 @@ pub(crate) fn frame_time(d: Res<bevy::diagnostic::DiagnosticsStore>, mut t: Quer
 // ---- the Studio: the world through the virtual camera, the shots as a strip under it ----
 
 /// The strip shows the shot list it is given: one card per shot, as wide as the shot is long, and the playhead.
+/// A lane's height: the picture's taller, as it carries the most.
+fn lane_height(name: &str) -> f32 {
+    if name.starts_with("V1") { 40.0 } else { 26.0 }
+}
+
 pub(crate) fn strip_follows(mut commands: Commands, f: Res<Fonts>, s: Res<Studio>, icons: Option<Res<crate::pill::Star>>, strip: Query<Entity, With<Strip>>, mut shown: Local<Option<(Entity, String)>>) {
     let Ok(strip) = strip.single() else { return };
     // drawn again for another shot list, and for a strip made anew (the Studio entered again)
@@ -108,23 +126,27 @@ pub(crate) fn strip_follows(mut commands: Commands, f: Res<Fonts>, s: Res<Studio
     ];
     commands.entity(strip).with_children(|p| {
         p.spawn((Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(6.0), width: Val::Px(130.0), flex_shrink: 0.0, ..default() }, Pickable::IGNORE)).with_children(|labels| {
+            // room for the ruler, then a label beside each lane
+            labels.spawn(Node { height: Val::Px(14.0), ..default() });
             for (name, _) in &lanes {
-                labels.spawn((Node { height: Val::Px(26.0), align_items: AlignItems::Center, ..default() }, Pickable::IGNORE, children![(text(&f.sans, 11.0, colour("sand"), *name), bevy::text::LetterSpacing::Px(1.6), Pickable::IGNORE)]));
+                labels.spawn((Node { height: Val::Px(lane_height(name)), align_items: AlignItems::Center, ..default() }, Pickable::IGNORE, children![(text(&f.sans, 10.5, Color::srgba(0.925, 0.882, 0.800, 0.6), *name), bevy::text::LetterSpacing::Px(1.6), Pickable::IGNORE)]));
             }
         });
         p.spawn((Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(6.0), flex_grow: 1.0, min_width: Val::Px(0.0), ..default() }, Pickable::IGNORE)).with_children(|area| {
-            for (_, clips) in &lanes {
-                area.spawn((Node { height: Val::Px(26.0), flex_direction: FlexDirection::Row, column_gap: Val::Px(3.0), border_radius: BorderRadius::all(Val::Px(8.0)), overflow: Overflow::clip(), ..default() }, BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.04)), Pickable::IGNORE))
+            // the ruler the playhead rides on
+            area.spawn((Node { height: Val::Px(14.0), border: UiRect::bottom(Val::Px(1.0)), ..default() }, BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.12)), Pickable::IGNORE));
+            for (lane_name, clips) in &lanes {
+                area.spawn((Node { height: Val::Px(lane_height(lane_name)), flex_direction: FlexDirection::Row, column_gap: Val::Px(3.0), border_radius: BorderRadius::all(Val::Px(8.0)), overflow: Overflow::clip(), ..default() }, BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.04)), Pickable::IGNORE))
                     .with_children(|lane| match clips {
                         Some(clips) => {
                             for (name, about, secs) in clips {
                                 lane.spawn((
                                     Node { width: Val::Percent(secs / total * 100.0), padding: UiRect::axes(Val::Px(10.0), Val::Px(0.0)), align_items: AlignItems::Center, column_gap: Val::Px(10.0), overflow: Overflow::clip(), border_radius: BorderRadius::all(Val::Px(8.0)), ..default() },
-                                    BackgroundColor(colour("sand")),
+                                    BackgroundColor(Color::srgba(0.984, 0.965, 0.918, 0.14)),
                                     Pickable::IGNORE,
                                     children![
-                                        (text(&f.sans, 13.0, colour("forest"), name.clone()), Pickable::IGNORE),
-                                        (text(&f.mono, 11.0, colour("forest2"), about.clone()), Pickable::IGNORE),
+                                        (text(&f.sans, 13.0, colour("cream"), name.clone()), Pickable::IGNORE),
+                                        (text(&f.mono, 11.0, Color::srgba(0.925, 0.882, 0.800, 0.6), about.clone()), Pickable::IGNORE),
                                     ],
                                 ));
                             }
@@ -138,7 +160,7 @@ pub(crate) fn strip_follows(mut commands: Commands, f: Res<Fonts>, s: Res<Studio
             area.spawn((
                 Playhead,
                 Pickable::IGNORE,
-                Node { position_type: PositionType::Absolute, top: Val::Px(-14.0), bottom: Val::Px(-4.0), width: Val::Px(2.0), margin: UiRect::left(Val::Px(-1.0)), ..default() },
+                Node { position_type: PositionType::Absolute, top: Val::Px(6.0), bottom: Val::Px(0.0), width: Val::Px(2.0), margin: UiRect::left(Val::Px(-1.0)), ..default() },
                 BackgroundColor(colour("sun")),
             ))
             .with_children(|h| {

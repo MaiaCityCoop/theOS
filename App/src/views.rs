@@ -43,7 +43,7 @@ pub struct Words {
     #[serde(default)]
     pub bold: bool,
     /// A live value the words show instead: `frame` (the frame time), `playhead` (the Studio's time), `play` (Play or
-    /// Pause), `title` (the shot list's title).
+    /// Pause), `playicon` (the same as an icon, `size` wide), `title` (the shot list's title).
     #[serde(default)]
     pub bind: Option<String>,
 }
@@ -194,6 +194,10 @@ pub fn draw(commands: &mut Commands, fonts: &crate::ui::Fonts, spec: &Spec, pare
                 }
                 Some("play") => {
                     ec.insert(crate::ui::PlayLabel);
+                }
+                // the play and pause icon, as big as `size`: theOS draws the picture
+                Some("playicon") => {
+                    ec.insert((Text::new(""), crate::ui::PlayIcon, ImageNode::default(), Node { width: Val::Px(w.size), height: Val::Px(w.size), ..default() }));
                 }
                 Some("title") => {
                     ec.insert(crate::ui::Title);
