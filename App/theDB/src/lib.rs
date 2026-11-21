@@ -925,10 +925,10 @@ impl TheDB {
                 &hash.to_hex()[..12]
             );
             std::fs::write(app.join("theOS.app").join("Contents").join("Info.plist"), plist).map_err(err)?;
-            // the app's icon: theOS's star (App/assets/theOS.icns, made from Brand/star.svg)
+            // the app's icon: theOS's star (made from Brand/star.svg), named by its hash
             let resources = app.join("theOS.app").join("Contents").join("Resources");
             std::fs::create_dir_all(&resources).map_err(err)?;
-            std::fs::write(resources.join("theOS.icns"), include_bytes!("../../assets/theOS.icns")).map_err(err)?;
+            std::fs::write(resources.join("theOS.icns"), crate::blob!("9e3504f9be8b354f2b61ebd985394564dc253fd6755cf0ccf06bb33c22063795")).map_err(err)?;
             static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
             let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let part = run.join(format!("theOS.{}.{n}", std::process::id()));
@@ -941,6 +941,16 @@ impl TheDB {
         }
         Ok(Pinned { engine, build: pinned, toolchain: build.toolchain, path })
     }
+}
+
+/// The bytes of the blob `hash` (its BLAKE3 hash, 64 hex digits), built into the program: content named by what it is,
+/// never by a path (intent 0059). The blob is the file `blobs/<hash>` beside the workspace (`THEOS_BLOBS`, set by
+/// `.cargo/config.toml`); `tests/blobs.rs` checks that each one the code names is there and has that hash.
+#[macro_export]
+macro_rules! blob {
+    ($hash:literal) => {
+        include_bytes!(concat!(env!("THEOS_BLOBS"), "/", $hash))
+    };
 }
 
 pub mod compost;

@@ -107,7 +107,8 @@ fn errors_limits_and_the_cut() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
-/// An agent changes code through the MCP alone: reads it, edits it on its line, builds it, reads the error, fixes it.
+/// An agent changes code through the MCP alone, by the names Rust gives it: reads it, edits it on its line, builds it,
+/// reads the error (by name), fixes it.
 #[test]
 fn an_agent_edits_and_builds_code_through_execute() {
     use std::process::Command;
@@ -148,23 +149,23 @@ fn an_agent_edits_and_builds_code_through_execute() {
     };
     // a mistake, built: the error names the tree's path
     let (text, err) = tool(&s, "execute", r#"
-        theos::file_edit("App/src/main.rs", "println!(\"hello\");", "let n: u32 = \"one\";");
+        theos::code_edit("hello#main", "println!(\"hello\");", "let n: u32 = \"one\";");
         theos::build().state
     "#);
     assert!(!err && text == "running", "{text}");
     let failed = wait(&s);
     assert_eq!(failed["state"], "failed");
-    assert!(failed["errors"][0].as_str().unwrap().starts_with("App/src/main.rs:2"), "{failed}");
+    assert!(failed["errors"][0].as_str().unwrap().starts_with("hello#main:2"), "{failed}");
     // fixed, built
     let (text, err) = tool(&s, "execute", r#"
-        theos::file_edit("App/src/main.rs", "let n: u32 = \"one\";", "let n: u32 = 1;\n    println!(\"day {n}\");");
+        theos::code_edit("hello#main", "let n: u32 = \"one\";", "let n: u32 = 1;\n    println!(\"day {n}\");");
         theos::build();
-        theos::file_search("day {n}")
+        theos::code_search("day {n}")
     "#);
-    assert!(!err && text.contains("App/src/main.rs:3:"), "{text}");
+    assert!(!err && text.contains("hello#main:3:"), "{text}");
     assert_eq!(wait(&s)["state"], "ok");
     // main has not changed: the line's work waits for an intent and its owner
-    assert!(s.db.file_search("day {n}", 5).unwrap().len() == 1, "the line sees its edit");
+    assert!(s.db.code_search("day {n}", 5).unwrap().len() == 1, "the line sees its edit");
     drop(s);
     let _ = Command::new("chmod").args(["-R", "u+w"]).arg(&repo).status();
     let _ = std::fs::remove_dir_all(&repo);

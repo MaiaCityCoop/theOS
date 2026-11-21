@@ -41,15 +41,15 @@ fn leaves(v: &Value, path: String, out: &mut BTreeMap<String, Value>) {
     }
 }
 
-/// Everything `doc` holds, by path. A code doc's `files` map is read like any map: each file's `path` and `blob` are
-/// leaves of their own, so a rename on one side and an edit on the other are no conflict.
+/// Everything `doc` holds, by path. A code doc's `files` map is read like any map: each unit's name (`crate`, `kind`,
+/// `name`) and `blob` are leaves of their own, so a rename on one side and an edit on the other are no conflict.
 fn content(doc: &LoroDoc) -> BTreeMap<String, Value> {
     let mut out = BTreeMap::new();
     leaves(&json::whole(doc), String::new(), &mut out);
     out
 }
 
-/// A code doc's leaf (`/files/<id>/blob`) as a person reads it: the file's path and what of it.
+/// A code doc's leaf (`/files/<id>/blob`) as it is read: the unit's name and what of it.
 fn readable(path: &str, names: &BTreeMap<String, String>) -> String {
     match path.strip_prefix(&format!("/{}/", crate::source::FILES)).and_then(|r| r.split_once('/')) {
         Some((id, what)) => format!("{} ({})", names.get(id).map(String::as_str).unwrap_or(id), if what == "blob" { "content" } else { what }),
@@ -74,11 +74,11 @@ impl TheDB {
             let at = |vv: &loro::VersionVector| -> Result<BTreeMap<String, Value>> { Ok(content(&all.fork_at(&all.vv_to_frontiers(vv)).map_err(err)?)) };
             let base = at(&mvv.intersection(&lvv))?;
             let (m, l) = (content(&main), content(&line));
-            // a code doc's files by their paths, for reading: the line's names first
+            // a code doc's units by their names, for reading: the line's names first
             let mut names = BTreeMap::new();
             for d in [&all, &main, &line] {
                 for e in crate::source::entries(d) {
-                    names.insert(e.id, e.path);
+                    names.insert(e.id, e.unit.address());
                 }
             }
             let paths: std::collections::BTreeSet<&String> = base.keys().chain(m.keys()).chain(l.keys()).collect();
@@ -88,11 +88,12 @@ impl TheDB {
                     found.push(Conflict { doc: id.clone(), path: readable(p, &names), base: b.cloned(), main: mv.cloned(), line: lv.cloned() });
                 }
             }
-            // what only the merge shows in a code doc: two files at one path, made on both sides
+            // what only the merge shows in a code doc: two units of one name, made on both sides
             let mut seen = std::collections::BTreeSet::new();
             for e in crate::source::entries(&all) {
-                if !seen.insert(e.path.clone()) {
-                    found.push(Conflict { doc: id.clone(), path: format!("{} (made on both sides)", e.path), base: None, main: Some(Value::String(e.path.clone())), line: Some(Value::String(e.path.clone())) });
+                let address = e.unit.address();
+                if !seen.insert(address.clone()) {
+                    found.push(Conflict { doc: id.clone(), path: format!("{address} (made on both sides)"), base: None, main: Some(Value::String(address.clone())), line: Some(Value::String(address)) });
                 }
             }
         }
