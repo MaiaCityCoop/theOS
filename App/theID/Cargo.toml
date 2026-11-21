@@ -4,8 +4,27 @@ version = "0.1.0"
 edition = "2024"
 publish = false
 
-# Identity for the whole stack: one key type (iroh's), one way to sign, one Keychain, one set of grants (rcan).
+# Identity for the whole stack: one key type (iroh's), one way to sign, one set of grants (rcan), secrets in each
+# platform's own store (keyring-core and its stores); the owner's key locked by the person's presence (a Secure Enclave
+# key, P-256 because that is what the Enclave holds; the seal in RustCrypto's crates).
 [dependencies]
-iroh-base = "1.5.0"
+iroh-base = { version = "1.5.0", features = ["key"] }
 rcan = "0.4.1"
 serde = { version = "1", features = ["derive"] }
+keyring-core = "1"
+p256 = { version = "0.13", default-features = false, features = ["ecdh", "std"] }
+hkdf = "0.12"
+sha2 = "0.10"
+chacha20poly1305 = "0.10"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { version = "1", features = ["keychain"] }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+apple-native-keyring-store = { version = "1", features = ["protected"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-native-keyring-store = "1"
+
+[target.'cfg(all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android"))))'.dependencies]
+zbus-secret-service-keyring-store = { version = "1", features = ["crypto-rust"] }

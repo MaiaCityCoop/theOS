@@ -1,8 +1,8 @@
 //! Conflicts: what a merge would decide silently, found before it. A Loro merge never fails: where main and a line
-//! both changed the same key, one side wins by Loro's order and the other is gone without a word. So before a proposal
+//! both changed the same key, one side wins by Loro's order and the other is gone without a word. So before an intent
 //! is merged, every doc it brings is read three times: at the base (what main and the line both hold), as main has it,
 //! and as the line has it. A path (a key, at any depth; a list or a text as a whole) that both changed since the base,
-//! to different values, is a conflict. A proposal with a conflict is not merged: the agent brings main into its line
+//! to different values, is a conflict. An intent with a conflict is not merged: the agent brings main into its line
 //! (`sync_line`), settles each one, and proposes again.
 
 use crate::{Hash, Result, TheDB, err, json};
@@ -41,11 +41,20 @@ fn leaves(v: &Value, path: String, out: &mut BTreeMap<String, Value>) {
     }
 }
 
-/// Everything `doc` holds, by path.
+/// Everything `doc` holds, by path. A code doc's `files` map is read like any map: each file's `path` and `blob` are
+/// leaves of their own, so a rename on one side and an edit on the other are no conflict.
 fn content(doc: &LoroDoc) -> BTreeMap<String, Value> {
     let mut out = BTreeMap::new();
     leaves(&json::whole(doc), String::new(), &mut out);
     out
+}
+
+/// A code doc's leaf (`/files/<id>/blob`) as a person reads it: the file's path and what of it.
+fn readable(path: &str, names: &BTreeMap<String, String>) -> String {
+    match path.strip_prefix(&format!("/{}/", crate::source::FILES)).and_then(|r| r.split_once('/')) {
+        Some((id, what)) => format!("{} ({})", names.get(id).map(String::as_str).unwrap_or(id), if what == "blob" { "content" } else { what }),
+        None => path.to_string(),
+    }
 }
 
 impl TheDB {
@@ -65,20 +74,34 @@ impl TheDB {
             let at = |vv: &loro::VersionVector| -> Result<BTreeMap<String, Value>> { Ok(content(&all.fork_at(&all.vv_to_frontiers(vv)).map_err(err)?)) };
             let base = at(&mvv.intersection(&lvv))?;
             let (m, l) = (content(&main), content(&line));
+            // a code doc's files by their paths, for reading: the line's names first
+            let mut names = BTreeMap::new();
+            for d in [&all, &main, &line] {
+                for e in crate::source::entries(d) {
+                    names.insert(e.id, e.path);
+                }
+            }
             let paths: std::collections::BTreeSet<&String> = base.keys().chain(m.keys()).chain(l.keys()).collect();
             for p in paths {
                 let (b, mv, lv) = (base.get(p), m.get(p), l.get(p));
                 if mv != b && lv != b && mv != lv {
-                    found.push(Conflict { doc: id.clone(), path: p.clone(), base: b.cloned(), main: mv.cloned(), line: lv.cloned() });
+                    found.push(Conflict { doc: id.clone(), path: readable(p, &names), base: b.cloned(), main: mv.cloned(), line: lv.cloned() });
+                }
+            }
+            // what only the merge shows in a code doc: two files at one path, made on both sides
+            let mut seen = std::collections::BTreeSet::new();
+            for e in crate::source::entries(&all) {
+                if !seen.insert(e.path.clone()) {
+                    found.push(Conflict { doc: id.clone(), path: format!("{} (made on both sides)", e.path), base: None, main: Some(Value::String(e.path.clone())), line: Some(Value::String(e.path.clone())) });
                 }
             }
         }
         Ok(found)
     }
 
-    /// The conflicts proposal `id` has with main as it is now.
-    pub fn proposal_conflicts(&self, id: &str) -> Result<Vec<Conflict>> {
-        let p = self.proposal(id)?;
+    /// The conflicts intent `id` has with main as it is now.
+    pub fn intent_conflicts(&self, id: &str) -> Result<Vec<Conflict>> {
+        let p = self.intent(id)?;
         let docs: Vec<(String, Hash)> = p.docs.iter().map(|(d, v)| Ok((d.clone(), v.parse().map_err(err)?))).collect::<Result<_>>()?;
         self.conflicts(&docs)
     }

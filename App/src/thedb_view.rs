@@ -648,7 +648,7 @@ fn when(t: i64) -> String {
 
 /// The kinds in the order people look for them, the rest by name.
 fn kind_order(k: &str) -> (usize, String) {
-    const FIRST: [&str; 10] = ["root", "engine", "kernel", "world", "shots", "view", "layer", "shader", "font", "proposal"];
+    const FIRST: [&str; 11] = ["root", "engine", "kernel", "world", "shots", "view", "layer", "shader", "font", "intent", "proposal"];
     (FIRST.iter().position(|x| *x == k).unwrap_or(FIRST.len()), k.to_string())
 }
 
@@ -837,7 +837,7 @@ fn draw_left(p: &mut ChildSpawnerCommands, f: &Fonts, db: &Db) {
 /// Where a blob comes in the library: the blobs the branch names first, docs' versions (what proposals name) after the
 /// files.
 fn rank(inv: &Inventory, b: &BlobRow, facts: Option<&Facts>) -> (bool, bool) {
-    let by_proposals = !b.named_by.is_empty() && b.named_by.iter().all(|(id, _)| inv.docs.iter().any(|d| &d.id == id && d.kind == "proposal"));
+    let by_proposals = !b.named_by.is_empty() && b.named_by.iter().all(|(id, _)| inv.docs.iter().any(|d| &d.id == id && matches!(d.kind.as_str(), "intent" | "proposal")));
     (b.unreferenced(), by_proposals || facts.is_some_and(|f| f.media == "application/x-loro-snapshot"))
 }
 

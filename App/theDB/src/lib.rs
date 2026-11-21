@@ -122,9 +122,12 @@ pub struct TheDB {
     branch: Option<String>,
     /// The docs: this process's own connection to `theDB.sqlite`.
     sql: std::sync::Mutex<rusqlite::Connection>,
-    /// The key this process signs its commits with (`access`): the master's or an agent's, from the Keychain.
-    /// Read from the Keychain the first time it is needed, so a master made while this process runs is used too.
+    /// The key this process signs its commits with (`access`): the host's or an agent's, kept on this device; read the
+    /// first time it is needed, so a host made while this process runs is used too.
     signer: std::sync::Mutex<Option<access::SecretKey>>,
+    /// The owner's key given to this process unlocked, for tests (`access::owner_with`); else it is unlocked by the
+    /// person each time it signs.
+    owner_given: std::sync::Mutex<Option<access::SecretKey>>,
     /// The lock this process runs at (`lock.rs`): every doc read at the version it pins, nothing written.
     lock: Option<Locked>,
 }
@@ -179,7 +182,7 @@ impl TheDB {
         }
         let (store, owner) = Self::open_blobs(&rt, dir)?;
         let sql = sql::open(dir)?;
-        let db = TheDB { rt, store, owner, dir: dir.to_path_buf(), branch, sql: std::sync::Mutex::new(sql), signer: std::sync::Mutex::new(None), lock: None };
+        let db = TheDB { rt, store, owner, dir: dir.to_path_buf(), branch, sql: std::sync::Mutex::new(sql), signer: std::sync::Mutex::new(None), owner_given: std::sync::Mutex::new(None), lock: None };
         db.prepare()?;
         Ok(db)
     }
@@ -582,8 +585,8 @@ impl TheDB {
         if self.branches()?.iter().any(|b| b == name) {
             return Ok(());
         }
-        // in a signed store, branches are the master's to make (an agent's line comes with its grant)
-        self.is_master_or_host().map_err(|_| "branches are made by the master or theOS's host only".to_string())?;
+        // in a signed store, branches are the owner's (or its host's) to make (an agent's line comes with its grant)
+        self.is_owner_or_host().map_err(|_| "branches are made by the owner or theOS's host only".to_string())?;
         sql::make_branch(&self.sql(), name, about, now())
     }
 
@@ -852,7 +855,7 @@ impl TheDB {
     }
 
     /// Proposes pinning build `build` of engine `id` (an earlier one, to go back to it): on a branch of its own, for a
-    /// person to accept in theOS, as every new build is. Returns the proposal's id.
+    /// person to accept in theOS, as every new build is. Returns the intent's id.
     pub fn pin(&self, id: &str, build: &str) -> Result<String> {
         let mut engine = self.engine(id)?;
         if !engine.builds.iter().any(|b| b == build) {
@@ -890,6 +893,13 @@ impl TheDB {
         let root_doc: serde_json::Value = serde_json::from_str(&self.text(&root)?.unwrap_or_default()).map_err(err)?;
         let engine = root_doc["engine"].as_str().ok_or("the root names no engine")?.to_string();
         let pinned = self.engine(&engine)?.pinned.ok_or("the engine pins no build")?;
+        // what the kernel runs is a person's decision: a build pinned by any other hand is refused
+        if !self.pin_approved(&engine, &pinned)? {
+            return Err(format!(
+                "build {} of engine {engine} was not let run by the owner: accept its intent in theOS (Touch ID), or `theDB owner pin`",
+                &pinned[..12.min(pinned.len())]
+            ));
+        }
         let build = self.build(&pinned)?;
         let hash: Hash = build.binary.parse().map_err(|_| "the build's binary is no hash")?;
         let app = self.dir.join("cache").join("run").join(hash.to_hex().as_str());
@@ -947,9 +957,10 @@ pub mod bevy;
 pub mod access;
 pub mod build;
 pub mod conflict;
-pub mod proposals;
+pub mod intents;
 pub mod lock;
 pub mod schema;
+pub mod source;
 pub mod vibe;
 
 pub mod inventory;

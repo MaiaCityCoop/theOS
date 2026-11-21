@@ -322,9 +322,9 @@ pub fn navtest(
     use bevy::camera::RenderTarget;
     use bevy::picking::pointer::{Location, PointerAction, PointerButton, PointerId, PointerInput};
     use bevy::window::WindowRef;
-    // a store without a master starts on the setup screen: its key made, then saved, then the dashboard
+    // a store without an owner starts on the setup screen: its key made, then saved, then the dashboard
     let setup = [(Click::Setup(crate::setup::SetupAct::Make), View::Setup), (Click::Setup(crate::setup::SetupAct::Saved), View::Home)];
-    let with_setup = *setup_first.get_or_insert_with(|| matches!(crate::db().master(), Ok(None)));
+    let with_setup = *setup_first.get_or_insert_with(|| matches!(crate::db().owner(), Ok(None)));
     let views: [(Click, View); 27] = [
         (Click::Act(Act::Open(View::Studio)), View::Studio),
         // the Studio's switcher: the Stories, then a story's card back into the Timeline
@@ -350,13 +350,13 @@ pub fn navtest(
         (Click::Db(|a| *a == DbAct::Select), View::TheDB),
         (Click::Db(|a| *a == DbAct::Branch(None)), View::TheDB),
         (Click::Act(Act::Home), View::Home),
-        // the proposals, over the dashboard: opened, the first open one accepted (if there is one), closed
-        (Click::Pill(|a| *a == crate::pill::PillAct::Proposals), View::Home),
+        // the intents, over the dashboard: opened, the first proposal accepted (if there is one), closed
+        (Click::Pill(|a| *a == crate::pill::PillAct::Intents), View::Home),
         (Click::Pill(|a| *a == crate::pill::PillAct::Show(crate::pill::Filter::Done)), View::Home),
-        (Click::Pill(|a| *a == crate::pill::PillAct::Show(crate::pill::Filter::Open)), View::Home),
+        (Click::Pill(|a| *a == crate::pill::PillAct::Show(crate::pill::Filter::Proposals)), View::Home),
         (Click::Pill(|a| matches!(a, crate::pill::PillAct::Accept(_) | crate::pill::PillAct::Close)), View::Home),
         // closed, if the step before accepted one; with nothing open it closed already, and the star opens it again
-        (Click::Pill(|a| matches!(a, crate::pill::PillAct::Close | crate::pill::PillAct::Proposals)), View::Home),
+        (Click::Pill(|a| matches!(a, crate::pill::PillAct::Close | crate::pill::PillAct::Intents)), View::Home),
     ];
     let steps: Vec<(Click, View)> = setup.into_iter().filter(|_| with_setup).chain(views).collect();
     // a pointer of its own, so the real mouse over the window cannot move it
@@ -388,7 +388,7 @@ pub fn navtest(
             Click::Act(a) => format!("{a:?}"),
             Click::Db(_) => "in theDB's view".to_string(),
             Click::Setup(a) => format!("{a:?} on the setup screen"),
-            Click::Pill(_) => "on the pill or in the proposals".to_string(),
+            Click::Pill(_) => "on the pill or in the intents".to_string(),
         };
         println!(
             "navtest: step {} click {what}: now {:?}, {} {}",

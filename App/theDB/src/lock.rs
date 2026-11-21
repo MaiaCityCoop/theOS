@@ -1,6 +1,6 @@
 //! The system at a version: a lock. `lock` takes everything the root reaches now (the root, its top vibe and every
 //! vibe it is made of, every doc they name, and every blob), each doc at its exact version, and keeps that as one
-//! object: canonical JSON, signed by the master or the host, a blob whose BLAKE3 hash is the system's hash.
+//! object: canonical JSON, signed by the owner or the host, a blob whose BLAKE3 hash is the system's hash.
 //!
 //! A process opened at a lock (`THEDB_LOCK=<hash>`, or `theKERNEL --at <hash>`) reads every doc at the version the lock
 //! names and nothing else: the same hash gives the same system, every time, on any machine that holds its objects. It
@@ -42,7 +42,7 @@ fn unhex(s: &str) -> Result<Vec<u8>> {
 
 impl TheDB {
     /// The system as it is now, pinned: everything the root reaches, each doc at its version; the top vibe whole.
-    /// Signed by this process's key (the master's or the host's), kept as a blob. Returns its hash.
+    /// Signed by this process's key (the owner's or the host's), kept as a blob. Returns its hash.
     pub fn lock(&self) -> Result<Hash> {
         let reach = self.reach()?;
         let root_text = self.text(&reach.root)?.unwrap_or_default();
@@ -64,7 +64,7 @@ impl TheDB {
             docs: reach.docs.iter().map(|(id, h)| (id.clone(), h.to_hex().to_string())).collect(),
             blobs: reach.blobs.keys().map(|h| h.to_hex().to_string()).collect(),
         };
-        self.is_master_or_host()?;
+        self.is_owner_or_host()?;
         let key = self.key().ok_or("a lock is signed: this process has no key")?;
         let body = serde_json::to_vec(&pins).map_err(err)?;
         let sig = theid::sign(&key, LOCK, &[&body]);
@@ -72,7 +72,7 @@ impl TheDB {
         self.put(serde_json::to_vec_pretty(&signed).map_err(err)?)
     }
 
-    /// The pins of lock `hash`, its signature checked: by this store's master, or its host by the master's grant.
+    /// The pins of lock `hash`, its signature checked: by this store's owner, or its host by the owner's grant.
     pub fn read_lock(&self, hash: Hash) -> Result<Pins> {
         let bytes = self.get(hash)?.ok_or_else(|| format!("no lock {hash}"))?;
         let signed: Signed = serde_json::from_slice(&bytes).map_err(|e| format!("{hash} is no lock: {e}"))?;
@@ -82,11 +82,11 @@ impl TheDB {
         if !theid::verify(&signer, LOCK, &[&body], &sig) {
             return Err(format!("the lock {hash}: its signature does not hold"));
         }
-        if let Some(master) = self.master()? {
+        if let Some(owner) = self.owner()? {
             let host = self.host()?;
-            let ok = signer == master || host.is_some_and(|(h, g)| h == signer && self.grant_at(g).is_ok_and(|grant| theid::allows(&grant, &master, &h, &theid::Cap::Main, crate::now())));
+            let ok = signer == owner || host.is_some_and(|(h, g)| h == signer && self.grant_at(g).is_ok_and(|grant| theid::allows(&grant, &owner, &h, &theid::Cap::Main, crate::now())));
             if !ok {
-                return Err(format!("the lock {hash} is signed by {}, not by this store's master or host", signer.fmt_short()));
+                return Err(format!("the lock {hash} is signed by {}, not by this store's owner or host", signer.fmt_short()));
             }
         }
         Ok(signed.pins)

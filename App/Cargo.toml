@@ -4,9 +4,9 @@ edition = "2024"
 version = "0.1.0"
 publish = false
 
-# theOS, theKERNEL, theDB and theID: one lock, one target
+# theOS, theKERNEL, theDB, theID and theMCP: one lock, one target
 [workspace]
-members = ["theKERNEL", "theDB", "theID"]
+members = ["theKERNEL", "theDB", "theID", "theMCP"]
 
 [dependencies]
 bevy = { version = "0.20.1", default-features = false, features = ["3d", "ui", "default_platform", "file_watcher"] }

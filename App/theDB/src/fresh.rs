@@ -13,7 +13,7 @@
 //! `fresh` makes a new store beside the old one, copies what is reached (each doc with one version: its current one,
 //! under the hash it has, so what pins it still reads it; each blob), reads everything back and compares it with the
 //! old store, and only then swaps: the old store's files go to the compost, the new one's take their place. No
-//! branches, no proposals, no earlier versions, no unreached docs or blobs come along.
+//! branches, no open lines' intents, no earlier versions, no unreached docs or blobs come along.
 
 use crate::compost::{self, COMPOST};
 use crate::{Engine, Hash, Result, TheDB, err, json, sql};
@@ -117,9 +117,9 @@ impl TheDB {
         }
         let mut reach = Reach { root: root.clone(), ..Default::default() };
         let mut seen: BTreeSet<String> = BTreeSet::new();
-        // every proposal on main is kept, as it is: the history of what was proposed and decided. Its names are not
-        // followed: the versions it brought are main's history, and its old builds are not kept for it
-        for found in self.find(crate::Find::Kind("proposal"))? {
+        // every intent on main is kept, as it is: the history of what was proposed and decided, and what is open there.
+        // Its names are not followed: the versions it brought are main's history, and its old builds are not kept for it
+        for found in self.find(crate::Find::Kind("intent"))?.into_iter().chain(self.find(crate::Find::Kind("proposal"))?) {
             if let Some(head) = self.head_on(None, &found.id)? {
                 reach.docs.insert(found.id.clone(), head);
             }
@@ -294,10 +294,11 @@ impl TheDB {
             new.adopt(id, *hash, &snapshot, false, at)?;
         }
         new.set_root(&reach.root)?;
-        // the clean store has the same master, who signs its heads as they are
-        if let Some(master) = self.master()? {
-            let key = self.master_key().filter(|k| k.public() == master).ok_or("a signed store is made fresh by its master: its key is not on this Mac")?;
-            new.set_master(key)?;
+        // the clean store has the same owner, who signs its heads as they are, and the same rule for merges
+        if self.owner()?.is_some() {
+            let key = self.owner_key("make a clean store, signed by its owner")?;
+            new.set_owner(key)?;
+            self.owner_rules_into(&new)?;
             return self.same(&new, reach, &special);
         }
         self.same(&new, reach, &special)

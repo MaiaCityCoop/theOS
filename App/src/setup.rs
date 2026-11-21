@@ -1,8 +1,8 @@
-//! The first start: a store without a master gets one here, before anything else (intent 0054, access).
+//! The first start: a store without an owner gets one here, before anything else (intents 0054, 0059).
 //!
-//! The master's key is made in this process (theID: an iroh key, kept in this Mac's Keychain), every head of the store
-//! is signed by it as it is, and its secret is shown once, large, to be put in a password manager. It is kept in
-//! memory only until "I have saved it" is pressed, then forgotten; it never goes to a file, a log or the store.
+//! The owner's key is made in this process (theID: an iroh key, kept on this device locked by Touch ID), every head of
+//! the store is signed by it as it is, and its secret is shown once, large, to be put in a password manager. It is kept
+//! in memory only until "I have saved it" is pressed, then forgotten; it never goes to a file, a log or the store.
 
 use crate::View;
 use crate::ui::Fonts;
@@ -22,7 +22,7 @@ pub enum SetupAct {
 #[derive(Resource, Default)]
 struct Setup {
     secret: Option<String>,
-    master: Option<String>,
+    owner: Option<String>,
     error: Option<String>,
     drawn: bool,
     copied: bool,
@@ -40,17 +40,18 @@ pub fn plugin(app: &mut App) {
         .add_observer(click);
 }
 
-/// A store without a master opens on the setup screen.
-/// A store with a master whose host has no key yet gets one now (theOS's routine writes, by the master's grant).
+/// A store without an owner opens on the setup screen.
+/// A store with an owner whose host has no key yet gets one now (theOS's routine writes, by the owner's grant; the
+/// person unlocks the owner's key for it, once).
 fn first_start(mut next: ResMut<NextState<View>>) {
-    match crate::db().master() {
+    match crate::db().owner() {
         Ok(None) => next.set(View::Setup),
         Ok(Some(_)) => {
             if let Err(e) = crate::db().ensure_host() {
                 eprintln!("theOS: the host's key: {e}");
             }
         }
-        Err(e) => eprintln!("theOS: the store's master: {e}"),
+        Err(e) => eprintln!("theOS: the store's owner: {e}"),
     }
 }
 
@@ -58,9 +59,9 @@ fn click(mut ev: On<PointerClick>, acts: Query<&SetupAct>, mut s: ResMut<Setup>,
     let Ok(act) = acts.get(ev.entity) else { return };
     ev.propagate(false);
     match act {
-        SetupAct::Make if s.secret.is_none() => match crate::db().make_master() {
+        SetupAct::Make if s.secret.is_none() => match crate::db().make_owner() {
             Ok(key) => {
-                s.master = Some(key.public().to_string());
+                s.owner = Some(key.public().to_string());
                 s.secret = Some(thedb::theid::secret_text(&key));
                 s.error = None;
             }
@@ -75,7 +76,7 @@ fn click(mut ev: On<PointerClick>, acts: Query<&SetupAct>, mut s: ResMut<Setup>,
             }
         }
         SetupAct::CopyPublic => {
-            if let Some(m) = &s.master {
+            if let Some(m) = &s.owner {
                 match copy(m) {
                     Ok(()) => s.copied_public = true,
                     Err(e) => s.error = Some(e),
@@ -83,7 +84,7 @@ fn click(mut ev: On<PointerClick>, acts: Query<&SetupAct>, mut s: ResMut<Setup>,
             }
         }
         SetupAct::Saved => {
-            // forgotten here: the Keychain and the password manager hold it now
+            // forgotten here: this device holds it locked (Touch ID), and the password manager holds it
             s.secret = None;
             s.copied = false;
             next.set(View::Home);
@@ -165,17 +166,17 @@ fn draw(mut commands: Commands, fonts: Res<Fonts>, mut s: ResMut<Setup>, old: Qu
                 BackgroundColor(crate::theme::colour("cream")),
             ))
             .with_children(|card| {
-                card.spawn(text(&f.serif, 44.0, crate::theme::colour("forest"), "Your master key".into()));
-                match (&s.secret, &s.master) {
-                    (Some(secret), Some(master)) => {
-                        card.spawn(text(&f.sans, 18.0, crate::theme::colour("forest2"), "This is the key that signs everything theOS keeps, and the only one that merges into main. It is shown this once. Put it in your password manager now; this Mac's Keychain holds it too.".into()));
+                card.spawn(text(&f.serif, 44.0, crate::theme::colour("forest"), "Your owner key".into()));
+                match (&s.secret, &s.owner) {
+                    (Some(secret), Some(owner)) => {
+                        card.spawn(text(&f.sans, 18.0, crate::theme::colour("forest2"), "This is the key that owns your main: every merge is signed by it, and only you open it, with Touch ID. It is shown this once. Put it in your password manager now; this device keeps it locked.".into()));
                         card.spawn((
                             Node { padding: UiRect::all(Val::Px(24.0)), border_radius: BorderRadius::all(Val::Px(18.0)), ..default() },
                             BackgroundColor(crate::theme::colour("sand")),
                             children![text(&f.mono, 24.0, crate::theme::colour("forest"), grouped(secret))],
                         ));
                         card.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(12.0), align_items: AlignItems::Center, ..default() }).with_children(|row| {
-                            row.spawn(text(&f.mono, 13.0, crate::theme::colour("forest2"), format!("public key  {master}")));
+                            row.spawn(text(&f.mono, 13.0, crate::theme::colour("forest2"), format!("public key  {owner}")));
                             row.spawn(small_button(if s.copied_public { "Copied" } else { "Copy" }, SetupAct::CopyPublic));
                         });
                         if let Some(e) = &s.error {
@@ -189,12 +190,12 @@ fn draw(mut commands: Commands, fonts: Res<Fonts>, mut s: ResMut<Setup>, old: Qu
                         });
                     }
                     _ => {
-                        card.spawn(text(&f.sans, 18.0, crate::theme::colour("forest2"), "theOS signs every change it keeps. One master key signs main and every merge; agents get keys of their own, for their own lines, by its grant. This store has no master yet.".into()));
+                        card.spawn(text(&f.sans, 18.0, crate::theme::colour("forest2"), "theOS signs every change it keeps. One owner key owns main and signs every merge, opened by you with Touch ID; agents get keys of their own, for their own lines, by its grant. This store has no owner yet.".into()));
                         card.spawn(text(&f.sans, 18.0, crate::theme::colour("forest2"), "Make it now. Its secret is shown once, for you to keep in your password manager.".into()));
                         if let Some(e) = &s.error {
                             card.spawn(text(&f.sans, 16.0, Color::srgb(0.7, 0.2, 0.15), e.clone()));
                         }
-                        card.spawn(button("Make the master key", SetupAct::Make, crate::theme::colour("clay"), crate::theme::colour("cream")));
+                        card.spawn(button("Make the owner key", SetupAct::Make, crate::theme::colour("clay"), crate::theme::colour("cream")));
                     }
                 }
             });

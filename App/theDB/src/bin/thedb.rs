@@ -19,20 +19,49 @@
 //!     thedb branch <name> [about]       a new branch from main
 //!     thedb branches                    every branch, and how many docs it changes
 //!     thedb diff <branch>               the docs a branch changes: main's version → the branch's
-//!     thedb propose <branch> <note>     a proposal to merge a branch into main, kept on the branch
-//!     thedb proposal <id>               a proposal's state and its check's output
 //!     thedb sync <line>                 main brought into a line; prints the conflicts that settled, to check
-//!     thedb proposals from <store dir>  the proposals of an older store (composted, archived) onto main, as they stood
-//!     thedb proposals                   every proposal on every line (accepted or refused in theOS only, by a person)
 //!
-//! Who may write (intent 0054; keys, signatures and grants are theID's). Once a store has a master, main is written by
-//! the master only, and an agent (`THEOS_AGENT=<name>`, `THEDB_BRANCH=line-<name>`) by its own key on its own line.
+//! Code as docs (intent 0059, step 1d): every file of `App/` a doc (its text a Loro text), the tree a doc mapping
+//! paths to them, named by the root as `source`. Nothing is edited in a folder; git is an archive.
 //!
-//!     thedb master                      the store's master (its public key), and whether this Mac holds its secret
-//!     thedb master init                 a new master: its secret into this Mac's Keychain, shown once to keep in a
-//!                                       password manager; every head as it is now signed by it
-//!     thedb master restore              the master's secret, read from the input, into this Mac's Keychain
-//!     thedb agent <name> [days]         a new agent: its key in the Keychain, the master's grant of line-<name>
+//!     thedb source import <repo>        the code of the checkout `repo` (App/, at HEAD, clean) into theDB, on the
+//!                                       branch source-<commit>, proposed as an intent for the owner to accept
+//!     thedb source files                every path in the tree, as this process's branch sees it
+//!     thedb source cat <path>           a file
+//!     thedb source write <dir>          the tree written into dir: only what changed, read only
+//!     thedb publish <engine>            a host build from this process's branch's code (no git), proposed as an intent
+//!     thedb build                       builds this process's branch's code (build/ in the store), in the background
+//!     thedb build status                the last build: its line, state and errors
+//!     thedb archive                     main's code committed onto refs/heads/archive of the store's repository
+//!
+//! Intents (intent 0059): every piece of work, draft → building → checked → proposal → merged | refused. An agent
+//! works on its line (`THEDB_BRANCH`); its owner accepts or refuses in theOS only. `--json` after any of these prints
+//! what it read as JSON, for agents.
+//!
+//!     thedb intents [open|done|all]     every intent on every line and on main (open by default)
+//!     thedb intent <id>                 one intent: its why, when it is done, its tasks, its conflicts with main
+//!     thedb intent new <title> [--why <text>] [--done <text>]
+//!                                       a new intent in draft, on this process's line (on main without one)
+//!     thedb intent take <id>            this process's line takes up an intent (building)
+//!     thedb intent task <id> <text>     a task added to its board
+//!     thedb intent tick <id> <n>        task n done (untick: `untick`)
+//!     thedb intent building <id> [why]  back to building, and why (also: `draft`)
+//!     thedb intent ready <id>           the line's changes taken as they are, and it waits for its owner (proposal)
+//!     thedb intents from <store dir>    the intents of an older store (composted, archived) onto main, as they stood
+//!
+//! Who may write (intents 0054, 0059; keys, signatures and grants are theID's). A store has one owner, who owns main;
+//! theOS's host writes main by its grant, and every merge is signed by the owner, its key unlocked by the person (Touch
+//! ID on a Mac). An agent (`THEOS_AGENT=<name>`, `THEDB_BRANCH=line-<name>`) writes its own line with its own key.
+//!
+//!     thedb owner                       the store's owner and host, whether merges are the owner's, and who this is
+//!     thedb owner init                  a new owner: its key locked on this device (Touch ID), shown once to keep in
+//!                                       a password manager; every head as it is now signed by it; a host made
+//!     thedb owner protect               the owner's key this device kept unlocked (before 0059: the master's) locked
+//!                                       with Touch ID, the unlocked copy removed; the build pinned now let run; from
+//!                                       then on every merge is the owner's
+//!     thedb owner restore               the same, with the owner's key read from the input (its backup)
+//!     thedb owner pin                   the owner lets the kernel run the build pinned now (Touch ID)
+//!     thedb agent <name> [days]         a new agent: its key kept on this device, the owner's grant of line-<name>
 //!     thedb verify                      every signature, and every head signed by whom its branch allows
 //!
 //! Locks: the system at a version (lock.rs). `THEDB_LOCK=<hash>` opens any process at one, read only.
@@ -103,9 +132,36 @@ fn main() {
             }
         }
         ["head", id] => println!("{}", db.head(id).unwrap_or_else(|e| fail(&e)).map(|h| h.to_string()).unwrap_or_default()),
+        ["publish", engine] => {
+            let (h, intent) = db.publish_tree(engine).unwrap_or_else(|e| fail(&e));
+            println!("{h}\nproposed as {intent}: theOS runs it once its owner accepts it under the star");
+        }
         ["publish", engine, repo] => {
             let (h, proposal) = db.publish_git(engine, Path::new(repo)).unwrap_or_else(|e| fail(&e));
             println!("{h}\nproposed as {proposal}: theOS runs it once it is accepted under the star");
+        }
+        ["source", "import", repo] => {
+            let (id, n) = db.import_code(Path::new(repo)).unwrap_or_else(|e| fail(&e));
+            println!("{id}\n{n} files brought in, proposed: accepted under the star, theDB holds the code");
+        }
+        ["source", "files"] => {
+            for p in db.files().unwrap_or_else(|e| fail(&e)) {
+                println!("{p}");
+            }
+        }
+        ["source", "cat", path] => out(db.file_bytes(path).unwrap_or_else(|e| fail(&e))),
+        ["source", "write", dir] => {
+            let p = db.project(Path::new(dir)).unwrap_or_else(|e| fail(&e));
+            println!("{} files, {} written, {} removed; tree {}", p.files, p.written, p.removed, p.hash);
+        }
+        ["build"] => println!("{}", serde_json::to_string_pretty(&db.build_start().unwrap_or_else(|e| fail(&e))).unwrap_or_default()),
+        ["build", "status"] => println!("{}", serde_json::to_string_pretty(&db.build_status().unwrap_or_else(|e| fail(&e))).unwrap_or_default()),
+        ["archive"] => {
+            let repo = db.archive_repo().unwrap_or_else(|| fail("the store is not in a git repository"));
+            match db.archive_code(&repo, "theDB main, archived by hand").unwrap_or_else(|e| fail(&e)) {
+                Some(c) => println!("refs/heads/archive is {c}"),
+                None => println!("main has no code to archive"),
+            }
         }
         ["source", build, dir] => eprintln!("{} files", db.checkout_build(build, Path::new(dir)).unwrap_or_else(|e| fail(&e))),
         ["pin", id, build] => println!("proposed as {}: accepted under the star, theOS runs it", db.pin(id, build).unwrap_or_else(|e| fail(&e))),
@@ -133,13 +189,83 @@ fn main() {
                 println!("{id}  {main} → {}  {kind:<8} {name}", &h.to_hex()[..12]);
             }
         }
-        // ---- proposals ----
-        ["propose", branch, note @ ..] => println!("{}", db.propose(branch, &note.join(" ")).unwrap_or_else(|e| fail(&e))),
-        ["proposal", id] => {
-            let p = db.proposal(id).unwrap_or_else(|e| fail(&e));
-            println!("{:?}  {}  from {}  ({} docs)", p.state, p.note, p.branch, p.docs.len());
-            for c in db.proposal_conflicts(id).unwrap_or_else(|e| fail(&e)) {
-                println!("  CONFLICT {c}");
+        // ---- intents ----
+        ["intents", "from", dir] => println!("{} intents brought onto main", db.intents_from(Path::new(dir)).unwrap_or_else(|e| fail(&e))),
+        ["intents", rest @ ..] if rest.len() <= 2 => {
+            let json = rest.contains(&"--json");
+            let which = rest.iter().find(|w| **w != "--json").copied().unwrap_or("open");
+            let all: Vec<_> = db
+                .intents()
+                .unwrap_or_else(|e| fail(&e))
+                .into_iter()
+                .filter(|(_, i)| match which {
+                    "open" => i.state.is_open(),
+                    "done" => !i.state.is_open(),
+                    "all" => true,
+                    w => fail(&format!("open, done or all, not {w}")),
+                })
+                .collect();
+            if json {
+                let list: Vec<_> = all.iter().map(|(id, i)| serde_json::json!({ "id": id, "intent": i })).collect();
+                println!("{}", serde_json::to_string_pretty(&list).unwrap_or_default());
+            } else {
+                for (id, i) in all {
+                    let done = i.tasks.iter().filter(|t| t.done).count();
+                    println!("{id}  {:<8}  {}  on {}  ({done}/{} tasks, {} docs)", i.state.name(), i.title, i.line.as_deref().unwrap_or("main"), i.tasks.len(), i.docs.len());
+                }
+            }
+        }
+        ["intent", "new", rest @ ..] => {
+            let (mut title, mut why, mut done) = (Vec::new(), String::new(), String::new());
+            let mut it = rest.iter();
+            while let Some(w) = it.next() {
+                match *w {
+                    "--why" => why = it.next().unwrap_or_else(|| fail("--why <text>")).to_string(),
+                    "--done" => done = it.next().unwrap_or_else(|| fail("--done <text>")).to_string(),
+                    w => title.push(w),
+                }
+            }
+            let line = db.branch().map(str::to_string);
+            println!("{}", db.intent_new(line.as_deref(), &title.join(" "), &why, &done).unwrap_or_else(|e| fail(&e)));
+        }
+        ["intent", "take", id] => {
+            let line = db.branch().map(str::to_string).unwrap_or_else(|| fail("a line takes up an intent: THEDB_BRANCH=line-<agent>"));
+            db.intent_take(id, &line).unwrap_or_else(|e| fail(&e));
+        }
+        ["intent", "task", id, text @ ..] if !text.is_empty() => println!("{}", db.intent_task(id, &text.join(" ")).unwrap_or_else(|e| fail(&e))),
+        ["intent", tick @ ("tick" | "untick"), id, n] => {
+            let n = n.parse().unwrap_or_else(|_| fail("a task's number"));
+            db.intent_tick(id, n, *tick == "tick").unwrap_or_else(|e| fail(&e));
+        }
+        ["intent", state @ ("building" | "draft"), id, why @ ..] => {
+            let state = if *state == "draft" { thedb::intents::State::Draft } else { thedb::intents::State::Building };
+            let why = why.join(" ");
+            db.intent_state(id, state, (!why.is_empty()).then_some(why.as_str())).unwrap_or_else(|e| fail(&e));
+        }
+        ["intent", "ready", id] => db.intent_ready(id).unwrap_or_else(|e| fail(&e)),
+        ["intent", id, rest @ ..] if rest.len() <= 1 => {
+            let i = db.intent(id).unwrap_or_else(|e| fail(&e));
+            let conflicts: Vec<String> = if i.state.is_open() { match db.intent_conflicts(id) { Ok(c) => c.iter().map(|c| c.to_string()).collect(), Err(e) => vec![e] } } else { vec![] };
+            if rest.first() == Some(&"--json") {
+                println!("{}", serde_json::to_string_pretty(&serde_json::json!({ "id": id, "intent": i, "conflicts": conflicts })).unwrap_or_default());
+            } else {
+                println!("{}  ({}, on {})", i.title, i.state.name(), i.line.as_deref().unwrap_or("main"));
+                if !i.why.is_empty() {
+                    println!("why: {}", i.why);
+                }
+                if !i.done_when.is_empty() {
+                    println!("done when: {}", i.done_when);
+                }
+                if let Some(r) = &i.reason {
+                    println!("back to building: {r}");
+                }
+                for (n, t) in i.tasks.iter().enumerate() {
+                    println!("  {} {}. {}", if t.done { "[x]" } else { "[ ]" }, n + 1, t.text);
+                }
+                println!("{} docs", i.docs.len());
+                for c in conflicts {
+                    println!("  CONFLICT {c}");
+                }
             }
         }
         ["sync", branch] => {
@@ -174,35 +300,43 @@ fn main() {
             let h = if *hash == "none" { None } else { Some(hash.parse().unwrap_or_else(|_| fail("not a hash"))) };
             println!("{}", db.set_schema(id, h).unwrap_or_else(|e| fail(&e)));
         }
-        ["proposals", "from", dir] => println!("{} proposals brought onto main", db.proposals_from(Path::new(dir)).unwrap_or_else(|e| fail(&e))),
-        ["proposals"] => {
-            for (id, p) in db.proposals().unwrap_or_else(|e| fail(&e)) {
-                println!("{id}  {:?}  {}  from {}  ({} docs)", p.state, p.note, p.branch, p.docs.len());
-            }
-        }
-        ["master"] => match db.master().unwrap_or_else(|e| fail(&e)) {
-            Some(m) => {
-                println!("{m}");
+        ["owner"] => match db.owner().unwrap_or_else(|e| fail(&e)) {
+            Some(o) => {
+                println!("owner {o}");
                 match db.host().unwrap_or_else(|e| fail(&e)) {
                     Some((h, _)) => println!("host {h}"),
-                    None => println!("no host yet: theOS makes it when it starts with the master's key"),
+                    None => println!("no host yet: theOS makes it when it starts (the owner's key, unlocked once)"),
                 }
-                println!("this process signs as {}", db.signer().map(|k| k.to_string()).unwrap_or_else(|| "nobody (no key on this Mac)".into()));
+                if db.owner_signs().unwrap_or_else(|e| fail(&e)) {
+                    println!("every merge, and every build the kernel runs, is the owner's (Touch ID)");
+                } else {
+                    println!("merges need only theOS's host key: `theDB owner protect` makes them the owner's");
+                }
+                println!("this process signs as {}", db.signer().map(|k| k.to_string()).unwrap_or_else(|| "nobody (no key on this device)".into()));
             }
-            None => println!("no master: nothing is signed (theDB master init)"),
+            None => println!("no owner: nothing is signed (theDB owner init)"),
         },
-        ["master", "init"] => {
-            let key = db.make_master().unwrap_or_else(|e| fail(&e));
-            println!("the master: {}", key.public());
-            println!("\nIts secret, shown this once. Keep it in your password manager now; this Mac's Keychain holds it too.\n");
+        ["owner", "init"] => {
+            let key = db.make_owner().unwrap_or_else(|e| fail(&e));
+            println!("the owner: {}", key.public());
+            println!("\nIts secret, shown this once. Keep it in your password manager now; on this device it is kept locked, opened by Touch ID.\n");
             println!("    {}\n", thedb::theid::secret_text(&key));
         }
-        ["master", "restore"] => {
+        ["owner", "protect"] => {
+            db.protect_owner().unwrap_or_else(|e| fail(&e));
+            println!("the owner's key is locked on this device (Touch ID), the unlocked copy removed; every merge is the owner's");
+        }
+        ["owner", "restore"] => {
             let mut text = String::new();
             std::io::stdin().read_line(&mut text).unwrap_or_else(|e| fail(&e.to_string()));
             let key: thedb::access::SecretKey = text.trim().parse().unwrap_or_else(|_| fail("not a secret key (64 hex digits)"));
-            db.restore_master(key).unwrap_or_else(|e| fail(&e));
-            println!("the master's secret is in this Mac's Keychain");
+            db.restore_owner(key).unwrap_or_else(|e| fail(&e));
+            println!("the owner's key is locked on this device (Touch ID); every merge is the owner's");
+        }
+        ["owner", "pin"] => {
+            let (engine, build) = db.pinned_now().unwrap_or_else(|e| fail(&e));
+            db.owner_pin(&engine, &build).unwrap_or_else(|e| fail(&e));
+            println!("the build {build} let run: the kernel starts it");
         }
         ["agent", name, rest @ ..] if rest.len() <= 1 => {
             let days = rest.first().map(|d| d.parse().unwrap_or_else(|_| fail("days: a number"))).unwrap_or(30);
