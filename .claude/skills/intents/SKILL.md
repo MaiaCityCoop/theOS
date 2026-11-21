@@ -138,10 +138,12 @@ real trade-off the definition does not settle (say, more detail against 60 fps),
   server (`.mcp.json`), never through files, `theDB`, `cargo` or the Keychain. Two tools: `search` (Rhai over
   `catalogue()`, to find operations) and `execute` (Rhai calling `theos::` functions, as this agent, on its own line).
   The work, start to end: `theos::intent_new(title, why, done_when)` (or `theos::intent_take(id)` for one its owner
-  opened), `theos::intent_task` for each step; read with `theos::files`, `theos::file_lines`, `theos::file_search`,
-  `theos::find_*`, `theos::doc_lines`; change with `theos::file_edit`, `theos::file_write`, `theos::file_move`,
-  `theos::doc_edit`, `theos::doc_write`; build with `theos::build()` then `theos::build_status()` until it is not
-  running, and fix what its errors name; `theos::intent_tick` as tasks are done; `theos::line_sync()` to bring main in;
+  opened), `theos::intent_task` for each step; read with `theos::code`, `theos::code_lines`, `theos::code_search`,
+  `theos::find_*`, `theos::doc_lines`; change with `theos::code_edit`, `theos::code_write`, `theos::code_move`,
+  `theos::doc_edit`, `theos::doc_write`. Code is named as Rust names it, never by a file path (`thedb::access`,
+  `theos#main`, `thedb#manifest`, `theos/Cargo.lock`), and what it includes by its hash (`thedb::blob!("<hash>")`).
+  Build with `theos::build()` then `theos::build_status()` until it is not running, and fix what its errors name
+  (`thedb::access:12:5`); `theos::intent_tick` as tasks are done; `theos::line_sync()` to bring main in;
   `theos::intent_ready(id)` when done. Only the owner accepts, in theOS, with Touch ID. Git keeps an archive of main's
   code (`refs/heads/archive`); `App/` in git's working tree is not the code once theDB holds it.
 - A brief is complete in itself: the task, the files, the invariants to keep, the checks, what done
