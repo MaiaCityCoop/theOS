@@ -88,7 +88,7 @@ pub struct Boxed {
     /// What a click does: opens this doc, by id.
     #[serde(default)]
     pub open: Option<String>,
-    /// Or: `home`, `play`, `thedb` (theDB's view of the store), `sandboxes` (every world there is to open), `proposals` (the proposals, as the star opens them).
+    /// Or: `home`, `play`, `thedb` (theDB's view of the store), `sandboxes` (every world there is to open), `stories` (every story as a card), `proposals` (the proposals, as the star opens them).
     #[serde(default)]
     pub act: Option<String>,
     /// Where a layer sits over the world: its distances from the window's edges, in pixels.
@@ -259,6 +259,7 @@ pub fn draw(commands: &mut Commands, fonts: &crate::ui::Fonts, spec: &Spec, pare
                 Some("play") => Some(crate::ui::Act::PlayPause),
                 Some("thedb") => Some(crate::ui::Act::Open(View::TheDB)),
                 Some("sandboxes") => Some(crate::ui::Act::Open(View::Sandboxes)),
+                Some("stories") => Some(crate::ui::Act::Open(View::Stories)),
                 _ => None,
             };
             if let Some(a) = act {
