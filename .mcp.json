@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "theos": {
+      "command": "App/target/debug/theMCP",
+      "args": ["--agent", "claude"]
+    }
+  }
+}

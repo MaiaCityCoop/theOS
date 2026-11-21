@@ -153,7 +153,8 @@ agents watching telemetry. Signing is not described there; here every merge is s
 - [x] 1b · Owners and agents, one primitive: keys and grants (chains back to the owner); secrets through `keyring`;
   the owner's key locked by Touch ID; every merge and every build the kernel runs signed by the owner
 - [ ] 1b′ · Host builds signed with one stable certificate (so a new build is not asked about by the Keychain again)
-- [ ] 1c · The host's MCP in Code Mode (search, execute; Rhai; one registry of operations)
+- [x] 1c · theOS's MCP in Code Mode (search, execute; Rhai; one list of operations), as its own process for now
+- [ ] 1c′ · The MCP inside the host, reached over iroh, each session a grant passed on by its agent
 - [ ] 1d · Code as Loro text and a tree doc, imported from git once; the builder's projection; git as an archive
 - [ ] 1e · Agents kept to the MCP
 - [ ] 2 · Touch ID by default, signed rules
@@ -184,5 +185,17 @@ agents watching telemetry. Signing is not described there; here every merge is s
   separate P-256 person key of 0058 gone: once merges are the owner's (`theDB owner protect`), every accept is signed
   by the owner's own key, kept in the intent, and the kernel runs only a build the owner let run. `cargo test` passes
   (36), with a real Secure Enclave lock and unlock and a keyring round trip on this Mac.
+- **Delivered (step 1c):** `App/theMCP`, theOS's MCP server in Code Mode. Two tools: `search` runs Rhai over
+  `catalogue()` (one map per operation) and can call none; `execute` runs Rhai with the `theos::` functions, as one
+  agent on its own line. One list of operations (`ops.rs`) gives the catalogue, the signatures in `execute`'s
+  description (about 2,000 characters for all 19) and the calls: `whoami`; `intents`, `intent`, `intent_new`,
+  `intent_take`, `intent_task`, `intent_tick`, `intent_building`, `intent_ready`; `find_kind`, `find_name`,
+  `find_words`, `doc`, `doc_lines`, `doc_write`, `doc_edit`, `doc_new`; `line_changes`, `line_sync`. Rhai runs with no
+  files, no network, no imports, no `eval`, and limits on operations (10 million), time (20 s), call depth and sizes;
+  what a script prints comes back with its result; results are cut at 24,000 characters with a marker saying how
+  much was left. The protocol is JSON-RPC on the standard input and output (`initialize`, `ping`, `tools/list`,
+  `tools/call`). `.mcp.json` gives Claude sessions in this repository the server as the agent `claude`. Checked: four
+  tests (the protocol, search, an intent worked in one script on the agent's line with main untouched, errors,
+  limits and the cut), and the built binary answering over its standard input and output.
 
 ## Trail

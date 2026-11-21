@@ -1,0 +1,16 @@
+[package]
+name = "themcp"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "theMCP"
+path = "src/main.rs"
+
+# theOS's MCP in Code Mode (intent 0059, step 1c): two tools, search and execute, whose code is Rhai (no JavaScript),
+# run as one agent, against one list of operations.
+[dependencies]
+thedb = { path = "../theDB" }
+rhai = { version = "1.27", features = ["serde"] }
+serde_json = "1"
