@@ -69,9 +69,14 @@ Decided with Samuel on the MVP's shape:
 
 **CRDT-native, decided with Samuel** (2026-11-21):
 
-- **Code is Loro text, not files.** Every source file is a Loro text doc; the folders are one Loro tree doc whose nodes
-  keep their identity (a rename or a move is one op, and merges with edits elsewhere). A line is a pointer (each doc at
-  its frontiers), not a copy: every line shares one history, and making one costs nothing. Every op names its writer.
+- **Code is one Loro doc, fully native** (Samuel: "fully native Loro docs/maps, no file doc path workarounds"). The
+  host's code is a doc of kind `code` holding a Loro movable tree, `files`: a node for every folder and file, its name
+  in its metadata, a file's text a mergeable Loro text inside its node (an icon: its blob's hash). No paths as keys and
+  no doc per file: a node is the file's identity, a rename or a move (a whole folder too) is one op and merges with
+  edits made inside meanwhile; a path is only how a node is reached. One version of the doc is one state of all the
+  code; a line is its version of that one doc, sharing one history with every other. Every op names its writer.
+- **Intents in Loro's own containers**: the map `intent`, the list `tasks` (a map each), the maps `docs` and
+  `accepted_by`; every change one op on its own field, so two agents ticking two tasks at once are both kept.
 - **No working folders.** Agents read and edit through the host's API; the builder writes a read-only projection of a
   state (only the files that changed) for `cargo`, cached by the state's hash. Nothing is written back from a folder.
 - **No hierarchy as storage.** Everything is content-addressed: docs by id, versions and blobs by BLAKE3, found by kind,
@@ -212,5 +217,11 @@ agents watching telemetry. Signing is not described there; here every merge is s
   `file_move`, `file_delete`, `build`, `build_status` (28 operations). Checked: two tests in theDB (code from git to a
   line to a failed and a good build to an archived merge; a host build from a line accepted and pinned) and one in
   theMCP (an agent edits, builds, reads its error, fixes and builds, through `execute` alone); 43 tests in all.
+- **Asked:** fully native Loro, no file docs and paths as keys. **Delivered:** the code as one Loro doc with a movable
+  tree (above), replacing a doc per file and a map of paths; conflicts read node by node (a file's name, parent, text
+  or blob), so a folder moved on a line merges with an edit main made inside it, and three collisions are shown by path
+  (one file's text changed on both sides, one path made on both sides, a file added to a folder main took away);
+  intents held in native maps and lists with every change its own op. Checked: 45 tests, among them the folder move
+  merging with main's edit and the three collisions refused, and two writers' ticks and new tasks all kept.
 
 ## Trail

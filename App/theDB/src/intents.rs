@@ -10,6 +10,10 @@
 //!
 //! An intent whose checks fail goes back to building with the reason. Docs of the earlier kind `proposal` read as
 //! intents (open: proposal).
+//!
+//! An intent is held in Loro's own containers, not as one string: the map `intent` (title, why, done_when, state, line,
+//! reason), the list `tasks` (a map each: text, done), the map `docs` (doc id → version) and the map `accepted_by`. Two
+//! agents who tick two tasks, or add one each, at once are both kept.
 
 use crate::{Hash, Result, TheDB, err, sql};
 use std::collections::BTreeMap;
@@ -124,7 +128,12 @@ impl TheDB {
             accepted_by: None,
         };
         let id = crate::new_id();
-        self.save_intent(&id, &i)?;
+        let doc = self.edit(&id)?;
+        let meta = doc.get_map("meta");
+        meta.insert("kind", "intent").map_err(err)?;
+        meta.insert("name", title).map_err(err)?;
+        write(&doc, &i)?;
+        self.keep_intent(&id, &doc, &i)?;
         Ok(id)
     }
 
@@ -160,25 +169,24 @@ impl TheDB {
         at.into_iter().next().ok_or_else(|| format!("no intent {id}"))
     }
 
-    /// Keeps intent `id` where it belongs: on its line while open, on main when it has none; a closed one on its line
-    /// (if it is still there) and on main, as main's history.
-    fn save_intent(&self, id: &str, i: &Intent) -> Result<()> {
-        let at = self.intent_branch(id).ok();
-        let (seen, edit);
-        let doc: &loro::LoroDoc = match &at {
-            Some(b) => {
-                seen = self.doc_seen((b != crate::MAIN).then_some(b.as_str()), id)?;
-                &seen
-            }
-            None => {
-                edit = self.edit(id)?;
-                &edit
-            }
-        };
+    /// Changes intent `id` with `change`, given its doc as it is now and the intent read from it: only the ops
+    /// `change` makes are added, so what another writer did meanwhile stays. Kept where it belongs: on its line while
+    /// open, on main when it has none; a closed one on its line (if it is still there) and on main, as main's history.
+    fn change_intent(&self, id: &str, change: impl FnOnce(&loro::LoroDoc, &Intent) -> Result<()>) -> Result<()> {
+        let at = self.intent_branch(id)?;
+        let doc = self.doc_seen((at != crate::MAIN).then_some(at.as_str()), id)?;
+        let before = read(&doc).ok_or_else(|| format!("{id} is no intent"))?;
+        change(&doc, &before)?;
+        let after = read(&doc).ok_or_else(|| format!("{id} is no intent"))?;
         let meta = doc.get_map("meta");
         meta.insert("kind", "intent").map_err(err)?;
-        meta.insert("name", i.title.as_str()).map_err(err)?;
-        doc.get_map("intent").insert("it", serde_json::to_string(i).map_err(err)?).map_err(err)?;
+        if text_of(&meta, "name").as_deref() != Some(after.title.as_str()) {
+            meta.insert("name", after.title.as_str()).map_err(err)?;
+        }
+        self.keep_intent(id, &doc, &after)
+    }
+
+    fn keep_intent(&self, id: &str, doc: &loro::LoroDoc, i: &Intent) -> Result<()> {
         let line = i.line.as_deref().filter(|l| self.branches().is_ok_and(|b| b.iter().any(|x| x == l)));
         if i.state.is_open() {
             return self.commit_on(line, id, doc).map(|_| ());
@@ -191,34 +199,43 @@ impl TheDB {
 
     /// An agent takes up intent `id` on its `line`.
     pub fn intent_take(&self, id: &str, line: &str) -> Result<()> {
-        let mut i = self.intent(id)?;
-        if !i.state.is_open() {
-            return Err(format!("the intent is {} already", i.state.name()));
-        }
-        if i.line.as_deref().is_some_and(|l| l != line) {
-            return Err(format!("the intent is worked on {} already", i.line.unwrap_or_default()));
-        }
-        i.line = Some(line.into());
-        if i.state == State::Draft {
-            i.state = State::Building;
-        }
-        self.save_intent(id, &i)
+        self.change_intent(id, |doc, i| {
+            if !i.state.is_open() {
+                return Err(format!("the intent is {} already", i.state.name()));
+            }
+            if i.line.as_deref().is_some_and(|l| l != line) {
+                return Err(format!("the intent is worked on {} already", i.line.clone().unwrap_or_default()));
+            }
+            let m = doc.get_map("intent");
+            set_text(&m, "line", Some(line))?;
+            if i.state == State::Draft {
+                set_text(&m, "state", Some(State::Building.name()))?;
+            }
+            Ok(())
+        })
     }
 
     /// Adds a task to intent `id`'s board. Returns its number (from 1).
     pub fn intent_task(&self, id: &str, text: &str) -> Result<usize> {
-        let mut i = self.open_intent(id)?;
-        i.tasks.push(Task { text: text.into(), done: false });
-        self.save_intent(id, &i)?;
-        Ok(i.tasks.len())
+        let mut n = 0;
+        self.change_intent(id, |doc, i| {
+            open(i)?;
+            let task = doc.get_list("tasks").push_container(loro::LoroMap::new()).map_err(err)?;
+            task.insert("text", text).map_err(err)?;
+            task.insert("done", false).map_err(err)?;
+            n = doc.get_list("tasks").len();
+            Ok(())
+        })?;
+        Ok(n)
     }
 
-    /// Ticks (or unticks) task `n` (from 1) of intent `id`.
+    /// Ticks (or unticks) task `n` (from 1) of intent `id`: that task's `done`, and nothing else.
     pub fn intent_tick(&self, id: &str, n: usize, done: bool) -> Result<()> {
-        let mut i = self.open_intent(id)?;
-        let t = i.tasks.get_mut(n.wrapping_sub(1)).ok_or_else(|| format!("no task {n}"))?;
-        t.done = done;
-        self.save_intent(id, &i)
+        self.change_intent(id, |doc, i| {
+            open(i)?;
+            let task = map_at(&doc.get_list("tasks"), n.wrapping_sub(1)).ok_or_else(|| format!("no task {n}"))?;
+            task.insert("done", done).map_err(err)
+        })
     }
 
     /// Moves intent `id` to draft or building, the states its agent sets; `reason` says why when it goes back.
@@ -226,17 +243,20 @@ impl TheDB {
         if !matches!(state, State::Draft | State::Building) {
             return Err(format!("an intent becomes {} by its checks, `ready` or a person, not by hand", state.name()));
         }
-        let mut i = self.open_intent(id)?;
-        i.state = state;
-        i.reason = reason.map(str::to_string);
-        self.save_intent(id, &i)
+        self.change_intent(id, |doc, i| {
+            open(i)?;
+            let m = doc.get_map("intent");
+            set_text(&m, "state", Some(state.name()))?;
+            set_text(&m, "reason", reason)
+        })
     }
 
-    /// Intent `id` is ready: the versions its line changed are taken as they are now, and it waits for a person.
+    /// Intent `id` is ready: the versions its line changed are taken as they are now, and it waits for its owner.
     pub fn intent_ready(&self, id: &str) -> Result<()> {
-        let mut i = self.open_intent(id)?;
+        let i = self.intent(id)?;
+        open(&i)?;
         if i.state == State::Proposal {
-            return Err("the intent waits for a person already".into());
+            return Err("the intent waits for its owner already".into());
         }
         let line = i.line.clone().ok_or("the intent has no line: an agent takes it up first")?;
         let mut docs = BTreeMap::new();
@@ -248,10 +268,20 @@ impl TheDB {
         if docs.is_empty() {
             return Err(format!("the line {line} changes nothing"));
         }
-        i.docs = docs;
-        i.state = State::Proposal;
-        i.reason = None;
-        self.save_intent(id, &i)
+        self.change_intent(id, |doc, _| {
+            let d = doc.get_map("docs");
+            for k in d.keys().map(|k| k.to_string()).collect::<Vec<_>>() {
+                if !docs.contains_key(&k) {
+                    d.delete(&k).map_err(err)?;
+                }
+            }
+            for (k, v) in &docs {
+                set_text(&d, k, Some(v))?;
+            }
+            let m = doc.get_map("intent");
+            set_text(&m, "state", Some(State::Proposal.name()))?;
+            set_text(&m, "reason", None)
+        })
     }
 
     /// An intent for what `line` changes, ready at once: how the host proposes its builds. Returns its id.
@@ -261,13 +291,6 @@ impl TheDB {
         Ok(id)
     }
 
-    fn open_intent(&self, id: &str) -> Result<Intent> {
-        let i = self.intent(id)?;
-        if !i.state.is_open() {
-            return Err(format!("the intent is {} already", i.state.name()));
-        }
-        Ok(i)
-    }
 
     /// Accepts intent `id`: its versions, merged with what main holds now, become main's. Its owner accepts it in
     /// theOS: the merge is made by the host (or the owner), never by an agent, and, once the owner signs merges
@@ -295,32 +318,103 @@ impl TheDB {
             i.accepted_by = Some(s);
         }
         // git as an archive: main's code as it is, kept before a merge that brings code
-        if i.docs.keys().any(|d| matches!(self.meta(d).map(|m| m.0).as_deref(), Ok("source" | "tree" | "root")))
+        if i.docs.keys().any(|d| matches!(self.meta(d).map(|m| m.0).as_deref(), Ok("code" | "root")))
             && let Some(repo) = self.archive_repo()
             && let Err(e) = self.archive_code(&repo, &format!("theDB main before “{}”", i.title))
         {
             eprintln!("thedb: the archive in git: {e}");
         }
         self.merge_into_main(&versions)?;
-        i.state = State::Merged;
-        self.save_intent(id, &i)
+        let signed = i.accepted_by.take();
+        self.change_intent(id, |doc, _| {
+            if let Some(s) = &signed {
+                let by = doc.get_map("accepted_by");
+                by.insert("key", s.key.as_str()).map_err(err)?;
+                by.insert("sig", s.sig.as_str()).map_err(err)?;
+                by.insert("at", s.at as i64).map_err(err)?;
+            }
+            set_text(&doc.get_map("intent"), "state", Some(State::Merged.name()))
+        })
     }
 
     /// Refuses intent `id`: main stays as it is; the line keeps its work.
     pub fn refuse(&self, id: &str) -> Result<()> {
-        let mut i = self.open_intent(id)?;
         self.is_owner_or_host()?;
-        i.state = State::Refused;
-        self.save_intent(id, &i)
+        self.change_intent(id, |doc, i| {
+            open(i)?;
+            set_text(&doc.get_map("intent"), "state", Some(State::Refused.name()))
+        })
+    }
+}
+
+/// Refused for a closed intent: merged or refused, it is history.
+fn open(i: &Intent) -> Result<()> {
+    if !i.state.is_open() {
+        return Err(format!("the intent is {} already", i.state.name()));
+    }
+    Ok(())
+}
+
+fn text_of(map: &loro::LoroMap, key: &str) -> Option<String> {
+    map.get(key)?.into_value().ok()?.into_string().ok().map(|s| s.to_string())
+}
+
+fn set_text(map: &loro::LoroMap, key: &str, value: Option<&str>) -> Result<()> {
+    if text_of(map, key).as_deref() == value {
+        return Ok(());
+    }
+    match value {
+        Some(v) => map.insert(key, v).map_err(err),
+        None => map.delete(key).map_err(err),
+    }
+}
+
+fn state_of(name: &str) -> Option<State> {
+    Some(match name {
+        "draft" => State::Draft,
+        "building" => State::Building,
+        "checked" => State::Checked,
+        "proposal" => State::Proposal,
+        "merged" => State::Merged,
+        "refused" => State::Refused,
+        _ => return None,
+    })
+}
+
+/// The map in list `list` at `n`.
+fn map_at(list: &loro::LoroList, n: usize) -> Option<loro::LoroMap> {
+    match list.get(n)? {
+        loro::ValueOrContainer::Container(loro::Container::Map(m)) => Some(m),
+        _ => None,
     }
 }
 
 fn read(doc: &loro::LoroDoc) -> Option<Intent> {
-    let text = |map: &str| doc.get_map(map).get("it")?.into_value().ok()?.into_string().ok().map(|s| s.to_string());
-    if let Some(t) = text("intent") {
-        return serde_json::from_str(&t).ok();
+    let m = doc.get_map("intent");
+    if let Some(title) = text_of(&m, "title") {
+        let tasks = doc.get_list("tasks");
+        let docs = doc.get_map("docs");
+        let by = doc.get_map("accepted_by");
+        return Some(Intent {
+            title,
+            why: text_of(&m, "why").unwrap_or_default(),
+            done_when: text_of(&m, "done_when").unwrap_or_default(),
+            tasks: (0..tasks.len())
+                .filter_map(|n| map_at(&tasks, n))
+                .map(|t| Task { text: text_of(&t, "text").unwrap_or_default(), done: t.get("done").and_then(|v| v.into_value().ok()).and_then(|v| v.into_bool().ok()).unwrap_or(false) })
+                .collect(),
+            line: text_of(&m, "line"),
+            docs: docs.keys().filter_map(|k| Some((k.to_string(), text_of(&docs, &k)?))).collect(),
+            state: state_of(&text_of(&m, "state")?)?,
+            reason: text_of(&m, "reason"),
+            accepted_by: match (text_of(&by, "key"), text_of(&by, "sig"), by.get("at").and_then(|v| v.into_value().ok()).and_then(|v| v.into_i64().ok())) {
+                (Some(key), Some(sig), Some(at)) => Some(crate::access::Signed { key, sig, at: at as u64 }),
+                _ => None,
+            },
+        });
     }
-    let l: Legacy = serde_json::from_str(&text("proposal")?).ok()?;
+    let p = doc.get_map("proposal").get("it")?.into_value().ok()?.into_string().ok()?;
+    let l: Legacy = serde_json::from_str(&p).ok()?;
     Some(Intent {
         title: l.note,
         why: String::new(),
@@ -336,6 +430,44 @@ fn read(doc: &loro::LoroDoc) -> Option<Intent> {
         reason: None,
         accepted_by: None,
     })
+}
+
+/// Makes `doc` hold intent `i`, changing only what differs: each field, each task, each doc it brings.
+fn write(doc: &loro::LoroDoc, i: &Intent) -> Result<()> {
+    let m = doc.get_map("intent");
+    set_text(&m, "title", Some(&i.title))?;
+    set_text(&m, "why", Some(&i.why))?;
+    set_text(&m, "done_when", Some(&i.done_when))?;
+    set_text(&m, "state", Some(i.state.name()))?;
+    set_text(&m, "line", i.line.as_deref())?;
+    set_text(&m, "reason", i.reason.as_deref())?;
+    let tasks = doc.get_list("tasks");
+    for (n, t) in i.tasks.iter().enumerate() {
+        let task = match map_at(&tasks, n) {
+            Some(task) => task,
+            None => tasks.push_container(loro::LoroMap::new()).map_err(err)?,
+        };
+        set_text(&task, "text", Some(&t.text))?;
+        if task.get("done").and_then(|v| v.into_value().ok()).and_then(|v| v.into_bool().ok()) != Some(t.done) {
+            task.insert("done", t.done).map_err(err)?;
+        }
+    }
+    let docs = doc.get_map("docs");
+    for k in docs.keys().map(|k| k.to_string()).collect::<Vec<_>>() {
+        if !i.docs.contains_key(&k) {
+            docs.delete(&k).map_err(err)?;
+        }
+    }
+    for (d, v) in &i.docs {
+        set_text(&docs, d, Some(v))?;
+    }
+    if let Some(s) = &i.accepted_by {
+        let by = doc.get_map("accepted_by");
+        set_text(&by, "key", Some(&s.key))?;
+        set_text(&by, "sig", Some(&s.sig))?;
+        by.insert("at", s.at as i64).map_err(err)?;
+    }
+    Ok(())
 }
 
 /// A lock held while it lives: a file made only if it does not exist. A holder whose process is gone is no holder.
@@ -388,5 +520,32 @@ impl TheDB {
             n += 1;
         }
         Ok(n)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// An intent is held in Loro's own maps and lists: two writers who tick two tasks, and add one each, at the same
+    /// time are all kept when their versions meet.
+    #[test]
+    fn two_writers_tick_two_tasks_and_every_change_stays() {
+        let doc = loro::LoroDoc::new();
+        let task = |t: &str| Task { text: t.into(), done: false };
+        let i = Intent { title: "t".into(), why: String::new(), done_when: String::new(), tasks: vec![task("a"), task("b")], line: None, docs: BTreeMap::new(), state: State::Building, reason: None, accepted_by: None };
+        write(&doc, &i).unwrap();
+        doc.commit();
+        let (a, b) = (doc.fork(), doc.fork());
+        map_at(&a.get_list("tasks"), 0).unwrap().insert("done", true).unwrap();
+        a.get_list("tasks").push_container(loro::LoroMap::new()).unwrap().insert("text", "from a").unwrap();
+        a.commit();
+        map_at(&b.get_list("tasks"), 1).unwrap().insert("done", true).unwrap();
+        b.get_list("tasks").push_container(loro::LoroMap::new()).unwrap().insert("text", "from b").unwrap();
+        b.commit();
+        a.import(&b.export(loro::ExportMode::all_updates()).unwrap()).unwrap();
+        let merged = read(&a).unwrap();
+        assert_eq!(merged.tasks.iter().filter(|t| t.done).count(), 2, "both ticks");
+        assert_eq!(merged.tasks.len(), 4, "both new tasks");
     }
 }

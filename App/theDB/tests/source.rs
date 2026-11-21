@@ -144,3 +144,45 @@ fn a_host_build_comes_from_a_lines_code() {
     let _ = Command::new("chmod").args(["-R", "u+w"]).arg(&repo).status();
     let _ = std::fs::remove_dir_all(&repo);
 }
+
+/// The code is one Loro tree: a folder moved on a line merges with an edit main made inside it meanwhile; what both
+/// sides really changed (one file's text, one new path) is shown by its path, and so is a file whose folder main took.
+#[test]
+fn a_folder_moves_with_its_edits_and_real_collisions_are_shown() {
+    let repo = repo("tree");
+    let mut db = store(&repo);
+    let (code, _) = db.import_code(&repo).unwrap();
+    db.accept(&code).unwrap();
+    // a line moves the whole folder, one op; main edits a file in it meanwhile
+    db.make_branch("line-ada", "").unwrap();
+    db.set_branch(Some("line-ada")).unwrap();
+    db.file_move("App/src", "App/lib").unwrap();
+    db.set_branch(None).unwrap();
+    db.file_edit("App/src/main.rs", "\"hello\"", "\"hello from main\"").unwrap();
+    let p = db.propose("line-ada", "src becomes lib").unwrap();
+    let c = db.intent_conflicts(&p).unwrap();
+    assert!(c.is_empty(), "{c:?}");
+    db.accept(&p).unwrap();
+    assert_eq!(db.files().unwrap(), ["App/Cargo.toml", "App/assets/icon.png", "App/lib/main.rs"]);
+    assert!(db.file_text("App/lib/main.rs").unwrap().contains("hello from main"), "main's edit went with the file");
+
+    // both change one file's text, both make one path, and main takes a folder the line added to
+    db.make_branch("line-bo", "").unwrap();
+    db.set_branch(Some("line-bo")).unwrap();
+    db.file_edit("App/lib/main.rs", "hello from main", "hello from bo").unwrap();
+    db.file_write("App/lib/new.rs", "// bo's\n").unwrap();
+    db.file_write("App/assets/more.txt", "bo's\n").unwrap();
+    db.set_branch(None).unwrap();
+    db.file_edit("App/lib/main.rs", "hello from main", "hello again").unwrap();
+    db.file_write("App/lib/new.rs", "// main's\n").unwrap();
+    db.file_delete("App/assets").unwrap();
+    let p = db.propose("line-bo", "bo's hello").unwrap();
+    let c: Vec<String> = db.intent_conflicts(&p).unwrap().into_iter().map(|c| c.path).collect();
+    for want in ["App/lib/main.rs (text)", "App/lib/new.rs (made on both sides)", "App/assets/more.txt (taken away with its folder on main)"] {
+        assert!(c.iter().any(|x| x == want), "{want} in {c:?}");
+    }
+    assert!(db.accept(&p).unwrap_err().contains("conflicts with main"));
+    drop(db);
+    let _ = Command::new("chmod").args(["-R", "u+w"]).arg(&repo).status();
+    let _ = std::fs::remove_dir_all(&repo);
+}

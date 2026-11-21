@@ -1,43 +1,167 @@
-//! Code as docs (intent 0059, step 1d). Every source file is a doc of kind `source`: its text a Loro text, so every
-//! edit is an op with its writer, merged like any doc; a file that is not text (an icon) is a blob the doc names. The
-//! tree is a doc of kind `tree` (the root names it as `source`) whose map `files` maps each path to its file's doc: a
-//! rename changes a path, and the file keeps its doc, its identity and its history. A line changes code as it changes
-//! anything, by its own versions of these docs, merged into main when its owner accepts the intent.
+//! Code as one Loro doc (intent 0059, step 1d): no paths as keys, no doc per file. The host's code is a doc of kind
+//! `code` (the root names it as `code`) holding a Loro movable tree, `files`: a node for every folder and every file,
+//! its name in its metadata, and in a file's node its text as a Loro text (an icon: the hash of its blob). A node is a
+//! file's identity: a rename or a move is one op on it (a whole folder too), and merges with edits made meanwhile, by
+//! main or a line, to what it holds; a path is only how a node is reached and named. One version of the doc is one
+//! state of all the code; a line's code is its version of this one doc.
 //!
-//! Nothing is edited in a folder. The builder writes a projection of a line's tree for `cargo` (`project`): read
+//! Nothing is edited in a folder. The builder writes a projection of a line's code for `cargo` (`project`): read
 //! only, rewriting only what changed, at one place for every line (`build/src` in the store), with one target
 //! (`build/target`), one build at a time (`build_start`, `build_status`); a tree is never built from scratch twice.
-//! Git is an archive: before each merge that brings code, main's tree is committed onto `refs/heads/archive` of the
+//! Git is an archive: before each merge that brings code, main's code is committed onto `refs/heads/archive` of the
 //! repository the store lives in, without touching any working tree or index (`archive_code`).
 
 use crate::{Hash, Result, TheDB, err};
+use loro::{LoroDoc, LoroText, LoroTree, TreeID, TreeParentId, ValueOrContainer};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-/// The tree: its doc, and each path's file doc.
-#[derive(Clone, Debug, Default)]
-pub struct Tree {
-    pub id: String,
-    pub files: BTreeMap<String, String>,
-}
+/// The movable tree in a code doc.
+pub(crate) const TREE: &str = "files";
 
 /// What a projection wrote.
 #[derive(Clone, Debug)]
 pub struct Projected {
-    /// The tree's hash: every path with its content's hash.
+    /// The code's hash: every path with its content's hash.
     pub hash: Hash,
     pub files: usize,
     pub written: usize,
     pub removed: usize,
 }
 
-/// A path in the tree: relative, `/` between its parts, none of them empty, `.` or `..`.
+/// A path: relative, `/` between its parts, none of them empty, `.` or `..`.
 fn check_path(path: &str) -> Result<()> {
     if path.is_empty() || path.starts_with('/') || path.contains('\\') || path.split('/').any(|p| p.is_empty() || p == "." || p == "..") {
-        return Err(format!("not a path in the tree: {path:?}"));
+        return Err(format!("not a path: {path:?}"));
     }
     Ok(())
+}
+
+fn split(path: &str) -> (Option<&str>, &str) {
+    match path.rsplit_once('/') {
+        Some((dir, name)) => (Some(dir), name),
+        None => (None, path),
+    }
+}
+
+fn meta_str(tree: &LoroTree, node: TreeID, key: &str) -> Option<String> {
+    let v = tree.get_meta(node).ok()?.get(key)?.into_value().ok()?;
+    v.into_string().ok().map(|s| s.to_string())
+}
+
+/// A file node's text, if it holds one.
+fn node_text(tree: &LoroTree, node: TreeID) -> Option<LoroText> {
+    match tree.get_meta(node).ok()?.get("text")? {
+        ValueOrContainer::Container(loro::Container::Text(t)) => Some(t),
+        _ => None,
+    }
+}
+
+/// Every live node: its path, its id, whether it is a file. Two nodes can share a path after a merge (two lines made
+/// the same file): both are here.
+pub(crate) fn nodes(doc: &LoroDoc) -> Vec<(String, TreeID, bool)> {
+    let tree = doc.get_tree(TREE);
+    let mut out = Vec::new();
+    let mut todo: Vec<(TreeID, String)> = tree.roots().into_iter().filter_map(|r| Some((r, meta_str(&tree, r, "name")?))).collect();
+    while let Some((node, path)) = todo.pop() {
+        out.push((path.clone(), node, meta_str(&tree, node, "kind").as_deref() == Some("file")));
+        for c in tree.children(node).unwrap_or_default() {
+            if let Some(name) = meta_str(&tree, c, "name") {
+                todo.push((c, format!("{path}/{name}")));
+            }
+        }
+    }
+    out
+}
+
+/// Every live node by its path, and whether it is a file.
+pub(crate) fn index(doc: &LoroDoc) -> BTreeMap<String, (TreeID, bool)> {
+    nodes(doc).into_iter().map(|(p, n, f)| (p, (n, f))).collect()
+}
+
+/// What a code doc holds, node by node, for finding conflicts: each live node's name, parent, and text or blob,
+/// under `/files/<node>/…`; a node is its identity, so a move and an edit of what it holds are different leaves.
+pub(crate) fn leaves(doc: &LoroDoc, out: &mut BTreeMap<String, Value>) {
+    let tree = doc.get_tree(TREE);
+    for (_, node, _) in nodes(doc) {
+        let p = format!("/{TREE}/{node}");
+        out.insert(format!("{p}/name"), json!(meta_str(&tree, node, "name")));
+        let parent = match tree.parent(node) {
+            Some(TreeParentId::Node(n)) => n.to_string(),
+            _ => "root".to_string(),
+        };
+        out.insert(format!("{p}/parent"), json!(parent));
+        if let Some(t) = node_text(&tree, node) {
+            out.insert(format!("{p}/text"), json!(t.to_string()));
+        }
+        if let Some(b) = meta_str(&tree, node, "blob") {
+            out.insert(format!("{p}/blob"), json!(b));
+        }
+    }
+}
+
+/// The bytes of a file node: its text, or the blob it names (read through `blob`).
+fn node_bytes(tree: &LoroTree, node: TreeID, blob: impl Fn(Hash) -> Result<Vec<u8>>) -> Result<Vec<u8>> {
+    if let Some(h) = meta_str(tree, node, "blob") {
+        return blob(h.parse().map_err(err)?);
+    }
+    Ok(node_text(tree, node).map(|t| t.to_string()).unwrap_or_default().into_bytes())
+}
+
+/// The folder at `path`, made (with every folder above it) where it is missing.
+fn ensure_dir(tree: &LoroTree, idx: &mut BTreeMap<String, (TreeID, bool)>, path: Option<&str>) -> Result<TreeParentId> {
+    let Some(path) = path else { return Ok(TreeParentId::Root) };
+    if let Some((node, file)) = idx.get(path) {
+        return if *file { Err(format!("{path} is a file, not a folder")) } else { Ok(TreeParentId::Node(*node)) };
+    }
+    let (above, name) = split(path);
+    let parent = ensure_dir(tree, idx, above)?;
+    let node = tree.create(parent).map_err(err)?;
+    let meta = tree.get_meta(node).map_err(err)?;
+    meta.insert("name", name).map_err(err)?;
+    meta.insert("kind", "dir").map_err(err)?;
+    idx.insert(path.to_string(), (node, false));
+    Ok(TreeParentId::Node(node))
+}
+
+/// The file node at `path`, made where it is missing. Whether it was made.
+fn ensure_file(tree: &LoroTree, idx: &mut BTreeMap<String, (TreeID, bool)>, path: &str) -> Result<(TreeID, bool)> {
+    check_path(path)?;
+    if let Some((node, file)) = idx.get(path) {
+        return if *file { Ok((*node, false)) } else { Err(format!("{path} is a folder")) };
+    }
+    let (dir, name) = split(path);
+    let parent = ensure_dir(tree, idx, dir)?;
+    let node = tree.create(parent).map_err(err)?;
+    let meta = tree.get_meta(node).map_err(err)?;
+    meta.insert("name", name).map_err(err)?;
+    meta.insert("kind", "file").map_err(err)?;
+    idx.insert(path.to_string(), (node, true));
+    Ok((node, true))
+}
+
+/// Writes `text` into the file at `path` of `doc` (only what changed). Whether anything changed.
+fn put_text(doc: &LoroDoc, idx: &mut BTreeMap<String, (TreeID, bool)>, path: &str, text: &str) -> Result<bool> {
+    let tree = doc.get_tree(TREE);
+    let (node, made) = ensure_file(&tree, idx, path)?;
+    let meta = tree.get_meta(node).map_err(err)?;
+    let was_blob = meta.get("blob").is_some();
+    if was_blob {
+        meta.delete("blob").map_err(err)?;
+    }
+    // a mergeable text: two writers who give the same node its text at once write into one text, not two
+    let t = meta.ensure_mergeable_text("text").map_err(err)?;
+    if !made && !was_blob && t.to_string() == text {
+        return Ok(false);
+    }
+    // never read as JSON: a source file stays text, whatever it looks like
+    t.update(text, Default::default()).map_err(err)?;
+    Ok(true)
+}
+
+fn is_text(bytes: &[u8]) -> Option<&str> {
+    std::str::from_utf8(bytes).ok().filter(|t| !t.chars().any(|c| c.is_control() && !matches!(c, '\n' | '\r' | '\t')))
 }
 
 fn writable(path: &Path, yes: bool) {
@@ -78,61 +202,70 @@ impl TheDB {
         Ok((root, v))
     }
 
-    /// The tree the root names (`source`), as this process's branch sees it; none before code is imported.
-    pub fn source_tree(&self) -> Result<Option<Tree>> {
-        let (_, root) = self.root_json()?;
-        let Some(id) = root.get("source").and_then(Value::as_str) else { return Ok(None) };
-        let v: Value = serde_json::from_str(&self.text(id)?.unwrap_or_else(|| "{}".into())).map_err(err)?;
-        let files = v.get("files").and_then(Value::as_object).map(|m| m.iter().filter_map(|(p, d)| Some((p.clone(), d.as_str()?.to_string()))).collect()).unwrap_or_default();
-        Ok(Some(Tree { id: id.to_string(), files }))
+    /// The code doc's id, as this process's branch sees the root; none before code is brought in.
+    pub fn code_id(&self) -> Result<Option<String>> {
+        Ok(self.root_json()?.1.get("code").and_then(Value::as_str).map(str::to_string))
     }
 
-    /// The tree as main has it, whatever branch this process is on.
-    fn main_tree(&self) -> Result<Option<Tree>> {
-        let Some(root) = self.root()? else { return Ok(None) };
-        let read = |id: &str| -> Result<Value> {
-            match self.head_on(None, id)? {
-                Some(h) => serde_json::from_slice(&self.file_at(h)?).map_err(err),
-                None => Ok(json!({})),
-            }
-        };
-        let Some(id) = read(&root)?.get("source").and_then(Value::as_str).map(str::to_string) else { return Ok(None) };
-        let v = read(&id)?;
-        let files = v.get("files").and_then(Value::as_object).map(|m| m.iter().filter_map(|(p, d)| Some((p.clone(), d.as_str()?.to_string()))).collect()).unwrap_or_default();
-        Ok(Some(Tree { id, files }))
-    }
-
-    fn tree_or_new(&self) -> Result<Tree> {
-        if let Some(t) = self.source_tree()? {
-            return Ok(t);
+    fn code_id_or_new(&self) -> Result<String> {
+        if let Some(id) = self.code_id()? {
+            return Ok(id);
         }
-        let id = self.new("tree", "the host's source")?;
+        let id = self.new("code", "the host's code")?;
         let (root, mut v) = self.root_json()?;
-        v["source"] = json!(id);
+        v["code"] = json!(id);
         self.set_text(&root, &serde_json::to_string_pretty(&v).map_err(err)?)?;
-        Ok(Tree { id, files: BTreeMap::new() })
+        Ok(id)
     }
 
-    fn save_tree(&self, t: &Tree) -> Result<()> {
-        self.set_text(&t.id, &serde_json::to_string_pretty(&json!({ "files": t.files })).map_err(err)?).map(|_| ())
+    /// The code doc as this process's branch sees it.
+    pub fn code(&self) -> Result<LoroDoc> {
+        let id = self.code_id()?.ok_or("this store has no code yet: `theDB source import <repo>`")?;
+        self.doc(&id)
     }
 
-    fn tree_has(&self) -> Result<Tree> {
-        self.source_tree()?.ok_or_else(|| "this store has no code yet: `theDB source import <repo>`".to_string())
+    /// The code doc as main has it, whatever branch this process is on; none before code is brought in.
+    fn main_code(&self) -> Result<Option<LoroDoc>> {
+        let Some(root) = self.root()? else { return Ok(None) };
+        let Some(h) = self.head_on(None, &root)? else { return Ok(None) };
+        let v: Value = serde_json::from_slice(&self.file_at(h)?).map_err(err)?;
+        let Some(id) = v.get("code").and_then(Value::as_str) else { return Ok(None) };
+        match self.head_on(None, id)? {
+            Some(h) => Ok(Some(self.doc_at(h)?)),
+            None => Ok(None),
+        }
     }
 
-    /// Every path in the tree.
+    fn blob(&self, h: Hash) -> Result<Vec<u8>> {
+        Ok(self.get(h)?.ok_or_else(|| format!("no blob {h}"))?.to_vec())
+    }
+
+    /// Changes the code on this process's branch with `change` (given the doc and its index), and commits once.
+    fn change_code<T>(&self, change: impl FnOnce(&LoroDoc, &mut BTreeMap<String, (TreeID, bool)>) -> Result<T>) -> Result<T> {
+        let id = self.code_id_or_new()?;
+        let doc = self.edit(&id)?;
+        let mut idx = index(&doc);
+        let out = change(&doc, &mut idx)?;
+        self.commit(&id, &doc)?;
+        Ok(out)
+    }
+
+    /// Every file's path.
     pub fn files(&self) -> Result<Vec<String>> {
-        Ok(self.source_tree()?.map(|t| t.files.into_keys().collect()).unwrap_or_default())
-    }
-
-    fn file_doc(&self, path: &str) -> Result<String> {
-        self.tree_has()?.files.get(path).cloned().ok_or_else(|| format!("no file {path}"))
+        if self.code_id()?.is_none() {
+            return Ok(vec![]);
+        }
+        Ok(index(&self.code()?).into_iter().filter(|(_, (_, f))| *f).map(|(p, _)| p).collect())
     }
 
     /// The file at `path`, as bytes.
     pub fn file_bytes(&self, path: &str) -> Result<Vec<u8>> {
-        self.file(&self.file_doc(path)?)?.ok_or_else(|| format!("the file {path} has no version"))
+        let doc = self.code()?;
+        let (node, file) = *index(&doc).get(path).ok_or_else(|| format!("no file {path}"))?;
+        if !file {
+            return Err(format!("{path} is a folder"));
+        }
+        node_bytes(&doc.get_tree(TREE), node, |h| self.blob(h))
     }
 
     /// The file at `path`, as text; a file that is not text is refused.
@@ -140,55 +273,31 @@ impl TheDB {
         String::from_utf8(self.file_bytes(path)?).map_err(|_| format!("{path} is not text"))
     }
 
-    /// Keeps `text` as the file at `path`, on this process's branch: an edit of the file's text (only what changed), or
-    /// a new file. Returns the version's hash (unchanged: the version it has).
-    pub fn file_write(&self, path: &str, text: &str) -> Result<Hash> {
-        check_path(path)?;
-        let mut tree = self.tree_or_new()?;
-        let id = match tree.files.get(path) {
-            Some(id) => id.clone(),
-            None => {
-                let id = self.new("source", path)?;
-                tree.files.insert(path.to_string(), id.clone());
-                self.save_tree(&tree)?;
-                id
-            }
-        };
-        let doc = self.edit(&id)?;
-        let t = doc.get_text("text");
-        if t.to_string() == text
-            && let Some(h) = self.head(&id)?
-        {
-            return Ok(h);
-        }
-        // never read as JSON: a source file stays text, whatever it looks like
-        t.update(text, Default::default()).map_err(err)?;
-        self.commit(&id, &doc)
+    /// Keeps `text` as the file at `path`, on this process's branch: an edit of its text (only what changed), or a
+    /// new file (and its folders).
+    pub fn file_write(&self, path: &str, text: &str) -> Result<()> {
+        self.change_code(|doc, idx| put_text(doc, idx, path, text)).map(|_| ())
     }
 
-    /// Keeps `bytes` as the file at `path`: text as text, anything else as a blob.
-    pub fn file_write_bytes(&self, path: &str, bytes: &[u8]) -> Result<Hash> {
-        match std::str::from_utf8(bytes) {
-            Ok(text) if !text.chars().any(|c| c.is_control() && !matches!(c, '\n' | '\r' | '\t')) => self.file_write(path, text),
-            _ => {
-                check_path(path)?;
-                let mut tree = self.tree_or_new()?;
-                let id = match tree.files.get(path) {
-                    Some(id) => id.clone(),
-                    None => {
-                        let id = self.new("source", path)?;
-                        tree.files.insert(path.to_string(), id.clone());
-                        self.save_tree(&tree)?;
-                        id
-                    }
-                };
-                self.set_file(&id, bytes)
+    /// Keeps `bytes` as the file at `path`: text as text, anything else as a blob the node names.
+    pub fn file_write_bytes(&self, path: &str, bytes: &[u8]) -> Result<()> {
+        match is_text(bytes) {
+            Some(text) => self.file_write(path, text),
+            None => {
+                let blob = self.put(bytes.to_vec())?.to_hex().to_string();
+                self.change_code(|doc, idx| {
+                    let tree = doc.get_tree(TREE);
+                    let (node, _) = ensure_file(&tree, idx, path)?;
+                    let meta = tree.get_meta(node).map_err(err)?;
+                    meta.delete("text").map_err(err)?;
+                    meta.insert("blob", blob.as_str()).map_err(err)
+                })
             }
         }
     }
 
     /// Replaces the one place `old` stands in the file at `path` with `new`; refused where `old` is not there once.
-    pub fn file_edit(&self, path: &str, old: &str, new: &str) -> Result<Hash> {
+    pub fn file_edit(&self, path: &str, old: &str, new: &str) -> Result<()> {
         let text = self.file_text(path)?;
         match text.matches(old).count() {
             1 => self.file_write(path, &text.replacen(old, new, 1)),
@@ -197,32 +306,44 @@ impl TheDB {
         }
     }
 
-    /// Moves the file at `from` to `to`: the same doc, under a new path.
+    /// Moves the file or folder at `from` to `to`: one op on its node, which keeps its identity and history (a
+    /// folder takes everything in it along).
     pub fn file_move(&self, from: &str, to: &str) -> Result<()> {
         check_path(to)?;
-        let mut tree = self.tree_has()?;
-        if tree.files.contains_key(to) {
-            return Err(format!("{to} is there already"));
-        }
-        let id = tree.files.remove(from).ok_or_else(|| format!("no file {from}"))?;
-        tree.files.insert(to.to_string(), id);
-        self.save_tree(&tree)
+        self.change_code(|doc, idx| {
+            let tree = doc.get_tree(TREE);
+            if idx.contains_key(to) {
+                return Err(format!("{to} is there already"));
+            }
+            let (node, _) = *idx.get(from).ok_or_else(|| format!("no file or folder {from}"))?;
+            let (dir, name) = split(to);
+            if dir.is_some_and(|d| d == from || d.starts_with(&format!("{from}/"))) {
+                return Err(format!("{from} cannot go inside itself"));
+            }
+            let parent = ensure_dir(&tree, idx, dir)?;
+            if tree.parent(node) != Some(parent) {
+                tree.mov(node, parent).map_err(err)?;
+            }
+            tree.get_meta(node).map_err(err)?.insert("name", name).map_err(err)
+        })
     }
 
-    /// Takes the file at `path` out of the tree (its doc and history stay).
+    /// Takes the file or folder at `path` out (its history stays in the doc).
     pub fn file_delete(&self, path: &str) -> Result<()> {
-        let mut tree = self.tree_has()?;
-        tree.files.remove(path).ok_or_else(|| format!("no file {path}"))?;
-        self.save_tree(&tree)
+        self.change_code(|doc, idx| {
+            let (node, _) = *idx.get(path).ok_or_else(|| format!("no file or folder {path}"))?;
+            doc.get_tree(TREE).delete(node).map_err(err)
+        })
     }
 
     /// The lines that hold `needle`, in every text file: path, line number (from 1), the line; at most `max`.
     pub fn file_search(&self, needle: &str, max: usize) -> Result<Vec<(String, usize, String)>> {
+        let doc = self.code()?;
+        let tree = doc.get_tree(TREE);
         let mut out = Vec::new();
-        for (path, id) in self.tree_has()?.files {
-            let Some(bytes) = self.file(&id)? else { continue };
-            let Ok(text) = String::from_utf8(bytes) else { continue };
-            for (i, line) in text.lines().enumerate() {
+        for (path, (node, file)) in index(&doc) {
+            let Some(text) = node_text(&tree, node).filter(|_| file) else { continue };
+            for (i, line) in text.to_string().lines().enumerate() {
                 if line.contains(needle) {
                     out.push((path.clone(), i + 1, line.to_string()));
                     if out.len() >= max {
@@ -235,25 +356,46 @@ impl TheDB {
     }
 
     /// Brings the files of the git checkout `repo` under `under` (`App`), as its HEAD has them, into this process's
-    /// branch: changed files as edits, new ones made, ones git no longer has taken out of the tree. The checkout must be
-    /// clean there. Returns how many files changed.
+    /// branch, in one commit: changed files as edits, new ones made, ones git no longer has taken out. The checkout
+    /// must be clean there. Returns how many files changed.
     pub fn source_import(&self, repo: &Path, under: &str) -> Result<usize> {
         if !git(repo, &["status", "--porcelain", "--", under], None, &[])?.is_empty() {
             return Err(format!("{under}/ has changes not committed: code is brought in from a commit"));
         }
         let paths: BTreeSet<String> = git(repo, &["ls-files", "--", under], None, &[])?.lines().map(str::to_string).collect();
-        let mut changed = 0;
+        let mut blobs = BTreeMap::new();
+        let mut texts = BTreeMap::new();
         for path in &paths {
             let bytes = std::fs::read(repo.join(path)).map_err(|e| format!("{path}: {e}"))?;
-            let before = self.source_tree()?.and_then(|t| t.files.get(path).cloned()).and_then(|id| self.head(&id).ok().flatten());
-            let after = self.file_write_bytes(path, &bytes)?;
-            changed += usize::from(before != Some(after));
+            match is_text(&bytes) {
+                Some(t) => _ = texts.insert(path.clone(), t.to_string()),
+                None => _ = blobs.insert(path.clone(), self.put(bytes)?.to_hex().to_string()),
+            }
         }
-        let gone: Vec<String> = self.files()?.into_iter().filter(|p| p.starts_with(&format!("{under}/")) && !paths.contains(p)).collect();
-        for p in &gone {
-            self.file_delete(p)?;
-        }
-        Ok(changed + gone.len())
+        self.change_code(|doc, idx| {
+            let tree = doc.get_tree(TREE);
+            let mut changed = 0;
+            for (path, text) in &texts {
+                changed += usize::from(put_text(doc, idx, path, text)?);
+            }
+            for (path, blob) in &blobs {
+                let (node, made) = ensure_file(&tree, idx, path)?;
+                let meta = tree.get_meta(node).map_err(err)?;
+                if made || meta_str(&tree, node, "blob").as_deref() != Some(blob) {
+                    meta.delete("text").map_err(err)?;
+                    meta.insert("blob", blob.as_str()).map_err(err)?;
+                    changed += 1;
+                }
+            }
+            let prefix = format!("{under}/");
+            for (path, (node, file)) in idx.clone() {
+                if file && path.starts_with(&prefix) && !paths.contains(&path) {
+                    tree.delete(node).map_err(err)?;
+                    changed += 1;
+                }
+            }
+            Ok(changed)
+        })
     }
 
     /// Brings the code of the git checkout `repo` (`App/`, at its HEAD, clean) into theDB: onto a branch of its own,
@@ -273,24 +415,35 @@ impl TheDB {
         Ok((id, n))
     }
 
-    /// Writes this process's branch's tree into `dir`: each file only where it differs, read only (but `Cargo.lock`,
-    /// which `cargo` may bring up to date), and what the tree no longer has removed.
+    /// Every file of `doc` with its bytes, by path.
+    fn all_files(&self, doc: &LoroDoc) -> Result<BTreeMap<String, Vec<u8>>> {
+        let tree = doc.get_tree(TREE);
+        let mut out = BTreeMap::new();
+        for (path, (node, file)) in index(doc) {
+            if file {
+                out.insert(path, node_bytes(&tree, node, |h| self.blob(h))?);
+            }
+        }
+        Ok(out)
+    }
+
+    /// Writes this process's branch's code into `dir`: each file only where it differs, read only (but `Cargo.lock`,
+    /// which `cargo` may bring up to date), and what the code no longer has removed.
     pub fn project(&self, dir: &Path) -> Result<Projected> {
-        let tree = self.tree_has()?;
+        let files = self.all_files(&self.code()?)?;
         let mut manifest = String::new();
         let mut want = BTreeSet::new();
         let mut written = 0;
-        for (path, id) in &tree.files {
+        for (path, bytes) in &files {
             check_path(path)?;
-            let bytes = self.file(id)?.unwrap_or_default();
-            manifest.push_str(&format!("{path}\0{}\n", Hash::new(&bytes).to_hex()));
+            manifest.push_str(&format!("{path}\0{}\n", Hash::new(bytes).to_hex()));
             let at = dir.join(path);
             if std::fs::read(&at).ok().as_deref() != Some(bytes.as_slice()) {
                 if let Some(parent) = at.parent() {
                     std::fs::create_dir_all(parent).map_err(err)?;
                 }
                 writable(&at, true);
-                std::fs::write(&at, &bytes).map_err(|e| format!("{path}: {e}"))?;
+                std::fs::write(&at, bytes).map_err(|e| format!("{path}: {e}"))?;
                 written += 1;
             }
             writable(&at, path.ends_with("Cargo.lock"));
@@ -310,7 +463,7 @@ impl TheDB {
                 }
             }
         }
-        Ok(Projected { hash: Hash::new(manifest.as_bytes()), files: tree.files.len(), written, removed })
+        Ok(Projected { hash: Hash::new(manifest.as_bytes()), files: files.len(), written, removed })
     }
 
     // ---- the builder: one build at a time, for every line ----
@@ -430,8 +583,8 @@ impl TheDB {
         let swept = crate::build::sweep(&dir.join("target").join("debug"), &String::from_utf8_lossy(&built.stdout))?;
         eprintln!("thedb: the build folder swept: {} files and folders of earlier builds, {:.1} GB", swept.0, swept.1 as f64 / 1e9);
         let mut files = BTreeMap::new();
-        for (path, id) in self.tree_has()?.files {
-            files.insert(path, self.put(self.file(&id)?.unwrap_or_default())?.to_hex().to_string());
+        for (path, bytes) in self.all_files(&self.code()?)? {
+            files.insert(path, self.put(bytes)?.to_hex().to_string());
         }
         let tree = projected.hash.to_hex().to_string();
         let manifest = json!({ "tree": tree, "line": line, "files": files });
@@ -456,16 +609,12 @@ impl TheDB {
     /// Commits main's tree onto `refs/heads/archive` of `repo`, with `message`; through a scratch index, so no working
     /// tree, index or branch of anyone's is touched. Returns the commit, or `None` without code.
     pub fn archive_code(&self, repo: &Path, message: &str) -> Result<Option<String>> {
-        let Some(tree) = self.main_tree()? else { return Ok(None) };
+        let Some(code) = self.main_code()? else { return Ok(None) };
         let index = std::env::temp_dir().join(format!("thedb-archive-{}.index", std::process::id()));
         let _ = std::fs::remove_file(&index);
         let env: [(&str, &Path); 1] = [("GIT_INDEX_FILE", &index)];
         let mut info = String::new();
-        for (path, id) in &tree.files {
-            let bytes = match self.head_on(None, id)? {
-                Some(h) => self.file_at(h)?,
-                None => Vec::new(),
-            };
+        for (path, bytes) in self.all_files(&code)? {
             let blob = git(repo, &["hash-object", "-w", "--stdin"], Some(&bytes), &env)?;
             info.push_str(&format!("100644 {blob}\t{path}\n"));
         }
