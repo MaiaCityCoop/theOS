@@ -5,6 +5,8 @@
 //!     kernel [args...]
 //!     kernel --at <lock> [args...]     the system as a lock pins it (theDB's lock.rs): read only, the same every time
 //!
+//! When theOS exits with 75 (a person accepted a new build in it), the kernel starts the build now pinned.
+//!
 //! Told to stop (Ctrl-C or a TERM), it stops the engine, writes what the store holds to disk and closes it: a store
 //! closed by a plain kill can lose what other processes wrote through it last.
 
@@ -42,19 +44,27 @@ fn main() {
     if let Some(l) = &lock {
         eprintln!("kernel: the system at the lock {}", &l[..12.min(l.len())]);
     }
-    let engine = db.pinned_engine().unwrap_or_else(|e| fail(&e));
-    eprintln!("kernel: engine {}, build {}, {}", engine.engine, &engine.build[..12], engine.toolchain);
-    let mut child = std::process::Command::new(&engine.path).args(&args).env("THEDB", &dir).spawn().unwrap_or_else(|e| fail(&e.to_string()));
+    // theOS exits with RESTART when a person accepts a new build: the kernel starts the build now pinned
+    const RESTART: i32 = 75;
     let code = loop {
-        if let Some(status) = child.try_wait().unwrap_or_else(|e| fail(&e.to_string())) {
-            break status.code().unwrap_or(1);
+        let engine = db.pinned_engine().unwrap_or_else(|e| fail(&e));
+        eprintln!("kernel: engine {}, build {}, {}", engine.engine, &engine.build[..12], engine.toolchain);
+        let mut child = std::process::Command::new(&engine.path).args(&args).env("THEDB", &dir).spawn().unwrap_or_else(|e| fail(&e.to_string()));
+        let code = loop {
+            if let Some(status) = child.try_wait().unwrap_or_else(|e| fail(&e.to_string())) {
+                break status.code().unwrap_or(1);
+            }
+            if STOP.load(Ordering::Relaxed) {
+                let _ = child.kill();
+                let _ = child.wait();
+                break 0;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        };
+        if code != RESTART || lock.is_some() {
+            break code;
         }
-        if STOP.load(Ordering::Relaxed) {
-            let _ = child.kill();
-            let _ = child.wait();
-            break 0;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(100));
+        eprintln!("kernel: a new build was accepted; starting it");
     };
     let _ = db.sync();
     drop(db);

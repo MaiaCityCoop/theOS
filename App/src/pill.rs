@@ -145,7 +145,7 @@ fn show(state: Res<State<View>>, modal: Res<Modal>, mut pill: Query<&mut Visibil
     }
 }
 
-fn click(mut ev: On<PointerClick>, acts: Query<&PillAct>, mut modal: ResMut<Modal>) {
+fn click(mut ev: On<PointerClick>, acts: Query<&PillAct>, mut modal: ResMut<Modal>, mut exit: MessageWriter<AppExit>) {
     let Ok(act) = acts.get(ev.entity) else { return };
     ev.propagate(false);
     let db = crate::db();
@@ -164,7 +164,16 @@ fn click(mut ev: On<PointerClick>, acts: Query<&PillAct>, mut modal: ResMut<Moda
             Ok(())
         }
         // the human step: this process signs with theOS's host key
-        PillAct::Accept(id) => db.merge(&id),
+        PillAct::Accept(id) => {
+            let new_build = db.proposal(&id).is_ok_and(|p| p.docs.keys().any(|d| db.meta(d).is_ok_and(|m| m.0 == "engine")));
+            let done = db.merge(&id);
+            // a new build accepted: theOS ends, and the kernel starts the build now pinned
+            if done.is_ok() && new_build {
+                let _ = db.sync();
+                exit.write(AppExit::from_code(75));
+            }
+            done
+        }
         PillAct::Refuse(id) => db.refuse(&id),
     };
     modal.error = done.err();

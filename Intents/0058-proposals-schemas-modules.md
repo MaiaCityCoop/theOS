@@ -65,6 +65,10 @@ Samuel asked for the work outright; it went straight to Build.
   one walks (pace, run, limits, wheel, lens, start: the world module). Still host, to move next: the look speed, the
   pill's and setup's own sizes, the "five new shots" ease kit.
 
+- **A host build is a proposal.** `theDB publish` builds from a clean commit and puts the engine's new pin on the
+  branch `build-<commit>`, proposed; `theDB pin` proposes going back to an earlier build the same way. Accepted in
+  theOS, theOS ends with 75 and the kernel starts the build now pinned. Nothing moves the pin on main without a person.
+
 **Checks, as they ran** (on a copy of the live store): an agent's write to main refused; an agent's proposal accepted
 through the pill by `--navtest` (all steps passed); `theDB verify` clean (45 heads); a world with `"ground": "blue"`
 refused by its schema; the gate's pictures of the two shots, green and blue; `cargo test --workspace` passed.
