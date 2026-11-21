@@ -100,5 +100,8 @@ fn main() {
             app.add_systems(Update, ui::navtest);
         }
     }
-    app.run();
+    // the exit's code is the process's: 75 tells the kernel to start the build a person has just accepted
+    if let AppExit::Error(code) = app.run() {
+        std::process::exit(code.get() as i32);
+    }
 }
