@@ -19,7 +19,8 @@ pub const BRAND: &str = r##"{
   "clay": "#4f9d34",
   "sun": "#f2b544",
   "glass": "#fbf6ead1",
-  "picked": "#f4e2b8"
+  "picked": "#f4e2b8",
+  "night": "#0f1e31"
 }
 "##;
 

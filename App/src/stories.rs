@@ -1,6 +1,6 @@
 //! The Studio's two halves: **Stories**, every shot list as a card, and the **Timeline**, one story played: the
 //! player on top (the world camera framed 16:9 in the upper band, `frame`) and its lanes and controls below (the
-//! Studio's layers). A switcher at the top goes between them.
+//! Studio's layers), in a dark room; "← Stories" goes back, a story's card opens it.
 
 use crate::View;
 use crate::contract::WorldEye;
@@ -14,7 +14,7 @@ use bevy::window::PrimaryWindow;
 
 /// The band the player takes at the top of the Studio: the switcher's room above it, its share of the window's height.
 const TOP: f32 = 72.0;
-const SHARE: f32 = 0.7;
+const SHARE: f32 = 0.62;
 
 pub fn plugin(app: &mut App) {
     app.add_systems(OnEnter(View::Stories), stories)
@@ -26,28 +26,22 @@ fn text(f: &Handle<Font>, size: f32, color: Color, t: impl Into<String>) -> impl
     (Text::new(t), TextFont { font: f.clone().into(), font_size: FontSize::Px(size), ..default() }, TextColor(color), Pickable::IGNORE)
 }
 
-/// Stories | Timeline, the current one marked.
-fn switcher(p: &mut ChildSpawnerCommands, f: &Fonts, now: View) {
-    let colour = crate::theme::colour;
-    p.spawn((Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(4.0), padding: UiRect::all(Val::Px(4.0)), border_radius: BorderRadius::all(Val::Px(999.0)), ..default() }, BackgroundColor(colour("cream"))))
-        .with_children(|row| {
-            for (label, view) in [("Stories", View::Stories), ("Timeline", View::Studio)] {
-                let on = view == now;
-                row.spawn((
-                    Act::Open(view),
-                    Hovered::default(),
-                    Node { padding: UiRect::axes(Val::Px(18.0), Val::Px(8.0)), border_radius: BorderRadius::all(Val::Px(999.0)), ..default() },
-                    BackgroundColor(if on { colour("forest") } else { Color::NONE }),
-                    children![text(&f.sans, 15.0, if on { colour("cream") } else { colour("forest") }, label)],
-                ));
-            }
-        });
-}
-
+/// The Timeline's header: back to the Stories, and the story's title.
 fn switcher_in_studio(mut commands: Commands, fonts: Res<Fonts>) {
+    let f = &*fonts;
+    let colour = crate::theme::colour;
     commands
-        .spawn((DespawnOnExit(View::Studio), Node { position_type: PositionType::Absolute, top: Val::Px(16.0), left: Val::Px(0.0), right: Val::Px(0.0), justify_content: JustifyContent::Center, ..default() }, Pickable::IGNORE, ZIndex(5)))
-        .with_children(|p| switcher(p, &fonts, View::Studio));
+        .spawn((DespawnOnExit(View::Studio), Node { position_type: PositionType::Absolute, top: Val::Px(18.0), left: Val::Px(20.0), right: Val::Px(20.0), flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(18.0), ..default() }, Pickable::IGNORE, ZIndex(5)))
+        .with_children(|p| {
+            p.spawn((
+                Act::Open(View::Stories),
+                Hovered::default(),
+                Node { padding: UiRect::axes(Val::Px(16.0), Val::Px(7.0)), border_radius: BorderRadius::all(Val::Px(999.0)), border: UiRect::all(Val::Px(1.5)), ..default() },
+                BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.35)),
+                children![text(&f.sans, 15.0, colour("cream"), "← Stories")],
+            ));
+            p.spawn((crate::ui::Title, Text::new(""), TextFont { font: f.serif.clone().into(), font_size: FontSize::Px(22.0), ..default() }, TextColor(colour("cream")), Pickable::IGNORE));
+        });
 }
 
 /// Every shot list, as a card: its title, its shots, how long it runs.
@@ -69,7 +63,6 @@ fn stories(mut commands: Commands, fonts: Res<Fonts>) {
             BackgroundColor(colour("paper")),
         ))
         .with_children(|root| {
-            root.spawn(Node { justify_content: JustifyContent::Center, ..default() }).with_children(|p| switcher(p, f, View::Stories));
             root.spawn(Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(6.0), padding: UiRect::horizontal(Val::Px(8.0)), ..default() }).with_children(|h| {
                 h.spawn(text(&f.serif, 46.0, colour("forest"), "Stories"));
                 h.spawn(text(&f.sans, 17.0, colour("forest2"), "Every story there is, one a day. Open one to play it in the Timeline."));
@@ -143,7 +136,7 @@ fn frame(
             }
             // four paper panels around the player: above, below, left, right
             for _ in 0..4 {
-                commands.spawn((Around, DespawnOnExit(View::Studio), Node { position_type: PositionType::Absolute, ..default() }, BackgroundColor(crate::theme::colour("forest")), ZIndex(-10), Pickable::IGNORE));
+                commands.spawn((Around, DespawnOnExit(View::Studio), Node { position_type: PositionType::Absolute, ..default() }, BackgroundColor(crate::theme::colour("night")), ZIndex(-10), Pickable::IGNORE));
             }
         }
         let rects = [(0.0, 0.0, w, py), (0.0, py + ph, w, h - py - ph), (0.0, py, px, ph), (px + pw, py, w - px - pw, ph)];
