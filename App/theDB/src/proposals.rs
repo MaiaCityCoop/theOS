@@ -81,6 +81,11 @@ impl TheDB {
         self.is_master_or_host()?;
         let _lock = Lock::take(&self.dir().join("merge.lock"))?;
         let versions: Vec<(String, Hash)> = p.docs.iter().map(|(d, v)| Ok((d.clone(), v.parse().map_err(err)?))).collect::<Result<_>>()?;
+        // what Loro would settle silently is refused out loud: the agent syncs its line, settles it, proposes again
+        let conflicts = self.conflicts(&versions)?;
+        if !conflicts.is_empty() {
+            return Err(format!("the proposal conflicts with main ({}): {}", conflicts.len(), conflicts.iter().map(|c| c.to_string()).collect::<Vec<_>>().join("; ")));
+        }
         self.merge_into_main(&versions)?;
         self.close(id, p, State::Merged)
     }
