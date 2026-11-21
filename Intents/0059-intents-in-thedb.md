@@ -92,8 +92,11 @@ Decided with Samuel on the MVP's shape:
   certificate, so a new build is not asked about again.
 - **Agents only through the host's MCP.** The host (the kernel, running with or without a window) serves MCP in Code
   Mode: two tools, `search` (code run against the catalogue of every operation, returning only what is needed) and
-  `execute` (code run with the `theos` API). The code runs in an embedded JavaScript engine (QuickJS) with no files,
-  no network and limits on time and memory; every call is authorised in the host as the agent the connection is, which
+  `execute` (code run with the `theos` API). No JavaScript: the code is Rhai, Rust's embedded script (no compile
+  step, every platform, phones and WebAssembly too), which can call only the `theos` functions the host registers, with
+  limits on steps, memory and depth and no files or network; code an agent wants to keep (a tool, a check) is a Rust
+  module built to WebAssembly and run in wasmi, like the world's module; later Rhai itself runs in wasmi, so
+  WebAssembly is the one sandbox; every call is authorised in the host as the agent the connection is, which
   writes its own line and intent docs and never accepts. One registry of operations in Rust gives the catalogue, the
   types, the CLI and the checks. Agents' sessions are kept to it: their project settings allow the theOS tools and
   deny the store's files, the Keychain and the `theDB` command; the CLI is the person's.
@@ -148,7 +151,7 @@ agents watching telemetry. Signing is not described there; here every merge is s
 
 - [x] 1 · Intents: the doc, states, task board, agent commands, the star lists intents
 - [ ] 1b · Keys through `keyring`; host builds signed with one stable certificate
-- [ ] 1c · The host's MCP in Code Mode (search, execute; QuickJS; one registry of operations)
+- [ ] 1c · The host's MCP in Code Mode (search, execute; Rhai; one registry of operations)
 - [ ] 1d · Code as Loro text and a tree doc, imported from git once; the builder's projection; git as an archive
 - [ ] 1e · Agents kept to the MCP
 - [ ] 2 · Touch ID by default, signed rules
