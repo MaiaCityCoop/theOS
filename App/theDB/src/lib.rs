@@ -813,14 +813,37 @@ impl TheDB {
     /// blob, `publish_git`) as a blob, the build as a blob; adds it to the engine's builds and pins it. Returns the
     /// build's hash.
     pub fn publish(&self, id: &str, binary: &[u8], manifest: &[u8], toolchain: &str) -> Result<Hash> {
+        let branch = self.branch.clone();
+        self.publish_on(branch.as_deref(), id, binary, manifest, toolchain)
+    }
+
+    /// As `publish`, the engine doc written on `branch` (main with `None`).
+    pub fn publish_on(&self, branch: Option<&str>, id: &str, binary: &[u8], manifest: &[u8], toolchain: &str) -> Result<Hash> {
         let manifest = self.put(manifest.to_vec())?;
         let build = Build { binary: self.put(binary.to_vec())?.to_hex().to_string(), source: manifest.to_hex().to_string(), toolchain: toolchain.into() };
         let hash = self.put(serde_json::to_vec_pretty(&build).map_err(err)?)?;
-        let mut engine = self.engine(id)?;
+        let mut engine = self.engine_on(branch, id)?;
         engine.builds.push(hash.to_hex().to_string());
         engine.pinned = Some(hash.to_hex().to_string());
-        self.set_text(id, &serde_json::to_string_pretty(&engine).map_err(err)?)?;
+        self.set_text_on(branch, id, &serde_json::to_string_pretty(&engine).map_err(err)?)?;
         Ok(hash)
+    }
+
+    /// Engine doc `id` as `branch` sees it.
+    pub fn engine_on(&self, branch: Option<&str>, id: &str) -> Result<Engine> {
+        let doc = self.doc_seen(branch, id)?;
+        Ok(serde_json::from_str(&json::read(&doc)).unwrap_or_default())
+    }
+
+    /// Sets the text of doc `id` on `branch` (main with `None`), as `set_text` does on this process's branch.
+    pub fn set_text_on(&self, branch: Option<&str>, id: &str, text: &str) -> Result<Hash> {
+        let doc = self.doc_seen(branch, id)?;
+        if !json::write(&doc, text)?
+            && let Some(h) = self.head_seen(branch, id)?
+        {
+            return Ok(h);
+        }
+        self.commit_on(branch, id, &doc)
     }
 
     /// Engine `id`: its builds and the pinned one.
@@ -828,14 +851,18 @@ impl TheDB {
         Ok(self.text(id)?.and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default())
     }
 
-    /// Pins build `build` of engine `id`: the kernel starts it from now on.
-    pub fn pin(&self, id: &str, build: &str) -> Result<()> {
+    /// Proposes pinning build `build` of engine `id` (an earlier one, to go back to it): on a branch of its own, for a
+    /// person to accept in theOS, as every new build is. Returns the proposal's id.
+    pub fn pin(&self, id: &str, build: &str) -> Result<String> {
         let mut engine = self.engine(id)?;
         if !engine.builds.iter().any(|b| b == build) {
             return Err(format!("engine {id} has no build {build}"));
         }
+        let branch = format!("pin-{}", &build[..12.min(build.len())]);
+        self.make_branch(&branch, &format!("pin the build {build}"))?;
         engine.pinned = Some(build.into());
-        self.set_text(id, &serde_json::to_string_pretty(&engine).map_err(err)?).map(|_| ())
+        self.set_text_on(Some(&branch), id, &serde_json::to_string_pretty(&engine).map_err(err)?)?;
+        self.propose(&branch, &format!("Run the host build {} again", &build[..12.min(build.len())]))
     }
 
     /// A build, by its hash.

@@ -20,8 +20,9 @@ fn git(repo: &Path, args: &[&str]) -> Result<String> {
 
 impl TheDB {
     /// Builds engine `engine` from the git checkout `repo` and pins it. The checkout must be clean under `App/`, so the
-    /// build is exactly its commit. Returns the build's hash.
-    pub fn publish_git(&self, engine: &str, repo: &Path) -> Result<Hash> {
+    /// build is exactly its commit. The engine doc's new pin goes onto the branch `build-<commit>` and is proposed: the
+    /// kernel starts the build only once a person has accepted it in theOS. Returns the build's hash and the proposal.
+    pub fn publish_git(&self, engine: &str, repo: &Path) -> Result<(Hash, String)> {
         if !git(repo, &["status", "--porcelain", "--", SOURCE])?.is_empty() {
             return Err(format!("{SOURCE}/ has changes not committed: a build is made from a commit"));
         }
@@ -43,10 +44,16 @@ impl TheDB {
         let manifest = serde_json::json!({ "commit": commit, "files": files });
         let binary = std::fs::read(repo.join(BINARY)).map_err(|e| format!("{BINARY}: {e}"))?;
         let toolchain = std::process::Command::new("rustc").arg("-V").output().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_default();
-        let hash = self.publish(engine, &binary, &serde_json::to_vec_pretty(&manifest).map_err(err)?, &toolchain)?;
+        // the build goes onto a branch of its own and is proposed: theOS runs it only once a person accepts it there
+        let branch = format!("build-{}", &commit[..12.min(commit.len())]);
+        self.make_branch(&branch, &format!("the host built from commit {commit}"))?;
+        let hash = self.publish_on(Some(&branch), engine, &binary, &serde_json::to_vec_pretty(&manifest).map_err(err)?, &toolchain)?;
+        let subject = git(repo, &["log", "-1", "--format=%s"])?;
+        let subject: String = subject.chars().take(140).collect();
+        let proposal = self.propose(&branch, &format!("Host build {} from commit {}: {subject}", &hash.to_hex()[..12], &commit[..8.min(commit.len())]))?;
         // written to disk before this returns: the store's owner may be stopped right after
         self.sync()?;
-        Ok(hash)
+        Ok((hash, proposal))
     }
 
     /// Writes the source build `build` was made from into `dir`, each file as its blob holds it. The number of files.

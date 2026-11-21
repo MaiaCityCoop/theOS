@@ -8,9 +8,9 @@
 //!     thedb head <id>                  the hash of doc <id>'s current version
 //!     thedb root [<id>]                the root doc's id (or make <id> the root)
 //!     thedb forget <id>                doc <id> is no longer reached (its versions stay)
-//!     thedb publish <engine id> <git checkout>              a build of the engine from a clean commit; pins it
+//!     thedb publish <engine id> <git checkout>              a build of the engine from a clean commit, proposed
 //!     thedb source <build hash> <dir>                       the source a build was made from, into <dir>
-//!     thedb pin <engine id> <build hash>                    pins an earlier build
+//!     thedb pin <engine id> <build hash>                    proposes running an earlier build again
 //!     thedb builds <engine id>                              the engine's builds, the pinned one marked
 //!
 //! Branches and merges of content (the engine's source lives in git, intent 0054). `THEDB_BRANCH=<name>` puts any
@@ -102,11 +102,11 @@ fn main() {
         }
         ["head", id] => println!("{}", db.head(id).unwrap_or_else(|e| fail(&e)).map(|h| h.to_string()).unwrap_or_default()),
         ["publish", engine, repo] => {
-            let h = db.publish_git(engine, Path::new(repo)).unwrap_or_else(|e| fail(&e));
-            println!("{h}");
+            let (h, proposal) = db.publish_git(engine, Path::new(repo)).unwrap_or_else(|e| fail(&e));
+            println!("{h}\nproposed as {proposal}: theOS runs it once it is accepted under the star");
         }
         ["source", build, dir] => eprintln!("{} files", db.checkout_build(build, Path::new(dir)).unwrap_or_else(|e| fail(&e))),
-        ["pin", id, build] => db.pin(id, build).unwrap_or_else(|e| fail(&e)),
+        ["pin", id, build] => println!("proposed as {}: accepted under the star, theOS runs it", db.pin(id, build).unwrap_or_else(|e| fail(&e))),
         ["builds", id] => {
             let e = db.engine(id).unwrap_or_else(|e| fail(&e));
             for b in &e.builds {
