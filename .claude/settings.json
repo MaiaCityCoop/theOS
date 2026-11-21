@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": ["mcp__theos__search", "mcp__theos__execute"],
+    "deny": [
+      "Read(/App/**)",
+      "Edit(/App/**)",
+      "Read(/DATA/**)",
+      "Edit(/DATA/**)",
+      "Bash(security *)",
+      "Bash(cargo *)",
+      "Bash(theDB *)",
+      "Bash(./theDB *)",
+      "Bash(App/target/debug/theDB *)",
+      "Bash(./App/target/debug/theDB *)",
+      "Bash(App/target/debug/theKERNEL *)",
+      "Bash(./App/target/debug/theKERNEL *)",
+      "Bash(App/target/debug/theMCP *)",
+      "Bash(./App/target/debug/theMCP *)"
+    ]
+  },
+  "enabledMcpjsonServers": ["theos"]
+}
