@@ -69,12 +69,22 @@ Samuel asked for the work outright; it went straight to Build.
   branch `build-<commit>`, proposed; `theDB pin` proposes going back to an earlier build the same way. Accepted in
   theOS, theOS ends with 75 and the kernel starts the build now pinned. Nothing moves the pin on main without a person.
 
+- **A person accepts, by Touch ID** (theID's `presence`, `theDB person make`). Samuel, 2026-11-21: "put mission
+  critical host updates accepting proposal behind actual keychain signing". The host's key is readable by any process
+  of this user; the person's is a P-256 key in this Mac's Secure Enclave, which signs only after Touch ID or the login
+  password, and no process can read it (`App/theID/presence.swift`, carried inside theID). The master stands behind
+  each person's key (`meta.persons`). In a store with a person, `merge` asks the person, showing "accept “…” into
+  main", and keeps their signature in the proposal; the kernel runs only a build a person approved, by accepting its
+  proposal or by `theDB person pin`; `theDB verify` checks every kept approval. A store without a person works as
+  before.
+
 **Checks, as they ran** (on a copy of the live store): an agent's write to main refused; an agent's proposal accepted
 through the pill by `--navtest` (all steps passed); `theDB verify` clean (45 heads); a world with `"ground": "blue"`
 refused by its schema; the gate's pictures of the two shots, green and blue; `cargo test --workspace` passed.
 
-**Known gaps:** any process of this user can read the host key through `security`, so the human step is enforced by
-theOS, not by the OS; a code-signed theOS with a Keychain rule for it would close that. The `--still` mode renders a
+**Known gaps:** any process of this user can read the host key through `security`; accepting and the kernel's build
+now need the person's Secure Enclave signature, but other routine writes to main still need only the host key, and an
+agent that rewrites the store's files or the kernel itself is outside what signatures can stop. The `--still` mode renders a
 black picture since the world switch (the gate mode is right); not yet looked into. Agent keys are still in the
 Keychain, not made and held by the agent's session alone.
 
@@ -96,6 +106,8 @@ Keychain, not made and held by the agent's session alone.
 - [ ] Samuel accepts the live proposal in theOS
 - [x] Vibes: one manifest kind for every world, asset and UI (Samuel's next idea)
 - [ ] The `--still` black picture
+- [x] Accepting and the kernel's build behind the person's Touch ID (Secure Enclave)
+- [ ] Samuel runs `theDB person make` on the live store
 
 ## Changelog
 
@@ -106,6 +118,13 @@ Keychain, not made and held by the agent's session alone.
 - **Asked:** start the system from a vibe version; audit host against dynamic. **Delivered:** locks and
   `theKERNEL --at`, checked by a navtest at a lock; the palette and the walking moved out; proposed for Samuel.
 - **Asked:** vibes. **Delivered:** the vibe kind and schema, `theDB vibe`, day 1 as four vibes, proposed for Samuel.
+
+### 2026-11-21
+
+- **Asked:** mission-critical host updates (accepting a proposal) behind real Keychain signing. **Delivered:** the
+  person's Secure Enclave key, asked by Touch ID on every accept and for every build the kernel runs; checked by
+  `cargo test` (a person's accept, a forged and a missing one refused, the pin rule) and by real Enclave signatures
+  checked in Rust.
 
 ## Trail
 

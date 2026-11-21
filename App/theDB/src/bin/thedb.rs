@@ -33,6 +33,11 @@
 //!                                       password manager; every head as it is now signed by it
 //!     thedb master restore              the master's secret, read from the input, into this Mac's Keychain
 //!     thedb agent <name> [days]         a new agent: its key in the Keychain, the master's grant of line-<name>
+//!     thedb person                      whether accepting needs the person at this Mac (Touch ID)
+//!     thedb person make                 a key in this Mac's Secure Enclave, the master's word for it; then the person
+//!                                       approves the build pinned now (Touch ID). From then on every accept, and
+//!                                       every build the kernel runs, is the person's signature
+//!     thedb person pin                  the person approves the build pinned now (Touch ID), for the kernel
 //!     thedb verify                      every signature, and every head signed by whom its branch allows
 //!
 //! Locks: the system at a version (lock.rs). `THEDB_LOCK=<hash>` opens any process at one, read only.
@@ -203,6 +208,24 @@ fn main() {
             let key: thedb::access::SecretKey = text.trim().parse().unwrap_or_else(|_| fail("not a secret key (64 hex digits)"));
             db.restore_master(key).unwrap_or_else(|e| fail(&e));
             println!("the master's secret is in this Mac's Keychain");
+        }
+        ["person"] => {
+            let n = db.persons().unwrap_or_else(|e| fail(&e)).len();
+            if n == 0 {
+                println!("no person: accepting a proposal needs only theOS's host key (theDB person make)");
+            } else {
+                println!("{n} person key(s) the master stands behind: accepting a proposal, and the build the kernel runs, need Touch ID at this Mac");
+            }
+        }
+        ["person", "make"] => {
+            let key = db.make_person().unwrap_or_else(|e| fail(&e));
+            println!("the person at this Mac: {}", thedb::theid::presence::hex(&key));
+            println!("its key stays in this Mac's Secure Enclave; each accept asks for Touch ID or the login password");
+        }
+        ["person", "pin"] => {
+            let (engine, build) = db.pinned_now().unwrap_or_else(|e| fail(&e));
+            db.approve_pin(&engine, &build).unwrap_or_else(|e| fail(&e));
+            println!("the build {build} approved: the kernel runs it");
         }
         ["agent", name, rest @ ..] if rest.len() <= 1 => {
             let days = rest.first().map(|d| d.parse().unwrap_or_else(|_| fail("days: a number"))).unwrap_or(30);

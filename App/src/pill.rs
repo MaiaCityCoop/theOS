@@ -1,7 +1,9 @@
 //! The nav pill, at the bottom of every view, as on maia.city: Home on the left, the star in the middle, the badge
 //! on the right. The star opens the proposals: a modal over the view, with a card for every proposal on every line,
 //! and Accept and Refuse on each open one. That click is the human step (HITL): theOS signs the merge with its host
-//! key, and an agent, which has only its line's key, cannot.
+//! key, and an agent, which has only its line's key, cannot. In a store with a person (`theDB person make`), Accept
+//! also asks the person at this Mac for Touch ID or the login password, and their Secure Enclave signs it: the host's
+//! key, readable from the Keychain by any process, is not enough to accept.
 
 use crate::View;
 use crate::ui::Fonts;
@@ -179,7 +181,7 @@ fn click(mut ev: On<PointerClick>, acts: Query<&PillAct>, mut modal: ResMut<Moda
             modal.open = false;
             Ok(())
         }
-        // the human step: this process signs with theOS's host key
+        // the human step: this process signs with theOS's host key, and the person with Touch ID (the window waits)
         PillAct::Accept(id) => {
             let new_build = db.proposal(&id).is_ok_and(|p| p.docs.keys().any(|d| db.meta(d).is_ok_and(|m| m.0 == "engine")));
             let done = db.merge(&id);

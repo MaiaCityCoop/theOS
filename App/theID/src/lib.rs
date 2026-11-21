@@ -13,18 +13,20 @@
 //! The master's public key is the store's (theDB keeps it); which key a process signs with is [`key_for`].
 
 pub use iroh_base::{PublicKey, SecretKey, Signature};
+
+pub mod presence;
 use serde::{Deserialize, Serialize};
 
 pub type Result<T> = std::result::Result<T, String>;
 
-fn err(e: impl std::fmt::Display) -> String {
+pub(crate) fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
 }
 
 // ---- signing: one way, for everything ----
 
 /// The bytes a signature covers: the prefix, the domain, then each field with its length.
-fn signed_bytes(domain: &str, fields: &[&[u8]]) -> Vec<u8> {
+pub(crate) fn signed_bytes(domain: &str, fields: &[&[u8]]) -> Vec<u8> {
     let mut r = b"theOS signed v1\0".to_vec();
     for f in std::iter::once(domain.as_bytes()).chain(fields.iter().copied()) {
         r.extend_from_slice(&(f.len() as u32).to_be_bytes());
@@ -111,6 +113,8 @@ pub enum Who {
     /// The host (theOS on this Mac): its routine writes, by the master's grant of `Cap::Main`.
     Host,
     Agent(String),
+    /// The person at this Mac: their Secure Enclave key's blob (`presence`), useless without them.
+    Person,
 }
 
 fn account(master: &PublicKey, who: &Who) -> String {
@@ -118,32 +122,44 @@ fn account(master: &PublicKey, who: &Who) -> String {
         Who::Master => format!("master of {master}"),
         Who::Host => format!("host of {master}"),
         Who::Agent(name) => format!("agent {name} of {master}"),
+        Who::Person => format!("person of {master}"),
     }
 }
 
 /// The key of `who` under `master`, from this Mac's Keychain.
 pub fn keychain_get(master: &PublicKey, who: &Who) -> Option<SecretKey> {
-    let out = std::process::Command::new("/usr/bin/security").args(["find-generic-password", "-s", SERVICE, "-a", &account(master, who), "-w"]).output().ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    String::from_utf8(out.stdout).ok()?.trim().parse().ok()
+    keychain_text(master, who)?.parse().ok()
 }
 
 /// Keeps `key` as `who`'s under `master` in this Mac's Keychain, and reads it back to be sure.
 pub fn keychain_set(master: &PublicKey, who: &Who, key: &SecretKey) -> Result<()> {
-    use std::io::Write;
-    let account = account(master, who);
-    // the secret goes through the tool's input, not its arguments, which any process on the Mac could read
-    let mut child = std::process::Command::new("/usr/bin/security").arg("-i").stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::null()).spawn().map_err(err)?;
-    writeln!(child.stdin.take().ok_or("no input to security")?, "add-generic-password -U -s {SERVICE} -a \"{account}\" -w {}", secret_text(key)).map_err(err)?;
-    if !child.wait().map_err(err)?.success() {
-        return Err("the Keychain refused the key".into());
-    }
+    keychain_set_text(master, who, &secret_text(key))?;
     match keychain_get(master, who) {
         Some(k) if k.public() == key.public() => Ok(()),
         _ => Err("the key is not in the Keychain after writing it".into()),
     }
+}
+
+/// What this Mac's Keychain keeps for `who` under `master`, as text.
+pub fn keychain_text(master: &PublicKey, who: &Who) -> Option<String> {
+    let out = std::process::Command::new("/usr/bin/security").args(["find-generic-password", "-s", SERVICE, "-a", &account(master, who), "-w"]).output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    Some(String::from_utf8(out.stdout).ok()?.trim().to_string())
+}
+
+/// Keeps `text` for `who` under `master` in this Mac's Keychain.
+pub fn keychain_set_text(master: &PublicKey, who: &Who, text: &str) -> Result<()> {
+    use std::io::Write;
+    let account = account(master, who);
+    // the secret goes through the tool's input, not its arguments, which any process on the Mac could read
+    let mut child = std::process::Command::new("/usr/bin/security").arg("-i").stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::null()).spawn().map_err(err)?;
+    writeln!(child.stdin.take().ok_or("no input to security")?, "add-generic-password -U -s {SERVICE} -a \"{account}\" -w \"{text}\"").map_err(err)?;
+    if !child.wait().map_err(err)?.success() {
+        return Err("the Keychain refused the key".into());
+    }
+    Ok(())
 }
 
 /// A secret key as text (64 hex digits): what is shown once and kept in a password manager. `SecretKey` reads it back.

@@ -22,6 +22,23 @@ pub struct Proposal {
     /// Doc id → the version on the branch when proposed.
     pub docs: BTreeMap<String, String>,
     pub state: State,
+    /// The person's signature of the accept (`access`): set when it is merged in a store with a person.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approval: Option<crate::access::Approval>,
+}
+
+/// What a person signs to accept a proposal.
+pub(crate) const ACCEPT: &str = "theDB accept";
+
+/// What the person's signature of accepting proposal `id` covers: its id, its branch, and each doc with the version
+/// it brings.
+pub(crate) fn accept_fields(id: &str, p: &Proposal) -> Vec<Vec<u8>> {
+    let mut f = vec![id.as_bytes().to_vec(), p.branch.as_bytes().to_vec()];
+    for (doc, version) in &p.docs {
+        f.push(doc.as_bytes().to_vec());
+        f.push(version.as_bytes().to_vec());
+    }
+    f
 }
 
 impl TheDB {
@@ -37,7 +54,7 @@ impl TheDB {
         if docs.is_empty() {
             return Err(format!("the branch {branch} changes nothing"));
         }
-        let p = Proposal { branch: branch.into(), note: note.into(), docs, state: State::Open };
+        let p = Proposal { branch: branch.into(), note: note.into(), docs, state: State::Open, approval: None };
         let id = crate::new_id();
         let doc = self.edit(&id)?;
         let meta = doc.get_map("meta");
@@ -81,7 +98,9 @@ impl TheDB {
     }
 
     /// Accepts proposal `id`: its versions, merged with what main holds now, become main's. A person accepts it in
-    /// theOS; it is signed by the host or the master, never by an agent. One merge at a time.
+    /// theOS; it is signed by the host or the master, never by an agent. In a store with a person (`access`), the
+    /// person at this Mac signs it too, by Touch ID or the login password, and the signature is kept in the proposal:
+    /// whoever reads the host's key from the Keychain still cannot accept. One merge at a time.
     pub fn merge(&self, id: &str) -> Result<()> {
         let p = self.proposal(id)?;
         if p.state != State::Open {
@@ -94,6 +113,15 @@ impl TheDB {
         let conflicts = self.conflicts(&versions)?;
         if !conflicts.is_empty() {
             return Err(format!("the proposal conflicts with main ({}): {}", conflicts.len(), conflicts.iter().map(|c| c.to_string()).collect::<Vec<_>>().join("; ")));
+        }
+        let mut p = p;
+        if !self.persons()?.is_empty() {
+            let fields = accept_fields(id, &p);
+            let a = self.approve(ACCEPT, &fields, &format!("accept “{}” into main", p.note))?;
+            if !self.approved(&a, ACCEPT, &fields)? {
+                return Err("the person's signature does not hold".into());
+            }
+            p.approval = Some(a);
         }
         self.merge_into_main(&versions)?;
         self.close(id, p, State::Merged)

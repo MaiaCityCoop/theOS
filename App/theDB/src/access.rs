@@ -8,13 +8,19 @@
 //! - **Agents on their own lines.** An agent writes the branch `line-<agent>` only, with a grant of the master's
 //!   (`Cap::Line`), kept as a blob; each commit on a line is signed by its agent and names the grant that allows it.
 //! - **Merges by the master.** A proposal is brought into main by the master alone (`proposals.rs`).
+//! - **A person, for what only a person decides.** Accepting a proposal into main, and so the build the kernel runs,
+//!   is signed by the person at this Mac: a key in its Secure Enclave (theID's `presence`) that signs only after Touch
+//!   ID or the login password. The host's and the master's keys are in the Keychain, where any process of this user
+//!   can read them; the person's cannot be read. Its public key is the master's word (`meta.persons`).
 //! - **Verified.** `verify` checks every signature kept and that every head is signed by whom its branch allows.
 //!
 //! Once a store has a master, a commit that cannot be signed by whom its branch needs is refused. A store without a
 //! master (a test's, one just made) is written unsigned, as before.
 
 use crate::{Hash, Result, TheDB, err, sql};
+pub use theid::presence::Person;
 pub use theid::{Cap, Grant, PublicKey, SecretKey, Who};
+use theid::presence::{hex, unhex};
 
 /// The branch an agent works on.
 pub fn line(agent: &str) -> String {
@@ -28,6 +34,33 @@ fn commit_fields<'a>(doc: &'a str, branch: &'a str, version: &'a Hash, frontiers
 }
 
 const COMMIT: &str = "theDB commit";
+/// The master's word that a key is a person's.
+const PERSON: &str = "theDB person";
+/// A person's word that the kernel may run a build (`theDB person pin`).
+pub(crate) const PIN: &str = "theOS engine pin";
+
+/// A person's signature, at this Mac, by Touch ID or the login password: their key, the signature (both hex), when.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
+pub struct Approval {
+    pub key: String,
+    pub sig: String,
+    pub at: u64,
+}
+
+/// A person's key, and the master's signature of it (hex): kept in `meta.persons`.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+struct Endorsed {
+    key: String,
+    by: String,
+}
+
+/// A build a person approved directly (`theDB person pin`), kept in `meta.pins`.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+struct PinApproved {
+    engine: String,
+    build: String,
+    approval: Approval,
+}
 
 /// What `verify` found.
 #[derive(Debug, Default)]
@@ -180,6 +213,145 @@ impl TheDB {
         Ok(key.public())
     }
 
+    // ---- the person at this Mac ----
+
+    /// The persons' public keys the master stands behind. None: nothing waits for a person (as before intent 0058's
+    /// presence step); a store gets its first with `theDB person make`.
+    pub fn persons(&self) -> Result<Vec<Vec<u8>>> {
+        let Some(master) = self.master()? else { return Ok(vec![]) };
+        let all: Vec<Endorsed> = match sql::get_meta(&self.sql(), "persons")? {
+            Some(t) => serde_json::from_str(&t).map_err(err)?,
+            None => vec![],
+        };
+        let mut out = Vec::new();
+        for e in all {
+            let (Ok(key), Ok(by)) = (unhex(&e.key), unhex(&e.by)) else { continue };
+            if theid::signature(&by).is_ok_and(|sig| theid::verify(&master, PERSON, &[&key], &sig)) {
+                out.push(key);
+            }
+        }
+        Ok(out)
+    }
+
+    /// The master stands behind `person` as a person of this store. Needs the master's key.
+    pub fn add_person(&self, person: &[u8]) -> Result<()> {
+        let master = self.master()?.ok_or("this store has no master")?;
+        let mk = self.master_key().filter(|k| k.public() == master).ok_or("only the master names a person")?;
+        let mut all: Vec<Endorsed> = match sql::get_meta(&self.sql(), "persons")? {
+            Some(t) => serde_json::from_str(&t).map_err(err)?,
+            None => vec![],
+        };
+        all.push(Endorsed { key: hex(person), by: hex(&theid::sign(&mk, PERSON, &[person]).to_bytes()) });
+        sql::set_meta(&self.sql(), "persons", &serde_json::to_string(&all).map_err(err)?)
+    }
+
+    /// Makes the person at this Mac a key in its Secure Enclave, the master's word for it, and keeps its blob in the
+    /// Keychain. Then the person approves the build pinned now (Touch ID), so the kernel keeps running it. Needs the
+    /// master's key. Returns the public key.
+    pub fn make_person(&self) -> Result<Vec<u8>> {
+        let master = self.master()?.ok_or("this store has no master")?;
+        self.master_key().filter(|k| k.public() == master).ok_or("only the master names a person")?;
+        let person = Person::make()?;
+        theid::keychain_set_text(&master, &Who::Person, &person.to_text().ok_or("not an Enclave key")?)?;
+        self.add_person(&person.public())?;
+        *self.person.lock().unwrap_or_else(|e| e.into_inner()) = Some(person.clone());
+        if let Ok((engine, build)) = self.pinned_now() {
+            self.approve_pin(&engine, &build)?;
+        }
+        Ok(person.public())
+    }
+
+    /// Approves with `person` instead of the Keychain's (tests: a key in memory).
+    pub fn present_with(&self, person: Person) {
+        *self.person.lock().unwrap_or_else(|e| e.into_inner()) = Some(person);
+    }
+
+    fn present(&self) -> Option<Person> {
+        let mut p = self.person.lock().unwrap_or_else(|e| e.into_inner());
+        if p.is_none()
+            && let Ok(Some(master)) = self.master()
+        {
+            *p = theid::keychain_text(&master, &Who::Person).and_then(|t| Person::from_text(&t));
+        }
+        p.clone()
+    }
+
+    /// The person at this Mac signs `fields` as a `domain` (and the time), after saying yes to `reason`.
+    pub fn approve(&self, domain: &str, fields: &[Vec<u8>], reason: &str) -> Result<Approval> {
+        let person = self.present().ok_or("this Mac holds no person's key for this store: `theDB person make`")?;
+        if !self.persons()?.contains(&person.public()) {
+            return Err("this Mac's person key is not one the master stands behind".into());
+        }
+        let at = crate::now();
+        let at_b = at.to_be_bytes();
+        let mut f: Vec<&[u8]> = fields.iter().map(Vec::as_slice).collect();
+        f.push(&at_b);
+        let sig = person.sign(domain, &f, reason)?;
+        Ok(Approval { key: hex(&person.public()), sig: hex(&sig), at })
+    }
+
+    /// Whether `a` is a person's (one the master stands behind) signature of `fields` as a `domain`.
+    pub fn approved(&self, a: &Approval, domain: &str, fields: &[Vec<u8>]) -> Result<bool> {
+        let (Ok(key), Ok(sig)) = (unhex(&a.key), unhex(&a.sig)) else { return Ok(false) };
+        if !self.persons()?.contains(&key) {
+            return Ok(false);
+        }
+        let at_b = a.at.to_be_bytes();
+        let mut f: Vec<&[u8]> = fields.iter().map(Vec::as_slice).collect();
+        f.push(&at_b);
+        Ok(theid::presence::verify(&key, domain, &f, &sig))
+    }
+
+    /// The engine the root names and the build it pins on main now.
+    pub fn pinned_now(&self) -> Result<(String, String)> {
+        let root = self.root()?.ok_or("theDB has no root")?;
+        let root_doc: serde_json::Value = serde_json::from_str(&self.text(&root)?.unwrap_or_default()).map_err(err)?;
+        let engine = root_doc["engine"].as_str().ok_or("the root names no engine")?.to_string();
+        let build = self.engine(&engine)?.pinned.ok_or("the engine pins no build")?;
+        Ok((engine, build))
+    }
+
+    /// The person approves that the kernel may run build `build` of engine `engine` (Touch ID).
+    pub fn approve_pin(&self, engine: &str, build: &str) -> Result<()> {
+        let short = &build[..12.min(build.len())];
+        let approval = self.approve(PIN, &[engine.as_bytes().to_vec(), build.as_bytes().to_vec()], &format!("run the build {short} of theOS"))?;
+        let mut all: Vec<PinApproved> = match sql::get_meta(&self.sql(), "pins")? {
+            Some(t) => serde_json::from_str(&t).map_err(err)?,
+            None => vec![],
+        };
+        all.push(PinApproved { engine: engine.into(), build: build.into(), approval });
+        sql::set_meta(&self.sql(), "pins", &serde_json::to_string(&all).map_err(err)?)
+    }
+
+    /// Whether a person approved that the kernel run build `build` of engine `engine`: directly (`approve_pin`), or by
+    /// accepting a proposal whose version of the engine pins it. A store without a person: every pin, as before.
+    pub fn pin_approved(&self, engine: &str, build: &str) -> Result<bool> {
+        if self.persons()?.is_empty() {
+            return Ok(true);
+        }
+        let pins: Vec<PinApproved> = match sql::get_meta(&self.sql(), "pins")? {
+            Some(t) => serde_json::from_str(&t).map_err(err)?,
+            None => vec![],
+        };
+        for p in pins.iter().filter(|p| p.engine == engine && p.build == build) {
+            if self.approved(&p.approval, PIN, &[engine.as_bytes().to_vec(), build.as_bytes().to_vec()])? {
+                return Ok(true);
+            }
+        }
+        for (id, p) in self.proposals()? {
+            if p.state != crate::proposals::State::Merged {
+                continue;
+            }
+            let Some(version) = p.docs.get(engine) else { continue };
+            let Some(a) = &p.approval else { continue };
+            let pins_it = version.parse().ok().and_then(|v| self.file_at(v).ok()).and_then(|t| serde_json::from_slice::<crate::Engine>(&t).ok()).is_some_and(|e| e.pinned.as_deref() == Some(build));
+            if pins_it && self.approved(a, crate::proposals::ACCEPT, &crate::proposals::accept_fields(&id, &p))? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     /// The grant kept as blob `hash`.
     pub fn grant_at(&self, hash: Hash) -> Result<Grant> {
         theid::read_grant(&self.get(hash)?.ok_or_else(|| format!("no grant {hash}"))?)
@@ -265,6 +437,15 @@ impl TheDB {
             }
             good.insert((s.branch, s.doc, s.version));
         }
+        drop(sql);
+        for (id, p) in self.proposals()? {
+            if let Some(a) = &p.approval
+                && !self.approved(a, crate::proposals::ACCEPT, &crate::proposals::accept_fields(&id, &p))?
+            {
+                v.problems.push(format!("the proposal {id} carries a person's approval that does not hold"));
+            }
+        }
+        let sql = self.sql();
         for (branch, id, version) in sql::all_heads(&sql)? {
             if good.contains(&(branch.clone(), id.clone(), version)) {
                 v.good += 1;

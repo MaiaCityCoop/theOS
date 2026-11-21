@@ -89,3 +89,46 @@ fn the_host_writes_main_and_accepts_by_the_masters_grant() {
     drop(db);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Accepting is the person's: with a person's key in the store, the host alone cannot merge; the person's signature
+/// is kept in the proposal, and the build the kernel may run is one a person approved.
+#[test]
+fn a_person_accepts_and_approves_the_build_the_kernel_runs() {
+    use thedb::access::Person;
+    let (mut db, dir) = store("person");
+    let engine = db.new("engine", "theOS").unwrap();
+    db.set_text(&engine, "{\"pinned\": \"b1\", \"builds\": [\"b1\"]}").unwrap();
+    let master = SecretKey::generate();
+    db.set_master(master.clone()).unwrap();
+    let person = Person::soft();
+    db.add_person(&person.public()).unwrap();
+    assert!(!db.pin_approved(&engine, "b1").unwrap(), "a pin no person approved");
+    // an agent proposes a new build
+    let agent = SecretKey::generate();
+    db.grant("ada", agent.public(), 1).unwrap();
+    db.sign_with(agent);
+    db.set_branch(Some(&line("ada"))).unwrap();
+    db.set_text(&engine, "{\"pinned\": \"b2\", \"builds\": [\"b1\", \"b2\"]}").unwrap();
+    let p = db.propose(&line("ada"), "build b2").unwrap();
+    db.set_branch(None).unwrap();
+    // the host's key (or the master's, read from the Keychain) is not enough
+    let host = SecretKey::generate();
+    let g = db.put(thedb::theid::grant(&master, host.public(), thedb::access::Cap::Main, 1).encode()).unwrap();
+    db.set_host_for_test(host.public(), g).unwrap();
+    db.sign_with(host);
+    assert!(db.merge(&p).unwrap_err().contains("no person's key"));
+    db.present_with(Person::soft());
+    assert!(db.merge(&p).unwrap_err().contains("not one the master stands behind"));
+    // the person accepts
+    db.present_with(person);
+    db.merge(&p).unwrap();
+    assert!(db.proposal(&p).unwrap().approval.is_some());
+    assert!(db.pin_approved(&engine, "b2").unwrap(), "accepted by the person");
+    assert!(!db.pin_approved(&engine, "b1").unwrap());
+    db.approve_pin(&engine, "b1").unwrap();
+    assert!(db.pin_approved(&engine, "b1").unwrap(), "approved directly");
+    let v = db.verify().unwrap();
+    assert!(v.problems.is_empty(), "{:?}", v.problems);
+    drop(db);
+    let _ = std::fs::remove_dir_all(dir);
+}
