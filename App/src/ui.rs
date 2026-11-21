@@ -88,12 +88,14 @@ pub(crate) fn frame_time(d: Res<bevy::diagnostic::DiagnosticsStore>, mut t: Quer
 // ---- the Studio: the world through the virtual camera, the shots as a strip under it ----
 
 /// The strip shows the shot list it is given: one card per shot, as wide as the shot is long, and the playhead.
-pub(crate) fn strip_follows(mut commands: Commands, f: Res<Fonts>, s: Res<Studio>, strip: Query<Entity, With<Strip>>, mut shown: Local<Option<String>>) {
+pub(crate) fn strip_follows(mut commands: Commands, f: Res<Fonts>, s: Res<Studio>, strip: Query<Entity, With<Strip>>, mut shown: Local<Option<(Entity, String)>>) {
     let Ok(strip) = strip.single() else { return };
-    if shown.as_deref() == Some(s.timeline.title.as_str()) {
+    // drawn again for another shot list, and for a strip made anew (the Studio entered again)
+    let now = (strip, s.timeline.title.clone());
+    if shown.as_ref() == Some(&now) {
         return;
     }
-    *shown = Some(s.timeline.title.clone());
+    *shown = Some(now);
     commands.entity(strip).despawn_children();
     let total = s.duration().max(1e-3);
     commands.entity(strip).with_children(|p| {
@@ -102,7 +104,7 @@ pub(crate) fn strip_follows(mut commands: Commands, f: Res<Fonts>, s: Res<Studio
             p.spawn((
                 Node {
                     width: Val::Percent(c.secs / total * 100.0),
-                    padding: UiRect::all(Val::Px(10.0)),
+                    padding: UiRect::axes(Val::Px(10.0), Val::Px(6.0)),
                     flex_direction: FlexDirection::Column,
                     overflow: Overflow::clip(),
                     border_radius: BorderRadius::all(Val::Px(16.0)),
@@ -111,8 +113,8 @@ pub(crate) fn strip_follows(mut commands: Commands, f: Res<Fonts>, s: Res<Studio
                 BackgroundColor(crate::theme::colour("sand")),
                 Pickable::IGNORE,
                 children![
-                    (text(&f.sans, 15.0, crate::theme::colour("forest"), c.name.clone()), Pickable::IGNORE),
-                    (text(&f.mono, 12.0, crate::theme::colour("forest2"), format!("{} · {:.0} mm · {:.1} s", c.kind, mm, c.secs)), Pickable::IGNORE),
+                    (text(&f.sans, 14.0, crate::theme::colour("forest"), c.name.clone()), Pickable::IGNORE),
+                    (text(&f.mono, 11.0, crate::theme::colour("forest2"), format!("{} · {:.0} mm · {:.1} s", c.kind, mm, c.secs)), Pickable::IGNORE),
                 ],
             ));
         }
@@ -278,7 +280,10 @@ pub fn navtest(
     // a store without a master starts on the setup screen: its key made, then saved, then the dashboard
     let setup = [(Click::Setup(crate::setup::SetupAct::Make), View::Setup), (Click::Setup(crate::setup::SetupAct::Saved), View::Home)];
     let with_setup = *setup_first.get_or_insert_with(|| matches!(crate::db().master(), Ok(None)));
-    let views: [(Click, View); 25] = [
+    let views: [(Click, View); 27] = [
+        (Click::Act(Act::Open(View::Studio)), View::Studio),
+        // the Studio's switcher: the Stories, then a story's card back into the Timeline
+        (Click::Act(Act::Open(View::Stories)), View::Stories),
         (Click::Act(Act::Open(View::Studio)), View::Studio),
         (Click::Act(Act::Home), View::Home),
         (Click::Act(Act::Open(View::Game)), View::Game),

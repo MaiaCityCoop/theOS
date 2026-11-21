@@ -14,6 +14,7 @@ mod pill;
 mod root;
 mod sandboxes;
 mod setup;
+mod stories;
 mod theme;
 mod thedb_view;
 mod ui;
@@ -36,6 +37,8 @@ pub enum View {
     Setup,
     /// Every world there is to open, from the vibes (`sandboxes.rs`).
     Sandboxes,
+    /// Every story (shot list) as a card; the Studio's other half (`stories.rs`).
+    Stories,
 }
 
 /// The store, one for the app: theDB beside this repository (or where `THEDB` says).
@@ -98,7 +101,7 @@ fn main() {
             .insert_state(View::Studio)
             .add_systems(Update, film::take_still);
     } else {
-        app.add_plugins((ui::plugin, thedb_view::plugin, setup::plugin, pill::plugin, sandboxes::plugin));
+        app.add_plugins((ui::plugin, thedb_view::plugin, setup::plugin, pill::plugin, sandboxes::plugin, stories::plugin));
         if mode == Some("--navtest") {
             app.add_systems(Update, ui::navtest);
         }

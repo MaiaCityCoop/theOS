@@ -147,7 +147,7 @@ fn play(time: Res<Time>, keys: Res<ButtonInput<KeyCode>>, mut studio: ResMut<Stu
 /// names).
 fn choose_world(view: Res<State<View>>, studio: Res<Studio>, world: Res<State<World>>, mut next: ResMut<NextState<World>>, mut kinds: Local<std::collections::HashMap<String, World>>) {
     let want = match view.get() {
-        View::Home | View::TheDB | View::Setup | View::Sandboxes => World::None,
+        View::Home | View::TheDB | View::Setup | View::Sandboxes | View::Stories => World::None,
         View::Game => World::Grid,
         View::Studio => {
             let id = studio.timeline.shot_at(studio.time).and_then(|(i, _)| studio.timeline.clips[i].world.clone());

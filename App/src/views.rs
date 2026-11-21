@@ -208,6 +208,8 @@ pub fn draw(commands: &mut Commands, fonts: &crate::ui::Fonts, spec: &Spec, pare
                 row_gap: Val::Px(b.gap),
                 column_gap: Val::Px(b.gap),
                 align_items: if b.center { AlignItems::Center } else if b.start { AlignItems::FlexStart } else { AlignItems::Stretch },
+                // centred on both axes: a lone glyph in a round button sits in its middle
+                justify_content: if b.center { JustifyContent::Center } else { JustifyContent::FlexStart },
                 border_radius: BorderRadius::all(Val::Px(b.radius)),
                 ..default()
             };
@@ -277,7 +279,7 @@ fn layers(view: View) -> impl Fn(Commands, Res<crate::ui::Fonts>, Option<Res<Int
         let ids = match view {
             View::Game => &l.game,
             View::Studio => &l.studio,
-            View::Home | View::TheDB | View::Setup | View::Sandboxes => return,
+            View::Home | View::TheDB | View::Setup | View::Sandboxes | View::Stories => return,
         };
         for id in ids {
             if let Some(v) = read(id) {
