@@ -180,7 +180,10 @@ agents watching telemetry. Signing is not described there; here every merge is s
 - [ ] 1c′ · The MCP inside the host, reached over iroh, each session a grant passed on by its agent
 - [x] 1d · Code as Loro text and a tree doc, imported from git once; the builder's projection; git as an archive;
   host builds published from a line's code
-- [ ] 1e · Agents kept to the MCP
+- [ ] 1e · Agents kept to the MCP: `.claude/settings.json` (allow the `theos` tools; deny reading and editing `App/` and
+  `DATA/`, and `security`, `cargo`, `theDB`, theKERNEL and theMCP from the shell) and the intents skill's MCP workflow,
+  in a draft PR to merge once the code is in theDB; deny rules match command text, not programs, so they are a fence,
+  not a wall: the shell's sandbox (or the agent sandboxes postponed) is the wall
 - [ ] 2 · Touch ID by default, signed rules
 - [ ] 3 · The builder: builds by tree hash, one queue, publish from a line
 - [ ] 4 · Staging sandboxes and checks on intents
