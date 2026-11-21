@@ -946,6 +946,7 @@ pub mod bevy;
 
 pub mod access;
 pub mod build;
+pub mod conflict;
 pub mod proposals;
 pub mod lock;
 pub mod schema;

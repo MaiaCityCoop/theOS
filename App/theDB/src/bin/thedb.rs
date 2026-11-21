@@ -21,6 +21,7 @@
 //!     thedb diff <branch>               the docs a branch changes: main's version → the branch's
 //!     thedb propose <branch> <note>     a proposal to merge a branch into main, kept on the branch
 //!     thedb proposal <id>               a proposal's state and its check's output
+//!     thedb sync <line>                 main brought into a line; prints the conflicts that settled, to check
 //!     thedb proposals                   every proposal on every line (accepted or refused in theOS only, by a person)
 //!
 //! Who may write (intent 0054; keys, signatures and grants are theID's). Once a store has a master, main is written by
@@ -136,6 +137,16 @@ fn main() {
         ["proposal", id] => {
             let p = db.proposal(id).unwrap_or_else(|e| fail(&e));
             println!("{:?}  {}  from {}  ({} docs)", p.state, p.note, p.branch, p.docs.len());
+            for c in db.proposal_conflicts(id).unwrap_or_else(|e| fail(&e)) {
+                println!("  CONFLICT {c}");
+            }
+        }
+        ["sync", branch] => {
+            let settled = db.sync_line(branch).unwrap_or_else(|e| fail(&e));
+            for c in &settled {
+                println!("  settled by Loro's order, check it: {c}");
+            }
+            println!("main brought into {branch}; {} conflicts to look at", settled.len());
         }
         ["lock"] => println!("{}", db.lock().unwrap_or_else(|e| fail(&e))),
         ["lock", hash] => {

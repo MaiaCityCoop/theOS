@@ -45,6 +45,8 @@ impl Filter {
 pub struct Modal {
     pub open: bool,
     list: Vec<(String, thedb::proposals::Proposal)>,
+    /// Each open proposal's conflicts with main, in words: Accept is off while there are any.
+    conflicts: std::collections::HashMap<String, Vec<String>>,
     filter: Filter,
     error: Option<String>,
     dirty: bool,
@@ -185,6 +187,12 @@ fn click(mut ev: On<PointerClick>, acts: Query<&PillAct>, mut modal: ResMut<Moda
     modal.error = done.err();
     if modal.open {
         modal.list = db.proposals().unwrap_or_default();
+        modal.conflicts = modal
+            .list
+            .iter()
+            .filter(|(_, p)| p.state == thedb::proposals::State::Open)
+            .map(|(id, _)| (id.clone(), db.proposal_conflicts(id).map(|c| c.iter().map(|c| c.to_string()).collect()).unwrap_or_else(|e| vec![e])))
+            .collect();
     }
     modal.dirty = true;
 }
@@ -277,9 +285,24 @@ fn draw(mut commands: Commands, fonts: Res<Fonts>, overlay: Res<Overlay>, mut mo
                             card.spawn(text(&f.sans, 22.0, crate::theme::colour("forest"), p.note.clone()));
                             let docs: Vec<String> = p.docs.keys().map(|d| crate::db().meta(d).map(|m| format!("{} {}", m.0, m.1)).unwrap_or_else(|_| d.clone())).collect();
                             card.spawn(text(&f.mono, 13.0, crate::theme::colour("forest2"), format!("changes {}", docs.join(", "))));
+                            let conflicts = modal.conflicts.get(id).cloned().unwrap_or_default();
+                            if open && !conflicts.is_empty() {
+                                // never hidden: what main and the line both changed, and Accept off until the line settles it
+                                card.spawn((Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(4.0), padding: UiRect::all(Val::Px(14.0)), border_radius: BorderRadius::all(Val::Px(14.0)), ..default() }, BackgroundColor(Color::srgba(0.72, 0.22, 0.15, 0.10))))
+                                    .with_children(|c| {
+                                        c.spawn(text(&f.sans, 14.0, Color::srgb(0.62, 0.16, 0.10), format!("{} CONFLICT{} WITH MAIN · the agent runs `theDB sync {}`, settles them, proposes again", conflicts.len(), if conflicts.len() == 1 { "" } else { "S" }, p.branch)));
+                                        for line in conflicts.iter().take(6) {
+                                            c.spawn(text(&f.mono, 12.0, Color::srgb(0.45, 0.14, 0.10), line.clone()));
+                                        }
+                                    });
+                            }
                             if open {
                                 card.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(10.0), margin: UiRect::top(Val::Px(6.0)), ..default() }).with_children(|row| {
-                                    row.spawn(button("Accept", PillAct::Accept(id.clone()), crate::theme::colour("clay"), crate::theme::colour("cream")));
+                                    if conflicts.is_empty() {
+                                        row.spawn(button("Accept", PillAct::Accept(id.clone()), crate::theme::colour("clay"), crate::theme::colour("cream")));
+                                    } else {
+                                        row.spawn((Node { padding: UiRect::axes(Val::Px(18.0), Val::Px(9.0)), border_radius: BorderRadius::all(Val::Px(16.0)), ..default() }, BackgroundColor(crate::theme::colour("sand")), children![text(&f.sans, 15.0, crate::theme::colour("forest2"), "Accept: settle the conflicts first".to_string())]));
+                                    }
                                     row.spawn(button("Refuse", PillAct::Refuse(id.clone()), crate::theme::colour("sand"), crate::theme::colour("forest")));
                                 });
                             }
